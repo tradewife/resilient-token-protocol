@@ -177,16 +177,18 @@ Trading Wing          Coordinator           Audit Wing
 
 | File | Purpose |
 |------|---------|
-| `rtp/swarm/src/coordinator/router.rs` | Typed message routing between wings |
+| `rtp/swarm/src/types.rs` | Message, Payload, WingId, Priority — all swarm types |
+| `rtp/swarm/src/coordinator/mod.rs` | Multi-stage quality gate (soulguard → router → audit) |
+| `rtp/swarm/src/coordinator/router.rs` | Typed message routing with retry + proposal→audit flow |
 | `rtp/swarm/src/coordinator/soulguard.rs` | Enforce soulcontract on every message |
+| `rtp/swarm/src/coordinator/soulcontract_spec.rs` | Parse soulcontract.md → structured constraints + drift detection |
 | `rtp/swarm/src/coordinator/lifecycle.rs` | Wing spawn, health-check, retire |
-| `rtp/swarm/src/wings/trading/executor.rs` | Hyperliquid + Jupiter + Solana CPI |
-| `rtp/swarm/src/wings/trading/bridge.rs` | Python ↔ Rust typed interface |
-| `rtp/swarm/src/wings/security/` | Vulnerability scanning, threat intel, responder |
-| `rtp/swarm/src/wings/evolve/` | Assessor, proposer, rollback |
-| `rtp/swarm/src/wings/knowledge/` | Knowledge graph, ingest, recall |
-| `rtp/swarm/src/wings/audit/` | Intent compliance, safety, audit log |
-| `rtp/swarm/src/wings/futureproof/` | Quantum, deprecation, horizon scanning |
+| `rtp/swarm/src/wings/trading/mod.rs` | Stub — handles TradingConfig, needs bridge.rs (TODO) |
+| `rtp/swarm/src/wings/security/mod.rs` | Stub — heartbeat handler |
+| `rtp/swarm/src/wings/evolve/` | Assessor, proposer, rollback (complete, tested) |
+| `rtp/swarm/src/wings/knowledge/mod.rs` | Stub — query handler |
+| `rtp/swarm/src/wings/audit/mod.rs` | 3-agent tribunal (Skeptic/UserProxy/Optimizer), Byzantine consensus |
+| `rtp/swarm/src/wings/futureproof/mod.rs` | Stub — heartbeat handler |
 
 #### Solana (Treasury Program)
 
@@ -199,7 +201,9 @@ Trading Wing          Coordinator           Audit Wing
 | File | Purpose |
 |------|---------|
 | `soulcontract.md` | Constitutional governance layer — invariants, what can/cannot evolve |
-| `BUILD_PLAN.md` | Full 10-part build plan v2.1 (hackathon timeline, skill mapping, links) |
+| `BUILD_PLAN.md` | Full 10-part build plan v2.2 (hackathon timeline, links) |
+| `BUILD_PLAN_v3.md` | Post-audit remediation plan (active schedule) |
+| `docs/SECURITY_AUDIT_2026-04-07.md` | Full security audit — 18 findings with fixes |
 | `third-party-disclosure.md` | MIT framework + sponsor attributions |
 | `docs/demo-flow.md` | 3-minute hackathon demo script |
 

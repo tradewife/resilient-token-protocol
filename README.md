@@ -373,14 +373,14 @@ The Trading Wing's research layer is shipping today. Everything else is scaffold
 | Self-Correction (fast sim vs full sim calibration) | Trading | Python | **Shipping** |
 | CI Pipeline (nightly cron, auto-commit, 300min timeout) | Trading | Infra | **Shipping** |
 | SOL Optimized Config (+118.3% PnL, 78% consistency, 429 trades) | Trading | Python | **Shipping** |
-| Treasury Program (Anchor: deposit, distribute, hydrate, evolve) | — | Solana | Scaffolded |
-| soulcontract.md (constitutional governance layer) | — | Governance | Defined |
-| Coordinator + Wing Message Bus | — | Rust | Design phase |
-| Security Wing | Security | Rust | Design phase |
-| Evolve Wing | Evolve | Rust | Design phase |
-| Knowledge Wing | Knowledge | Rust | Design phase |
-| Audit Wing | Audit | Rust | Design phase |
-| Future-proof Wing | Future-proof | Rust | Design phase |
+| Treasury Program (Anchor: deposit, distribute, hydrate, evolve) | — | Solana | **Built** (audit in progress) |
+| soulcontract.md (constitutional governance layer) | — | Governance | **Defined** |
+| Coordinator (soulguard + router + lifecycle) | — | Rust | **Built** (88 tests) |
+| Evolve Wing (assessor + proposer + rollback) | Evolve | Rust | **Built** (88 tests) |
+| Audit Wing (3-agent tribunal, Byzantine consensus) | Audit | Rust | **Built** (88 tests) |
+| Security Wing | Security | Rust | Stub |
+| Knowledge Wing | Knowledge | Rust | Stub |
+| Future-proof Wing | Future-proof | Rust | Stub |
 
 ## Project Structure
 
@@ -389,50 +389,32 @@ rtp/
 ├── swarm/                           # Rust swarm runtime
 │   ├── Cargo.toml
 │   ├── src/
-│   │   ├── coordinator/            # Wing message bus + soulcontract enforcement
-│   │   │   ├── mod.rs
-│   │   │   ├── router.rs           # Typed message routing between wings
+│   │   ├── lib.rs
+│   │   ├── types.rs                # Message, Payload, WingId, Priority
+│   │   ├── coordinator/
+│   │   │   ├── mod.rs              # Multi-stage quality gate pipeline
+│   │   │   ├── router.rs           # Typed routing, retry, proposal→audit flow
 │   │   │   ├── soulguard.rs        # Enforce soulcontract on every message
+│   │   │   ├── soulcontract_spec.rs # Parse soulcontract.md → constraints
 │   │   │   └── lifecycle.rs        # Wing spawn, health-check, retire
-│   │   ├── wings/
-│   │   │   ├── trading/            # Yield generation + execution
-│   │   │   │   ├── mod.rs
-│   │   │   │   ├── executor.rs     # Hyperliquid + Jupiter + Solana CPI
-│   │   │   │   ├── monitor.rs      # Degradation detection, recalibration
-│   │   │   │   └── bridge.rs       # Python ↔ Rust typed interface
-│   │   │   ├── security/           # Threat detection + defense
-│   │   │   │   ├── mod.rs
-│   │   │   │   ├── scanner.rs      # Vulnerability scanning (deps + on-chain)
-│   │   │   │   ├── threat_intel.rs # Advisory ingestion, exploit monitoring
-│   │   │   │   └── responder.rs    # Automated containment + rollback
-│   │   │   ├── evolve/             # Self-modification + adaptation
-│   │   │   │   ├── mod.rs
-│   │   │   │   ├── assessor.rs     # Performance benchmarking
-│   │   │   │   ├── proposer.rs     # Architecture change proposals
-│   │   │   │   └── rollback.rs     # Revert within minutes
-│   │   │   ├── knowledge/          # Realtime knowledge graph
-│   │   │   │   ├── mod.rs
-│   │   │   │   ├── ingest.rs       # Market data + research + events
-│   │   │   │   ├── graph.rs        # Knowledge store + cross-wing queries
-│   │   │   │   └── recall.rs       # Institutional memory retrieval
-│   │   │   ├── audit/              # Efficiency + safety + intent compliance
-│   │   │   │   ├── mod.rs
-│   │   │   │   ├── intent.rs       # Drift detection, purpose alignment
-│   │   │   │   ├── safety.rs       # Invariant verification, risk budget
-│   │   │   │   └── log.rs          # Full causal chain, queryable audit trail
-│   │   │   └── futureproof/        # Quantum + existential monitoring
-│   │   │       ├── mod.rs
-│   │   │       ├── quantum.rs      # Post-quantum crypto tracking
-│   │   │       ├── deprecation.rs  # Runtime + dependency lifecycle
-│   │   │       └── horizon.rs      # Regulatory + disruption scanning
-│   │   └── lib.rs
-│   └── tests/
+│   │   └── wings/
+│   │       ├── trading/mod.rs      # Stub — TradingConfig handler
+│   │       ├── security/mod.rs     # Stub — heartbeat handler
+│   │       ├── evolve/
+│   │       │   ├── mod.rs          # Darwinian loop orchestration
+│   │       │   ├── assessor.rs     # Treasury-native performance scoring
+│   │       │   ├── proposer.rs     # SPARC-inspired proposal lifecycle
+│   │       │   └── rollback.rs     # Auto-revert on >5% degradation
+│   │       ├── knowledge/mod.rs    # Stub — query handler
+│   │       ├── audit/mod.rs        # 3-agent tribunal (Byzantine consensus)
+│   │       └── futureproof/mod.rs  # Stub — heartbeat handler
 │
 ├── programs/                        # Solana (Anchor)
 │   └── rtp-treasury/              # Deposit, distribute, hydrate, evolve
 │
 ├── soulcontract.md                  # Constitutional governance
-├── BUILD_PLAN.md                   # Full build plan v2.1
+├── BUILD_PLAN.md                   # Full build plan v2.2
+├── BUILD_PLAN_v3.md                # Post-audit remediation plan
 ├── third-party-disclosure.md        # MIT framework disclosures
 ├── data/
 │   ├── ohlcv/
@@ -460,34 +442,30 @@ The Python fractal-swarm — already running, already profitable, already autono
 - Self-correction (calibration + discrepancy detection)
 - CI pipeline (nightly cron, auto-commit)
 
-### Phase 1: Swarm Skeleton + Trading Wing on Rust (Hackathon Target)
+### Phase 1: Treasury + Coordinator + Core Wings (Current)
 
-Wire the Coordinator, soulcontract enforcement, and the Trading Wing bridge — Python research proposes, Rust executes.
+Treasury program, Coordinator, Evolve Wing, and Audit Wing are built. Security audit completed — fixing critical findings before demo.
 
-- Coordinator + typed message bus + soulguard
-- Trading Wing Rust executor (Hyperliquid + Jupiter)
-- Python ↔ Rust typed interface
-- Treasury program on devnet (Anchor)
-- Security Wing stub (basic vulnerability scanning)
-- Audit Wing stub (intent compliance on every message)
-- Demo: research in Python → proposal → audit → execute on Solana
+- ✅ Coordinator + typed message bus + soulguard + spec-based drift detection
+- ✅ Evolve Wing (assessor + proposer + rollback with 5% degradation threshold)
+- ✅ Audit Wing (3-agent tribunal: Skeptic/UserProxy/Optimizer, Byzantine consensus)
+- ✅ Treasury program on devnet (Anchor 1.0)
+- 🔧 Treasury audit remediation (3 CRITICAL, 5 HIGH — see `docs/SECURITY_AUDIT_2026-04-07.md`)
+- ⬜ Python ↔ Rust typed bridge (`bridge.rs`)
+- ⬜ Trading Wing beyond stub
 
-### Phase 2: Knowledge + Evolve Wings
+### Phase 2: All Wings Functional + Full Loop
 
-Give the swarm memory and the ability to improve itself.
+Wire remaining wings and complete the end-to-end demo flow.
 
-- Knowledge Wing (market data + strategy memory + research ingestion)
-- Evolve Wing (performance assessment + architecture proposals + rollback)
-- Cross-wing queries (any wing asks "what do we know about X?")
-- Strategy lifecycle managed by Evolve Wing
+- Knowledge Wing (in-memory store + cross-wing queries)
+- Security Wing (threat detection + rate limiting)
+- Trading Wing executor (bridge.rs → Python binary → typed JSON proposals)
+- Full loop: Python proposes → Audit tribunal → Coordinator routes → execute on Solana
 
-### Phase 3: Security + Future-proof Wings
+### Phase 3: Polish + Submission
 
-Make the swarm defensible and future-aware.
-
-- Security Wing (threat intelligence + runtime defense + incident response)
-- Future-proof Wing (quantum monitoring + deprecation tracking + regulatory horizon)
-- Automated containment + rollback on security events
+Demo rehearsal, video, hardening, Colosseum submission by May 11.
 
 ### Phase 4: Eternal Autonomy
 
