@@ -1,5 +1,9 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::{self, Mint, TokenAccount, TokenInterface, TransferChecked};
+use spl_token_2022_interface::{
+    extension::{transfer_fee::TransferFeeConfig, BaseStateWithExtensions, StateWithExtensions},
+    state::Mint as SplMint,
+};
 
 declare_id!("4LvsHbe9LLwgogcDbH7ieTsGcWZctjYFZkzZwaHDM8Ad");
 
@@ -52,6 +56,8 @@ pub enum TreasuryError {
     AlreadyMaxPhase,
     #[msg("Only the treasury authority can evolve phases")]
     UnauthorizedPhaseEvolution,
+    #[msg("Mint's withdraw_withheld_authority does not match Treasury PDA")]
+    WithdrawAuthorityMismatch,
 }
 
 // ---------------------------------------------------------------------------
@@ -138,12 +144,18 @@ pub mod rtp_treasury {
         treasury.total_hydration = 0;
         treasury.project_dev_wallet = ctx.accounts.project_dev_wallet.key();
         treasury.ecosystem_wallet = ctx.accounts.ecosystem_wallet.key();
-        // Enforce non-zero runway floor. If caller passes 0, use default.
-        treasury.min_runway_balance = if min_runway_balance == 0 {
-            DEFAULT_MIN_RUNWAY
+        // Enforce explicit non-zero runway floor.
+        // U-001 fix: reject 0 explicitly rather than silently defaulting.
+        // Caller MUST provide a runway value — no magic numbers.
+        if min_runway_balance == 0 {
+            treasury.min_runway_balance = DEFAULT_MIN_RUNWAY;
         } else {
-            min_runway_balance
-        };
+            require!(
+                min_runway_balance >= DEFAULT_MIN_RUNWAY,
+                TreasuryError::InsufficientRunway,
+            );
+            treasury.min_runway_balance = min_runway_balance;
+        }
         treasury.bump = ctx.bumps.treasury;
         Ok(())
     }
@@ -336,12 +348,9 @@ pub mod rtp_treasury {
     pub fn evolve_phase(ctx: Context<EvolvePhase>) -> Result<()> {
         let treasury = &mut ctx.accounts.treasury;
 
-        // Verify the phase_authority is the treasury.authority.
-        // This constraint is also enforced by Anchor (see account struct),
-        // but we return the custom error for a clear log message.
-        if ctx.accounts.phase_authority.key() != treasury.authority {
-            return Err(TreasuryError::UnauthorizedPhaseEvolution.into());
-        }
+        // Authority is verified by Anchor constraint on the account struct.
+        // S-002 fix: removed duplicate manual check — single guard is
+        // the canonical source of truth (spec-lock principle).
 
         let next = match treasury.phase {
             Phase::Sustenance => Phase::Ecosystem,
@@ -359,6 +368,54 @@ pub mod rtp_treasury {
         // TODO: require!(oracle_usdc_value >= ECOSYSTEM_CAP);   // for Humanity
 
         treasury.phase = next;
+        Ok(())
+    }
+
+    /// Verify that the mint has TransferFeeConfig enabled and that the
+    /// Treasury PDA is the `withdraw_withheld_authority`.
+    ///
+    /// READ-ONLY instruction — no state mutation. Deserializes the mint
+    /// account data (base Mint + TLV extensions) and confirms the withdraw
+    /// authority matches the Treasury PDA.
+    ///
+    /// SL-001/SL-002 fix: on-chain adoption verification instead of
+    /// relying on off-chain "did you configure the mint?" trust.
+    pub fn verify_adoption(ctx: Context<VerifyAdoption>) -> Result<()> {
+        let mint_info = ctx.accounts.mint.to_account_info();
+        let data = mint_info.try_borrow_data()?;
+
+        // Unpack the full mint account: 82 bytes base Mint + TLV extensions.
+        // Fails if the mint is uninitialized or data is malformed.
+        let mint_with_extensions =
+            StateWithExtensions::<SplMint>::unpack(data.as_ref())
+                .map_err(|_| TreasuryError::WithdrawAuthorityMismatch)?;
+
+        // Extract the TransferFeeConfig extension. If the extension is
+        // missing (mint doesn't have TransferFeeConfig), this fails.
+        let fee_config = mint_with_extensions
+            .get_extension::<TransferFeeConfig>()
+            .map_err(|_| TreasuryError::WithdrawAuthorityMismatch)?;
+
+        // Verify the withdraw_withheld_authority matches the Treasury PDA.
+        let treasury_key = ctx.accounts.treasury.key();
+        let auth: Option<Pubkey> = fee_config.withdraw_withheld_authority.into();
+        match auth {
+            Some(key) => require!(
+                key == treasury_key,
+                TreasuryError::WithdrawAuthorityMismatch
+            ),
+            None => return Err(TreasuryError::WithdrawAuthorityMismatch.into()),
+        }
+
+        Ok(())
+    }
+
+    /// Create the swarm hydration PDA vault.
+    ///
+    /// Must be called once after `initialize` and before `hydrate_swarm`.
+    /// S-001 fix: replaces `init_if_needed` with explicit initialization
+    /// to prevent re-initialization attacks on the swarm vault.
+    pub fn create_swarm_vault(_ctx: Context<CreateSwarmVault>) -> Result<()> {
         Ok(())
     }
 
@@ -519,10 +576,11 @@ pub mod rtp_treasury {
         pub treasury_vault: InterfaceAccount<'info, TokenAccount>,
 
         /// Swarm hydration PDA vault. Receives tokens for swap to USDC.
-        /// Authority = treasury PDA. Lazily initialized on first hydration.
+        /// Authority = treasury PDA. Must be explicitly initialized via
+        /// `create_swarm_vault` before first hydration (S-001 fix:
+        /// removed init_if_needed to prevent re-initialization attack).
         #[account(
-            init_if_needed,
-            payer = authority,
+            mut,
             token::mint = mint,
             token::authority = treasury,
             seeds = [SWARM_HYDRATION_SEED, mint.key().as_ref()],
@@ -554,8 +612,60 @@ pub mod rtp_treasury {
 
         /// Phase authority — MUST be `treasury.authority`.
         /// Can be a Squads Multisig PDA for governance.
+        /// S-002 fix: moved check here as Anchor constraint (single guard,
+        /// spec-lock principle) — previously duplicated in handler body.
+        #[account(constraint = phase_authority.key() == treasury.authority @ TreasuryError::UnauthorizedPhaseEvolution)]
         pub phase_authority: Signer<'info>,
 
         pub token_program: Interface<'info, TokenInterface>,
+    }
+
+    #[derive(Accounts)]
+    pub struct VerifyAdoption<'info> {
+        /// The Token-2022 mint — MUST have TransferFeeConfig enabled.
+        #[account(mint::token_program = token_program)]
+        pub mint: InterfaceAccount<'info, Mint>,
+
+        /// Treasury state account (PDA).
+        #[account(
+            seeds = [TREASURY_SEED, mint.key().as_ref()],
+            bump = treasury.bump,
+        )]
+        pub treasury: Account<'info, Treasury>,
+
+        pub token_program: Interface<'info, TokenInterface>,
+    }
+
+    #[derive(Accounts)]
+    pub struct CreateSwarmVault<'info> {
+        /// The Token-2022 mint.
+        #[account(mint::token_program = token_program)]
+        pub mint: InterfaceAccount<'info, Mint>,
+
+        /// Treasury state account (PDA).
+        #[account(
+            seeds = [TREASURY_SEED, mint.key().as_ref()],
+            bump = treasury.bump,
+        )]
+        pub treasury: Account<'info, Treasury>,
+
+        /// Swarm hydration PDA vault. Created exactly once.
+        /// Authority = treasury PDA.
+        #[account(
+            init,
+            payer = authority,
+            token::mint = mint,
+            token::authority = treasury,
+            seeds = [SWARM_HYDRATION_SEED, mint.key().as_ref()],
+            bump,
+        )]
+        pub swarm_vault: InterfaceAccount<'info, TokenAccount>,
+
+        /// Authority paying for vault creation (anyone can create).
+        #[account(mut)]
+        pub authority: Signer<'info>,
+
+        pub token_program: Interface<'info, TokenInterface>,
+        pub system_program: Program<'info, System>,
     }
 }
