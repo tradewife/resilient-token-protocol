@@ -1,0 +1,24 @@
+[package]
+name = "rtp-treasury"
+version = "0.1.0"
+description = "Resilient Token Protocol — PDA-owned treasury with fee withdrawal, redistribution, swarm hydration, and phase evolution"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "rtp_treasury"
+
+[features]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+cpi = ["no-entrypoint"]
+default = []
+idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
+
+[dependencies]
+anchor-lang = { version = "1.0.0", features = ["init-if-needed"] }
+anchor-spl = "1.0.0"
+
+[profile.release]
+overflow-checks = true

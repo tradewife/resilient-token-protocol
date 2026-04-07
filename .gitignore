@@ -41,3 +41,9 @@ Thumbs.db
 credentials.json
 *.pem
 *.key
+
+# --- Anchor / Solana build artifacts ---
+target/
+anchor/target/
+**/target/deploy/*.json
+node_modules/
