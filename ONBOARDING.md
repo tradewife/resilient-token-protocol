@@ -1,6 +1,12 @@
 # RTP — Resilient Token Protocol: Agent Onboarding
 
-You are starting work on the Resilient Token Protocol (RTP), a Solana-native, self-funding treasury governed by a modular Rust swarm. This file is your starting context. Read it, then read CLAUDE.md and BUILD_PLAN.md for the full picture.
+You are starting work on the Resilient Token Protocol (RTP), a Solana-native, self-funding treasury governed by a modular Rust swarm.
+
+## Your First Task
+
+Read this file for full context, then read `soulcontract.md`, `BUILD_PLAN.md`, and `CLAUDE.md` in that order. After reading all three, scaffold the Treasury program at `rtp/programs/rtp-treasury/` with the four Anchor instructions: `withdraw_fees`, `check_redistribute`, `hydrate_swarm`, `evolve_phase`. Start with the Anchor project init and the Treasury state account struct.
+
+Do not ask permission. Read the files, understand the constraints, and start building.
 
 ## What RTP Is (in one paragraph)
 
