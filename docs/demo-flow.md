@@ -4,59 +4,59 @@ Hackathon demo script for RTP (Resilient Token Protocol).
 
 ## Setup
 
-- Devnet RPC running (Triton One free tier)
+- Devnet RPC running
 - Phantom wallet connected (CASH enabled)
-- Treasury PDA deployed with test funds
-- Night shift results visible (from latest run)
+- Treasury PDA deployed with test USDC
+- Mock token with TransferFeeConfig enabled
+- Night shift results visible
 
 ## Script
 
-### 0:00 — Hook (15 seconds)
+### 0:00 — The Hook (15 seconds)
 
-"This is RTP — a Solana treasury that generates its own yield, funds its own operations, and runs forever. Six autonomous wings govern it. No human needed for day-to-day."
+"Every day on Solana, tokens rug. Not because the tech fails, but because 'don't rug' is a social promise — and social promises are cheap. RTP makes it code. Any token that adopts RTP structurally cannot rug. Here's how."
 
-### 0:15 — The Research Engine (30 seconds)
+### 0:15 — Adoption (30 seconds)
 
-Show terminal: `data/night_results/latest/report.md`
+Show: mock token creation with TransferFeeConfig pointing to RTP Treasury PDA.
 
-"Last night, while we slept, the yield brain tested 30,000 strategy configurations across 9 independent validation windows. The best one: +118% PnL, 78% consistency, 429 validated trades. This is not a backtest — these are out-of-sample walk-forward results with realistic fees and slippage."
+"A token project enables RTP. Now every trade on their token auto-routes a fee to this treasury. The fee config is immutable — it can never be revoked. The treasury is PDA-owned — there is no private key. The rug vector is gone."
 
-### 0:45 — Wing Architecture (30 seconds)
+### 0:45 — The Flywheels (30 seconds)
 
-Show: Coordinator routing a proposal through Audit Wing.
+Show: fee flowing in → treasury balance growing → floor price calculating.
 
-"The Trading Wing proposes a deployment. The Audit Wing checks it against the soulcontract — our constitutional governance layer. Every action, every transaction, every proposed change must pass. The swarm is autonomous, but never uncontrolled."
+"Those fees don't just sit there. The treasury does three things: it maintains a price floor via autonomous buybacks, it hedges with correlated SOL-shorts on Drift — which are structurally reliable because RTP tokens have no founder noise — and it deploys idle capital to yield protocols. These three flywheels compound. More fees → more buyback pressure → higher floor → stronger correlation → better hedges → more yield."
 
-### 1:15 — Fee Flow (30 seconds)
+### 1:15 — Price Defense (30 seconds)
 
-Show: pump.fun fee → Treasury PDA → redistribution on devnet.
+Show: market simulation where price dips → TWAP oracle triggers → buyback fires via Jupiter.
 
-"Token projects adopt RTP by pointing their pump.fun creator fee to our treasury PDA. Fees flow in as SOL, get converted to USDC, and the yield brain puts it to work. At threshold, it auto-redistributes: 70% to holders, 20% to dev, 10% to ecosystem."
+"The price dips. The TWAP oracle catches it. The circuit breaker checks — is this within safe bounds? Yes. The buyback fires through Jupiter. Treasury USDC buys the token. Price recovers. No human in the loop. No governance vote. Code-enforced."
 
-### 1:45 — Self-Hydration (30 seconds)
+### 1:45 — Verification (30 seconds)
 
-Show: sustenance PDA balance.
+Show: Solana Explorer with the full tx chain — fee routing, buyback CPI, circuit breaker check.
 
-"10% of yield auto-hydrates the swarm's own operations — RPC costs, transaction fees, compute. At $10k reserves generating 20-50% annual yield, ops cost is $100-200/month. The system is economically irrational to shut down."
+"Every single action is on-chain and provable. The Verifier agent publishes proof of every swap, every hedge, every buyback. You don't have to trust us. You don't have to trust a DAO vote. You verify on-chain."
 
-### 2:15 — Phased Evolution (15 seconds)
+### 2:15 — Redistribution (15 seconds)
 
-Show: phase transition logic (Sustenance → Ecosystem → Humanity).
+Show: treasury hits threshold → auto-splits to holders, dev, ecosystem.
 
-"As the treasury grows, the protocol evolves. Below $50k: pure sustenance. $50k to $1M: auto-provide liquidity to top RTP-adopting tokens. Above $1M: USDC grants to Solana public-goods projects. Each transition is irreversible, on-chain."
+"When reserves cross the threshold, it auto-redistributes. 70% to holders pro-rata, 20% to dev operations, 10% to ecosystem LP. Atomic CPI — all or nothing. Auditable on Solana Explorer."
 
-### 2:30 — What Makes This Different (15 seconds)
+### 2:30 — The One-Liner (15 seconds)
 
-- "Working yield brain — not vaporware"
-- "Constitutional governance — soulcontract enforced on every message"
-- "Self-funding — no VC dependency, no token sale"
-- "Open-source architecture, protected strategies"
+- "Token adoption is one config change — TransferFeeConfig"
+- "Defense is autonomous — no governance, no trust required"
+- "Every action is verifiable — on-chain proof, not promises"
 
 ### 2:45 — Q&A Buffer
 
-## Backup Slides
+## Backup Demos
 
-1. Fast sim calibration — how we ensure our 30K-combo grid search matches reality
-2. Self-correction architecture — three independent modules, no LLM needed
-3. Yield brain results table — all 4 symbols validated profitable
-4. Architecture diagram — full three-layer stack
+1. **Yield brain results** — "30K strategies tested last night, +118% PnL, 9-fold validation" (shows proven research engine)
+2. **Circuit breaker stress test** — simulate rapid withdrawal attempts → breaker blocks
+3. **Hedge payoff** — show SOL drawdown → Drift hedge profit → funds buybacks
+4. **Token comparison** — side-by-side: non-RTP token vs RTP token during market dump

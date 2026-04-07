@@ -1,17 +1,26 @@
 # Third-Party Disclosure
 
-RTP (Resilient Token Protocol) uses the following open-source frameworks and sponsored tools.
+RTP (Resilient Token Protocol) uses the following open-source frameworks, protocols, and sponsored tools.
 
 ## Open-Source Frameworks
 
 | Component | License | Source | Use in RTP |
 |-----------|---------|--------|------------|
-| atlas-gic | MIT | https://github.com/chrisworsey55/atlas-gic | Multi-agent Darwinian loop — Evolve Wing autoresearch engine |
-| karpathy/autoresearch | MIT | https://github.com/karpathy/autoresearch | Core Modify/Verify/Keep loop specification |
-| uditgoenka/autoresearch | MIT | https://github.com/uditgoenka/autoresearch | Claude-native autoresearch implementation |
-| MetaClaw | MIT | https://github.com/aiming-lab/MetaClaw | Knowledge Wing memory + human override UI |
-| revfactory/harness | MIT | https://github.com/revfactory/harness | Coordinator architecture reference |
-| autoagent | MIT | https://github.com/kevinrgu/autoagent | Wing lifecycle scaffolding (spawn, health-check, retire) |
+| atlas-gic | MIT | https://github.com/chrisworsey55/atlas-gic | Multi-agent Darwinian loop — strategy evolution |
+| karpathy/autoresearch | MIT | https://github.com/karpathy/autoresearch | Modify/Verify/Keep loop specification |
+| uditgoenka/autoresearch | MIT | https://github.com/uditgoenka/autoresearch | Claude-native implementation |
+
+## Solana Protocol Dependencies
+
+| Dependency | License | Use |
+|------------|---------|-----|
+| Anchor Framework | Apache-2.0 | Solana program framework |
+| SPL Token-2022 | Apache-2.0 | TransferFeeConfig for fee routing |
+| Pyth Network | Apache-2.0 | TWAP oracle for price floor enforcement |
+| Jupiter Aggregator | Apache-2.0 | Swap execution for buybacks + yield routing |
+| Drift Protocol | Open | Perpetual futures for correlated SOL hedging |
+| Kamino Finance | Open | Yield deployment for idle treasury capital |
+| Marginfi | Open | Yield deployment for idle treasury capital |
 
 ## Sponsored Hackathon Resources
 
@@ -19,29 +28,22 @@ RTP (Resilient Token Protocol) uses the following open-source frameworks and spo
 |---------|------|------------|
 | Phantom Connect + CASH | https://docs.phantom.app/phantom-connect/introduction | Agentic wallet for treasury interactions + CASH stablecoin flows |
 | Squads Multisig | https://docs.squads.so | Securing treasury PDA upgrade authority |
-| Swig | https://docs.swig.fi | Programmable smart wallets for wing message bus |
 | MoonPay Agents | https://www.moonpay.com/developers/agents | Agent money movement infrastructure |
 | Solana MCP | https://github.com/solana-developers/solana-mcp | AI-powered development assistant for Anchor programs |
-| Arcium | https://docs.arcium.com | Encrypted computation (stretch goal, not yet integrated) |
-
-## Solana Program Dependencies
-
-| Dependency | License | Use |
-|------------|---------|-----|
-| Anchor Framework | Apache-2.0 | Solana program framework |
-| SPL Token | Apache-2.0 | Token operations, TransferFeeConfig |
-| Solana SDK | Apache-2.0 | On-chain program development |
 
 ## Black-Box Components
 
-The following components ship as compiled binaries. Source code is not included to protect the competitive strategy moat.
+The yield brain ships as compiled binaries. Source is not included to protect the competitive strategy moat.
 
-- **night_shift.bin** — Yield brain optimizer (PyInstaller binary)
+- **night_shift.bin** — Strategy optimizer (PyInstaller binary)
 - **configs/encrypted/** — AES-encrypted strategy parameters
-- **loss_function.bin** — Treasury-native scoring function
 
-These binaries are deterministic — given the same input data and parameters, they produce identical outputs. The open-source swarm architecture interacts with them via a typed JSON interface.
+These binaries are deterministic — given the same input data and parameters, they produce identical outputs. The open-source agent swarm interacts with them via a typed JSON interface.
 
-## Contact
+## Research
+
+Pre-hackathon research and skill system design: https://github.com/tradewife/rtp-skills-research
+
+---
 
 Built for the Solana Frontier Hackathon (Colosseum × Canteen, 2026).

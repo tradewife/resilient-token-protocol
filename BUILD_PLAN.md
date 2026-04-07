@@ -1,8 +1,7 @@
 ================================================================================
   RTP — RESILIENT TOKEN PROTOCOL
-  FULL-SCOPE BUILD PLAN v2.1
-  Incorporating: swarm-planning-3.md + cldcde collection + hackathon rules
-  + frontier resources page integration links
+  FULL-SCOPE BUILD PLAN v3.0
+  "Post-governance, commitment-enforced token longevity layer"
 ================================================================================
 
 HACKATHON: Solana Frontier (Colosseum × Canteen)
@@ -11,185 +10,96 @@ PRIZES:    $300k total — $30k Grand Champion
 REGISTER:  Individual by May 4 — https://arena.colosseum.org/register
 RULES:     https://colosseum.com/legal/Solana%20Frontier%20Hackathon%20Rules.pdf
 RESOURCES:  https://colosseum.com/frontier/resources
-COPILOT:    https://arena.colosseum.org/copilot (pressure-test against 5400+ past submissions)
+COPILOT:    https://arena.colosseum.org/copilot
 
 ================================================================================
-  PART 1: WHAT WE'RE BUILDING (THE FULL SCOPE)
+  PART 1: THE PRODUCT
 ================================================================================
 
-RTP is a Solana-native, self-funding treasury governed by a modular swarm.
-Six specialized wings autonomously generate yield, defend, evolve, remember,
-audit, and future-proof — funded by their own yield, forever.
+RTP is an unruggable launch standard for Solana tokens.
 
-┌─────────────────────────────────────────────────────────┐
-│               fee flow (pump.fun SOL → PDA)             │
-│  pump.fun trades → 0.05% creator fee (SOL) → Treasury   │
-│  Hyperliquid perps → USDC yield → Treasury              │
-└──────────────────────┬──────────────────────────────────┘
-                       │
-          ┌────────────┼────────────┐
-          │            │            │
-     < threshold   = threshold   > maintenance
-     REINVEST      REDISTRIBUTE  AUTO-INVEST
-     (yield/swarm)  70/20/10     (RTP ecosystem)
-                                  │
-                          > $1M → HUMANITY FUND
-                          (USDC grants to Solana
-                           public-goods projects)
+THE PROBLEM:
+  "Don't rug" is a social promise. Social promises are cheap.
+  Every day, tokens rug on Solana. Not because tech fails — because
+  trust is not a security guarantee.
 
-SIX WINGS (Rust, independently testable, via Coordinator):
-├── Trading Wing     — yield gen + Hyperliquid/Jupiter execution
-├── Security Wing    — threat detection + defense
-├── Evolve Wing      — self-modification + adaptation
-├── Knowledge Wing   — realtime knowledge graph
-├── Audit Wing       — soulcontract enforcement + safety
-└── Future-proof Wing — quantum + existential monitoring
+THE SOLUTION:
+  Make "don't rug" a structural property of the token, enforced by code.
+  Any token project adopts RTP via TransferFeeConfig — fees auto-route
+  to a PDA-owned treasury that is constrained, circuit-breaker-protected,
+  and fully verifiable. The rug vector is eliminated at the mint level.
 
-THREE LAYERS:
-├── On-Chain (Solana/Anchor)  — Treasury PDA + CPI splits + phase evolution
-├── Swarm Runtime (Rust)       — Coordinator + wings + message bus
-└── Research Layer (Python)     — Yield brain (SHIPPING, black-boxed)
+THE PRICE EQUATION:
+  Non-RTP token price = SOL macro + founder risk + rug risk + narrative
+  RTP token price     = SOL macro + narrative
 
-PHASED EVOLUTION (irreversible, on-chain):
-├── Phase 1: Sustenance (< $50k)       — self-hydrate, reinvest
-├── Phase 2: Ecosystem ($50k–$1M)      — auto-LP top RTP tokens
-└── Phase 3: Humanity Fund (>$1M)      — USDC grants, quadratic funding
+THREE GENERATIONS OF TRUST:
+  Gen 1: Trust people     → rugs
+  Gen 2: Trust voting     → DAO capture, inefficiency
+  Gen 3: Trust commitments → RTP (rigidity is acceptable tradeoff)
+
+CORE PRIMITIVES (all on-chain, all enforced):
+  1. Fee Routing        — TransferFeeConfig → Treasury PDA (immutable)
+  2. Price Floor        — TWAP oracle + circuit breaker → autonomous buyback
+  3. Correlated Hedging — SOL-short via Drift (structurally reliable)
+  4. Circuit Breakers   — cooldown + epoch cap + velocity limit
+  5. Yield Deployment   — idle capital → Kamino/Marginfi
+  6. Verification       — every action on-chain, provable, auditable
+  7. Redistribution     — above threshold: 70% holders / 20% dev / 10% ecosystem
+
+THREE FLYWHEELS:
+  Fee Revenue → Hedge Yield → Yield/Arbitrage → compounds → buyback pressure
+       ▲                                                        │
+       └────────────────────────────────────────────────────────┘
+
+  Key insight: RTP tokens eliminate founder/rug noise → higher SOL correlation
+  → correlated hedges are more reliable → self-reinforcing property.
+
+AGENT ROLES:
+  Allocator  — reads inflows, routes funds per immutable rules
+  Executor   — swaps (Jupiter), hedging (Drift), yield (Kamino/Marginfi)
+  Verifier   — publishes proof of every action on-chain
 
 ================================================================================
-  PART 2: TECH STACK (CONFIRMED)
+  PART 2: TECH STACK
 ================================================================================
+
+ON-CHAIN:
+  Solana, Anchor (Rust), Token-2022 (TransferFeeConfig), Pyth Network (TWAP)
+
+DEFI INTEGRATIONS:
+  Jupiter Aggregator — swap execution for buybacks + yield routing
+  Drift Protocol     — perpetual futures for correlated SOL hedging
+  Kamino Finance     — yield deployment for idle treasury capital
+  Marginfi           — yield deployment for idle treasury capital
+
+MULTISIG:
+  Squads Protocol v4 — treasury PDA upgrade authority
+
+AGENT SWARM:
+  Rust, typed message bus, soulcontract enforcement, WASM sandbox
+
+RESEARCH (Python, gitignored):
+  night_shift.py — 30K configs/night, 9-fold WFA, Darwinian
+  paper_trader.py — live Binance validation
+  future_blind_simulator.py — 0.1% fees, 10bps slippage, ground truth
 
 CORE FRAMEWORKS:
-├── atlas-gic (#1)           — https://github.com/chrisworsey55/atlas-gic
-│                              multi-agent Darwinian loop → Evolve Wing
-├── karpathy/autoresearch    — https://github.com/karpathy/autoresearch
-│                              Modify/Verify/Keep loop spec
-├── uditgoenka/autoresearch  — https://github.com/uditgoenka/autoresearch
-│                              Claude-native implementation
-├── MetaClaw                 — https://github.com/aiming-lab/MetaClaw
-│                              Knowledge Wing + human override UI
-├── revfactory/harness       — https://github.com/revfactory/harness
-│                              Coordinator architecture reference
-└── autoagent                — https://github.com/kevinrgu/autoagent
-                              lifecycle/scaffolding boilerplate
+  atlas-gic (#1)           — https://github.com/chrisworsey55/atlas-gic
+                              Darwinian loop for strategy evolution
+  karpathy/autoresearch    — https://github.com/karpathy/autoresearch
+                              Modify/Verify/Keep specification
+  uditgoenka/autoresearch  — https://github.com/uditgoenka/autoresearch
+                              Claude-native implementation
 
 SPONSORED HACKATHON RESOURCES:
-├── Phantom Connect + CASH   — https://docs.phantom.app/phantom-connect/introduction
-│                              agentic wallet + stablecoin treasury flows
-│                              Get Started: https://phantom.app/phantom-connect
-│                              React Template: https://github.com/phantom-labs/phantom-connect-react
-│                              JS Template: https://github.com/phantom-labs/phantom-connect-js
-│                              CASH: https://phantom.app/cash
-│                              Phantom MCP Server: (agentic use cases)
-├── Squads Multisig          — https://docs.squads.so
-│                              Security Wing + PDA upgrade authority
-│                              Get Started: https://squads.so
-│                              Altitude (financial ops): https://altitude.finance
-│                              Altitude on X: https://x.com/AltitudeFi
-├── Swig                     — https://docs.swig.fi
-│                              programmable smart wallets (wing message bus)
-│                              Overview: https://docs.swig.fi/overview
-│                              TypeScript SDK: https://docs.swig.fi/typescript-sdk
-│                              TypeScript SDK Tutorial: https://docs.swig.fi/typescript-sdk/tutorial
-│                              Rust SDK: https://docs.swig.fi/rust-sdk
-│                              Developer Portal: https://portal.swig.fi
-├── MoonPay Agents           — https://www.moonpay.com/developers/agents
-│                              agent money movement infra
-│                              npm: npm install -g @moonpay/cli
-│                              Skills repo: https://github.com/moonpay/agents-skills
-├── Solana MCP               — https://github.com/solana-developers/solana-mcp
-│                              AI dev assistant for Anchor
-│                              AI-powered documentation search + Anchor guidance
-├── Arcium                   — https://docs.arcium.com
-│                              encrypted computation (optional stretch)
-│                              Developer Docs: https://docs.arcium.com
-│                              Arcis Rust Framework: https://docs.arcium.com/arcis/getting-started
-│                              Purple Paper: https://docs.arcium.com/resources/purple-paper
-│                              RFP: https://docs.arcium.com/resources/request-for-products
-└── Reflect                  — https://reflect.finance/docs
-                              credibly-neutral stablecoin strategies (reference)
-                              SDK: https://github.com/reflectmoney/stable.ts
+  Phantom Connect + CASH   — https://docs.phantom.app/phantom-connect/introduction
+  Squads Multisig          — https://docs.squads.so
+  MoonPay Agents           — https://www.moonpay.com/developers/agents
+  Solana MCP               — https://github.com/solana-developers/solana-mcp
+  Arcium                   — https://docs.arcium.com (stretch)
 
-NOT USING:
-├── World Coin — toxic sentiment, skip entirely
-├── Privy — not yet available (coming soon)
-└── Coinbase — not yet available (coming soon)
-
-EXISTING SHIPPING CODE (black-boxed):
-├── night_shift.py           — 30K configs/night, 9-fold WFA, Darwinian
-├── paper_trader.py          — live Binance, ADX filter
-├── future_blind_simulator   — 0.1% fees, 10bps slippage, ground truth
-├── evaluator_calibration    — fast/full sim calibration
-├── discrepancy_detector     — divergence detection
-└── SOL config (+118.3% PnL, 78% consistency, 429 trades)
-
-================================================================================
-  PART 2B: SOLANA DEVELOPMENT RESOURCES (from hackathon page)
-================================================================================
-
-START HERE:
-├── Introduction to Solana Development
-│   https://solana.com/developers/docs/intro
-├── Important Concepts
-│   https://solana.com/developers/docs/core-concepts
-├── Setup Your Environment
-│   https://solana.com/developers/docs/setup
-└── Hello World
-    https://solana.com/developers/docs/hello-world
-
-DEV STARTER PACK:
-├── Solana Playground (browser IDE)
-│   https://play.solana.com
-├── create-solana-dapp (scaffold in minutes)
-│   https://github.com/solana-developers/create-solana-dapp
-└── npx create-solana-dapp@latest
-
-ANCHOR:
-├── Intro to Anchor
-│   https://www.anchor-lang.com/docs/introduction
-├── Build a CRUD dApp
-│   https://solana.com/developers/crud
-├── Solana Program Examples (Anchor, Rust, Python)
-│   https://github.com/solana-developers/program-examples
-└── Solana MCP (AI assistant for Anchor)
-    https://github.com/solana-developers/solana-mcp
-
-GUIDES + COURSES:
-├── Solana Cookbook
-│   https://solanacookbook.com
-├── Solana Bootcamp (7-hour crash course)
-│   https://www.solana.com/developers/courses
-├── Solana Bytes (byte-sized video playlist)
-│   https://www.solana.com/developers/videos
-└── FreeCodeCamp Interactive Solana Course
-    https://www.freecodecamp.org/learn
-
-AGENT TOOLING:
-├── Solana Agent Skills (pre-built skills for AI agents)
-│   https://github.com/solana-developers/solana-agent-skills
-└── Solana MCP (AI dev assistant)
-    https://github.comsolana-developers/solana-mcp
-
-TOKEN + PAYMENT:
-├── SPL Token Extensions (TransferFeeConfig for pump.fun integration)
-│   https://solana.com/docs/tokens/extensions/transfer-fees
-├── Metaplex (NFTs)
-│   https://docs.metaplex.com
-├── Solana Pay (payments)
-│   https://solanapay.com
-└── Solana Actions & Blinks (shareable tx interfaces)
-    https://solana.com/docs/advanced/blinks
-
-GOVERNANCE / DAOs:
-├── Realms Docs (DAO tooling)
-│   https://docs.realms.today
-└── Quadratic Funding (Cubik — for Phase 3 humanity fund)
-    https://solanacompass.com/projects/cubik
-
-RPC:
-├── Triton One (recommended, free private devnet/testnet)
-│   https://triton.one
-└── Devnet & Testnet always free
+NOT USING: World Coin (toxic sentiment)
 
 ================================================================================
   PART 3: JUDGING CRITERIA → RTP STRENGTH MAPPING
@@ -197,431 +107,268 @@ RPC:
 
 | Criterion        | RTP Delivers                                           |
 |------------------|--------------------------------------------------------|
-| Functionality    | Live demo: deposit→swarm→yield→redistribute on devnet  |
-| Potential Impact | Eternal treasury → public goods fund → humanity       |
-| Novelty          | 6-wing swarm + soulcontract + ATLAS Darwinian loop     |
-| UX               | Phantom Connect + CASH wallet flows                   |
-| Open-source      | Full swarm arch + treasury program (MIT)               |
-| Business Plan    | pump.fun fees → self-funding → ecosystem flywheel     |
+| Functionality    | Live: token adopts RTP → fee → buyback → verify on devnet|
+| Potential Impact | Every Solana token can adopt — unruggable standard       |
+| Novelty          | Post-governance commitment enforcement, correlated hedge |
+| UX               | 3-min demo: adopt → trade → defend → verify             |
+| Open-source      | Full swarm + treasury program (MIT)                     |
+| Business Plan    | Fee routing → self-funding → ecosystem flywheel          |
 
 BLACK-BOX / OPEN-SOURCE SPLIT:
-  ✅ OPEN: swarm architecture, treasury program, soulcontract, wing interfaces
+  ✅ OPEN: swarm architecture, treasury program, soulcontract, agent interfaces
   ❌ BOXED: Python yield brain (binary), encrypted configs, loss function
 
 ================================================================================
-  PART 4: CLDCDE SKILL MAPPING (REVISED FULL SCOPE)
+  PART 4: CLDCDE SKILL MAPPING
 ================================================================================
 
-Every cldcde skill mapped to its specific RTP use case, build phase, and
-priority. Only skills with direct applicability are included.
+Only skills with direct applicability to the token longevity product:
 
-─────────────────────────────────────────────────────────────────────────────────
-  TIER 1: CRITICAL (used across multiple wings, needed Week 1)
-─────────────────────────────────────────────────────────────────────────────────
+TIER 1: CRITICAL (needed Week 1)
+  swarm-orchestration       — Coordinator message bus design
+  hive-mind-advanced        — Consensus topology for agent coordination
+  spec-lock                 — soulcontract = spec. Implementation never drifts.
+  red-team-tribunal         — 3-agent adversarial review for Verifier agent
+  compound-engineering      — Meta-orchestration of audit pipeline
+  verification-quality      — Truth scoring + automatic rollback (Verifier core)
 
-  SKILL                     WING(S)         USE IN RTP
-  ─────────────────────────────────────────────────────────────────────────────
-  swarm-orchestration       Coordinator     Design Coordinator message bus,
-                                             wing routing, fault tolerance,
-                                             dynamic topology. Model each wing
-                                             as a swarm agent.
+TIER 2: HIGH (core agent functionality, Weeks 1-2)
+  agentdb-memory-patterns   — Institutional memory for trades + decisions
+  agentdb-advanced          — Distributed knowledge coordination
+  reasoningbank-agentdb     — Adaptive learning from outcomes
+  agentdb-learning          — RL algorithms for strategy improvement
+  sparc-methodology         — soulcontract amendment format
+  ultra-planner              — Strategic planning for architecture proposals
+  debt-sentinel             — Anti-pattern detection → circuit breaker model
+  swarm-advanced            — Distributed workflow patterns for agents
+  stream-chain              — Sequential pipeline: proposal → audit → execute
+  fpef-analyzer             — Find-Prove-Evidence-Fix for incident response
 
-  hive-mind-advanced        Coordinator     Queen-worker consensus topology.
-                                             Coordinator=queen, wings=workers.
-                                             Maps to Audit Wing approval flow.
+TIER 3: MEDIUM (supporting infrastructure, Weeks 2-3)
+  hooks-automation          — Message routing as hooks (pre/post check)
+  performance-analysis      — Agent benchmarking + self-assessment
+  github-workflow-automation — CI with Rust tests + Anchor builds
+  github-release-management  — Release with rollback capability
+  ae-ltd-skill-builder      — Build custom RTP skills for Claude Code
+  flow-nexus-swarm          — Event-driven wing proposal processing
+  mcp-universal-manager     — Monitor MCP servers (Phantom, Solana, MoonPay)
 
-  spec-lock                 Audit + All      soulcontract = spec. Spec-Lock
-                                             ensures implementation never
-                                             drifts from governance without
-                                             detection. Critical invariant.
-
-  red-team-tribunal         Audit           3-agent adversarial review
-                                             (Skeptic + User Proxy + Optimizer).
-                                             IS the Audit Wing's review pattern.
-                                             Every wing proposal must pass.
-
-  compound-engineering      Audit           Meta-orchestration: coordinates
-                                             Debt-Sentinel + Red Team +
-                                             Spec-Lock into unified workflow.
-
-  verification-quality      Audit           Truth scoring (0.95 threshold) +
-                                             automatic rollback. Maps to
-                                             Audit Wing's safety.rs.
-
-─────────────────────────────────────────────────────────────────────────────────
-  TIER 2: HIGH (core wing functionality, needed Weeks 1-2)
-─────────────────────────────────────────────────────────────────────────────────
-
-  SKILL                     WING(S)         USE IN RTP
-  ─────────────────────────────────────────────────────────────────────────────
-  agentdb-memory-patterns   Knowledge       Institutional memory for the
-                                             swarm. Session memory for
-                                             trades, long-term for strategy
-                                             history, pattern learning.
-
-  agentdb-advanced          Knowledge       Distributed multi-database
-                                             coordination. Market data +
-                                             strategy results + security
-                                             events + architectural decisions.
-
-  reasoningbank-agentdb     Knowledge       Adaptive learning from trading
-                                             outcomes. Trajectory tracking,
-                                             verdict judgment, memory
-                                             distillation. Knowledge Wing
-                                             compounds knowledge across
-                                             iterations.
-
-  agentdb-learning          Evolve          9 RL algorithms (Decision Transformer,
-                                             Q-Learning, Actor-Critic).
-                                             Evolve Wing's self-improvement.
-
-  sparc-methodology         Evolve          THE methodology for soulcontract
-                                             amendments + Evolve Wing proposals.
-                                             Specify → Pseudocode → Architect
-                                             → Refine → Complete. Every change
-                                             follows SPARC.
-
-  ultra-planner              Evolve          Strategic planning for Evolve Wing
-                                             architecture proposals.
-
-  debt-sentinel             Security        Anti-pattern detection with hooks.
-                                             Model for Runtime Defense —
-                                             detect anomalous tx patterns.
-
-  swarm-advanced            Coordinator     Distributed workflow patterns.
-                                             Wings operating concurrently:
-                                             Trading executing + Security
-                                             scanning + Knowledge ingesting.
-
-  stream-chain              Coordinator    Sequential pipeline: proposal →
-                                             audit → approve → execute as
-                                             typed chain.
-
-  fpef-analyzer             Security+Evolve  Find-Prove-Evidence-Fix for
-                                             incident response + degradation
-                                             root cause analysis.
-
-─────────────────────────────────────────────────────────────────────────────────
-  TIER 3: MEDIUM (supporting infrastructure, Weeks 2-3)
-─────────────────────────────────────────────────────────────────────────────────
-
-  SKILL                     WING(S)         USE IN RTP
-  ─────────────────────────────────────────────────────────────────────────────
-  hooks-automation          Coordinator     Model message routing as hooks:
-                                             every message triggers pre-check
-                                             (Audit) and post-check (logging).
-
-  performance-analysis      Evolve          Wing performance benchmarking.
-                                             Self-assessment pattern for
-                                             identifying what to evolve.
-
-  github-workflow-automation Infra           Extend night shift CI to include
-                                             Rust tests, Anchor builds, swarm
-                                             integration tests.
-
-  github-release-management  Evolve          Release orchestration with rollback.
-                                             Maps to Evolve Wing rollback pattern.
-
-  ae-ltd-skill-builder      Dev             Build custom RTP-specific skills
-                                             for Claude Code development.
-
-  flow-nexus-swarm          Coordinator     Event-driven workflow automation
-                                             for wing proposal processing.
-
-  mcp-universal-manager     Dev             Auto-discover and monitor MCP
-                                             servers (Phantom MCP, Solana MCP,
-                                             MoonPay skills).
-
-─────────────────────────────────────────────────────────────────────────────────
-  TIER 4: LOW (nice-to-have, Week 4-5 polish)
-─────────────────────────────────────────────────────────────────────────────────
-
-  SKILL                     WING(S)         USE IN RTP
-  ─────────────────────────────────────────────────────────────────────────────
-  prologue                  Dev             Navigate all tools during dev.
-
-  ae-proof-agent            Dev             Competitive analysis for hackathon
-                                             positioning (vs other submissions).
-
-  agentic-jujutsu           Trading         Version control for AI agents.
-                                             Strategy lifecycle tracking.
-
-  skill-builder             Dev             Build additional custom skills.
-
-  multi-platform-architect  Dev             Cross-platform if extending beyond
-                                             Claude Code.
-
-─────────────────────────────────────────────────────────────────────────────────
-  NOT RELEVANT (ignore for this project)
-─────────────────────────────────────────────────────────────────────────────────
-
-  banana, d3mo-generator, remotion-best-practices, puppeteer-stealth,
-  avant-garde-frontend-architect, blender-3d-studio, youtube-creator,
-  youtube-creator-pro, notebooklm-pro, obs-studio-control, n8n-workflow,
-  context7-docs, create-worktrees, mutation-tester, sota-template-suite,
-  viral-automation-suite, visual-regression, fartnode-orchestrator-suite,
-  emergent-capability-suite, google-labs-extension, remote-visual-debugger,
-  bd-management, agent-zero-brain, opencode, all flow-nexus-* except swarm,
-  all ae-ltd-* except skill-builder, all github-* except workflow+release,
-  pair-programming, hyperliquid-risk-monitor (deleted — fabricated metrics)
+TIER 4: LOW (polish, Weeks 4-5)
+  prologue                  — Ecosystem navigation during final dev
+  ae-proof-agent            — Competitive analysis for hackathon positioning
+  agentic-jujutsu           — Strategy lifecycle version control
+  skill-builder             — Build additional custom skills
+  multi-platform-architect  — Cross-platform if extending beyond Claude Code
 
 ================================================================================
-  PART 5: 5-WEEK BUILD PLAN (HACKATHON TIMELINE)
+  PART 5: 5-WEEK BUILD PLAN
 ================================================================================
 
-WEEK 1: FOUNDATION + TREASURY
-─────────────────────────────────────────
+WEEK 1: TOKEN LONGEVITY CORE + TREASURY
+───────────────────────────────────────
   Day 1-2:
-  [ ] Register individually at https://arena.colosseum.org/register (by May 4)
+  [ ] Register at https://arena.colosseum.org/register (by May 4)
   [ ] Set up dev environment:
       - Anchor: https://www.anchor-lang.com/docs/introduction
       - Solana CLI: https://solana.com/docs/installation
       - Rust: https://www.rust-lang.org/tools/install
-      - Solana Playground: https://play.solana.com
   [ ] Scaffold rtp/ directory structure per README
   [ ] CLDCDE: Use swarm-orchestration + hive-mind-advanced to design
       Coordinator architecture (message bus, soulguard, lifecycle)
 
   Day 3-4:
+  [ ] Treasury program on devnet:
+      - deposit_usdc (receive fees from TransferFeeConfig)
+      - check_floor (Pyth TWAP oracle → price floor calculation)
+      - execute_buyback (Jupiter CPI when price < floor × discount)
+      - Circuit breaker stub (cooldown + epoch cap)
+      - Anchor IDL: https://github.com/solana-developers/program-examples
   [ ] Phantom Connect integration:
-      - Integration Guide: https://docs.phantom.app/phantom-connect/introduction
-      - React Template: https://github.com/phantom-labs/phantom-connect-react
+      - https://docs.phantom.app/phantom-connect/introduction
       - CASH stablecoin: https://phantom.app/cash
-  [ ] Squads Multisig → secure treasury PDA upgrade authority:
-      - Get Started: https://docs.squads.so
-      - Altitude (treasury ops): https://altitude.finance
-  [ ] Anchor IDL stub: deposit_usdc, check_redistribute, hydrate_swarm
-      - Anchor examples: https://github.com/solana-developers/program-examples
-      - Solana MCP for AI-assisted dev: https://github.com/solana-developers/solana-mcp
-  [ ] CLDCDE: Use spec-lock to define soulcontract spec + enforcement
+  [ ] Squads Multisig → PDA upgrade authority:
+      - https://docs.squads.so
+  [ ] CLDCDE: Use spec-lock to define soulcontract + enforcement
 
   Day 5:
-  [ ] Treasury PDA on devnet — deposit → threshold → redistribute tx
-      - Free devnet RPC: https://triton.one (private devnet always free)
+  [ ] Fee routing demo: mock token → TransferFeeConfig → Treasury PDA
+  [ ] Price floor check + buyback trigger on devnet
   [ ] CLDCDE: Use red-team-tribunal to adversarial-review treasury program
-  [ ] Weekly checkpoint: Treasury CPI works on devnet
+  [ ] Weekly checkpoint: Treasury receives fees, defends floor, buyback works
 
-  DELIVERABLES: Treasury program on devnet, multisig secured, basic
-                redistribution demoable
+  DELIVERABLES: Treasury program on devnet, fee routing, floor defense demoable
 
-WEEK 2: EVOLVE WING + COORDINATOR
-─────────────────────────────────────────
+WEEK 2: AGENTS + HEDGING + VERIFIER
+────────────────────────────────────
   Day 1-2:
-  [ ] Fork ATLAS (https://github.com/chrisworsey55/atlas-gic) → replace
-      Sharpe loss fn with treasury-native metric:
-      (USDC yield / SOL reserves) × (1 - max drawdown) × wing consistency
-  [ ] karpathy/autoresearch (https://github.com/karpathy/autoresearch) →
-      spec for evolve/proposer.rs + rollback.rs
-  [ ] CLDCDE: Use sparc-methodology for Evolve Wing proposal format
+  [ ] Rust agent swarm skeleton:
+      - Coordinator (message bus + soulguard)
+      - Allocator (inflow routing per rules)
+      - Executor (Jupiter swap CPI)
+      - Verifier (on-chain proof publication)
+  [ ] Fork ATLAS (https://github.com/chrisworsey55/atlas-gic) → adapt
+      loss function for treasury-native metric
+  [ ] CLDCDE: Use sparc-methodology for agent proposal format
 
   Day 3-4:
-  [ ] uditgoenka/autoresearch (https://github.com/uditgoenka/autoresearch) →
-      wire Claude-native loop into Evolve Wing
-  [ ] revfactory/harness (https://github.com/revfactory/harness) →
-      Coordinator router + soulguard reference
-  [ ] Swig integration for wing message bus:
-      - TypeScript SDK: https://docs.swig.fi/typescript-sdk
-      - Rust SDK: https://docs.swig.fi/rust-sdk
-      - Developer Portal: https://portal.swig.fi
-  [ ] CLDCDE: Use compound-engineering to orchestrate
-      Debt-Sentinel + Red Team + Spec-Lock
+  [ ] Drift Protocol integration — correlated SOL-short hedge:
+      - Drift SDK: https://drift.trade
+      - Hedge when: treasury drawdown > threshold
+      - Unwind when: drawdown recovers + profit target hit
+  [ ] Pyth Network TWAP oracle integration:
+      - https://pyth.network
+      - Feed price to floor check CPI
+  [ ] CLDCDE: Use compound-engineering to orchestrate audit pipeline
 
   Day 5:
-  [ ] Coordinator routes typed messages between wing stubs
-  [ ] soulcontract enforced on every message
+  [ ] Full loop: fee → floor check → buyback OR hedge → verify
+  [ ] Verifier publishes proof of every action on-chain
   [ ] CLDCDE: Use verification-quality for truth-scoring + rollback
-  [ ] Weekly checkpoint: Coordinator + Evolve Wing prototype working
+  [ ] Weekly checkpoint: Agents operate treasury autonomously on devnet
 
-  DELIVERABLES: Coordinator + Evolve Wing skeleton, ATLAS-adapted loop
+  DELIVERABLES: Agent swarm skeleton, hedging integrated, Verifier operational
 
-WEEK 3: KNOWLEDGE WING + SECURITY WING
-─────────────────────────────────────────
+WEEK 3: YIELD + CIRCUIT BREAKERS + KNOWLEDGE
+────────────────────────────────────────────
   Day 1-2:
-  [ ] MetaClaw (https://github.com/aiming-lab/MetaClaw) → Knowledge Wing
-      memory + human override UI
-  [ ] agentdb-memory-patterns → session + long-term memory
-  [ ] CLDCDE: Use agentdb-advanced for distributed knowledge store design
+  [ ] Kamino/Marginfi yield integration:
+      - Idle treasury capital → yield protocol
+      - Yield compounds reserves → increases buyback capacity
+  [ ] Circuit breaker full implementation:
+      - Cooldown (min time between ops)
+      - Epoch cap (max USDC per epoch)
+      - Velocity limit (max depletion rate)
+  [ ] CLDCDE: Use debt-sentinel for circuit breaker anti-pattern model
 
   Day 3-4:
-  [ ] Security Wing stub: basic vulnerability scanning
-  [ ] debt-sentinel pattern for runtime defense hooks
-  [ ] CLDCDE: Use fpef-analyzer for incident response methodology
+  [ ] Regime detection (yield brain informs hedge weights)
+  [ ] Knowledge Wing: institutional memory for trades + decisions
+  [ ] CLDCDE: Use agentdb-memory-patterns + agentdb-advanced
 
   Day 5:
-  [ ] Cross-wing queries working: any wing asks Knowledge Wing
-  [ ] autoagent (https://github.com/kevinrgu/autoagent) → lifecycle
-      boilerplate (spawn, health-check, retire)
-  [ ] CLDCDE: Use hooks-automation for pre/post message hooks
-  [ ] Weekly checkpoint: All 6 wing stubs respond to Coordinator
+  [ ] Three flywheels operational: fees → hedges → yield → compounds
+  [ ] Redistribution above threshold (70/20/10 split)
+  [ ] CLDCDE: Use fpef-analyzer for incident response methodology
+  [ ] Weekly checkpoint: All three flywheels demoable
 
-  DELIVERABLES: All 6 wings stubbed, Knowledge Wing has memory, human
-                override works via MetaClaw
+  DELIVERABLES: Yield deployment, circuit breakers, flywheels operational
 
-WEEK 4: FULL LOOP + BLACK-BOXING
-─────────────────────────────────────────
+WEEK 4: FULL LOOP + BLACK-BOXING + PHASE EVOLUTION
+───────────────────────────────────────────────────
   Day 1-2:
   [ ] Black-box Python yield brain: pyinstaller → night_shift.bin
-  [ ] Rust FFI bridge: Trading Wing calls Python binary via
-      std::process::Command, receives typed JSON proposal
+  [ ] Rust FFI bridge: Executor calls Python binary, receives typed JSON
   [ ] Encrypted configs (AES, build-time key)
   [ ] CLDCDE: Use github-workflow-automation for CI with Rust + Anchor
 
   Day 3-4:
-  [ ] Full loop demo: Python proposes → Audit approves → Rust executes
-  [ ] Trading Wing executor: Hyperliquid + Jupiter integration
-  [ ] Self-hydration CPI: 10% yield → sustenance PDA
-  [ ] MoonPay Agents integration for agent money movement:
-      - npm install -g @moonpay/cli
-      - Skills: https://github.com/moonpay/agents-skills
-  [ ] CLDCDE: Use performance-analysis for wing benchmarking
+  [ ] Phase evolution logic on-chain (Sustenance → Ecosystem → Humanity)
+  [ ] Ecosystem auto-invest: excess → Jupiter CPI → LP top RTP tokens
+  [ ] Self-hydration: yield → sustenance PDA → fund swarm ops
+  [ ] MoonPay Agents: https://www.moonpay.com/developers/agents
 
   Day 5:
-  [ ] Ecosystem auto-invest: excess SOL → Jupiter CPI → LP top RTP tokens
-  [ ] Phase evolution logic (Sustenance → Ecosystem → Humanity)
-      - DAO tooling reference: https://docs.realms.today
-      - Quadratic funding reference: https://solanacompass.com/projects/cubik
-  [ ] Weekly checkpoint: Full end-to-end loop demoable
+  [ ] End-to-end demo: adopt → fee → floor → hedge → yield → redistribute
+  [ ] CLDCDE: Use performance-analysis for agent benchmarking
+  [ ] Weekly checkpoint: Full product demoable
 
   DELIVERABLES: Complete loop, black-boxed strategies, full demo flow
 
 WEEK 5: POLISH + HACKATHON SUBMISSION
-─────────────────────────────────────────
+──────────────────────────────────────
   Day 1-2:
-  [ ] Demo flow rehearsed (3 minutes):
-      1. Partner fee deposit (mock pump.fun SOL)
-      2. Swarm debates yield strategy (ATLAS visible)
-      3. Reserves hit threshold → live redistribution tx
-      4. Verify: holders bag up, dev gets cut, SOL untouched
-  [ ] CLDCDE: Use prologue for ecosystem navigation during final dev
+  [ ] Demo flow rehearsed (3 minutes per docs/demo-flow.md)
+  [ ] Stress test: circuit breakers, rapid withdrawal, oracle manipulation
+  [ ] CLDCDE: Use prologue for ecosystem navigation
 
   Day 3:
-  [ ] third-party-disclosure.md (ATLAS MIT + karpathy + sponsored)
+  [ ] third-party-disclosure.md finalized
   [ ] README polished for submission
   [ ] Video recording of demo
   [ ] CLDCDE: Use ae-proof-agent for competitive positioning
-  [ ] Colosseum Copilot final check:
-      https://arena.colosseum.org/copilot
+  [ ] Colosseum Copilot: https://arena.colosseum.org/copilot
 
   Day 4-5:
   [ ] Submit to Colosseum
   [ ] Buffer for fixes
-  [ ] CLDCDE: Use red-team-tribunal for final adversarial review of
-      entire codebase before submission
+  [ ] CLDCDE: Use red-team-tribunal for final adversarial review
 
   DELIVERABLES: Polished demo, submission package, disclosure doc
 
 ================================================================================
-  PART 6: CLDCDE SKILLS PER BUILD DAY (QUICK REFERENCE)
+  PART 6: KEY INVARIANTS (enforced on-chain)
 ================================================================================
 
-WEEK 1
-  Day 1-2: swarm-orchestration, hive-mind-advanced
-  Day 3-4: spec-lock
-  Day 5:   red-team-tribunal
-
-WEEK 2
-  Day 1-2: sparc-methodology
-  Day 3-4: compound-engineering
-  Day 5:   verification-quality
-
-WEEK 3
-  Day 1-2: agentdb-memory-patterns, agentdb-advanced
-  Day 3-4: fpef-analyzer, debt-sentinel
-  Day 5:   hooks-automation
-
-WEEK 4
-  Day 1-2: github-workflow-automation
-  Day 3-4: performance-analysis
-  Day 5:   stream-chain, flow-nexus-swarm
-
-WEEK 5
-  Day 1-2: prologue
-  Day 3:   ae-proof-agent
-  Day 4-5: red-team-tribunal (final sweep)
+  1. PDA owns treasury (no private key risk)
+  2. TransferFeeConfig immutable from mint (no fee revocation)
+  3. All transfers via CPI (atomic, verifiable)
+  4. Circuit breakers: cooldown + epoch cap + velocity limit (no drain)
+  5. Price floor enforced by TWAP oracle (not a cron, a trigger)
+  6. Every agent action verified on-chain (Verifier publishes proof)
+  7. Agent proposes, human approves irreversible actions
+  8. No SOL liquidation (USDC-only flows)
+  9. Phase transitions irreversible (Sustenance → Ecosystem → Humanity)
+ 10. soulcontract amendments require human signature + 24h monitoring
+ 11. Auto-rollback if performance degrades > 5% post-amendment
+ 12. Yield brain strategies remain black-boxed (competitive moat)
 
 ================================================================================
-  PART 7: DISCLOSURE + BLACK-BOX STRUCTURE
+  PART 7: REVENUE MODEL
+================================================================================
+
+  INFLOW:
+  ├── TransferFeeConfig: per-trade fee from every RTP-adopting token
+  │   └── pump.fun: 0.05% creator fee (SOL) per PumpSwap trade
+  ├── Hyperliquid: USDC yield from perp strategies (execution venue)
+  └── Ecosystem LP: yield from auto-invested positions
+
+  OUTFLOW:
+  ├── < threshold: 100% reinvest (floor defense + yield + hedge)
+  ├── = threshold: 70% holders / 20% dev / 10% ecosystem
+  ├── 10% yield carve-out → sustenance PDA (ops funding)
+  └── Ecosystem excess → auto-invest top RTP tokens (Jupiter CPI)
+
+  BREAK-EVEN: ~$5k reserves covers 90-day ops runway
+
+================================================================================
+  PART 8: DISCLOSURE + BLACK-BOX STRUCTURE
 ================================================================================
 
 OPEN-SOURCE (judges see, MIT):
   rtp/
-  ├── swarm/                          # ATLAS-inspired architecture
+  ├── swarm/                          # Agent swarm (Allocator, Executor, Verifier)
   │   ├── coordinator/                # Message bus + soulguard
-  │   ├── wings/skeleton/             # Wing interfaces + lifecycle
+  │   ├── agents/                     # Agent implementations
+  │   ├── skills/                     # Atomic skill definitions
   │   └── lib.rs
   ├── programs/rtp-treasury/          # Anchor program (full source)
   ├── soulcontract.md                 # Governance invariants
   ├── docs/demo-flow.md
   └── third-party-disclosure.md
 
-BLACK-BOXED (proprietary binary/configs):
-  ├── wings/trading/brain/
-  │   ├── night_shift.bin             # PyInstaller binary
-  │   ├── configs/encrypted/          # AES-encrypted strategy params
-  │   └── validation_results.bin      # 429-trade ground truth
-  ├── evolve/loss_function.bin        # Treasury-native scoring
-  └── research_pipeline/              # Full-sim + self-correction
+BLACK-BOXED (proprietary binary/configs, not in repo):
+  ├── scripts/                        # Python yield brain (gitignored locally)
+  │   ├── night_shift.py
+  │   ├── paper_trader.py
+  │   └── future_blind_simulator.py
+  ├── data/                           # OHLCV, results, state (gitignored)
+  └── (ships as): night_shift.bin, configs/encrypted/
 
 THIRD-PARTY DISCLOSURE:
   atlas-gic (MIT)          — https://github.com/chrisworsey55/atlas-gic
-                            Evolve Wing autoresearch loop
   karpathy/autoresearch    — https://github.com/karpathy/autoresearch
-                            Modify/Verify/Keep specification
   uditgoenka/autoresearch  — https://github.com/uditgoenka/autoresearch
-                            Claude-native implementation
-  MetaClaw (MIT)           — https://github.com/aiming-lab/MetaClaw
-                            Knowledge Wing + human override
-  revfactory/harness (MIT) — https://github.com/revfactory/harness
-                            Coordinator architecture reference
-  autoagent (MIT)          — https://github.com/kevinrgu/autoagent
-                            Lifecycle scaffolding
   Phantom Connect           — https://docs.phantom.app/phantom-connect/introduction
-                            Agentic wallet + CASH stablecoin
   Squads Multisig           — https://docs.squads.so
-                            Treasury security + PDA authority
-  Swig                      — https://docs.swig.fi
-                            Programmable smart wallets
   MoonPay Agents            — https://www.moonpay.com/developers/agents
-                            Agent money movement
+  Drift Protocol            — https://drift.trade
+  Pyth Network              — https://pyth.network
+  Jupiter Aggregator        — https://jupiter.aggregate
+  Kamino Finance            — https://kamino.finance
+  Marginfi                  — https://marginfi.com
 
 ================================================================================
-  PART 8: KEY INVARIANTS (enforced on-chain)
-================================================================================
-
-  1. PDA owns treasury (no private key risk)
-  2. SPL TransferFeeConfig immutable from mint (no fee revocation)
-     https://solana.com/docs/tokens/extensions/transfer-fees
-  3. All transfers via CPI (atomic, verifiable)
-  4. Agent proposes, human approves irreversible actions
-  5. No SOL liquidation (USDC-only yield flows)
-  6. Phase transitions irreversible (Sustenance → Ecosystem → Humanity)
-  7. soulcontract amendments require human signature + 24h monitoring
-  8. Auto-rollback if performance degrades > 5% post-amendment
-  9. Self-hydration: ops only funded if sustenance bucket > 90-day runway
- 10. Strategies remain black-boxed (competitive moat)
-
-================================================================================
-  PART 9: REVENUE MODEL
-================================================================================
-
-  INFLOW:
-  ├── pump.fun: 0.05% creator fee (SOL) per PumpSwap trade
-  │   └── $100k daily vol → $50/day → 0.25 SOL → ~$50/day
-  ├── Hyperliquid: USDC yield from perp strategies
-  │   └── 20-50% annual on treasury
-  └── Ecosystem LP: yield from auto-invested positions
-
-  OUTFLOW:
-  ├── < threshold: 100% reinvest (yield/swarm)
-  ├── = threshold: 70% holders / 20% dev / 10% ecosystem
-  ├── 10% yield carve-out → sustenance PDA (ops funding)
-  │   └── At $10k treasury: ~$100-200/mo ops cost (trivial vs yield)
-  └── Ecosystem excess → auto-invest top RTP tokens (Jupiter CPI)
-
-  BREAK-EVEN: ~$5k reserves covers 90-day ops runway
-
-================================================================================
-  PART 10: QUICK LINK INDEX
+  PART 9: QUICK LINK INDEX
 ================================================================================
 
 HACKATHON:
@@ -634,46 +381,59 @@ FRAMEWORKS:
   ATLAS:         https://github.com/chrisworsey55/atlas-gic
   karpathy:       https://github.com/karpathy/autoresearch
   uditgoenka:    https://github.com/uditgoenka/autoresearch
-  MetaClaw:      https://github.com/aiming-lab/MetaClaw
-  revfactory:    https://github.com/revfactory/harness
-  autoagent:     https://github.com/kevinrgu/autoagent
 
 SPONSORED TOOLS:
   Phantom:       https://docs.phantom.app/phantom-connect/introduction
   CASH:          https://phantom.app/cash
   Squads:        https://docs.squads.so
-  Altitude:      https://altitude.finance
-  Swig:          https://docs.swig.fi
-  Swig TS SDK:   https://docs.swig.fi/typescript-sdk
-  Swig Rust SDK: https://docs.swig.fi/rust-sdk
-  Swig Portal:   https://portal.swig.fi
   MoonPay:       https://www.moonpay.com/developers/agents
-  MoonPay CLI:   npm install -g @moonpay/cli
-  Arcium:        https://docs.arcium.com
-  Arcis (Rust):  https://docs.arcium.com/arcis/getting-started
   Solana MCP:    https://github.com/solana-developers/solana-mcp
+  Arcium:        https://docs.arcium.com
 
 SOLANA DOCS:
   Core:          https://solana.com/developers
   Setup:         https://solana.com/developers/docs/setup
   Anchor:        https://www.anchor-lang.com/docs/introduction
-  Playground:    https://play.solana.com
-  Cookbook:      https://solanacookbook.com
-  Bootcamp:      https://www.solana.com/developers/courses
   Transfer Fees: https://solana.com/docs/tokens/extensions/transfer-fees
-  Blinks:        https://solana.com/docs/advanced/blinks
   Program Ex:    https://github.com/solana-developers/program-examples
-  Agent Skills:  https://github.com/solana-developers/solana-agent-skills
-  CRUD dApp:      https://solana.com/developers/crud
-  create-dapp:   https://github.com/solana-developers/create-solana-dapp
-  Solana Pay:    https://solanapay.com
-  Metaplex:      https://docs.metaplex.com
-  Realms (DAOs): https://docs.realms.today
-  Cubik (QF):    https://solanacompass.com/projects/cubik
+
+DEFI INTEGRATIONS:
+  Jupiter:       https://jupiter.aggregate
+  Drift:         https://drift.trade
+  Kamino:        https://kamino.finance
+  Marginfi:      https://marginfi.com
+  Pyth:          https://pyth.network
 
 RPC:
   Triton One:    https://triton.one (free private devnet/testnet)
 
+RESEARCH:
+  rtp-skills-research: https://github.com/tradewife/rtp-skills-research
+
 ================================================================================
-END OF PLAN v2.1
+  PART 10: CLDCDE SKILLS PER BUILD DAY
+================================================================================
+
+WEEK 1:  Day 1-2: swarm-orchestration, hive-mind-advanced
+         Day 3-4: spec-lock
+         Day 5:   red-team-tribunal
+
+WEEK 2:  Day 1-2: sparc-methodology
+         Day 3-4: compound-engineering
+         Day 5:   verification-quality
+
+WEEK 3:  Day 1-2: debt-sentinel
+         Day 3-4: agentdb-memory-patterns, agentdb-advanced
+         Day 5:   fpef-analyzer
+
+WEEK 4:  Day 1-2: github-workflow-automation
+         Day 3-4: performance-analysis
+         Day 5:   stream-chain, flow-nexus-swarm
+
+WEEK 5:  Day 1-2: prologue
+         Day 3:   ae-proof-agent
+         Day 4-5: red-team-tribunal (final sweep)
+
+================================================================================
+END OF BUILD PLAN v3.0
 ================================================================================
