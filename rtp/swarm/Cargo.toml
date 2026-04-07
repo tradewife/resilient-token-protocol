@@ -1,0 +1,17 @@
+[package]
+name = "rtp-swarm"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+thiserror = "2"
+tokio = { version = "1", features = ["full"] }
+tracing = "0.1"
+dashmap = "6"
+
+[dev-dependencies]
+tokio-test = "0.4"
