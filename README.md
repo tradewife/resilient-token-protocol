@@ -1,6 +1,6 @@
 # RTP — Resilient Token Protocol
 
-A Solana-native, self-funding treasury governed by a modular Rust swarm. Six specialized wings autonomously generate yield, defend against threats, evolve the protocol's own architecture, and audit for eternal compliance — funded by their own yield, forever.
+A Solana-native, self-funding treasury governed by a modular Rust swarm. Any token project adopts RTP — their trading fees route to the swarm, which generates yield that flows back to the project and its holders. Funded by its own yield, forever.
 
 ```
                     ┌─────────────────────────────┐
@@ -30,7 +30,7 @@ A Solana-native, self-funding treasury governed by a modular Rust swarm. Six spe
 
 ## The One-Liner
 
-A modular, self-evolving swarm where each wing is an independently testable agent responsible for one aspect of eternal autonomy — yield generation, security defense, architectural evolution, knowledge accumulation, compliance auditing, and futureproofing against existential threats.
+Any token project adopts RTP, their trading fees feed a swarm that generates yield, and that yield flows back to the project and its token holders — autonomously, verifiably, and forever.
 
 ## Language Architecture
 
@@ -283,14 +283,22 @@ Phase transitions are **irreversible** — enforced on-chain. The protocol grows
 
 ## Fee Routing
 
-Token projects adopt RTP by setting the Treasury PDA as their pump.fun creator fee recipient:
+Any Solana token project can adopt RTP by enabling `TransferFeeConfig` on their mint and setting the Treasury PDA as the fee recipient. From that point, every trade on their token auto-routes a fee to the swarm. The fee config is immutable once set — it cannot be revoked.
 
 ```
-pump.fun trade (0.25% fee) → 0.05% creator fee (SOL) → RTP Treasury PDA
-                                                              │
-                                                              ├─ 90% → Yield strategies (USDC via Jupiter)
-                                                              └─ 10% → Ecosystem SOL reserves (compounds)
+Token project adopts RTP
+  │
+  ├── Enable TransferFeeConfig on mint (immutable)
+  │       └── Every trade → fee → Treasury PDA
+  │
+  ├── pump.fun (most common)
+  │       └── 0.25% PumpSwap fee → 0.05% creator fee (SOL) → Treasury PDA
+  │
+  └── Any Solana token
+          └── Custom fee % set at mint → routes to Treasury PDA
 ```
+
+**Why projects adopt**: Their fees don't just sit in a wallet — the swarm puts them to work. Yield flows back to the project and its holders automatically. No trust required.
 
 **Rug-proof by design**: SPL TransferFeeConfig is immutable once minted. PDA owns treasury (no private key). All transfers via CPI (atomic, verifiable). Mint authority renounced post-launch.
 
@@ -298,10 +306,11 @@ pump.fun trade (0.25% fee) → 0.05% creator fee (SOL) → RTP Treasury PDA
 
 ```
                      ┌────────────────────────────┐
-                     │   PUMP.FUN FEES (SOL)      │
-                     │   creator → Treasury PDA    │
+                     │ TOKEN PROJECT TRADING FEES  │
+                     │ (pump.fun, or any token)    │
                      └──────────┬─────────────────┘
-                                │
+                                │ TransferFeeConfig (immutable)
+                                ▼
                      ┌──────────▼─────────────────┐
                      │     SOLANA TREASURY PDA     │
                      │                             │
@@ -317,7 +326,7 @@ pump.fun trade (0.25% fee) → 0.05% creator fee (SOL) → RTP Treasury PDA
           ┌──────────────┐  ┌──────────────────┐
           │  Reinvest    │  │  Redistribute    │
           │  (Yield)     │  │  70% holders     │
-          └──────┬───────┘  │  20% dev         │
+          └──────┬───────┘  │  20% project dev │
                  │          │  10% ecosystem   │
      ┌───────────▼────────┐ └────────┬─────────┘
      │  YIELD BRAIN       │          │
@@ -349,7 +358,7 @@ pump.fun trade (0.25% fee) → 0.05% creator fee (SOL) → RTP Treasury PDA
 - **Not a meme coin** — RTP is infrastructure, not a token (initially)
 - **Not a vault** — no custody of user funds, no withdrawal interface
 - **Not dependent on LLMs** — core loop is deterministic Python; LLMs optional for hypothesis generation
-- **Not a trading bot** — it is a treasury that uses trading as one yield source
+- **Not just a trading bot** — it's a token standard that any Solana project can adopt
 - **Not requiring venture infrastructure** — runs on a single machine, no database, no Kubernetes
 
 ## What We Already Have (Proven)

@@ -4,7 +4,7 @@ Constitutional governance layer for the Resilient Token Protocol.
 
 ## Core Values
 
-1. The protocol exists to generate sustainable yield and redistribute it to its community
+1. The protocol exists to generate sustainable yield for adopting projects and their token holders
 2. No single entity controls the treasury — PDA ownership is non-negotiable
 3. Human sovereignty over irreversible decisions is absolute
 4. The protocol must be economically rational to keep running (self-hydration)

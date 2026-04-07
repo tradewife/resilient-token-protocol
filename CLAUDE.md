@@ -4,7 +4,7 @@ This file provides guidance to Claude Code when working with this repository.
 
 ## Project Overview
 
-**RTP (Resilient Token Protocol)** — a Solana-native, self-funding treasury governed by a modular Rust swarm. Six specialized wings autonomously generate yield, defend against threats, evolve the protocol's own architecture, audit for compliance, accumulate knowledge, and monitor existential risks — all funded by their own yield.
+**RTP (Resilient Token Protocol)** — a Solana-native, self-funding treasury governed by a modular Rust swarm. Any token project adopts RTP — their trading fees route to the swarm, which generates yield that flows back to the project and its holders. Six specialized wings autonomously generate yield, defend against threats, evolve the protocol's own architecture, audit for compliance, accumulate knowledge, and monitor existential risks — all funded by their own yield.
 
 **Hackathon**: Solana Frontier (Colosseum × Canteen), $300k prizes, deadline May 11, 2026.
 **License**: MIT
@@ -284,14 +284,22 @@ Active symbols: BTC/USDT, ETH/USDT, SOL/USDT, BNB/USDT. XRP was dropped (net neg
 
 ## Fee Flow
 
+Any Solana token project adopts RTP via TransferFeeConfig. Their trading fees route to the Treasury PDA.
+
 ```
-pump.fun trade (0.25% fee) → 0.05% creator fee (SOL) → RTP Treasury PDA
-                                                              │
-                                                              ├─ 90% → Yield strategies (USDC via Jupiter)
-                                                              └─ 10% → Ecosystem SOL reserves (compounds)
+Token project adopts RTP
+  │
+  ├── Enable TransferFeeConfig on mint (immutable)
+  │       └── Every trade → fee → Treasury PDA
+  │
+  ├── pump.fun (most common)
+  │       └── 0.05% creator fee (SOL) → Treasury PDA
+  │
+  └── Any Solana token
+          └── Custom fee % set at mint → Treasury PDA
 ```
 
-Redistribution at threshold: 70% holders / 20% dev / 10% ecosystem.
+Redistribution at threshold: 70% holders / 20% project dev / 10% ecosystem.
 
 ## Phased Evolution
 
