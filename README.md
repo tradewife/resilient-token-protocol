@@ -30,7 +30,7 @@ A Solana-native, self-funding treasury governed by a modular Rust swarm. Any tok
 
 ## The One-Liner
 
-Any token project adopts RTP, their trading fees feed a swarm that generates yield, and that yield flows back to the project and its token holders — autonomously, verifiably, and forever.
+Any token project adopts RTP, their trading fees feed a swarm that researches, validates, and executes yield strategies — returning yield back to the project and its token holders, autonomously, verifiably, and forever.
 
 ## Language Architecture
 
@@ -75,7 +75,7 @@ This is not a backtest screenshot. These are out-of-sample walk-forward results 
 │                    ON-CHAIN (Solana / Anchor)                    │
 │                                                                 │
 │  RTP Treasury Program                                           │
-│  ├── Receive fees (pump.fun creator SOL, Hyperliquid yield)     │
+│  ├── Receive fees (TransferFeeConfig from adopting token projects) │
 │  ├── Threshold-triggered redistribution (70/20/10 split)        │
 │  ├── Self-hydration CPI (fund swarm ops from yield)            │
 │  ├── Ecosystem auto-invest (excess → top RTP token LPs)        │
@@ -519,21 +519,21 @@ python scripts/evaluator_calibration.py --samples 20
 
 | Criterion | Weight | What Judges Want | How RTP Delivers |
 |---|---|---|---|
-| **Functionality** | ? | Working demo with real transactions | Live: deposit→swarm→yield→redistribute on devnet |
-| **Potential Impact** | ? | Project with lasting real-world value | Eternal treasury → public goods fund → humanity |
-| **Novelty** | ? | Novel approach, original architecture | Six-wing modular swarm with constitutional governance |
+| **Functionality** | ? | Working demo with real transactions | Live: adopt→fees→swarm→yield→redistribute on devnet |
+| **Potential Impact** | ? | Project with lasting real-world value | Any Solana token can adopt — unruggable yield standard |
+| **Novelty** | ? | Novel approach, original architecture | Six-wing modular swarm + token adoption model |
 | **UX** | ? | Great demo experience | Phantom Connect + CASH wallet flows, 3-min demo |
 | **Open-source** | ? | Clean, well-documented repo | Full swarm arch + treasury program (MIT), clean repo history |
-| **Business Plan** | ? | Viable business model | pump.fun fees → self-funding → ecosystem flywheel |
+| **Business Plan** | ? | Viable business model | Adoption fees → self-funding swarm → yield back to holders |
 
 ### Demo Flow (3 minutes)
 
-1. "This is our night shift — it tested 30,000 strategy configs last night, fully autonomous"
-2. "Here's the best one — +118% PnL, 78% consistency, 9 independent validation folds"
-3. "The Trading Wing proposes deployment — the Audit Wing checks it against the soulcontract"
-4. "Approved — the Rust executor places the trade on Hyperliquid"
-5. "Yield flows to the Solana treasury — 10% auto-hydrates the swarm's own operations"
-6. "At threshold, it auto-redistributes to holders, dev, and ecosystem — all on-chain, all auditable"
+1. "A token project adopts RTP — TransferFeeConfig set, fees auto-route to the treasury"
+2. "This is our night shift — it tested 30,000 strategy configs last night, fully autonomous"
+3. "Here's the best one — +118% PnL, 78% consistency, 9 independent validation folds"
+4. "The Trading Wing proposes deployment — the Audit Wing checks it against the soulcontract"
+5. "Approved — the Rust executor places the trade, yield flows back to the project and holders"
+6. "At threshold, it auto-redistributes — 70% holders, 20% project dev, 10% ecosystem — all on-chain"
 
 ## Third-Party Components
 
