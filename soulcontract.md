@@ -28,7 +28,9 @@ Constitutional governance layer for the Resilient Token Protocol.
 - **Self-modification of this contract** — amendments require human signature + 24h monitoring
 - **Risk budget expansion** — increasing max risk without explicit human consent
 - **PDA ownership** — treasury must always be PDA-owned, never key-owned
-- **Fee immutability** — SPL TransferFeeConfig must remain immutable from mint
+- **Fee immutability** — SPL TransferFeeConfig must remain immutable from mint.
+  Once a token enables RTP fees, they cannot be revoked. The withdraw authority
+  is locked into the mint account permanently — no "unmint" button exists.
 - **Phase reversal** — once a phase transition occurs, it cannot be undone
 
 ## Amendment Protocol
@@ -43,6 +45,20 @@ Constitutional governance layer for the Resilient Token Protocol.
 ## Enforcement
 
 The Coordinator's `soulguard.rs` enforces this contract on every message. No wing can execute an action that violates an active constraint. The Audit Wing logs every compliance check and can reconstruct the full causal chain of any decision.
+
+## Fee Routing Mechanism
+
+Token projects adopt RTP by enabling `TransferFeeConfig` on their SPL Token-2022 mint,
+setting the RTP Treasury PDA as the withdraw authority. Once set, this is immutable.
+
+1. **Every trade** on the adopting token auto-deducts the configured fee
+2. **Fees accumulate** in the mint's withheld token account
+3. **Treasury program withdraws** via `token::withdraw_withheld_tokens_from_mint` CPI
+4. **Fees land** in the Treasury PDA — owned by the program, no private key
+
+This is not a custom integration or middleman. It's a standard SPL extension —
+verifiable on Solana Explorer, used by thousands of tokens, and cryptographically
+permanent once enabled.
 
 ## Phase Evolution Constraints
 

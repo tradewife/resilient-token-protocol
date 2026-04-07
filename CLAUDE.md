@@ -4,7 +4,7 @@ This file provides guidance to Claude Code when working with this repository.
 
 ## Project Overview
 
-**RTP (Resilient Token Protocol)** — a Solana-native, self-funding treasury governed by a modular Rust swarm. Any token project adopts RTP — their trading fees route to the swarm, which generates yield that flows back to the project and its holders. Six specialized wings autonomously generate yield, defend against threats, evolve the protocol's own architecture, audit for compliance, accumulate knowledge, and monitor existential risks — all funded by their own yield.
+**RTP (Resilient Token Protocol)** — a Solana-native, self-funding treasury governed by a modular Rust swarm. Any token project adopts RTP — their trading fees route to the swarm, which autonomously researches, validates, and executes yield strategies — returning yield back to the project and its holders. Six specialized wings autonomously generate yield, defend against threats, evolve the protocol's own architecture, audit for compliance, accumulate knowledge, and monitor existential risks — all funded by their own yield.
 
 **Hackathon**: Solana Frontier (Colosseum × Canteen), $300k prizes, deadline May 11, 2026.
 **License**: MIT
@@ -192,7 +192,7 @@ Trading Wing          Coordinator           Audit Wing
 
 | File | Purpose |
 |------|---------|
-| `rtp/programs/rtp-treasury/` | Anchor: deposit_usdc, check_redistribute, hydrate_swarm, evolve_phase |
+| `rtp/programs/rtp-treasury/` | Anchor: withdraw_fees, check_redistribute, hydrate_swarm, evolve_phase |
 
 #### Governance
 
@@ -356,16 +356,17 @@ Not using: World Coin (toxic sentiment).
 
 ## GitHub
 
-- **This repo**: `git@github.com:tradewife/fractal-swarm.git` (SSH)
+- **This repo**: `git@github.com:tradewife/resilient-token-protocol.git` (SSH)
+- **Source repo**: `git@github.com:tradewife/fractal-swarm.git` (Python yield brain origin)
+- **Research repo**: `git@github.com:tradewife/rtp-skills-research.git` (pre-hackathon research)
 - **PAT stored**: `~/.config/gh/config.yml` (for `workflow_dispatch` triggers)
-- **Separate hackathon repo**: `tradewife/resilient-token-protocol` (clean submission, open-source skeleton only)
 
-## Hackathon Submission Structure
+## Repo Structure
 
-The `resilient-token-protocol` repo contains only the open-source skeleton:
-- `rtp/swarm/` — full Rust swarm source
-- `rtp/programs/rtp-treasury/` — full Anchor program
-- `soulcontract.md`, `BUILD_PLAN.md`, `third-party-disclosure.md`
-- Binary placeholders for yield brain (not source)
+This repo (`resilient-token-protocol`) contains:
+- **Tracked (open-source)**: `rtp/swarm/`, `rtp/programs/`, governance docs, CI workflows
+- **Gitignored (local dev)**: `scripts/`, `backtesting/`, `agents/`, `data/`, `strategies/`
 
-The `fractal-swarm` repo (this repo) retains the full Python yield brain source, data, and CI pipeline.
+The Python yield brain source lives in this directory for development but is gitignored.
+It ships as a compiled binary in the hackathon submission. The original source
+and data live in `fractal-swarm` (tradewife/fractal-swarm.git).

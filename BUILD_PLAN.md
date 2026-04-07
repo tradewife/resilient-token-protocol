@@ -1,8 +1,8 @@
 ================================================================================
   RTP — RESILIENT TOKEN PROTOCOL
-  FULL-SCOPE BUILD PLAN v2.1
+  FULL-SCOPE BUILD PLAN v2.2
   Incorporating: swarm-planning-3.md + cldcde collection + hackathon rules
-  + frontier resources page integration links
+  + frontier resources page integration links + token adoption model
 ================================================================================
 
 HACKATHON: Solana Frontier (Colosseum × Canteen)
@@ -18,13 +18,17 @@ COPILOT:    https://arena.colosseum.org/copilot (pressure-test against 5400+ pas
 ================================================================================
 
 RTP is a Solana-native, self-funding treasury governed by a modular swarm.
-Six specialized wings autonomously generate yield, defend, evolve, remember,
-audit, and future-proof — funded by their own yield, forever.
+Any token project adopts RTP — their trading fees route to the swarm,
+which autonomously researches, validates, and executes yield strategies
+(30K configs/night, 9-fold walk-forward validation, fee-aware simulation)
+— returning yield back to the project and its holders.
 
 ┌─────────────────────────────────────────────────────────┐
-│               fee flow (pump.fun SOL → PDA)             │
-│  pump.fun trades → 0.05% creator fee (SOL) → Treasury   │
-│  Hyperliquid perps → USDC yield → Treasury              │
+│              fee flow (token adoption → PDA)            │
+│  Token project enables TransferFeeConfig on mint         │
+│  Every trade → fee auto-routes → Treasury PDA            │
+│  Swarm researches, validates, executes → yield           │
+│  Yield flows back to project + token holders             │
 └──────────────────────┬──────────────────────────────────┘
                        │
           ┌────────────┼────────────┐
@@ -116,6 +120,8 @@ NOT USING:
 └── Coinbase — not yet available (coming soon)
 
 EXISTING SHIPPING CODE (black-boxed):
+  Proven in fractal-swarm (tradewife/fractal-swarm.git), now feeds RTP.
+  The Python yield brain runs locally (gitignored) and ships as compiled binary.
 ├── night_shift.py           — 30K configs/night, 9-fold WFA, Darwinian
 ├── paper_trader.py          — live Binance, ADX filter
 ├── future_blind_simulator   — 0.1% fees, 10bps slippage, ground truth
@@ -171,7 +177,7 @@ AGENT TOOLING:
     https://github.comsolana-developers/solana-mcp
 
 TOKEN + PAYMENT:
-├── SPL Token Extensions (TransferFeeConfig for pump.fun integration)
+├── SPL Token Extensions (TransferFeeConfig for RTP token adoption)
 │   https://solana.com/docs/tokens/extensions/transfer-fees
 ├── Metaplex (NFTs)
 │   https://docs.metaplex.com
@@ -197,12 +203,12 @@ RPC:
 
 | Criterion        | RTP Delivers                                           |
 |------------------|--------------------------------------------------------|
-| Functionality    | Live demo: deposit→swarm→yield→redistribute on devnet  |
-| Potential Impact | Eternal treasury → public goods fund → humanity       |
-| Novelty          | 6-wing swarm + soulcontract + ATLAS Darwinian loop     |
+| Functionality    | Live demo: adopt→fees→swarm→yield→redistribute on devnet |
+| Potential Impact | Any Solana token can adopt — unruggable yield standard  |
+| Novelty          | 6-wing swarm + soulcontract + token adoption model      |
 | UX               | Phantom Connect + CASH wallet flows                   |
 | Open-source      | Full swarm arch + treasury program (MIT)               |
-| Business Plan    | pump.fun fees → self-funding → ecosystem flywheel     |
+| Business Plan    | Adoption fees → self-funding swarm → yield to holders  |
 
 BLACK-BOX / OPEN-SOURCE SPLIT:
   ✅ OPEN: swarm architecture, treasury program, soulcontract, wing interfaces
@@ -390,7 +396,10 @@ WEEK 1: FOUNDATION + TREASURY
   [ ] Squads Multisig → secure treasury PDA upgrade authority:
       - Get Started: https://docs.squads.so
       - Altitude (treasury ops): https://altitude.finance
-  [ ] Anchor IDL stub: deposit_usdc, check_redistribute, hydrate_swarm
+  [ ] Anchor IDL stub: withdraw_fees (TransferFeeConfig withdraw),
+      check_redistribute, hydrate_swarm
+      - withdraw_fees uses token::withdraw_withheld_tokens_from_mint CPI
+      - https://solana.com/docs/tokens/extensions/transfer-fees
       - Anchor examples: https://github.com/solana-developers/program-examples
       - Solana MCP for AI-assisted dev: https://github.com/solana-developers/solana-mcp
   [ ] CLDCDE: Use spec-lock to define soulcontract spec + enforcement
@@ -488,10 +497,11 @@ WEEK 5: POLISH + HACKATHON SUBMISSION
 ─────────────────────────────────────────
   Day 1-2:
   [ ] Demo flow rehearsed (3 minutes):
-      1. Partner fee deposit (mock pump.fun SOL)
-      2. Swarm debates yield strategy (ATLAS visible)
-      3. Reserves hit threshold → live redistribution tx
-      4. Verify: holders bag up, dev gets cut, SOL untouched
+      1. Token adopts RTP — TransferFeeConfig enabled
+      2. Trading fees auto-route to Treasury PDA
+      3. Swarm researches, validates, executes yield strategy
+      4. Reserves hit threshold → live redistribution tx
+      5. Verify: project + holders receive yield, SOL untouched
   [ ] CLDCDE: Use prologue for ecosystem navigation during final dev
 
   Day 3:
@@ -605,8 +615,10 @@ THIRD-PARTY DISCLOSURE:
 ================================================================================
 
   INFLOW:
-  ├── pump.fun: 0.05% creator fee (SOL) per PumpSwap trade
-  │   └── $100k daily vol → $50/day → 0.25 SOL → ~$50/day
+  ├── Token adoption: TransferFeeConfig fee from every trade on adopting tokens
+  │   ├── pump.fun (most common): 0.05% creator fee (SOL) per PumpSwap trade
+  │   │   └── $100k daily vol → $50/day → 0.25 SOL → ~$50/day
+  │   └── Any Solana token: custom fee % set at mint → routes to Treasury PDA
   ├── Hyperliquid: USDC yield from perp strategies
   │   └── 20-50% annual on treasury
   └── Ecosystem LP: yield from auto-invested positions
