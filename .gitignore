@@ -1,0 +1,58 @@
+# ============================================================
+# RTP — Resilient Token Protocol
+# .gitignore
+# 
+# Strategy: Python yield brain source lives here for development
+# but is gitignored. The hackathon submission repo only contains
+# the open-source skeleton (swarm architecture, treasury program,
+# soulcontract, docs). Yield brain ships as compiled binary.
+# ============================================================
+
+# --- Python yield brain (development only, gitignored) ---
+scripts/
+strategies/
+backtesting/
+agents/
+night_config.json
+*.py
+!rtp/swarm/**/*.py
+
+# --- Data (development only, gitignored) ---
+data/
+
+# --- Python artifacts ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+*.egg
+.venv/
+venv/
+env/
+.Python
+
+# --- IDE ---
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+
+# --- Secrets ---
+.env
+*.env
+credentials.json
+*.pem
+*.key
+
+# --- Black-boxed yield brain binaries (not committed yet, will be later) ---
+# These will ship as release artifacts, not repo files
+# rtp/wings/trading/brain/night_shift.bin
+# rtp/wings/trading/brain/configs/encrypted/
