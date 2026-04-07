@@ -113,6 +113,65 @@ anchor test --provider.cluster devnet
 | `tradewife/fractal-swarm` | Python fractal-swarm source, data, CI |
 | `tradewife/rtp-skills-research` | Pre-hackathon research, skill system design |
 
-## After Reading These Instructions
+## cldcde Skills — When to Use Them
 
-Read `soulcontract.md`, then `BUILD_PLAN.md`, then `CLAUDE.md`. Then ask: "What's the first file I should create for the Treasury program?"
+You have 27 cldcde skills installed at `~/.claude/skills/`. These are prompt-based
+skills that give you specialized capabilities. Invoke them by referencing their
+SKILL.md when working on relevant tasks. Do NOT skip them — they encode
+patterns and constraints the project depends on.
+
+### Week 1: Treasury Program (use these NOW)
+
+| When | Skill | Why |
+|------|-------|-----|
+| Designing the Coordinator message bus and wing routing | `swarm-orchestration` | Defines how agents communicate, fault tolerance, dynamic topology |
+| Setting up consensus topology (Coordinator=queen, wings=workers) | `hive-mind-advanced` | Queen-worker pattern maps to Audit Wing approval flow |
+| Defining `soulcontract.md` as enforceable spec, not just docs | `spec-lock` | Ensures implementation never drifts from governance without detection |
+| Adversarial-reviewing the treasury program before committing | `red-team-tribunal` | 3-agent review: Skeptic + User Proxy + Optimizer. Every wing proposal must pass |
+
+### Week 2: Coordinator + Evolve Wing
+
+| When | Skill | Why |
+|------|-------|-----|
+| Writing Evolve Wing proposals and amendments | `sparc-methodology` | Specify → Pseudocode → Architect → Refine → Complete. Every change follows this |
+| Coordinating audit pipeline across multiple skills | `compound-engineering` | Orchestrates Debt-Sentinel + Red Team + Spec-Lock into unified workflow |
+| Truth-scoring + rollback after changes | `verification-quality` | 0.95 threshold scoring, maps to Audit Wing's safety.rs |
+
+### Week 3: Knowledge + Security Wings
+
+| When | Skill | Why |
+|------|-------|-----|
+| Designing the knowledge store for trades and decisions | `agentdb-memory-patterns` | Session memory (trades) + long-term memory (strategy history, patterns) |
+| Distributed knowledge across market data, strategies, security | `agentdb-advanced` | Multi-database coordination design |
+| Modeling circuit breaker / anti-pattern detection | `debt-sentinel` | Anomaly detection with hooks — model for Runtime Defense |
+| Incident response and root cause analysis | `fpef-analyzer` | Find-Prove-Evidence-Fix framework |
+| Pre/post message hooks for Coordinator routing | `hooks-automation` | Every message triggers pre-check (Audit) and post-check (logging) |
+
+### Week 4: Full Loop + CI
+
+| When | Skill | Why |
+|------|-------|-----|
+| Extending CI to include Rust tests + Anchor builds | `github-workflow-automation` | Night shift CI currently only runs Python |
+| Benchmarking wing performance | `performance-analysis` | Self-assessment for identifying what to evolve |
+| Sequential pipeline enforcement | `stream-chain` | Proposal → audit → approve → execute as typed chain |
+
+### Week 5: Polish + Submission
+
+| When | Skill | Why |
+|------|-------|-----|
+| Navigating all tools during final dev push | `prologue` | Ecosystem navigation |
+| Competitive analysis vs other submissions | `ae-proof-agent` | Positioning for judges |
+| Final adversarial review of entire codebase | `red-team-tribunal` | Run again as final sweep before submission |
+
+### How to Use a Skill
+
+When working on a task that matches a skill above, invoke it explicitly:
+
+```
+Use the swarm-orchestration skill to design the Coordinator message bus.
+Ensure the design handles fault tolerance and dynamic wing topology.
+```
+
+The agent will read the skill's SKILL.md and apply its methodology, constraints,
+and patterns to the task. This produces better, more consistent output than
+working without the skill.
