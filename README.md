@@ -43,7 +43,7 @@ optimize                   execute
 simulate                   sign
 hypothesize                respond
 
-Python yield brain         Rust swarm runtime
+Python fractal-swarm         Rust swarm runtime
 (proven, 30K configs/night) (safe, concurrent, on-chain)
 ```
 
@@ -452,7 +452,7 @@ The swarm is designed so that each phase adds independent, testable capability. 
 
 ### Phase 0: Proven Foundation (Shipping)
 
-The Python yield brain — already running, already profitable, already autonomous.
+The Python fractal-swarm — already running, already profitable, already autonomous.
 
 - Night shift optimizer (30K configs, 9-fold WFA, Darwinian evolution)
 - Full-sim validation (0.1% fees, 10bps slippage, ground truth)
@@ -500,7 +500,7 @@ All wings operational. Human role reduced to soulcontract amendments. The swarm 
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
-# Run the yield brain (night shift)
+# Run the fractal-swarm (night shift)
 python scripts/night_shift.py --skip-fetch
 
 # Live paper trading

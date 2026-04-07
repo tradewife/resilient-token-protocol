@@ -121,7 +121,7 @@ NOT USING:
 
 EXISTING SHIPPING CODE (black-boxed):
   Proven in fractal-swarm (tradewife/fractal-swarm.git), now feeds RTP.
-  The Python yield brain runs locally (gitignored) and ships as compiled binary.
+  The Python fractal-swarm runs locally (gitignored) and ships as compiled binary.
 ├── night_shift.py           — 30K configs/night, 9-fold WFA, Darwinian
 ├── paper_trader.py          — live Binance, ADX filter
 ├── future_blind_simulator   — 0.1% fees, 10bps slippage, ground truth
@@ -212,7 +212,7 @@ RPC:
 
 BLACK-BOX / OPEN-SOURCE SPLIT:
   ✅ OPEN: swarm architecture, treasury program, soulcontract, wing interfaces
-  ❌ BOXED: Python yield brain (binary), encrypted configs, loss function
+  ❌ BOXED: Python fractal-swarm (binary), encrypted configs, loss function
 
 ================================================================================
   PART 4: CLDCDE SKILL MAPPING (REVISED FULL SCOPE)
@@ -469,7 +469,7 @@ WEEK 3: KNOWLEDGE WING + SECURITY WING
 WEEK 4: FULL LOOP + BLACK-BOXING
 ─────────────────────────────────────────
   Day 1-2:
-  [ ] Black-box Python yield brain: pyinstaller → night_shift.bin
+  [ ] Black-box Python fractal-swarm: pyinstaller → night_shift.bin
   [ ] Rust FFI bridge: Trading Wing calls Python binary via
       std::process::Command, receives typed JSON proposal
   [ ] Encrypted configs (AES, build-time key)

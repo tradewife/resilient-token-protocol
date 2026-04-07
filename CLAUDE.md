@@ -10,13 +10,13 @@ This file provides guidance to Claude Code when working with this repository.
 **License**: MIT
 
 This repo has two layers:
-1. **Proven Python yield brain** (shipping) — backtesting, optimization, paper trading
+1. **Proven Python fractal-swarm** (shipping) — backtesting, optimization, paper trading
 2. **Rust swarm + Solana treasury** (in development) — 6-wing architecture, Coordinator, soulcontract
 
 ## Quick Setup
 
 ```bash
-# Python environment (yield brain)
+# Python environment (fractal-swarm)
 python -m venv .venv && source .venv/bin/activate
 pip install pandas numpy ccxt pyarrow redis
 
@@ -225,7 +225,7 @@ Trading Wing          Coordinator           Audit Wing
 - Demo flow + disclosure
 
 **Black-boxed (proprietary binary)**:
-- `night_shift.bin` — PyInstaller binary of yield brain
+- `night_shift.bin` — PyInstaller binary of fractal-swarm
 - `configs/encrypted/` — AES-encrypted strategy params
 - `loss_function.bin` — Treasury-native scoring
 - Research pipeline internals
@@ -357,7 +357,7 @@ Not using: World Coin (toxic sentiment).
 ## GitHub
 
 - **This repo**: `git@github.com:tradewife/resilient-token-protocol.git` (SSH)
-- **Source repo**: `git@github.com:tradewife/fractal-swarm.git` (Python yield brain origin)
+- **Source repo**: `git@github.com:tradewife/fractal-swarm.git` (Python fractal-swarm origin)
 - **Research repo**: `git@github.com:tradewife/rtp-skills-research.git` (pre-hackathon research)
 - **PAT stored**: `~/.config/gh/config.yml` (for `workflow_dispatch` triggers)
 
@@ -367,6 +367,6 @@ This repo (`resilient-token-protocol`) contains:
 - **Tracked (open-source)**: `rtp/swarm/`, `rtp/programs/`, governance docs, CI workflows
 - **Gitignored (local dev)**: `scripts/`, `backtesting/`, `agents/`, `data/`, `strategies/`
 
-The Python yield brain source lives in this directory for development but is gitignored.
+The Python fractal-swarm source lives in this directory for development but is gitignored.
 It ships as a compiled binary in the hackathon submission. The original source
 and data live in `fractal-swarm` (tradewife/fractal-swarm.git).

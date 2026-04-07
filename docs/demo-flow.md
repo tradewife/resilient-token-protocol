@@ -25,7 +25,7 @@ Show: a token project enabling TransferFeeConfig, pointing fees to the RTP Treas
 
 Show terminal: `data/night_results/latest/report.md`
 
-"Last night, while we slept, the yield brain tested 30,000 strategy configurations across 9 independent validation windows. The best one: +118% PnL, 78% consistency, 429 validated trades. This is not a backtest — these are out-of-sample walk-forward results with realistic fees and slippage."
+"Last night, while we slept, the fractal-swarm tested 30,000 strategy configurations across 9 independent validation windows. The best one: +118% PnL, 78% consistency, 429 validated trades. This is not a backtest — these are out-of-sample walk-forward results with realistic fees and slippage."
 
 ### 1:15 — Wing Architecture (30 seconds)
 
@@ -53,7 +53,7 @@ Show: phase transition logic (Sustenance → Ecosystem → Humanity).
 
 ### 2:30 — What Makes This Different (15 seconds)
 
-- "Working yield brain — not vaporware"
+- "Working fractal-swarm — not vaporware"
 - "Constitutional governance — soulcontract enforced on every message"
 - "Self-funding — no VC dependency, no token sale"
 - "Open-source architecture, protected strategies"
