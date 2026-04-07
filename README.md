@@ -1,6 +1,6 @@
 # RTP — Resilient Token Protocol
 
-A Solana-native, self-funding treasury governed by a modular Rust swarm. Any token project adopts RTP — their trading fees route to the swarm, which generates yield that flows back to the project and its holders. Funded by its own yield, forever.
+A Solana-native, self-funding treasury governed by a modular Rust swarm. Any token project adopts RTP — their trading fees route to the swarm, which autonomously researches, validates, and executes yield strategies (30K configs/night, 9-fold walk-forward validation, fee-aware simulation) — returning yield back to the project and its holders. Funded by its own yield, forever.
 
 ```
                     ┌─────────────────────────────┐
