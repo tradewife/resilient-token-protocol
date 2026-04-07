@@ -1,0 +1,60 @@
+{
+  "version": "1.0",
+  "schedule": {
+    "fetch_fresh_data": true,
+    "max_hours_runtime": 8
+  },
+  "symbols": ["BTC/USDT", "ETH/USDT", "SOL/USDT", "BNB/USDT"],
+  "wfa": {
+    "num_folds": 10,
+    "test_fold_days": 36,
+    "min_trades_per_fold": 10
+  },
+  "grid_search": {
+    "coarse": true,
+    "fine_refinement_top_n": 100,
+    "darwinian_generations": 5,
+    "darwinian_population": 50
+  },
+  "overfitting": {
+    "max_is_oos_gap": 0.5,
+    "min_oos_consistency": 0.50,
+    "max_fragility": 0.4
+  },
+  "regime_analysis": {
+    "adx_threshold": 25.0,
+    "volatility_percentile_window": 60
+  },
+  "validation": {
+    "top_candidates": 3
+  },
+  "experiments": [
+    {
+      "name": "tighter_stops_wider_tp",
+      "type": "param_override",
+      "params": {
+        "stop_loss_atr": [0.8, 1.0, 1.25],
+        "take_profit_atr": [3.5, 4.0, 5.0, 6.0]
+      },
+      "note": "test tighter stops + moderate TP — the pattern that worked for SOL"
+    },
+    {
+      "name": "shorter_holds",
+      "type": "param_override",
+      "params": {
+        "max_hold_hours": [24, 36, 48],
+        "time_decay_hours": [24, 36, 48]
+      },
+      "note": "test shorter holding periods — optimizer converged on 36-48h for SOL"
+    },
+    {
+      "name": "lower_threshold",
+      "type": "param_override",
+      "params": {
+        "signal_threshold": [0.30, 0.35, 0.40, 0.45]
+      },
+      "note": "sweep entry threshold — SOL showed 0.35 is better than production 0.40"
+    }
+  ],
+  "output_dir": "data/night_results"
+}
