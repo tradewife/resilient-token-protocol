@@ -1,6 +1,21 @@
-# RTP — Agent Onboarding (Day 2+)
+# RTP — Agent Onboarding (Day 3+)
 
-> Read this file. Then start fixing bugs. No other setup needed.
+> Read this file. Then read the three context files below. Then start building.
+
+## First task: read these before writing any code
+
+Read these three files in order. They give you the full picture — architecture,
+design decisions, current state, and what's coming. Do NOT skip this step.
+
+1. **`CLAUDE.md`** — Architecture, three-layer stack, message flow, invariant
+   list, design decisions, command reference. This is the project's brain.
+2. **`BUILD_PLAN_v3.md`** — Post-audit remediation schedule, invariant
+   enforcement tracker, risk register, weekly timeline through May 11.
+3. **`README.md`** — Project overview, demo flow, how RTP works for adopters.
+   (Create this file if it doesn't exist — the old one may be stale.)
+
+After reading all three, you'll understand the full context needed for the
+tasks below.
 
 ## What is this project?
 
@@ -14,102 +29,121 @@ holders. Hackathon deadline: May 11, 2026.
 
 **Treasury program** (`rtp/programs/rtp-treasury/programs/rtp-treasury/src/lib.rs`):
 Anchor 1.0 — initialize, withdraw_fees, check_redistribute, hydrate_swarm,
-evolve_phase, verify_adoption, create_swarm_vault. Compiles but has
-critical bugs (see below).
+evolve_phase, verify_adoption, create_swarm_vault. All CRITICAL and HIGH
+audit findings fixed. Compiles clean. No Anchor integration tests yet.
 
 **Swarm runtime** (`rtp/swarm/src/`):
 Coordinator (soulguard, router, lifecycle), Evolve Wing (assessor,
 proposer, rollback), Audit Wing (3-agent tribunal with Byzantine
-consensus), types system. 88 tests passing. Trading, Security,
-Knowledge, Futureproof wings are stubs.
+consensus), types system. 88 tests passing. All HIGH/MEDIUM swarm
+findings fixed. Trading, Security, Knowledge, Futureproof wings are stubs.
 
 ## What needs to happen RIGHT NOW?
 
-A security audit found 3 CRITICAL, 5 HIGH, and 5 MEDIUM bugs.
 Full audit: `docs/SECURITY_AUDIT_2026-04-07.md`
 Full schedule: `BUILD_PLAN_v3.md`
 
+Previous sessions fixed 9 of 13 audit findings (C-1, C-2/C-3, H-1, H-2,
+H-3, H-4, H-5, M-3, M-4, M-5). Two remain, then we move to tests.
+
 ### Fix these in order:
 
-#### 1. C-2/C-3: Recipient account validation is broken [CRITICAL]
+#### 1. M-1: `initialize` doesn't verify TransferFeeConfig [MEDIUM]
 **File**: `rtp/programs/rtp-treasury/programs/rtp-treasury/src/lib.rs`
 
-`holders_recipient` (line 530) is an unchecked `AccountInfo` — anyone
-can steal 70% of redistribution. `dev_recipient` constraint (line 537)
-compares `AccountInfo.owner` (the Token program ID) against a wallet
-pubkey — semantically wrong, always fails.
+A treasury can be initialized for a vanilla Token-2022 mint that has no
+TransferFeeConfig. `withdraw_fees` will then fail at CPI time with an
+unhelpful error. The `verify_adoption` instruction (line ~383) already
+has the deserialization logic — inline it into `initialize`.
 
 **Fix**:
-- Add `holders_wallet: Pubkey` to `Treasury` state struct (line 69)
-- Accept it as a param or account in `initialize()`
-- Change `CheckRedistribute` (line 500) — all three recipients become:
-```rust
-#[account(mut, token::mint = mint, token::authority = treasury.holders_wallet)]
-pub holders_recipient: InterfaceAccount<'info, TokenAccount>,
-#[account(mut, token::mint = mint, token::authority = treasury.project_dev_wallet)]
-pub dev_recipient: InterfaceAccount<'info, TokenAccount>,
-#[account(mut, token::mint = mint, token::authority = treasury.ecosystem_wallet)]
-pub ecosystem_recipient: InterfaceAccount<'info, TokenAccount>,
-```
-- Recompute `Treasury::INIT_SPACE` (added a Pubkey = +32 bytes)
+- Extract the mint-extension-check logic from `verify_adoption` into a
+  helper function (or call it inline).
+- In `initialize`, after storing state, deserialize the mint account data
+  and verify `TransferFeeConfig` is present with the Treasury PDA as
+  `withdraw_withheld_authority`.
+- If the mint doesn't have TransferFeeConfig, return a clear error.
+- Keep `verify_adoption` as a standalone read-only instruction for
+  third-party verification (don't remove it).
+- **Do NOT duplicate code** — share the logic between both instructions.
 
-#### 2. H-1: Self-referential authority [HIGH]
-**File**: same `lib.rs`, line 138
+#### 2. I-2: Hardcoded test path [INFO]
+**File**: `rtp/swarm/src/coordinator/soulcontract_spec.rs`, line 323
 
-`treasury.authority = treasury.key()` makes the PDA its own authority.
-`evolve_phase` requires this PDA to sign, which is impossible. Dead code.
-
-**Fix**: Change line 138 to:
-```rust
-treasury.authority = ctx.accounts.authority.key();
-```
-
-#### 3. C-1: Phase evolution has no threshold enforcement [CRITICAL]
-**File**: same `lib.rs`, lines 348-371
-
-`evolve_phase` advances phases with zero balance check. The TODO on
-line 367 admits this. Anyone with authority can jump to Humanity with $0.
+`parse_full_soulcontract` test uses hardcoded absolute path
+`/home/kt/kt/tabs/resilient-token-protocol/soulcontract.md` — fails on
+CI and any other machine.
 
 **Fix**:
-- Add `treasury_vault` to `EvolvePhase` account context
-- Enforce vault balance against `SUSTENANCE_CAP` / `ECOSYSTEM_CAP`
-- Remove `#[allow(dead_code)]` from those constants
+- Replace the hardcoded path with `env!("CARGO_MANIFEST_DIR")` and walk
+  up to the repo root (same pattern as `Soulguard::new()` in soulguard.rs).
+- Alternatively, use `option_env!` to skip the test gracefully when the
+  file isn't found (the test already has an `if path.exists()` guard —
+  just fix the path resolution).
 
-#### 4. H-2: Stale vault balance after CPI [HIGH]
-**File**: same `lib.rs`, line 198
+#### 3. Stale doc comment [housekeeping]
+**File**: `rtp/programs/rtp-treasury/programs/rtp-treasury/src/lib.rs`, line 70
 
-After `withdraw_withheld_tokens_from_mint` CPI, `vault.amount` is stale.
-Delta is always 0. `total_fees_withdrawn` never increments.
+The `authority` field comment still says "self-referential — no external
+authority". H-1 fixed this — it's now the initializer's pubkey.
 
-**Fix**: After the CPI call (line 195), add:
-```rust
-ctx.accounts.treasury_vault.reload()?;
-```
+**Fix**: Change to: `/// The phase authority (set at initialization).`
 
-#### 5. H-3: min_runway_balance = 0 silently defaults [HIGH]
-**File**: same `lib.rs`, line 150
+#### 4. Anchor integration tests
+**File**: create `rtp/programs/rtp-treasury/tests/` (doesn't exist yet)
 
-Comment says "reject 0 explicitly" but code silently defaults to
-`DEFAULT_MIN_RUNWAY`. Either error on 0 or fix the comment.
+There are ZERO integration tests for the treasury. This blocks any demo.
 
-#### 6. Swarm fixes (after treasury)
+Write tests for every instruction. Use `@solana/web3.js` + `@coral-xyz/anchor`.
+See `Anchor.toml` for program ID and cluster config.
 
-- **H-4**: Delete `soulguard.rs` lines 306-309 (`spec()` calls `unreachable!()`)
-- **H-5**: `soulguard.rs` line 302 — `exceeds_rollback_threshold()` hardcodes
-  `0.05` instead of reading from spec. Store threshold on reload.
-- **M-3**: Delete soulguard Rule 2 (lines 131-144) — dead code, Rule 1 covers it
-- **M-4**: Make `router` field `pub(crate)` in `coordinator/mod.rs` to prevent
-  soulguard bypass via direct `Router::route()` calls
-- **M-5**: `audit/mod.rs` `stub_review()` auto-approves `EvolveProposal` — reject it
+Tests to write (in priority order):
+- `initialize` — success path; reject `min_runway_balance < DEFAULT_MIN_RUNWAY`
+- `initialize` — reject mint without TransferFeeConfig (tests M-1 fix)
+- `verify_adoption` — success with correct mint; fail with vanilla mint
+- `create_swarm_vault` — success; reject duplicate init
+- `withdraw_fees` — verify `total_fees_withdrawn` increments (tests H-2 fix)
+- `check_redistribute` — correct 70/20/10 split; reject wrong recipients
+  (tests C-2/C-3 fix); reject when below threshold
+- `hydrate_swarm` — success; reject when below runway (tests 90-day invariant)
+- `evolve_phase` — reject when vault below SUSTENANCE_CAP (tests C-1 fix);
+  success when above; reject at max phase
 
-## Verify after fixes
+Reference: `CLAUDE.md` for Solana/Anchor commands, `docs/SECURITY_AUDIT_2026-04-07.md`
+for the specific attack vectors each test should prove are fixed.
+
+#### 5. Re-audit checkpoint
+After tests pass:
+- Walk through all 18 findings in `docs/SECURITY_AUDIT_2026-04-07.md`
+- Confirm each fixed finding has a corresponding test
+- Update the invariant enforcement table in CLAUDE.md (currently 4/10
+  enforced — should be 8/10 after fixes)
+- Run `anchor build` — must compile clean
+- Run `anchor test` — all passing (or note which need devnet)
+
+## After audit remediation (Week 3+)
+
+Once audit is closed out, the BUILD_PLAN_v3.md Week 3 schedule starts:
+
+1. **bridge.rs** — typed Python↔Rust interface for Trading Wing
+2. **Wire Trading Wing** — handle Proposal, ExecutePermit, YieldReport
+3. **Knowledge Wing** — in-memory knowledge graph (HashMap/DashMap)
+4. **Security Wing** — threat detection, rate limiting
+5. **Wire all stubs** — every wing handles at least 2 payload types
+
+See `BUILD_PLAN_v3.md` Week 3 for full details.
+
+## Verify after changes
 
 ```bash
 # Swarm (must stay green)
 cd rtp/swarm && cargo test
 
-# Treasury (must compile — full anchor test needs devnet)
+# Treasury (must compile)
 cd rtp/programs/rtp-treasury && anchor build
+
+# Treasury integration tests (once written)
+cd rtp/programs/rtp-treasury && anchor test
 ```
 
 ## Rules
@@ -127,8 +161,9 @@ cd rtp/programs/rtp-treasury && anchor build
 
 | File | What |
 |------|------|
-| `rtp/programs/rtp-treasury/programs/rtp-treasury/src/lib.rs` | Treasury program — **fix this first** |
+| `rtp/programs/rtp-treasury/programs/rtp-treasury/src/lib.rs` | Treasury program |
 | `rtp/swarm/src/coordinator/soulguard.rs` | Soulcontract enforcement |
+| `rtp/swarm/src/coordinator/soulcontract_spec.rs` | Spec parser + tests |
 | `rtp/swarm/src/coordinator/router.rs` | Message routing |
 | `rtp/swarm/src/coordinator/mod.rs` | Coordinator (quality gate pipeline) |
 | `rtp/swarm/src/wings/audit/mod.rs` | 3-agent tribunal |

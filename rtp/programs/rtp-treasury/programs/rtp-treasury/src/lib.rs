@@ -22,9 +22,7 @@ const ECOSYSTEM_BPS: u16 = 1000;   // 10% (auditability reference)
 /// Production: validated against on-chain oracle (Pyth/Switchboard).
 /// Devnet: phase_authority signature is the guard.
 /// Wired into evolve_phase via oracle TODO — see handler for details.
-#[allow(dead_code)]
 const SUSTENANCE_CAP: u64 = 50_000_000_000;   // $50k
-#[allow(dead_code)]
 const ECOSYSTEM_CAP: u64 = 1_000_000_000_000; // $1M
 
 /// Default minimum redistribution amount (1 token, 6 decimals).
@@ -83,6 +81,8 @@ pub struct Treasury {
     pub total_distributed_ecosystem: u64,
     /// Cumulative tokens sent to swarm hydration vault
     pub total_hydration: u64,
+    /// Holders wallet (receives 70% of redistribution)
+    pub holders_wallet: Pubkey,
     /// Project dev wallet (receives 20% of redistribution)
     pub project_dev_wallet: Pubkey,
     /// Ecosystem wallet (receives 10% of redistribution)
@@ -135,27 +135,23 @@ pub mod rtp_treasury {
     ) -> Result<()> {
         let treasury = &mut ctx.accounts.treasury;
         treasury.mint = ctx.accounts.mint.key();
-        treasury.authority = treasury.key();
+        treasury.authority = ctx.accounts.authority.key();
         treasury.phase = Phase::default();
         treasury.total_fees_withdrawn = 0;
         treasury.total_distributed_holders = 0;
         treasury.total_distributed_dev = 0;
         treasury.total_distributed_ecosystem = 0;
         treasury.total_hydration = 0;
+        treasury.holders_wallet = ctx.accounts.holders_wallet.key();
         treasury.project_dev_wallet = ctx.accounts.project_dev_wallet.key();
         treasury.ecosystem_wallet = ctx.accounts.ecosystem_wallet.key();
         // Enforce explicit non-zero runway floor.
-        // U-001 fix: reject 0 explicitly rather than silently defaulting.
-        // Caller MUST provide a runway value — no magic numbers.
-        if min_runway_balance == 0 {
-            treasury.min_runway_balance = DEFAULT_MIN_RUNWAY;
-        } else {
-            require!(
-                min_runway_balance >= DEFAULT_MIN_RUNWAY,
-                TreasuryError::InsufficientRunway,
-            );
-            treasury.min_runway_balance = min_runway_balance;
-        }
+        // H-3 fix: reject 0 explicitly — caller MUST provide a runway value.
+        require!(
+            min_runway_balance >= DEFAULT_MIN_RUNWAY,
+            TreasuryError::InsufficientRunway,
+        );
+        treasury.min_runway_balance = min_runway_balance;
         treasury.bump = ctx.bumps.treasury;
         Ok(())
     }
@@ -169,11 +165,10 @@ pub mod rtp_treasury {
     pub fn withdraw_fees(ctx: Context<WithdrawFees>) -> Result<()> {
         let treasury = &mut ctx.accounts.treasury;
         let mint = &ctx.accounts.mint;
-        let vault = &ctx.accounts.treasury_vault;
         let mint_key = mint.key();
 
         // Snapshot balance BEFORE withdrawal to compute delta (F-002 fix)
-        let balance_before = vault.amount;
+        let balance_before = ctx.accounts.treasury_vault.amount;
 
         let seeds = &[
             TREASURY_SEED,
@@ -187,15 +182,18 @@ pub mod rtp_treasury {
             anchor_spl::token_2022_extensions::transfer_fee::WithdrawWithheldTokensFromMint {
                 token_program_id: ctx.accounts.token_program.to_account_info(),
                 mint: mint.to_account_info(),
-                destination: vault.to_account_info(),
+                destination: ctx.accounts.treasury_vault.to_account_info(),
                 authority: treasury.to_account_info(),
             },
             signer_seeds,
         );
         withdraw_withheld_tokens_from_mint(cpi_ctx)?;
 
+        // H-2 fix: reload vault to get post-CPI balance.
+        ctx.accounts.treasury_vault.reload()?;
+
         // Track actual delta withdrawn (not just vault balance)
-        let withdrawn = vault.amount.saturating_sub(balance_before);
+        let withdrawn = ctx.accounts.treasury_vault.amount.saturating_sub(balance_before);
         if withdrawn > 0 {
             treasury.total_fees_withdrawn = treasury.total_fees_withdrawn.saturating_add(withdrawn);
         }
@@ -347,25 +345,38 @@ pub mod rtp_treasury {
     /// Only the treasury authority can trigger (Squads Multisig compatible).
     pub fn evolve_phase(ctx: Context<EvolvePhase>) -> Result<()> {
         let treasury = &mut ctx.accounts.treasury;
+        let vault_balance = ctx.accounts.treasury_vault.amount;
 
         // Authority is verified by Anchor constraint on the account struct.
         // S-002 fix: removed duplicate manual check — single guard is
         // the canonical source of truth (spec-lock principle).
 
         let next = match treasury.phase {
-            Phase::Sustenance => Phase::Ecosystem,
-            Phase::Ecosystem => Phase::Humanity,
+            Phase::Sustenance => {
+                // C-1 fix: enforce vault balance against SUSTENANCE_CAP.
+                // Production: replace with oracle-denominated USDC value.
+                require!(
+                    vault_balance >= SUSTENANCE_CAP,
+                    TreasuryError::BelowThreshold,
+                );
+                Phase::Ecosystem
+            }
+            Phase::Ecosystem => {
+                // C-1 fix: enforce vault balance against ECOSYSTEM_CAP.
+                // Production: replace with oracle-denominated USDC value.
+                require!(
+                    vault_balance >= ECOSYSTEM_CAP,
+                    TreasuryError::BelowThreshold,
+                );
+                Phase::Humanity
+            }
             Phase::Humanity => return Err(TreasuryError::AlreadyMaxPhase.into()),
         };
 
         // F-005: production path — validate USDC reserves against phase cap
-        // via on-chain oracle (Pyth/Switchboard). For devnet, authority
-        // signature is sufficient. Thresholds are documented here for
-        // auditability and will be enforced by the Coordinator/swarm
-        // before proposing phase evolution.
-        //
-        // TODO: require!(oracle_usdc_value >= SUSTENANCE_CAP);  // for Ecosystem
-        // TODO: require!(oracle_usdc_value >= ECOSYSTEM_CAP);   // for Humanity
+        // via on-chain oracle (Pyth/Switchboard). For devnet, vault balance
+        // denominated in the mint's native token serves as the guard.
+        // Thresholds are documented here for auditability.
 
         treasury.phase = next;
         Ok(())
@@ -451,6 +462,11 @@ pub mod rtp_treasury {
         )]
         pub treasury_vault: InterfaceAccount<'info, TokenAccount>,
 
+        /// Holders wallet — receives 70% of redistribution.
+        /// Stored as pubkey in treasury state for on-chain verification.
+        /// CHECK: plain pubkey, no data read
+        pub holders_wallet: AccountInfo<'info>,
+
         /// Project dev wallet — receives 20% of redistribution.
         /// Stored as pubkey in treasury state for on-chain verification.
         /// CHECK: plain pubkey, no data read
@@ -523,29 +539,34 @@ pub mod rtp_treasury {
         pub treasury_vault: InterfaceAccount<'info, TokenAccount>,
 
         /// Holder distribution recipient token account.
-        /// For devnet: any writable token account.
-        /// Production: should be a verified holder claim pool PDA.
-        /// CHECK: transfer destination, no data read from this account
-        #[account(mut)]
-        pub holders_recipient: AccountInfo<'info>,
+        /// Authority verified against `treasury.holders_wallet`.
+        /// Boxed to reduce stack frame size (BPF 4KB limit).
+        #[account(
+            mut,
+            token::mint = mint,
+            token::authority = treasury.holders_wallet,
+        )]
+        pub holders_recipient: Box<InterfaceAccount<'info, TokenAccount>>,
 
-        /// Project dev wallet token account. Owner verified against
+        /// Project dev wallet token account. Authority verified against
         /// `treasury.project_dev_wallet` stored at initialization.
+        /// Boxed to reduce stack frame size (BPF 4KB limit).
         #[account(
             mut,
             token::mint = mint,
-            constraint = *dev_recipient.to_account_info().owner == treasury.project_dev_wallet,
+            token::authority = treasury.project_dev_wallet,
         )]
-        pub dev_recipient: InterfaceAccount<'info, TokenAccount>,
+        pub dev_recipient: Box<InterfaceAccount<'info, TokenAccount>>,
 
-        /// Ecosystem wallet token account. Owner verified against
+        /// Ecosystem wallet token account. Authority verified against
         /// `treasury.ecosystem_wallet` stored at initialization.
+        /// Boxed to reduce stack frame size (BPF 4KB limit).
         #[account(
             mut,
             token::mint = mint,
-            constraint = *ecosystem_recipient.to_account_info().owner == treasury.ecosystem_wallet,
+            token::authority = treasury.ecosystem_wallet,
         )]
-        pub ecosystem_recipient: InterfaceAccount<'info, TokenAccount>,
+        pub ecosystem_recipient: Box<InterfaceAccount<'info, TokenAccount>>,
 
         pub token_program: Interface<'info, TokenInterface>,
     }
@@ -609,6 +630,16 @@ pub mod rtp_treasury {
             bump = treasury.bump,
         )]
         pub treasury: Account<'info, Treasury>,
+
+        /// Treasury vault — balance checked against phase caps (C-1 fix).
+        /// Authority = treasury PDA.
+        #[account(
+            token::mint = mint,
+            token::authority = treasury,
+            seeds = [TREASURY_SEED, mint.key().as_ref(), b"vault"],
+            bump,
+        )]
+        pub treasury_vault: InterfaceAccount<'info, TokenAccount>,
 
         /// Phase authority — MUST be `treasury.authority`.
         /// Can be a Squads Multisig PDA for governance.

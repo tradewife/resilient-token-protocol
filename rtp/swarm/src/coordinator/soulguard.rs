@@ -38,6 +38,8 @@ pub struct Soulguard {
     current_phase: Arc<RwLock<Phase>>,
     /// Audit log for every compliance check.
     audit_log: Arc<RwLock<Vec<AuditLogEntry>>>,
+    /// Cached rollback threshold from the spec (updated on reload).
+    rollback_threshold: Arc<RwLock<f64>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -70,11 +72,13 @@ impl Phase {
 impl Soulguard {
     /// Create from a parsed SoulcontractSpec.
     pub fn from_spec(spec: SoulcontractSpec) -> Self {
+        let threshold = spec.rollback_threshold;
         Self {
             current_risk_budget: Arc::new(RwLock::new(1.0)),
             current_phase: Arc::new(RwLock::new(Phase::Sustenance)),
             audit_log: Arc::new(RwLock::new(Vec::new())),
             spec: Arc::new(RwLock::new(spec)),
+            rollback_threshold: Arc::new(RwLock::new(threshold)),
         }
     }
 
@@ -101,8 +105,11 @@ impl Soulguard {
     /// Reload the spec from disk (e.g. after a human-signed amendment).
     pub async fn reload(&self, path: &std::path::Path) -> Result<(), String> {
         let spec = SoulcontractSpec::from_file(path)?;
+        let threshold = spec.rollback_threshold;
         let mut current = self.spec.write().await;
         *current = spec;
+        drop(current);
+        *self.rollback_threshold.write().await = threshold;
         Ok(())
     }
 
@@ -123,20 +130,6 @@ impl Soulguard {
                 reason: format!(
                     "Direct wing-to-wing communication forbidden: {} -> {}. \
                      All messages must route through the Coordinator.",
-                    message.from, message.to
-                ),
-                constraint: "wings_communicate_via_coordinator".to_string(),
-            };
-        }
-
-        // Rule 2: Only Coordinator can send to non-Coordinator, non-Audit wings.
-        if message.from != WingId::Coordinator
-            && message.to != WingId::Coordinator
-            && message.to != WingId::Audit
-        {
-            return SoulguardVerdict::Reject {
-                reason: format!(
-                    "Wing {} cannot send directly to {}. Route through Coordinator.",
                     message.from, message.to
                 ),
                 constraint: "wings_communicate_via_coordinator".to_string(),
@@ -296,17 +289,11 @@ impl Soulguard {
 
     /// Check if degradation exceeds the rollback threshold from the parsed spec.
     pub fn exceeds_rollback_threshold(&self, degradation: f64) -> bool {
-        // Use the spec's threshold. For now, we need to read the spec.
-        // This is sync so we can't easily read the RwLock here.
-        // The spec's default is 0.05, which matches soulcontract.md.
-        degradation > 0.05
-    }
-
-    /// Get a reference to the parsed spec (read-only).
-    pub async fn spec(&self) -> Arc<tokio::sync::RwLockReadGuard<'_, SoulcontractSpec>> {
-        // We can't return the guard directly, so return a cloned Arc.
-        // Instead, expose the spec through a method.
-        unreachable!("Use spec_snapshot() instead")
+        // H-5 fix: read the cached threshold from the spec instead of hardcoding 0.05.
+        match self.rollback_threshold.try_read() {
+            Ok(threshold) => degradation > *threshold,
+            Err(_) => degradation > 0.05, // fallback if lock is poisoned
+        }
     }
 
     /// Get a snapshot of the current spec.

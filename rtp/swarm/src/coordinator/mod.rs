@@ -35,7 +35,7 @@ pub enum StageResult {
 ///   2. Router: typed message routing with fault tolerance
 ///   3. Audit Wing: consensus tribunal for proposals
 pub struct Coordinator {
-    router: Arc<Router>,
+    pub(crate) router: Arc<Router>,
     soulguard: Arc<Soulguard>,
     lifecycle: Arc<lifecycle::LifecycleManager>,
 }

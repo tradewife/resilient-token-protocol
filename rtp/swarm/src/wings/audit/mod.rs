@@ -153,9 +153,9 @@ impl AuditWing {
                 WingId::Coordinator,
                 Payload::AuditResult {
                     proposal_id: msg.id,
-                    approved: true,
-                    risk_level: RiskLevel::Medium,
-                    findings: vec!["Evolve proposal — stub approved".to_string()],
+                    approved: false,
+                    risk_level: RiskLevel::High,
+                    findings: vec!["Evolve proposals require full tribunal review, not stub approval".to_string()],
                 },
             )),
             _ => None,
