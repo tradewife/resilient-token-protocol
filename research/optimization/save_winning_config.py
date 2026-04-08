@@ -9,7 +9,7 @@ import sys
 import json
 from datetime import datetime
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 from knowledge_base_schema import KnowledgeBase, StrategyGenome, StrategyPerformance
 
@@ -189,7 +189,7 @@ def save_configs():
         "conservative": "tight_sl",
         "saved_at": datetime.now().isoformat(),
         "data_source": "binance_ohlcv_365d",
-        "strategy_file": "scripts/run_backtest_r2.py",
+        "strategy_file": "research/simulation/run_backtest_r2.py",
         "strategy_class": "MultiTFStrategy",
         "configs": {
             key: {

@@ -2,8 +2,8 @@
 # RTP — Resilient Token Protocol
 # .gitignore
 #
-# Source code (scripts, backtesting, agents, strategies) is
-# committed — collaborator needs it to build and run locally.
+# Source code (research/, rtp/) is committed — collaborator
+# needs it to build and run locally.
 # Only data, artifacts, and secrets are excluded.
 # ============================================================
 

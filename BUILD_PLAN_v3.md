@@ -3,7 +3,7 @@
   BUILD PLAN v3.0 — POST-AUDIT REMEDIATION
   Supersedes: BUILD_PLAN.md (v2.2) for the weekly schedule
   Audit ref:  docs/SECURITY_AUDIT_2026-04-07.md
-  Status:     Week 2+3 complete (Apr 8), all audit fixes applied, all wings functional
+  Status:     Week 2+3 complete on the core treasury/swarm path; black-boxing deferred while the repo stays private for collaboration
 ================================================================================
 
 CONTEXT:
@@ -314,7 +314,7 @@ WEEK 4 (Apr 21-25): FULL LOOP + BLACK-BOXING
         - timeout: 30 min
   [ ] Weekly checkpoint: full end-to-end loop demoable on devnet
 
-  DELIVERABLES: Complete loop, black-boxed strategies, devnet demo
+  DELIVERABLES: Complete loop, source-visible research pipeline, devnet demo
 
 WEEK 5 (Apr 28 - May 2): POLISH + HARDENING
 ─────────────────────────────────────────────────────────────────────
@@ -381,7 +381,7 @@ WEEK 6 (May 5-11): SUBMISSION
   | 7 | Soulcontract amend = human sig | ⚠️    | Week 5: reload signature check |
   | 8 | Auto-rollback >5% degradation | ✅     | H-5: FIXED — read from spec |
   | 9 | Self-hydration >90-day runway | ✅     | —           |
-  | 10| Strategies black-boxed       | ✅     | —           |
+  | 10| Strategies black-boxed       | DEFERRED | repo kept private for collaboration |
 
   Target: 9/10 enforced now. Invariant 7 is Week 5.
   M-2 (has_one on mint in Initialize) reviewed 2026-04-08: safe by PDA derivation.

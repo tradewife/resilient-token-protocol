@@ -16,10 +16,10 @@ Inspired by:
 Design doc: docs/NIGHT_SHIFT_DESIGN.md
 
 Usage:
-  python scripts/night_shift.py                      # use defaults
-  python scripts/night_shift.py --config data/night_config.json
-  python scripts/night_shift.py --skip-fetch          # use cached data
-  python scripts/night_shift.py --symbols BTC/USDT ETH/USDT
+  python -m research.orchestration.night_shift
+  python -m research.orchestration.night_shift --config research/orchestration/night_config.json
+  python -m research.orchestration.night_shift --skip-fetch
+  python -m research.orchestration.night_shift --symbols BTC/USDT ETH/USDT
 """
 import argparse
 import json
@@ -40,9 +40,9 @@ import pandas as pd
 sys.stdout.reconfigure(line_buffering=True)
 sys.stderr.reconfigure(line_buffering=True)
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
-from scripts.per_symbol_optimizer import (
+from research.optimization.per_symbol_optimizer import (
     compute_indicators,
     simulate_trades,
     compute_metrics,
@@ -51,10 +51,10 @@ from scripts.per_symbol_optimizer import (
 
 # ─── Paths ────────────────────────────────────────────────────────────────────
 
-ROOT = os.path.join(os.path.dirname(__file__), "..")
+ROOT = os.path.join(os.path.dirname(__file__), "..", "..")
 DATA_DIR = os.path.join(ROOT, "data", "ohlcv")
 RESULTS_DIR = os.path.join(ROOT, "data", "night_results")
-CONFIG_PATH = os.path.join(ROOT, "scripts", "night_config.json")
+CONFIG_PATH = os.path.join(os.path.dirname(__file__), "night_config.json")
 PRODUCTION_CONFIG_PATH = os.path.join(ROOT, "knowledge_base", "production_config.json")
 
 # ─── Config Loader ────────────────────────────────────────────────────────────
@@ -782,7 +782,7 @@ def auto_validate_top_candidates(all_results: Dict[str, List[CandidateResult]],
     log(f"\n── Phase 7: Auto-Validation (FutureBlindSimulator) ──")
 
     import asyncio
-    from backtesting.future_blind_simulator import FutureBlindSimulator
+    from research.simulation.future_blind_simulator import FutureBlindSimulator
 
     validated = []
 
@@ -871,8 +871,8 @@ def auto_validate_top_candidates(all_results: Dict[str, List[CandidateResult]],
                              "profit_factor": 0, "avg_hold_hrs": 0, "max_drawdown_pct": 0, "sharpe": 0}
                 else:
                     # Use FutureBlindSimulator for MultiTFStrategy candidates
-                    from agents.historical_data_collector import DataWindow
-                    from scripts.run_backtest_r2 import MultiTFStrategy
+                    from research.simulation.data_window import DataWindow
+                    from research.simulation.run_backtest_r2 import MultiTFStrategy
                     try:
                         loop = asyncio.new_event_loop()
                         strategy = MultiTFStrategy(f"val_{symbol}",
@@ -1543,7 +1543,7 @@ def run_night_shift(
     # ── Phase 8: Discrepancy Detection (self-awareness) ──
     log(f"\n── Phase 8: Discrepancy Detection ──")
     try:
-        from scripts.discrepancy_detector import detect_discrepancies, update_flag_history, generate_recommendation
+        from research.validation.discrepancy_detector import detect_discrepancies, update_flag_history, generate_recommendation
         # Build fast sim results from all_results
         fast_results = {}
         for sym, results in all_results.items():

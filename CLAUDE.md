@@ -21,17 +21,17 @@ python -m venv .venv && source .venv/bin/activate
 pip install pandas numpy ccxt pyarrow redis
 
 # Night shift (30K configs/night, 9-fold WFA)
-python scripts/night_shift.py --skip-fetch
+python -m research.orchestration.night_shift --skip-fetch
 
 # Paper trading (live Binance)
-PYTHONUNBUFFERED=1 python scripts/paper_trader.py
+PYTHONUNBUFFERED=1 python -m research.live.paper_trader
 
 # Full-sim validation
-python scripts/validate_night_shift.py --production
+python -m research.validation.validate_night_shift --production
 
 # Self-correction
-python scripts/evaluator_calibration.py --samples 20
-python scripts/discrepancy_detector.py
+python -m research.optimization.evaluator_calibration --samples 20
+python -m research.validation.discrepancy_detector
 
 # Rust (swarm runtime)
 cd rtp/swarm && cargo build
@@ -44,24 +44,24 @@ cd rtp/programs/rtp-treasury && anchor build
 
 ```bash
 # Night shift — main optimization pipeline
-python scripts/night_shift.py                      # defaults (4 symbols, 9 folds)
-python scripts/night_shift.py --skip-fetch         # use cached data
-python scripts/night_shift.py --symbols SOL/USDT   # single symbol
+python -m research.orchestration.night_shift
+python -m research.orchestration.night_shift --skip-fetch
+python -m research.orchestration.night_shift --symbols SOL/USDT
 
 # Paper trading — live market validation
-python scripts/paper_trader.py
+python -m research.live.paper_trader
 
 # Validation — bridge fast sim → full sim
-python scripts/validate_night_shift.py --production
-python scripts/validate_night_shift.py --symbol SOL/USDT --top 3
+python -m research.validation.validate_night_shift --production
+python -m research.validation.validate_night_shift --symbol SOL/USDT --top 3
 
 # Self-correction — calibration + discrepancy detection
-python scripts/evaluator_calibration.py --samples 20
-python scripts/evaluator_calibration.py --fast-only
-python scripts/discrepancy_detector.py
+python -m research.optimization.evaluator_calibration --samples 20
+python -m research.optimization.evaluator_calibration --fast-only
+python -m research.validation.discrepancy_detector
 
 # Data
-python scripts/download_ohlcv.py                   # fetch from Binance (no API key needed)
+python -m research.data.download_ohlcv             # fetch from Binance (no API key needed)
 ```
 
 ### Rust (Swarm Runtime)
@@ -162,16 +162,16 @@ Trading Wing          Coordinator           Audit Wing
 
 | File | Purpose |
 |------|---------|
-| `scripts/night_shift.py` | Main pipeline: grid search → WFA → Darwinian → report → validation |
-| `scripts/per_symbol_optimizer.py` | Fast simulator: `compute_indicators()`, `simulate_trades()`, `_compute_score()` |
-| `scripts/paper_trader.py` | Live paper trader: polls Binance, ADX filter, per-symbol configs |
-| `scripts/validate_night_shift.py` | Bridges fast sim → full sim for candidate validation |
-| `scripts/run_backtest_r2.py` | Production `MultiTFStrategy` class + `timeframe_signal()` helper |
-| `scripts/evaluator_calibration.py` | Compares fast vs full sim on random configs |
-| `scripts/discrepancy_detector.py` | Post-night-shift check, flags fast/full sim divergences |
-| `scripts/night_config.json` | Night shift config (symbols, folds, experiments, thresholds) |
-| `backtesting/future_blind_simulator.py` | `FutureBlindSimulator`: 0.1% fees, 10bps slippage, max 20% position |
-| `agents/historical_data_collector.py` | `DataWindow` class feeding data to full simulator |
+| `research/orchestration/night_shift.py` | Main pipeline: grid search → WFA → Darwinian → report → validation |
+| `research/optimization/per_symbol_optimizer.py` | Fast simulator: `compute_indicators()`, `simulate_trades()`, `_compute_score()` |
+| `research/live/paper_trader.py` | Live paper trader: polls Binance, ADX filter, per-symbol configs |
+| `research/validation/validate_night_shift.py` | Bridges fast sim → full sim for candidate validation |
+| `research/simulation/run_backtest_r2.py` | Production `MultiTFStrategy` class + `timeframe_signal()` helper |
+| `research/optimization/evaluator_calibration.py` | Compares fast vs full sim on random configs |
+| `research/validation/discrepancy_detector.py` | Post-night-shift check, flags fast/full sim divergences |
+| `research/orchestration/night_config.json` | Night shift config (symbols, folds, experiments, thresholds) |
+| `research/simulation/future_blind_simulator.py` | `FutureBlindSimulator`: 0.1% fees, 10bps slippage, max 20% position |
+| `research/simulation/data_window.py` | `DataWindow` class feeding data to full simulator |
 
 #### Rust (Swarm Runtime)
 
@@ -183,12 +183,12 @@ Trading Wing          Coordinator           Audit Wing
 | `rtp/swarm/src/coordinator/soulguard.rs` | Enforce soulcontract on every message |
 | `rtp/swarm/src/coordinator/soulcontract_spec.rs` | Parse soulcontract.md → structured constraints + drift detection |
 | `rtp/swarm/src/coordinator/lifecycle.rs` | Wing spawn, health-check, retire |
-| `rtp/swarm/src/wings/trading/mod.rs` | Stub — handles TradingConfig, needs bridge.rs (TODO) |
-| `rtp/swarm/src/wings/security/mod.rs` | Stub — heartbeat handler |
+| `rtp/swarm/src/wings/trading/mod.rs` | Trading Wing with bridge-backed `ExecutePermit` handling and in-memory proposal state |
+| `rtp/swarm/src/wings/security/mod.rs` | Security Wing with alert tracking, proposal rate limiting, and suspicious-proposal detection |
 | `rtp/swarm/src/wings/evolve/` | Assessor, proposer, rollback (complete, tested) |
-| `rtp/swarm/src/wings/knowledge/mod.rs` | Stub — query handler |
+| `rtp/swarm/src/wings/knowledge/mod.rs` | Knowledge Wing with in-memory store and cross-wing query support |
 | `rtp/swarm/src/wings/audit/mod.rs` | 3-agent tribunal (Skeptic/UserProxy/Optimizer), Byzantine consensus |
-| `rtp/swarm/src/wings/futureproof/mod.rs` | Stub — heartbeat handler |
+| `rtp/swarm/src/wings/futureproof/mod.rs` | Futureproof Wing with deprecation monitoring heartbeat + shutdown ack |
 
 #### Solana (Treasury Program)
 
@@ -218,7 +218,7 @@ Trading Wing          Coordinator           Audit Wing
 7. **soulcontract amendments require human signature + 24h monitoring**
 8. **Auto-rollback if performance degrades > 5% post-amendment**
 9. **Self-hydration only if sustenance bucket > 90-day runway**
-10. **Yield brain strategies remain black-boxed** (competitive moat)
+10. **Research code remains reviewable while collaboration is active** — black-boxing is deferred
 
 ## Black-Box / Open-Source Split
 
@@ -228,11 +228,10 @@ Trading Wing          Coordinator           Audit Wing
 - soulcontract.md
 - Demo flow + disclosure
 
-**Black-boxed (proprietary binary)**:
-- `night_shift.bin` — PyInstaller binary of fractal-swarm
-- `configs/encrypted/` — AES-encrypted strategy params
-- `loss_function.bin` — Treasury-native scoring
-- Research pipeline internals
+**Deferred while repo is private and collaborators need source access**:
+- PyInstaller packaging for `night_shift`
+- Any encryption/obfuscation of strategy configs
+- Competitive-moat hardening of research internals
 
 ## Critical: Fast Sim Calibration
 
@@ -369,7 +368,7 @@ Not using: World Coin (toxic sentiment).
 
 This repo (`resilient-token-protocol`) contains:
 - **Tracked (open-source)**: `rtp/swarm/`, `rtp/programs/`, governance docs, CI workflows
-- **Gitignored (local dev)**: `scripts/`, `backtesting/`, `agents/`, `data/`, `strategies/`
+- **Gitignored (local dev)**: `data/`, virtualenvs, build artifacts, secrets
 
 The Python fractal-swarm source lives in this directory for development but is gitignored.
 It ships as a compiled binary in the hackathon submission. The original source

@@ -25,7 +25,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional
 from pathlib import Path
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 import ccxt.async_support as ccxt
 
@@ -97,7 +97,7 @@ TRADE_SYMBOLS = ["BTC/USDT", "ETH/USDT", "SOL/USDT", "BNB/USDT"]
 # ADX regime filter — validated: reduces std dev 29%, improves total PnL +31.7%
 ADX_THRESHOLD = 25.0
 
-LOG_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "paper_trading")
+LOG_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "data", "paper_trading")
 STATE_FILE = os.path.join(LOG_DIR, "state.json")
 
 
@@ -205,7 +205,7 @@ class PaperTrader:
 
     def _compute_score(self, df: pd.DataFrame, symbol: str) -> tuple:
         """Compute multi-TF confluence score (same logic as backtest strategy)."""
-        from scripts.run_backtest_r2 import timeframe_signal
+        from research.simulation.run_backtest_r2 import timeframe_signal
 
         close = df["close"]
         if len(close) < 200:

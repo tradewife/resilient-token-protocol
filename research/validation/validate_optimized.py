@@ -11,13 +11,13 @@ import numpy as np
 sys.stdout.reconfigure(line_buffering=True)
 sys.stderr.reconfigure(line_buffering=True)
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
-from scripts.run_backtest_r2 import MultiTFStrategy, compute_round_trip_metrics_list
-from backtesting.future_blind_simulator import FutureBlindSimulator
-from agents.historical_data_collector import DataWindow
+from research.simulation.run_backtest_r2 import MultiTFStrategy, compute_round_trip_metrics_list
+from research.simulation.future_blind_simulator import FutureBlindSimulator
+from research.simulation.data_window import DataWindow
 
-DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "ohlcv")
+DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "data", "ohlcv")
 SYMBOLS = ["BTC/USDT", "ETH/USDT", "SOL/USDT", "BNB/USDT"]
 
 GLOBAL_CONFIG = {

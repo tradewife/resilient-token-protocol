@@ -21,12 +21,12 @@ import pandas as pd
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
-from backtesting.future_blind_simulator import FutureBlindSimulator
-from agents.historical_data_collector import DataWindow
+from research.simulation.future_blind_simulator import FutureBlindSimulator
+from research.simulation.data_window import DataWindow
 
-DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "ohlcv")
+DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "data", "ohlcv")
 SYMBOLS = ["BTC/USDT", "ETH/USDT", "SOL/USDT", "BNB/USDT", "XRP/USDT"]
 WIDE_TP_PARAMS = {
     "signal_threshold": 0.40, "min_alignment": 3,
@@ -87,7 +87,7 @@ def compute_round_trip_metrics_list(trips: list) -> Dict:
 async def backtest_window_with_adx(symbol: str, df: pd.DataFrame, params: Dict,
                                     adx_threshold: float = 25.0, adx_period: int = 14) -> Dict:
     """Backtest with ADX regime filter integrated."""
-    from scripts.run_backtest_r2 import MultiTFStrategy
+    from research.simulation.run_backtest_r2 import MultiTFStrategy
 
     # Compute ADX on the full dataframe
     adx = compute_adx(df["high"], df["low"], df["close"], adx_period)
@@ -186,7 +186,7 @@ async def run_regime_validation(test_days: int = 30, step_days: int = 7,
                 continue
 
             # No-filter version
-            from scripts.run_backtest_r2 import MultiTFStrategy
+            from research.simulation.run_backtest_r2 import MultiTFStrategy
             strat_nf = MultiTFStrategy(f"nf_{symbol}", {**{"symbol": symbol}, **WIDE_TP_PARAMS})
             sim_nf = FutureBlindSimulator(initial_capital=10000)
             sim_nf.add_strategy(strat_nf)

@@ -9,9 +9,9 @@ This is the first "self-awareness" module — the system detecting when its
 own evaluation layer is unreliable.
 
 Usage:
-    python scripts/evaluator_calibration.py                    # all symbols, 20 samples
-    python scripts/evaluator_calibration.py --symbol SOL/USDT  # single symbol
-    python scripts/evaluator_calibration.py --samples 50      # more samples
+    python -m research.optimization.evaluator_calibration
+    python -m research.optimization.evaluator_calibration --symbol SOL/USDT
+    python -m research.optimization.evaluator_calibration --samples 50
 """
 
 import argparse
@@ -27,9 +27,9 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
-from scripts.per_symbol_optimizer import (
+from research.optimization.per_symbol_optimizer import (
     compute_indicators,
     simulate_trades,
     compute_metrics,
@@ -48,8 +48,8 @@ PARAM_RANGES = {
     "score_flip_delay_hrs": [0, 1, 2, 4],
 }
 
-DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "ohlcv")
-REPORT_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "calibration")
+DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "data", "ohlcv")
+REPORT_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "data", "calibration")
 
 
 def random_config() -> dict:
@@ -84,7 +84,7 @@ def fast_sim_eval(df: pd.DataFrame, params: dict, folds: list) -> dict:
 async def full_sim_eval(symbol: str, df: pd.DataFrame, params: dict,
                         folds: list) -> dict:
     """Run full simulator on all folds. Returns aggregated metrics."""
-    from scripts.validate_night_shift import backtest_fold
+    from research.validation.validate_night_shift import backtest_fold
 
     fold_results = []
     for fold_num, train_end, test_end in folds:

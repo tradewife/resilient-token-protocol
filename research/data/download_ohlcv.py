@@ -9,7 +9,7 @@ from datetime import datetime
 SYMBOLS = ["BTC/USDT", "ETH/USDT", "SOL/USDT", "BNB/USDT", "XRP/USDT"]
 TIMEFRAMES = ["1h", "4h", "1d"]
 DAYS_BACK = 365
-OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "ohlcv")
+OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "data", "ohlcv")
 
 async def download_symbol(exchange, symbol, timeframe, days_back):
     """Download OHLCV for one symbol/timeframe"""

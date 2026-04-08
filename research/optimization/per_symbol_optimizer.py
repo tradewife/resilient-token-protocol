@@ -18,7 +18,7 @@ from itertools import product
 sys.stdout.reconfigure(line_buffering=True)
 sys.stderr.reconfigure(line_buffering=True)
 
-DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "ohlcv")
+DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "data", "ohlcv")
 SYMBOLS = ["BTC/USDT", "ETH/USDT", "SOL/USDT", "BNB/USDT"]
 
 

@@ -6,8 +6,8 @@ full simulator on the same WFA fold structure. This is the "does the edge surviv
 fees and slippage?" check before paper trading.
 
 Usage:
-    python3 scripts/validate_night_shift.py
-    python3 scripts/validate_night_shift.py --symbol SOL/USDT --top 3
+    python -m research.validation.validate_night_shift
+    python -m research.validation.validate_night_shift --symbol SOL/USDT --top 3
 """
 import asyncio
 import argparse
@@ -22,15 +22,15 @@ import pandas as pd
 sys.stdout.reconfigure(line_buffering=True)
 sys.stderr.reconfigure(line_buffering=True)
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
-from backtesting.future_blind_simulator import FutureBlindSimulator
-from agents.historical_data_collector import DataWindow
-from scripts.run_backtest_r2 import MultiTFStrategy
+from research.simulation.future_blind_simulator import FutureBlindSimulator
+from research.simulation.data_window import DataWindow
+from research.simulation.run_backtest_r2 import MultiTFStrategy
 
 
-DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "ohlcv")
-RESULTS_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "night_results")
+DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "data", "ohlcv")
+RESULTS_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "data", "night_results")
 
 # Production baseline
 PRODUCTION_CONFIG = {

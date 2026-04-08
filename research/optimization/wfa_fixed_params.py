@@ -16,13 +16,13 @@ import pandas as pd
 from datetime import datetime, timedelta
 from typing import Dict, List
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
-from backtesting.future_blind_simulator import FutureBlindSimulator
-from agents.historical_data_collector import DataWindow
-from scripts.run_backtest_r2 import MultiTFStrategy
+from research.simulation.future_blind_simulator import FutureBlindSimulator
+from research.simulation.data_window import DataWindow
+from research.simulation.run_backtest_r2 import MultiTFStrategy
 
-DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "ohlcv")
+DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "data", "ohlcv")
 SYMBOLS = ["BTC/USDT", "ETH/USDT", "SOL/USDT", "BNB/USDT", "XRP/USDT"]
 
 # Fixed params from the winning R6 wide_tp config

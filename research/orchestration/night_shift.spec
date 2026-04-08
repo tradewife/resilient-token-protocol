@@ -3,7 +3,7 @@
 # PyInstaller spec for night_shift.bin
 # Produces a standalone binary that accepts --bridge-mode for Rust bridge integration.
 #
-# Build: python3 -m PyInstaller night_shift.spec
+# Build: python3 -m PyInstaller research/orchestration/night_shift.spec
 # Output: dist/night_shift.bin
 #
 # Bridge mode reads JSON from stdin, writes JSON to stdout.
@@ -13,12 +13,13 @@ import os
 
 block_cipher = None
 
-REPO_ROOT = os.path.dirname(os.path.abspath(SPEC))
-SCRIPTS_DIR = os.path.join(REPO_ROOT, 'scripts')
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(SPEC))))
+RESEARCH_DIR = os.path.join(REPO_ROOT, 'research')
+ORCH_DIR = os.path.join(RESEARCH_DIR, 'orchestration')
 
 a = Analysis(
-    [os.path.join(SCRIPTS_DIR, 'night_shift.py')],
-    pathex=[SCRIPTS_DIR, REPO_ROOT],
+    [os.path.join(ORCH_DIR, 'night_shift.py')],
+    pathex=[RESEARCH_DIR, REPO_ROOT],
     binaries=[],
     datas=[],
     hiddenimports=[

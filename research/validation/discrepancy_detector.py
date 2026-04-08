@@ -11,8 +11,8 @@ This is the "self-awareness" module — the system knowing when it can't trust
 its own evaluation for a given symbol/market regime.
 
 Usage:
-    python scripts/discrepancy_detector.py                           # auto-detect latest results
-    python scripts/discrepancy_detector.py --report data/night_results/2026-04-06/report.md
+    python -m research.validation.discrepancy_detector
+    python -m research.validation.discrepancy_detector --report data/night_results/2026-04-06/report.md
 """
 
 import argparse
@@ -23,11 +23,11 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 
-RESULTS_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "night_results")
-DISCREPANCY_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "discrepancies")
+RESULTS_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "data", "night_results")
+DISCREPANCY_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "data", "discrepancies")
 FLAG_THRESHOLD = 2  # consecutive flags before skipping Darwinian
 
 

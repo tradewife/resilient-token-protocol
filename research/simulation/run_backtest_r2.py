@@ -17,9 +17,9 @@ import pandas as pd
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
-from backtesting.future_blind_simulator import (
+from research.simulation.future_blind_simulator import (
     FutureBlindSimulator, TradingStrategy, TradeSignal, Trade
 )
 
@@ -375,7 +375,7 @@ async def backtest_symbol(symbol: str, params: Dict = None) -> Dict:
     sim = FutureBlindSimulator(initial_capital=10000)
     sim.add_strategy(strategy)
 
-    from agents.historical_data_collector import DataWindow
+    from research.simulation.data_window import DataWindow
     window = DataWindow(
         symbol=symbol,
         exchange="binance",

@@ -450,17 +450,17 @@ Treasury program, Coordinator, Evolve Wing, and Audit Wing are built. Security a
 - ✅ Evolve Wing (assessor + proposer + rollback with 5% degradation threshold)
 - ✅ Audit Wing (3-agent tribunal: Skeptic/UserProxy/Optimizer, Byzantine consensus)
 - ✅ Treasury program on devnet (Anchor 1.0)
-- 🔧 Treasury audit remediation (3 CRITICAL, 5 HIGH — see `docs/SECURITY_AUDIT_2026-04-07.md`)
-- ⬜ Python ↔ Rust typed bridge (`bridge.rs`)
-- ⬜ Trading Wing beyond stub
+- 🔧 Treasury audit remediation and repo/docs alignment (see `docs/SECURITY_AUDIT_2026-04-07.md`)
+- ✅ Python ↔ Rust typed bridge (`rtp/swarm/src/bridge.rs`)
+- ✅ Trading Wing bridge integration and in-memory execution state
 
-### Phase 2: All Wings Functional + Full Loop
+### Phase 2: End-to-End Integration + Full Loop
 
 Wire remaining wings and complete the end-to-end demo flow.
 
-- Knowledge Wing (in-memory store + cross-wing queries)
-- Security Wing (threat detection + rate limiting)
-- Trading Wing executor (bridge.rs → Python binary → typed JSON proposals)
+- Knowledge Wing hardening beyond in-memory store
+- Security Wing hardening beyond in-memory alert/rate-limit logic
+- Trading Wing executor against real deployment targets
 - Full loop: Python proposes → Audit tribunal → Coordinator routes → execute on Solana
 
 ### Phase 3: Polish + Submission
@@ -479,16 +479,16 @@ python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
 # Run the fractal-swarm (night shift)
-python scripts/night_shift.py --skip-fetch
+python -m research.orchestration.night_shift --skip-fetch
 
 # Live paper trading
-PYTHONUNBUFFERED=1 python scripts/paper_trader.py
+PYTHONUNBUFFERED=1 python -m research.live.paper_trader
 
 # Validate candidates through full simulator
-python scripts/validate_night_shift.py --production
+python -m research.validation.validate_night_shift --production
 
 # Check system calibration
-python scripts/evaluator_calibration.py --samples 20
+python -m research.optimization.evaluator_calibration --samples 20
 ```
 
 ## Hackathon

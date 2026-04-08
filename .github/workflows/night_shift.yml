@@ -67,7 +67,7 @@ jobs:
           if [ "$FETCH_DATA" = "true" ]; then
             ARGS=""  # Override: always fetch when explicitly requested
           fi
-          python3 scripts/night_shift.py --config scripts/night_config.json $ARGS \
+          python3 -m research.orchestration.night_shift --config research/orchestration/night_config.json $ARGS \
             --symbols $(echo $SYMBOLS | tr ',' ' ') \
             --folds $FOLDS
 
