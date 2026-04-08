@@ -287,7 +287,39 @@ echo '{"symbol":"SOL/USDT","config":{}}' | ./night_shift.bin --bridge-mode
 
 ---
 
-## 5. Critical Calibration Invariants
+## 5. Known Bugs + Gotchas
+
+1. **Discrepancy detector crashes** — Phase 8 in night_shift.py fails with
+   `"string indices must be integers, not 'str'"`. The night shift still completes
+   (Phases 1-7 all work), but discrepancy detection is skipped. Bug is in
+   `scripts/discrepancy_detector.py`.
+
+2. **Night shift overwrites same-date results** — If you run night_shift twice on
+   the same day, the second run overwrites `data/night_results/YYYY-MM-DD/`.
+   No deduplication or timestamping within a day.
+
+3. **`nohup` doesn't capture full output** — Python buffers stdout. For long runs,
+   use `PYTHONUNBUFFERED=1 nohup python scripts/night_shift.py ...` to get real-time
+   logs, or run under `tmux`.
+
+4. **Night shift cron uses committed data** — The GitHub Actions cron (14:00 UTC daily)
+   runs with `--skip-fetch` if parquet files exist in the repo. If data is stale,
+   the run still works (WFA is all historical) but won't include today's candles.
+   To get fresh data into the cron: run `download_ohlcv.py` locally, commit, push
+   before 14:00 UTC.
+
+5. **Paper trader doesn't auto-pick up night shift winners** — This is the main
+   pipeline gap. Night shift writes candidates to `data/night_results/`, but the
+   paper trader reads from hardcoded/production configs. Wiring this up
+   (night shift → save_winning_config → paper trader reload) is the key task.
+
+6. **Paper trader ADX filter blocks all signals in low-vol markets** — ADX threshold
+   is 25. SOL's ADX has been ~15-21 recently, so all signals get FILTERED.
+   Consider lowering the threshold or making it per-symbol configurable.
+
+---
+
+## 6. Critical Calibration Invariants
 
 The fast simulator (`per_symbol_optimizer`) MUST match the full simulator. Three invariants
 discovered the hard way — **do not change these without running `evaluator_calibration.py`**:
@@ -298,7 +330,7 @@ discovered the hard way — **do not change these without running `evaluator_cal
 
 ---
 
-## 6. Key Files Reference
+## 7. Key Files Reference
 
 ### Python (Yield Brain) — THIS IS THE FOCUS
 
@@ -346,7 +378,7 @@ discovered the hard way — **do not change these without running `evaluator_cal
 
 ---
 
-## 7. Docker (NOT installed — may be needed)
+## 8. Docker (NOT installed — may be needed)
 
 Docker is not currently installed. If you need it for CI or isolated builds:
 ```bash
@@ -360,7 +392,7 @@ the spec file works natively on Ubuntu 25.04.
 
 ---
 
-## 8. .gitignore Rules (IMPORTANT)
+## 9. .gitignore Rules (IMPORTANT)
 
 The `.gitignore` header takes precedence: *"Source code (scripts, backtesting, agents,
 strategies) is committed — collaborator needs it to build and run locally. Only data,
@@ -371,7 +403,7 @@ artifacts, and secrets are excluded."*
 
 ---
 
-## 9. Verify After Every Change
+## 10. Verify After Every Change
 
 ```bash
 # Python — smoke test imports
@@ -386,7 +418,7 @@ cd rtp/programs/rtp-treasury && anchor build
 
 ---
 
-## 10. Rules
+## 11. Rules
 
 - **Read the file before changing it.**
 - **Don't modify `soulcontract.md`.**
