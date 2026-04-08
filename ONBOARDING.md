@@ -1,435 +1,283 @@
 # RTP — Agent Onboarding
 
-> **Read this file first.** This is your complete orientation + task list. After reading
-> this, read [`CLAUDE.md`](CLAUDE.md) for the deep architecture reference.
+Read this file first. It is the current starting point for the next build-phase agent.
 
----
+After this, read:
 
-## 0. Current Goal: Get the Python Research Pipeline Fully Operational
+1. [`CLAUDE.md`](CLAUDE.md)
+2. [`BUILD_PLAN_v3.md`](BUILD_PLAN_v3.md)
+3. [`soulcontract.md`](soulcontract.md)
+4. [`handover.md`](handover.md)
+5. [`handover_checklist.md`](handover_checklist.md)
 
-The Rust swarm and Solana treasury are **done** (146 tests, 0 clippy warnings, all audit
-findings fixed). The next milestone is getting the **Python yield brain** running end-to-end:
+## 0. Where We Actually Are
 
-1. Night shift optimization (30K configs, 9-fold WFA, Darwinian evolution)
-2. Full-sim validation (FutureBlindSimulator with fees + slippage)
-3. Self-correction (evaluator calibration + discrepancy detection)
-4. Paper trading (live Binance, ADX regime filter)
-5. Autoresearch loop (Karpathy-style self-improvement)
+Do not trust older onboarding assumptions.
 
-**Hackathon deadline: May 11, 2026**
+Current repo state:
 
----
+- Python trading research has been restructured under `research/`
+- Root `scripts/` and `backtesting/` are gone
+- `agents/historical_data_collector.py` was removed because it was not agent code
+- Root `data/` remains intentionally outside `research/` as runtime/output storage
+- Repo is private
+- Black-boxing is deferred while collaborators still need readable source
 
-## 1. Environment Setup (DO THIS FIRST)
+Status against [`BUILD_PLAN_v3.md`](BUILD_PLAN_v3.md):
 
-The system was recently wiped. Nothing is installed except Python 3.13.3, Rust/Cargo,
-Solana CLI, Anchor, Node.js, and npm. **Docker is not installed.**
+- Treasury audit remediation: done
+- Core swarm runtime and coordinator path: built
+- Bridge + Trading/Security/Knowledge/Futureproof wings: present in code
+- Research layer: reorganized and module entry points work in the venv
+- Immediate next phase: continue Week 4/5 work as "full-loop integration + demo hardening", not black-boxing
 
-### Step 1: Create Python virtual environment
+The plan language about black-boxing is now stale as an execution target. Treat the current next phase as:
+
+1. end-to-end integration
+2. devnet demo path hardening
+3. CI/test hardening
+4. documentation accuracy
+
+## 1. Current Goal For The Next Agent
+
+Continue the next build phase from the real state of the repo.
+
+That means:
+
+- do not spend time re-restructuring the research code
+- do not reintroduce deleted `scripts/` paths
+- do not prioritize PyInstaller black-boxing right now
+- prioritize integration and demo readiness
+
+The next agent should treat this as the active milestone:
+
+### Active Milestone
+
+Make the Python research layer, Rust bridge/runtime, and Solana treasury path demonstrably coherent enough for the next demo/hardening phase.
+
+## 2. Source Layout
+
+### Research Layer
+
+All trading research source lives here:
+
+```text
+research/
+├── data/
+├── simulation/
+├── optimization/
+├── validation/
+├── live/
+└── orchestration/
+```
+
+Important files:
+
+- `research/orchestration/night_shift.py`
+- `research/orchestration/night_config.json`
+- `research/live/paper_trader.py`
+- `research/optimization/per_symbol_optimizer.py`
+- `research/optimization/evaluator_calibration.py`
+- `research/validation/validate_night_shift.py`
+- `research/validation/discrepancy_detector.py`
+- `research/simulation/future_blind_simulator.py`
+- `research/simulation/run_backtest_r2.py`
+
+### Runtime Data
+
+Runtime artifacts stay at root:
+
+- `data/ohlcv/`
+- `data/night_results/`
+- `data/calibration/`
+- `data/discrepancies/`
+- `data/paper_trading/`
+
+Do not move `data/` into `research/` unless you are intentionally redesigning storage paths everywhere.
+
+### Swarm Runtime
+
+Rust swarm source:
+
+- `rtp/swarm/src/bridge.rs`
+- `rtp/swarm/src/coordinator/`
+- `rtp/swarm/src/wings/`
+
+### Solana Program
+
+Anchor treasury program:
+
+- `rtp/programs/rtp-treasury/`
+
+## 3. What Has Already Been Verified
+
+In the project venv, these module entry points work:
 
 ```bash
-cd /home/kt/tabs/resilient-token-protocol
+python -m research.orchestration.night_shift --help
+python -m research.validation.validate_night_shift --help
+python -m research.optimization.evaluator_calibration --help
+```
+
+The GitHub Actions workflow for night shift has already been updated to use the new `research/` path.
+
+Docs already aligned recently:
+
+- `CLAUDE.md`
+- `README.md`
+- `BUILD_PLAN_v3.md`
+- `.github/workflows/night_shift.yml`
+
+## 4. Known Defects / Constraints
+
+### Pre-existing broken module
+
+`research/optimization/save_winning_config.py` imports a missing dependency:
+
+```python
+from knowledge_base_schema import KnowledgeBase, StrategyGenome, StrategyPerformance
+```
+
+That module does not exist in this repository.
+
+Treat it as a pre-existing broken path, not as a regression from the refactor.
+
+### Black-boxing is deferred
+
+Do not spend the next phase on:
+
+- obfuscating research code
+- encrypted strategy packaging
+- packaging-only hardening for secrecy
+
+The repo is private and collaboration-readable source is currently more important.
+
+### `agents/` is not the research folder
+
+If future autonomous agent code is added, it can live in `agents/`.
+Do not move trading research helpers back there.
+
+## 5. Environment Setup
+
+From repo root:
+
+```bash
 python3 -m venv .venv
-source .venv/bin/activate
+. .venv/bin/activate
 pip install pandas numpy ccxt pyarrow redis
 ```
 
-**Required packages**: `pandas`, `numpy`, `ccxt`, `pyarrow`, `redis`
-**Optional but useful**: `scipy`, `scikit-learn`
-
-Verify:
-```bash
-python -c "import pandas, numpy, ccxt, pyarrow, redis; print('all OK')"
-```
-
-### Step 2: Verify data exists
+Useful verification:
 
 ```bash
-ls data/ohlcv/
-# Should show: BTC_USDT_{1h,4h,1d}.parquet, ETH_USDT_{1h,4h,1d}.parquet,
-#              SOL_USDT_{1h,4h,1d}.parquet, BNB_USDT_{1h,4h,1d}.parquet
+python -c "import pandas, numpy, ccxt, pyarrow, redis; print('OK')"
 ```
 
-Data is **3 days old** (last candle: 2026-04-05 23:00 UTC, 9600 rows per 1h file).
-To refresh:
-```bash
-python scripts/download_ohlcv.py
-```
+## 6. Canonical Commands
 
-### Step 3: Verify Rust swarm still passes
+Always prefer module execution from repo root:
 
 ```bash
-cd rtp/swarm && cargo test   # expect 146 tests, 0 failures
+. .venv/bin/activate
+
+python -m research.orchestration.night_shift --skip-fetch
+python -m research.orchestration.night_shift --skip-fetch --folds 3 --symbols SOL/USDT
+
+python -m research.validation.validate_night_shift --production
+python -m research.optimization.evaluator_calibration --samples 20
+python -m research.validation.discrepancy_detector
+
+PYTHONUNBUFFERED=1 python -m research.live.paper_trader
+python -m research.data.download_ohlcv
 ```
 
-### Step 4: Verify Solana/Anchor
+Rust / Anchor:
 
 ```bash
-cd rtp/programs/rtp-treasury && anchor build   # must compile clean
-```
-
----
-
-## 2. Project Architecture
-
-RTP is a Solana-native, self-funding treasury governed by a modular Rust swarm. Three layers:
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    ON-CHAIN (Solana / Anchor)                    │
-│  Treasury PDA: fees → yield → redistribute → self-hydrate       │
-│  Phase evolution: Sustenance → Ecosystem → Humanity Fund        │
-├─────────────────────────────────────────────────────────────────┤
-│                    SWARM RUNTIME (Rust)                          │
-│  Coordinator → message bus → 6 wings (trading, security,        │
-│  evolve, knowledge, audit, futureproof)                          │
-├─────────────────────────────────────────────────────────────────┤
-│                    RESEARCH LAYER (Python)                        │
-│  Night Shift: 30K configs → WFA → Darwinian → full-sim validate │
-│  Paper Trader: live Binance → state persistence → degradation   │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-**The Python research layer is the yield brain** — it generates strategy parameters that
-the Rust swarm's Trading Wing executes via `bridge.rs`. This is the layer we're focused on.
-
-### Data Flow (Yield Brain)
-
-```
-Binance → download_ohlcv.py → data/ohlcv/{SYMBOL}_1h.parquet
-                                   ↓
-              per_symbol_optimizer (compute_indicators, simulate_trades, _compute_score)
-              ┌────────────────┴────────────────┐
-              │                                 │
-         night_shift (grid search)         paper_trader (live)
-         fast sim (~30K combos)            real-time Binance
-              │                                 │
-              ▼                                 ▼
-    ┌─────────────────┐                 data/paper_trading/
-    │ validate_       │                   state.json
-    │ night_shift.py  │
-    │ (full sim bridge)│
-    └────────┬────────┘
-             │
-             ▼
-    FutureBlindSimulator (fees + slippage)
-             │
-             ▼
-    data/night_results/YYYY-MM-DD/report.md
-```
-
----
-
-## 3. What's Already Built
-
-### Rust Swarm Runtime — COMPLETE ✅
-**Path**: `rtp/swarm/src/`
-- 146 tests, 0 failures, 0 clippy warnings
-- 6 wings: Trading, Security, Evolve, Knowledge, Audit, Futureproof
-- Coordinator with soulguard, router, lifecycle
-- `bridge.rs`: typed Python↔Rust interface (`BridgeRequest`/`BridgeResponse`)
-- `demo.rs`: end-to-end demo loop (register wings → proposal → audit → execute → yield)
-- `config.rs`: AES-256-GCM encrypted configs
-
-### Solana Treasury — COMPLETE ✅
-**Path**: `rtp/programs/rtp-treasury/`
-- Anchor 1.0, 7 instructions, 15 integration tests
-- All 18 security audit findings fixed
-
-### Python Scripts — ALL PRESENT, NEED VENV TO RUN
-All scripts are in `scripts/` and import correctly via `sys.path.insert`. They just need
-the venv activated. Key scripts:
-
-| File | Purpose |
-|------|---------|
-| `scripts/night_shift.py` | Main pipeline: grid search → WFA → Darwinian → report → validation |
-| `scripts/per_symbol_optimizer.py` | Fast simulator: `compute_indicators()`, `simulate_trades()`, `_compute_score()` |
-| `scripts/paper_trader.py` | Live paper trader: polls Binance, ADX filter, per-symbol configs |
-| `scripts/validate_night_shift.py` | Bridges fast sim → full sim for candidate validation |
-| `scripts/run_backtest_r2.py` | Production `MultiTFStrategy` class + `timeframe_signal()` helper |
-| `scripts/evaluator_calibration.py` | Compares fast vs full sim on random configs |
-| `scripts/discrepancy_detector.py` | Post-night-shift check, flags fast/full sim divergences |
-| `scripts/autoresearch.py` | Karpathy-style self-improvement loop (git commit/revert) |
-| `scripts/autoresearch_eval.py` | Evaluation step for autoresearch (outputs JSON metrics) |
-| `scripts/download_ohlcv.py` | Downloads OHLCV from Binance (no API key needed) |
-| `scripts/night_config.json` | Night shift config (symbols, folds, experiments, thresholds) |
-| `backtesting/future_blind_simulator.py` | `FutureBlindSimulator`: 0.1% fees, 10bps slippage, max 20% position |
-| `backtesting/fast_simulator.py` | Fast simulator (wrapper around per_symbol_optimizer) |
-| `agents/historical_data_collector.py` | `DataWindow` class feeding data to full simulator |
-
-### Night Shift Pipeline Phases
-
-1. **Data** — load cached parquet (Binance geo-blocked on GitHub, data in repo)
-2. **WFA Folds** — expanding-window, non-overlapping, 9 folds × 36-day test windows
-3. **Production Baseline** — evaluate current config as reference
-4. **Coarse Grid** — ~30K parameter combinations per symbol
-5. **Fine Refinement** — top 100 per symbol on all folds
-6. **Darwinian Evolution** — 5 generations, mutate best candidates
-7. **BB Mean Reversion** — separate strategy grid search
-8. **Custom Experiments** — configurable param sweeps from `night_config.json`
-9. **Regime Analysis** — ADX, volatility percentile, correlations
-10. **Morning Report** — markdown + JSON report with top candidates
-11. **Auto-Validation** — top 3 through full FutureBlindSimulator
-12. **Discrepancy Detection** — compare fast/full sim, flag divergences
-
-### Night Shift Results (last run: 2026-04-08)
-- Runtime: 3812s (~63 min) on 3 folds, 3 symbols (BTC/ETH/SOL)
-- Top candidate: SOL/USDT with Survivor Score 5.34, OOS Sharpe +5.99, 100% consistency
-- 5 actionable HIGH-priority recommendations
-- Results in `data/night_results/2026-04-08/`
-
-### Paper Trader State
-- Balance: $10,000, 0 completed trades, 0 open positions
-- Last activity: 2026-04-06 — all 3 signals FILTERED (ADX below 25 threshold)
-- State file: `data/paper_trading/state.json`
-
----
-
-## 4. Tasks: Get the Python Pipeline Operational
-
-### Task 1: Environment bootstrap + smoke test
-**Priority: CRITICAL — everything else depends on this**
-
-1. Create venv and install deps (see Section 1)
-2. Refresh OHLCV data (it's 3 days old):
-   ```bash
-   python scripts/download_ohlcv.py
-   ```
-3. Smoke test each script imports cleanly:
-   ```bash
-   python -c "import scripts.per_symbol_optimizer; import scripts.night_shift"
-   python -c "import backtesting.future_blind_simulator; import agents.historical_data_collector"
-   ```
-4. Run a quick night shift (3 folds, 1 symbol, ~10 min):
-   ```bash
-   python scripts/night_shift.py --skip-fetch --folds 3 --symbols SOL/USDT
-   ```
-5. Verify report generated at `data/night_results/YYYY-MM-DD/`
-
-### Task 2: Full night shift run
-**Priority: HIGH — validates the complete pipeline**
-
-1. Run with production config (4 symbols, 9 folds):
-   ```bash
-   python scripts/night_shift.py --skip-fetch
-   ```
-   Expected runtime: ~4-8 hours. Use `nohup` or `tmux`:
-   ```bash
-   nohup python scripts/night_shift.py --skip-fetch > night_shift.log 2>&1 &
-   ```
-2. After completion, review:
-   - `data/night_results/YYYY-MM-DD/report.md` — top candidates
-   - `data/night_results/YYYY-MM-DD/full_sim_validation.json` — full sim results
-   - `data/night_results/YYYY-MM-DD/summary.json` — structured summary
-
-### Task 3: Full-sim validation
-**Priority: HIGH — confirms fast sim isn't lying**
-
-1. Run validation on the night shift's top candidates:
-   ```bash
-   python scripts/validate_night_shift.py --production
-   ```
-2. Run evaluator calibration (fast vs full sim agreement):
-   ```bash
-   python scripts/evaluator_calibration.py --samples 20
-   ```
-   Target: >80% sign agreement (PnL direction).
-3. Run discrepancy detector:
-   ```bash
-   python scripts/discrepancy_detector.py
-   ```
-
-### Task 4: Paper trading
-**Priority: HIGH — live market validation**
-
-1. Start paper trader (runs indefinitely, polls Binance):
-   ```bash
-   PYTHONUNBUFFERED=1 python scripts/paper_trader.py
-   ```
-2. Paper trader needs **live Binance data** — it uses `ccxt` to fetch OHLCV.
-   No API key needed for public endpoints.
-3. It uses ADX regime filter (threshold=25): only trades when ADX > 25 (trending).
-4. State persisted in `data/paper_trading/state.json`.
-5. Run in background with `nohup` or `tmux`.
-
-**Important**: The paper trader currently uses production baseline configs. After the night
-shift identifies better candidates (Task 2), update the paper trader to use them. The
-top SOL candidate from 2026-04-08 (Survivor 5.34) is a strong candidate to try.
-
-### Task 5: Autoresearch loop
-**Priority: MEDIUM — self-improvement cycle**
-
-The autoresearch script iteratively improves strategy parameters:
-```bash
-python scripts/autoresearch.py          # run the loop
-python scripts/autoresearch_eval.py     # evaluate current configs (JSON output)
-```
-
-This is a Karpathy-style self-improvement loop: identify worst symbol, mutate params,
-run WFA, keep if better or revert. Designed to run overnight.
-
-### Task 6: (Optional) PyInstaller binary + bridge integration
-**Priority: LOW — nice to have for demo**
-
-A `night_shift.spec` PyInstaller spec exists at the repo root. A `--bridge-mode`
-argument was already added to `night_shift.py`. To build the binary:
-
-```bash
-pip install pyinstaller
-pyinstaller night_shift.spec
-# Output: dist/night_shift.bin
-```
-
-The Rust swarm's `bridge.rs` calls this binary via subprocess. Test:
-```bash
-echo '{"symbol":"SOL/USDT","config":{}}' | ./night_shift.bin --bridge-mode
-```
-
----
-
-## 5. Known Bugs + Gotchas
-
-1. **Discrepancy detector crashes** — Phase 8 in night_shift.py fails with
-   `"string indices must be integers, not 'str'"`. The night shift still completes
-   (Phases 1-7 all work), but discrepancy detection is skipped. Bug is in
-   `scripts/discrepancy_detector.py`.
-
-2. **Night shift overwrites same-date results** — If you run night_shift twice on
-   the same day, the second run overwrites `data/night_results/YYYY-MM-DD/`.
-   No deduplication or timestamping within a day.
-
-3. **`nohup` doesn't capture full output** — Python buffers stdout. For long runs,
-   use `PYTHONUNBUFFERED=1 nohup python scripts/night_shift.py ...` to get real-time
-   logs, or run under `tmux`.
-
-4. **Night shift cron uses committed data** — The GitHub Actions cron (14:00 UTC daily)
-   runs with `--skip-fetch` if parquet files exist in the repo. If data is stale,
-   the run still works (WFA is all historical) but won't include today's candles.
-   To get fresh data into the cron: run `download_ohlcv.py` locally, commit, push
-   before 14:00 UTC.
-
-5. **Paper trader doesn't auto-pick up night shift winners** — This is the main
-   pipeline gap. Night shift writes candidates to `data/night_results/`, but the
-   paper trader reads from hardcoded/production configs. Wiring this up
-   (night shift → save_winning_config → paper trader reload) is the key task.
-
-6. **Paper trader ADX filter blocks all signals in low-vol markets** — ADX threshold
-   is 25. SOL's ADX has been ~15-21 recently, so all signals get FILTERED.
-   Consider lowering the threshold or making it per-symbol configurable.
-
----
-
-## 6. Critical Calibration Invariants
-
-The fast simulator (`per_symbol_optimizer`) MUST match the full simulator. Three invariants
-discovered the hard way — **do not change these without running `evaluator_calibration.py`**:
-
-1. **ATR formula**: `std(returns, 20h) × price` — NOT True Range
-2. **MR entry condition**: `rsi < 35 and daily_trend == bullish` — NOT `bull_count >= min_alignment`
-3. **Sharpe annualization**: `sqrt(n_trades / total_hours × 8760)` — NOT `sqrt(24 × 365)`
-
----
-
-## 7. Key Files Reference
-
-### Python (Yield Brain) — THIS IS THE FOCUS
-
-| File | Purpose |
-|------|---------|
-| `scripts/night_shift.py` | Main pipeline: grid search → WFA → Darwinian → report |
-| `scripts/per_symbol_optimizer.py` | Fast simulator: compute_indicators, simulate_trades, _compute_score |
-| `scripts/paper_trader.py` | Live paper trader: Binance streaming, ADX filter, state persistence |
-| `scripts/validate_night_shift.py` | Full sim validation of night shift candidates |
-| `scripts/evaluator_calibration.py` | Fast vs full sim agreement check |
-| `scripts/discrepancy_detector.py` | Post-night-shift divergence detection |
-| `scripts/autoresearch.py` | Karpathy-style self-improvement loop |
-| `scripts/autoresearch_eval.py` | Evaluation step for autoresearch |
-| `scripts/download_ohlcv.py` | Binance OHLCV downloader |
-| `scripts/night_config.json` | Night shift configuration |
-| `backtesting/future_blind_simulator.py` | Ground truth simulator (fees + slippage) |
-| `agents/historical_data_collector.py` | DataWindow class for full simulator |
-
-### Rust (Swarm Runtime) — DONE
-
-| File | Purpose |
-|------|---------|
-| `rtp/swarm/src/lib.rs` | Module declarations + re-exports |
-| `rtp/swarm/src/types.rs` | Message, Payload, WingId, Priority |
-| `rtp/swarm/src/coordinator/mod.rs` | Coordinator (soulguard → router → lifecycle) |
-| `rtp/swarm/src/bridge.rs` | Python↔Rust typed interface |
-| `rtp/swarm/src/demo.rs` | End-to-end demo loop |
-| `rtp/swarm/src/config.rs` | AES-256-GCM encrypted configs |
-
-### Solana (Treasury) — DONE
-
-| File | Purpose |
-|------|---------|
-| `rtp/programs/rtp-treasury/programs/rtp-treasury/src/lib.rs` | Treasury program |
-| `rtp/programs/rtp-treasury/tests/treasury.ts` | 15 integration tests |
-
-### Governance
-
-| File | Purpose |
-|------|---------|
-| [`CLAUDE.md`](CLAUDE.md) | Architecture, commands, design decisions, invariant list |
-| [`BUILD_PLAN_v3.md`](BUILD_PLAN_v3.md) | Post-audit remediation, weekly schedule |
-| `soulcontract.md` | Constitutional constraints (**DO NOT MODIFY**) |
-| `CODEREVIEW.md` | Code review instructions for AI agents |
-
----
-
-## 8. Docker (NOT installed — may be needed)
-
-Docker is not currently installed. If you need it for CI or isolated builds:
-```bash
-sudo apt update && sudo apt install -y docker.io docker-compose-v2
-sudo usermod -aG docker $USER
-# Log out and back in for group change to take effect
-```
-
-For PyInstaller builds on a clean environment, Docker is useful but not required —
-the spec file works natively on Ubuntu 25.04.
-
----
-
-## 9. .gitignore Rules (IMPORTANT)
-
-The `.gitignore` header takes precedence: *"Source code (scripts, backtesting, agents,
-strategies) is committed — collaborator needs it to build and run locally. Only data,
-artifacts, and secrets are excluded."*
-
-**Tracked**: `scripts/`, `backtesting/`, `agents/`, `rtp/`, `.github/`, governance docs
-**Gitignored**: `data/`, `configs/*.json`, `night_shift.bin`, `target/`, `.env`, `.anchor/`
-
----
-
-## 10. Verify After Every Change
-
-```bash
-# Python — smoke test imports
-python -c "from scripts.per_symbol_optimizer import compute_indicators, simulate_trades; print('OK')"
-
-# Rust swarm — must stay 146/146
 cd rtp/swarm && cargo test
-
-# Anchor treasury — must compile
 cd rtp/programs/rtp-treasury && anchor build
 ```
 
----
+## 7. What The Next Agent Should Focus On
 
-## 11. Rules
+These are the highest-value next-phase tasks.
 
-- **Read the file before changing it.**
-- **Don't modify `soulcontract.md`.**
-- **Don't use Anchor 0.31** — this is Anchor 1.0.0 with Solana 3.x (Agave 3.1.12).
-- **Don't load skills/plugins** — most are stubs or mocks (see `~/tabs/SKILL_AUDIT_2026-04-07.md`).
-- **Don't break the Rust swarm** — 146 tests must stay green.
-- **Wings NEVER modify each other directly** — all cross-wing communication via Coordinator.
-- **Every message passes through soulguard** — the Coordinator enforces this.
-- **Wings must never silently drop messages** — unhandled payloads return `Payload::Error`.
-- **Token-2022 gotchas** (if you touch treasury tests):
-  - `transferCheckedWithFee` stores withheld fees in the **DESTINATION** token account
-  - Use `sendAndConfirmTransaction` directly — NOT the `@solana/spl-token` wrapper
-  - Add 200-300ms sleeps after `.rpc()` calls that perform CPI before reading state
-  - CPI from Anchor to Token-2022 requires `mut` on accounts the CPI marks as writable
+### Priority 1: End-to-End Path Audit
+
+Confirm the actual demo path works or document the remaining gap:
+
+1. Python research produces usable output
+2. Rust bridge can consume/route the expected shape
+3. Trading/Audit/Coordinator flow is coherent
+4. Treasury devnet path is still aligned with the current swarm/runtime assumptions
+
+This is the most important next task because the codebase is beyond pure scaffolding now.
+
+### Priority 2: Demo-Hardening Gaps
+
+Audit and tighten the gap between "implemented modules exist" and "demoable full loop":
+
+- bridge request/response assumptions
+- demo wiring in `rtp/swarm/src/demo.rs`
+- places where code claims execution but still uses placeholder behavior
+- docs that overstate what is actually live
+
+### Priority 3: CI / Smoke-Test Hardening
+
+Add or improve lightweight checks for:
+
+- `python -m research.orchestration.night_shift --help`
+- importability of the main research modules
+- `cargo test`
+- `anchor build`
+
+The immediate win is catching path drift and integration regressions early.
+
+### Priority 4: Research Reliability Cleanup
+
+Good follow-up work on the research side:
+
+1. decide whether `save_winning_config.py` should be repaired or retired
+2. audit validation scripts for hardcoded dates and static candidate blobs
+3. add a small smoke-test path for the main research entry points
+
+## 8. Things To Avoid
+
+Do not:
+
+- recreate `scripts/` or `backtesting/`
+- move runtime data into `research/`
+- assume old `ONBOARDING.md` instructions about `scripts/...` still apply
+- assume black-boxing is the active milestone
+- assume all roadmap claims are ahead of the code without checking the tree
+
+## 9. Fast Sim / Full Sim Caution
+
+If you touch any of these:
+
+- `research/optimization/per_symbol_optimizer.py`
+- `research/simulation/future_blind_simulator.py`
+- `research/simulation/run_backtest_r2.py`
+
+then re-check calibration/validation before trusting outputs.
+
+The fast-sim and full-sim relationship is critical to the credibility of the research layer.
+
+## 10. Short Summary For The Next Agent
+
+You are not starting from scratch.
+
+The repo has:
+
+- a restructured research layer under `research/`
+- a built Rust swarm path with bridge and wing modules present
+- a treasury program that has already gone through audit remediation
+
+Your job is to continue the next phase:
+
+- integration
+- demo hardening
+- CI/smoke-test hardening
+- truthful documentation
+
+Start by validating the real end-to-end path instead of assuming the plan is already reality.
