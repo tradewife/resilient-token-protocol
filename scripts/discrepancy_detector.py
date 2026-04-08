@@ -60,7 +60,7 @@ def extract_full_sim_results(validation_path: str) -> dict:
         data = json.load(f)
 
     results = {}
-    for entry in data:
+    for entry in data.get("results", data):
         sym = entry["symbol"]
         results.setdefault(sym, []).append({
             "full_pnl": entry.get("total_pnl_pct", 0),

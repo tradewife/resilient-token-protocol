@@ -3,1298 +3,60 @@
     {
       "symbol": "SOL/USDT",
       "params": {
-        "signal_threshold": 0.3174,
-        "min_alignment": 3,
-        "take_profit_atr": 6.0,
-        "stop_loss_atr": 2.5,
-        "max_hold_hours": 96,
-        "time_decay_hours": 50,
-        "trailing_stop_atr": 0.01,
-        "score_flip_delay_hrs": 2
-      },
-      "oos_sharpe": 5.989817806940396,
-      "oos_pnl": 216.16187912503005,
-      "oos_pf": 0.5400571214331085,
-      "oos_wr": 0.8036211931581142,
-      "oos_max_dd": 8.419977536826314,
-      "oos_consistency": 1.0,
-      "oos_avg_trades_per_fold": 170.66666666666666,
-      "oos_mean_hold_hrs": 3.6133896537338344,
-      "oos_exit_reasons": {
-        "trailing_stop": 377,
-        "stop_loss": 85,
-        "score_flip": 47,
-        "take_profit": 1,
-        "mr_target": 2
-      },
-      "is_sharpe": 3.640346439346166,
-      "is_pnl": 84.07847468227527,
-      "overfitting_score": 0,
-      "fragility": 0.030029330394727785,
-      "survivor_score": 5.363579325683582,
-      "folds": [
-        {
-          "fold": 0,
-          "is_sharpe": 0,
-          "oos_sharpe": 3.4444450997061926,
-          "oos_sharpe_raw": 3.4444450997061926,
-          "oos_pnl": 11.765353323963481,
-          "oos_trades": 40
-        },
-        {
-          "fold": 1,
-          "is_sharpe": 3.48078080989413,
-          "oos_sharpe": 8.622916956923918,
-          "oos_sharpe_raw": 8.622916956923918,
-          "oos_pnl": 33.32761271819925,
-          "oos_trades": 47
-        },
-        {
-          "fold": 2,
-          "is_sharpe": 7.440258508144369,
-          "oos_sharpe": 5.989817806940396,
-          "oos_sharpe_raw": 5.989817806940396,
-          "oos_pnl": 171.06891308286734,
-          "oos_trades": 425
-        }
-      ],
-      "rejected": false,
-      "rejection_reason": "",
-      "is_coarse_only": false
-    },
-    {
-      "symbol": "SOL/USDT",
-      "params": {
-        "signal_threshold": 0.3174,
-        "min_alignment": 3,
-        "take_profit_atr": 6.0,
-        "stop_loss_atr": 2.5,
-        "max_hold_hours": 96,
-        "time_decay_hours": 56,
-        "trailing_stop_atr": 0.01,
-        "score_flip_delay_hrs": 2
-      },
-      "oos_sharpe": 5.989817806940396,
-      "oos_pnl": 216.16187912503005,
-      "oos_pf": 0.5400571214331085,
-      "oos_wr": 0.8036211931581142,
-      "oos_max_dd": 8.419977536826314,
-      "oos_consistency": 1.0,
-      "oos_avg_trades_per_fold": 170.66666666666666,
-      "oos_mean_hold_hrs": 3.6133896537338344,
-      "oos_exit_reasons": {
-        "trailing_stop": 377,
-        "stop_loss": 85,
-        "score_flip": 47,
-        "take_profit": 1,
-        "mr_target": 2
-      },
-      "is_sharpe": 3.640346439346166,
-      "is_pnl": 84.07847468227527,
-      "overfitting_score": 0,
-      "fragility": 0.030029330394727785,
-      "survivor_score": 5.363579325683582,
-      "folds": [
-        {
-          "fold": 0,
-          "is_sharpe": 0,
-          "oos_sharpe": 3.4444450997061926,
-          "oos_sharpe_raw": 3.4444450997061926,
-          "oos_pnl": 11.765353323963481,
-          "oos_trades": 40
-        },
-        {
-          "fold": 1,
-          "is_sharpe": 3.48078080989413,
-          "oos_sharpe": 8.622916956923918,
-          "oos_sharpe_raw": 8.622916956923918,
-          "oos_pnl": 33.32761271819925,
-          "oos_trades": 47
-        },
-        {
-          "fold": 2,
-          "is_sharpe": 7.440258508144369,
-          "oos_sharpe": 5.989817806940396,
-          "oos_sharpe_raw": 5.989817806940396,
-          "oos_pnl": 171.06891308286734,
-          "oos_trades": 425
-        }
-      ],
-      "rejected": false,
-      "rejection_reason": "",
-      "is_coarse_only": false
-    },
-    {
-      "symbol": "SOL/USDT",
-      "params": {
-        "signal_threshold": 0.3174,
-        "min_alignment": 3,
-        "take_profit_atr": 6.0,
-        "stop_loss_atr": 2.5,
-        "max_hold_hours": 96,
-        "time_decay_hours": 45,
-        "trailing_stop_atr": 0.01,
-        "score_flip_delay_hrs": 2
-      },
-      "oos_sharpe": 5.989817806940396,
-      "oos_pnl": 216.16187912503005,
-      "oos_pf": 0.5400571214331085,
-      "oos_wr": 0.8036211931581142,
-      "oos_max_dd": 8.419977536826314,
-      "oos_consistency": 1.0,
-      "oos_avg_trades_per_fold": 170.66666666666666,
-      "oos_mean_hold_hrs": 3.6133896537338344,
-      "oos_exit_reasons": {
-        "trailing_stop": 377,
-        "stop_loss": 85,
-        "score_flip": 47,
-        "take_profit": 1,
-        "mr_target": 2
-      },
-      "is_sharpe": 3.640346439346166,
-      "is_pnl": 84.07847468227527,
-      "overfitting_score": 0,
-      "fragility": 0.030029330394727785,
-      "survivor_score": 5.363579325683582,
-      "folds": [
-        {
-          "fold": 0,
-          "is_sharpe": 0,
-          "oos_sharpe": 3.4444450997061926,
-          "oos_sharpe_raw": 3.4444450997061926,
-          "oos_pnl": 11.765353323963481,
-          "oos_trades": 40
-        },
-        {
-          "fold": 1,
-          "is_sharpe": 3.48078080989413,
-          "oos_sharpe": 8.622916956923918,
-          "oos_sharpe_raw": 8.622916956923918,
-          "oos_pnl": 33.32761271819925,
-          "oos_trades": 47
-        },
-        {
-          "fold": 2,
-          "is_sharpe": 7.440258508144369,
-          "oos_sharpe": 5.989817806940396,
-          "oos_sharpe_raw": 5.989817806940396,
-          "oos_pnl": 171.06891308286734,
-          "oos_trades": 425
-        }
-      ],
-      "rejected": false,
-      "rejection_reason": "",
-      "is_coarse_only": false
-    },
-    {
-      "symbol": "SOL/USDT",
-      "params": {
-        "signal_threshold": 0.3174,
-        "min_alignment": 3,
-        "take_profit_atr": 6.0,
-        "stop_loss_atr": 2.5,
-        "max_hold_hours": 96,
-        "time_decay_hours": 50,
-        "trailing_stop_atr": 0.0114,
-        "score_flip_delay_hrs": 2
-      },
-      "oos_sharpe": 5.980017395795437,
-      "oos_pnl": 215.77165190405097,
-      "oos_pf": 0.5421557960039265,
-      "oos_wr": 0.802836879432624,
-      "oos_max_dd": 8.422767638757895,
-      "oos_consistency": 1.0,
-      "oos_avg_trades_per_fold": 170.66666666666666,
-      "oos_mean_hold_hrs": 3.6133896537338344,
-      "oos_exit_reasons": {
-        "trailing_stop": 377,
-        "stop_loss": 85,
-        "score_flip": 47,
-        "take_profit": 1,
-        "mr_target": 2
-      },
-      "is_sharpe": 3.633571403087269,
-      "is_pnl": 83.91895674375488,
-      "overfitting_score": 0,
-      "fragility": 0.030070516360130424,
-      "survivor_score": 5.354451655403594,
-      "folds": [
-        {
-          "fold": 0,
-          "is_sharpe": 0,
-          "oos_sharpe": 3.4348426569072443,
-          "oos_sharpe_raw": 3.4348426569072443,
-          "oos_pnl": 11.729539632304533,
-          "oos_trades": 40
-        },
-        {
-          "fold": 1,
-          "is_sharpe": 3.4713462057801716,
-          "oos_sharpe": 8.61440903611216,
-          "oos_sharpe_raw": 8.61440903611216,
-          "oos_pnl": 33.28935986573048,
-          "oos_trades": 47
-        },
-        {
-          "fold": 2,
-          "is_sharpe": 7.429368003481636,
-          "oos_sharpe": 5.980017395795437,
-          "oos_sharpe_raw": 5.980017395795437,
-          "oos_pnl": 170.75275240601596,
-          "oos_trades": 425
-        }
-      ],
-      "rejected": false,
-      "rejection_reason": "",
-      "is_coarse_only": false
-    },
-    {
-      "symbol": "SOL/USDT",
-      "params": {
-        "signal_threshold": 0.3378,
-        "min_alignment": 3,
-        "take_profit_atr": 6.7348,
-        "stop_loss_atr": 2.5,
-        "max_hold_hours": 96,
-        "time_decay_hours": 48,
-        "trailing_stop_atr": 0.01,
-        "score_flip_delay_hrs": 2
-      },
-      "oos_sharpe": 5.9898540418808786,
-      "oos_pnl": 216.16437154400228,
-      "oos_pf": 0.5400584635913902,
-      "oos_wr": 0.8036211931581142,
-      "oos_max_dd": 8.419977536826314,
-      "oos_consistency": 1.0,
-      "oos_avg_trades_per_fold": 170.66666666666666,
-      "oos_mean_hold_hrs": 3.614958281184814,
-      "oos_exit_reasons": {
-        "trailing_stop": 378,
-        "stop_loss": 85,
-        "score_flip": 47,
-        "mr_target": 2
-      },
-      "is_sharpe": 3.640346439346166,
-      "is_pnl": 84.07847468227527,
-      "overfitting_score": 0,
-      "fragility": 0.03464897594728623,
-      "survivor_score": 5.339663567735375,
-      "folds": [
-        {
-          "fold": 0,
-          "is_sharpe": 0,
-          "oos_sharpe": 3.4444450997061926,
-          "oos_sharpe_raw": 3.4444450997061926,
-          "oos_pnl": 11.765353323963481,
-          "oos_trades": 40
-        },
-        {
-          "fold": 1,
-          "is_sharpe": 3.48078080989413,
-          "oos_sharpe": 8.622916956923918,
-          "oos_sharpe_raw": 8.622916956923918,
-          "oos_pnl": 33.32761271819925,
-          "oos_trades": 47
-        },
-        {
-          "fold": 2,
-          "is_sharpe": 7.440258508144369,
-          "oos_sharpe": 5.9898540418808786,
-          "oos_sharpe_raw": 5.9898540418808786,
-          "oos_pnl": 171.07140550183956,
-          "oos_trades": 425
-        }
-      ],
-      "rejected": false,
-      "rejection_reason": "",
-      "is_coarse_only": false
-    },
-    {
-      "symbol": "SOL/USDT",
-      "params": {
-        "signal_threshold": 0.3378,
+        "signal_threshold": 0.35,
         "min_alignment": 3,
         "take_profit_atr": 6.0,
         "stop_loss_atr": 2.5,
         "max_hold_hours": 96,
         "time_decay_hours": 48,
-        "trailing_stop_atr": 0.01,
-        "score_flip_delay_hrs": 2
+        "trailing_stop_atr": 1.0,
+        "score_flip_delay_hrs": 2,
+        "experiment": "lower_threshold"
       },
-      "oos_sharpe": 5.989817806940396,
-      "oos_pnl": 216.16187912503005,
-      "oos_pf": 0.5400571214331085,
-      "oos_wr": 0.8036211931581142,
-      "oos_max_dd": 8.419977536826314,
+      "oos_sharpe": 5.433633002213753,
+      "oos_pnl": 73.47133004798513,
+      "oos_pf": 1.1543241031712175,
+      "oos_wr": 0.655920060331825,
+      "oos_max_dd": 6.373562669944566,
       "oos_consistency": 1.0,
-      "oos_avg_trades_per_fold": 170.66666666666666,
-      "oos_mean_hold_hrs": 3.6133896537338344,
+      "oos_avg_trades_per_fold": 103.0,
+      "oos_mean_hold_hrs": 6.35805052790347,
       "oos_exit_reasons": {
-        "trailing_stop": 377,
-        "stop_loss": 85,
-        "score_flip": 47,
-        "take_profit": 1,
-        "mr_target": 2
-      },
-      "is_sharpe": 3.640346439346166,
-      "is_pnl": 84.07847468227527,
-      "overfitting_score": 0,
-      "fragility": 0.03464925784338895,
-      "survivor_score": 5.339629811235134,
-      "folds": [
-        {
-          "fold": 0,
-          "is_sharpe": 0,
-          "oos_sharpe": 3.4444450997061926,
-          "oos_sharpe_raw": 3.4444450997061926,
-          "oos_pnl": 11.765353323963481,
-          "oos_trades": 40
-        },
-        {
-          "fold": 1,
-          "is_sharpe": 3.48078080989413,
-          "oos_sharpe": 8.622916956923918,
-          "oos_sharpe_raw": 8.622916956923918,
-          "oos_pnl": 33.32761271819925,
-          "oos_trades": 47
-        },
-        {
-          "fold": 2,
-          "is_sharpe": 7.440258508144369,
-          "oos_sharpe": 5.989817806940396,
-          "oos_sharpe_raw": 5.989817806940396,
-          "oos_pnl": 171.06891308286734,
-          "oos_trades": 425
-        }
-      ],
-      "rejected": false,
-      "rejection_reason": "",
-      "is_coarse_only": false
-    },
-    {
-      "symbol": "SOL/USDT",
-      "params": {
-        "signal_threshold": 0.3378,
-        "min_alignment": 3,
-        "take_profit_atr": 6.0,
-        "stop_loss_atr": 2.5,
-        "max_hold_hours": 81,
-        "time_decay_hours": 48,
-        "trailing_stop_atr": 0.01,
-        "score_flip_delay_hrs": 2
-      },
-      "oos_sharpe": 5.989817806940396,
-      "oos_pnl": 216.16187912503005,
-      "oos_pf": 0.5400571214331085,
-      "oos_wr": 0.8036211931581142,
-      "oos_max_dd": 8.419977536826314,
-      "oos_consistency": 1.0,
-      "oos_avg_trades_per_fold": 170.66666666666666,
-      "oos_mean_hold_hrs": 3.6133896537338344,
-      "oos_exit_reasons": {
-        "trailing_stop": 377,
-        "stop_loss": 85,
-        "score_flip": 47,
-        "take_profit": 1,
-        "mr_target": 2
-      },
-      "is_sharpe": 3.640346439346166,
-      "is_pnl": 84.07847468227527,
-      "overfitting_score": 0,
-      "fragility": 0.03464925784338895,
-      "survivor_score": 5.339629811235134,
-      "folds": [
-        {
-          "fold": 0,
-          "is_sharpe": 0,
-          "oos_sharpe": 3.4444450997061926,
-          "oos_sharpe_raw": 3.4444450997061926,
-          "oos_pnl": 11.765353323963481,
-          "oos_trades": 40
-        },
-        {
-          "fold": 1,
-          "is_sharpe": 3.48078080989413,
-          "oos_sharpe": 8.622916956923918,
-          "oos_sharpe_raw": 8.622916956923918,
-          "oos_pnl": 33.32761271819925,
-          "oos_trades": 47
-        },
-        {
-          "fold": 2,
-          "is_sharpe": 7.440258508144369,
-          "oos_sharpe": 5.989817806940396,
-          "oos_sharpe_raw": 5.989817806940396,
-          "oos_pnl": 171.06891308286734,
-          "oos_trades": 425
-        }
-      ],
-      "rejected": false,
-      "rejection_reason": "",
-      "is_coarse_only": false
-    },
-    {
-      "symbol": "SOL/USDT",
-      "params": {
-        "signal_threshold": 0.3378,
-        "min_alignment": 3,
-        "take_profit_atr": 6.0,
-        "stop_loss_atr": 2.5,
-        "max_hold_hours": 83,
-        "time_decay_hours": 48,
-        "trailing_stop_atr": 0.01,
-        "score_flip_delay_hrs": 2
-      },
-      "oos_sharpe": 5.989817806940396,
-      "oos_pnl": 216.16187912503005,
-      "oos_pf": 0.5400571214331085,
-      "oos_wr": 0.8036211931581142,
-      "oos_max_dd": 8.419977536826314,
-      "oos_consistency": 1.0,
-      "oos_avg_trades_per_fold": 170.66666666666666,
-      "oos_mean_hold_hrs": 3.6133896537338344,
-      "oos_exit_reasons": {
-        "trailing_stop": 377,
-        "stop_loss": 85,
-        "score_flip": 47,
-        "take_profit": 1,
-        "mr_target": 2
-      },
-      "is_sharpe": 3.640346439346166,
-      "is_pnl": 84.07847468227527,
-      "overfitting_score": 0,
-      "fragility": 0.03464925784338895,
-      "survivor_score": 5.339629811235134,
-      "folds": [
-        {
-          "fold": 0,
-          "is_sharpe": 0,
-          "oos_sharpe": 3.4444450997061926,
-          "oos_sharpe_raw": 3.4444450997061926,
-          "oos_pnl": 11.765353323963481,
-          "oos_trades": 40
-        },
-        {
-          "fold": 1,
-          "is_sharpe": 3.48078080989413,
-          "oos_sharpe": 8.622916956923918,
-          "oos_sharpe_raw": 8.622916956923918,
-          "oos_pnl": 33.32761271819925,
-          "oos_trades": 47
-        },
-        {
-          "fold": 2,
-          "is_sharpe": 7.440258508144369,
-          "oos_sharpe": 5.989817806940396,
-          "oos_sharpe_raw": 5.989817806940396,
-          "oos_pnl": 171.06891308286734,
-          "oos_trades": 425
-        }
-      ],
-      "rejected": false,
-      "rejection_reason": "",
-      "is_coarse_only": false
-    },
-    {
-      "symbol": "SOL/USDT",
-      "params": {
-        "signal_threshold": 0.343,
-        "min_alignment": 3,
-        "take_profit_atr": 6.0,
-        "stop_loss_atr": 2.5,
-        "max_hold_hours": 96,
-        "time_decay_hours": 48,
-        "trailing_stop_atr": 0.01,
-        "score_flip_delay_hrs": 3
-      },
-      "oos_sharpe": 5.989817806940396,
-      "oos_pnl": 216.16187912503005,
-      "oos_pf": 0.5400571214331085,
-      "oos_wr": 0.8036211931581142,
-      "oos_max_dd": 8.419977536826314,
-      "oos_consistency": 1.0,
-      "oos_avg_trades_per_fold": 170.66666666666666,
-      "oos_mean_hold_hrs": 3.6133896537338344,
-      "oos_exit_reasons": {
-        "trailing_stop": 377,
-        "stop_loss": 85,
-        "score_flip": 47,
-        "take_profit": 1,
-        "mr_target": 2
-      },
-      "is_sharpe": 3.640346439346166,
-      "is_pnl": 84.07847468227527,
-      "overfitting_score": 0,
-      "fragility": 0.03464925784338895,
-      "survivor_score": 5.339629811235134,
-      "folds": [
-        {
-          "fold": 0,
-          "is_sharpe": 0,
-          "oos_sharpe": 3.4444450997061926,
-          "oos_sharpe_raw": 3.4444450997061926,
-          "oos_pnl": 11.765353323963481,
-          "oos_trades": 40
-        },
-        {
-          "fold": 1,
-          "is_sharpe": 3.48078080989413,
-          "oos_sharpe": 8.622916956923918,
-          "oos_sharpe_raw": 8.622916956923918,
-          "oos_pnl": 33.32761271819925,
-          "oos_trades": 47
-        },
-        {
-          "fold": 2,
-          "is_sharpe": 7.440258508144369,
-          "oos_sharpe": 5.989817806940396,
-          "oos_sharpe_raw": 5.989817806940396,
-          "oos_pnl": 171.06891308286734,
-          "oos_trades": 425
-        }
-      ],
-      "rejected": false,
-      "rejection_reason": "",
-      "is_coarse_only": false
-    },
-    {
-      "symbol": "SOL/USDT",
-      "params": {
-        "signal_threshold": 0.3356,
-        "min_alignment": 3,
-        "take_profit_atr": 6.0,
-        "stop_loss_atr": 2.5,
-        "max_hold_hours": 100,
-        "time_decay_hours": 48,
-        "trailing_stop_atr": 0.0107,
-        "score_flip_delay_hrs": 3
-      },
-      "oos_sharpe": 5.984918187295553,
-      "oos_pnl": 215.96676551454047,
-      "oos_pf": 0.5398115342505118,
-      "oos_wr": 0.8036211931581142,
-      "oos_max_dd": 8.421372587792106,
-      "oos_consistency": 1.0,
-      "oos_avg_trades_per_fold": 170.66666666666666,
-      "oos_mean_hold_hrs": 3.6133896537338344,
-      "oos_exit_reasons": {
-        "trailing_stop": 377,
-        "stop_loss": 85,
-        "score_flip": 47,
-        "take_profit": 1,
-        "mr_target": 2
-      },
-      "is_sharpe": 3.636959317546513,
-      "is_pnl": 83.99871571301509,
-      "overfitting_score": 0,
-      "fragility": 0.034647699084606944,
-      "survivor_score": 5.335201429108274,
-      "folds": [
-        {
-          "fold": 0,
-          "is_sharpe": 0,
-          "oos_sharpe": 3.4396445213123896,
-          "oos_sharpe_raw": 3.4396445213123896,
-          "oos_pnl": 11.747446478134009,
-          "oos_trades": 40
-        },
-        {
-          "fold": 1,
-          "is_sharpe": 3.476064100023483,
-          "oos_sharpe": 8.618663429596545,
-          "oos_sharpe_raw": 8.618663429596545,
-          "oos_pnl": 33.30848629196487,
-          "oos_trades": 47
-        },
-        {
-          "fold": 2,
-          "is_sharpe": 7.434813852616057,
-          "oos_sharpe": 5.984918187295553,
-          "oos_sharpe_raw": 5.984918187295553,
-          "oos_pnl": 170.9108327444416,
-          "oos_trades": 425
-        }
-      ],
-      "rejected": false,
-      "rejection_reason": "",
-      "is_coarse_only": false
-    },
-    {
-      "symbol": "SOL/USDT",
-      "params": {
-        "signal_threshold": 0.3457,
-        "min_alignment": 3,
-        "take_profit_atr": 6.0,
-        "stop_loss_atr": 2.5,
-        "max_hold_hours": 96,
-        "time_decay_hours": 41,
-        "trailing_stop_atr": 0.0111,
-        "score_flip_delay_hrs": 3
-      },
-      "oos_sharpe": 5.982117878508182,
-      "oos_pnl": 215.85527202283208,
-      "oos_pf": 0.5422617915658429,
-      "oos_wr": 0.802836879432624,
-      "oos_max_dd": 8.422169759772556,
-      "oos_consistency": 1.0,
-      "oos_avg_trades_per_fold": 170.66666666666666,
-      "oos_mean_hold_hrs": 3.6133896537338344,
-      "oos_exit_reasons": {
-        "trailing_stop": 377,
-        "stop_loss": 85,
-        "score_flip": 47,
-        "take_profit": 1,
-        "mr_target": 2
-      },
-      "is_sharpe": 3.6350234634917165,
-      "is_pnl": 83.9531391591521,
-      "overfitting_score": 0,
-      "fragility": 0.03464680860441466,
-      "survivor_score": 5.332670500056961,
-      "folds": [
-        {
-          "fold": 0,
-          "is_sharpe": 0,
-          "oos_sharpe": 3.4369007562849556,
-          "oos_sharpe_raw": 3.4369007562849556,
-          "oos_pnl": 11.737213994802879,
-          "oos_trades": 40
-        },
-        {
-          "fold": 1,
-          "is_sharpe": 3.4733683054936195,
-          "oos_sharpe": 8.616232453664646,
-          "oos_sharpe_raw": 8.616232453664646,
-          "oos_pnl": 33.29755690554523,
-          "oos_trades": 47
-        },
-        {
-          "fold": 2,
-          "is_sharpe": 7.43170208498153,
-          "oos_sharpe": 5.982117878508182,
-          "oos_sharpe_raw": 5.982117878508182,
-          "oos_pnl": 170.82050112248396,
-          "oos_trades": 425
-        }
-      ],
-      "rejected": false,
-      "rejection_reason": "",
-      "is_coarse_only": false
-    },
-    {
-      "symbol": "SOL/USDT",
-      "params": {
-        "signal_threshold": 0.3429,
-        "min_alignment": 3,
-        "take_profit_atr": 6.0,
-        "stop_loss_atr": 2.157,
-        "max_hold_hours": 96,
-        "time_decay_hours": 48,
-        "trailing_stop_atr": 0.01,
-        "score_flip_delay_hrs": 3
-      },
-      "oos_sharpe": 5.916360758725606,
-      "oos_pnl": 211.74381871592473,
-      "oos_pf": 0.5957082117549523,
-      "oos_wr": 0.7849210557322964,
-      "oos_max_dd": 8.459246229872138,
-      "oos_consistency": 1.0,
-      "oos_avg_trades_per_fold": 175.33333333333334,
-      "oos_mean_hold_hrs": 3.4006580497727175,
-      "oos_exit_reasons": {
-        "trailing_stop": 378,
-        "stop_loss": 97,
-        "score_flip": 48,
-        "take_profit": 1,
-        "mr_target": 2
-      },
-      "is_sharpe": 3.5402663756080983,
-      "is_pnl": 82.0834102561206,
-      "overfitting_score": 0,
-      "fragility": 0.03269942884704858,
-      "survivor_score": 5.28219134399639,
-      "folds": [
-        {
-          "fold": 0,
-          "is_sharpe": 0,
-          "oos_sharpe": 3.053056949099389,
-          "oos_sharpe_raw": 3.053056949099389,
-          "oos_pnl": 10.34700011260485,
-          "oos_trades": 41
-        },
-        {
-          "fold": 1,
-          "is_sharpe": 3.1893560557159573,
-          "oos_sharpe": 8.862171224164221,
-          "oos_sharpe_raw": 8.862171224164221,
-          "oos_pnl": 33.65702085411591,
-          "oos_trades": 48
-        },
-        {
-          "fold": 2,
-          "is_sharpe": 7.431443071108337,
-          "oos_sharpe": 5.916360758725606,
-          "oos_sharpe_raw": 5.916360758725606,
-          "oos_pnl": 167.73979774920397,
-          "oos_trades": 437
-        }
-      ],
-      "rejected": false,
-      "rejection_reason": "",
-      "is_coarse_only": false
-    },
-    {
-      "symbol": "SOL/USDT",
-      "params": {
-        "signal_threshold": 0.31,
-        "min_alignment": 3,
-        "take_profit_atr": 6.0,
-        "stop_loss_atr": 2.8299,
-        "max_hold_hours": 96,
-        "time_decay_hours": 48,
-        "trailing_stop_atr": 0.01,
-        "score_flip_delay_hrs": 1
-      },
-      "oos_sharpe": 5.7842110111790515,
-      "oos_pnl": 205.3728446034631,
-      "oos_pf": 0.4815501562804463,
-      "oos_wr": 0.8105279192235715,
-      "oos_max_dd": 9.270915148946408,
-      "oos_consistency": 1.0,
-      "oos_avg_trades_per_fold": 165.66666666666666,
-      "oos_mean_hold_hrs": 3.9089524306915613,
-      "oos_exit_reasons": {
-        "trailing_stop": 370,
-        "stop_loss": 73,
-        "score_flip": 50,
-        "take_profit": 2,
-        "mr_target": 2
-      },
-      "is_sharpe": 3.570519683957949,
-      "is_pnl": 80.96209669020641,
-      "overfitting_score": 0,
-      "fragility": 0.04551569374596459,
-      "survivor_score": 5.06301240373007,
-      "folds": [
-        {
-          "fold": 0,
-          "is_sharpe": 0,
-          "oos_sharpe": 3.0160922729903206,
-          "oos_sharpe_raw": 3.0160922729903206,
-          "oos_pnl": 10.193451085120964,
-          "oos_trades": 37
-        },
-        {
-          "fold": 1,
-          "is_sharpe": 3.710311953853814,
-          "oos_sharpe": 7.352080338556288,
-          "oos_sharpe_raw": 7.352080338556288,
-          "oos_pnl": 29.607893443447367,
-          "oos_trades": 46
-        },
-        {
-          "fold": 2,
-          "is_sharpe": 7.001247098020032,
-          "oos_sharpe": 5.7842110111790515,
-          "oos_sharpe_raw": 5.7842110111790515,
-          "oos_pnl": 165.57150007489477,
-          "oos_trades": 414
-        }
-      ],
-      "rejected": false,
-      "rejection_reason": "",
-      "is_coarse_only": false
-    },
-    {
-      "symbol": "SOL/USDT",
-      "params": {
-        "signal_threshold": 0.3597,
-        "min_alignment": 3,
-        "take_profit_atr": 6.0,
-        "stop_loss_atr": 2.2456,
-        "max_hold_hours": 96,
-        "time_decay_hours": 48,
-        "trailing_stop_atr": 0.01,
-        "score_flip_delay_hrs": 2
-      },
-      "oos_sharpe": 5.647247451368436,
-      "oos_pnl": 182.02872942975242,
-      "oos_pf": 0.5423189909243464,
-      "oos_wr": 0.789994301994302,
-      "oos_max_dd": 6.4014830071463,
-      "oos_consistency": 1.0,
-      "oos_avg_trades_per_fold": 150.0,
-      "oos_mean_hold_hrs": 3.6208319088319088,
-      "oos_exit_reasons": {
-        "trailing_stop": 332,
-        "stop_loss": 80,
-        "score_flip": 34,
-        "take_profit": 2,
-        "mr_target": 2
-      },
-      "is_sharpe": 2.831638668216622,
-      "is_pnl": 63.05448556960979,
-      "overfitting_score": 0,
-      "fragility": 0.05218650973324743,
-      "survivor_score": 5.044247734657302,
-      "folds": [
-        {
-          "fold": 0,
-          "is_sharpe": 0,
-          "oos_sharpe": 1.9992583137632642,
-          "oos_sharpe_raw": 1.9992583137632642,
-          "oos_pnl": 6.380462841139051,
-          "oos_trades": 36
-        },
-        {
-          "fold": 1,
-          "is_sharpe": 2.2864108084367283,
-          "oos_sharpe": 7.3249379272924005,
-          "oos_sharpe_raw": 7.3249379272924005,
-          "oos_pnl": 28.041553642079673,
-          "oos_trades": 39
-        },
-        {
-          "fold": 2,
-          "is_sharpe": 6.208505196213139,
-          "oos_sharpe": 5.647247451368436,
-          "oos_sharpe_raw": 5.647247451368436,
-          "oos_pnl": 147.6067129465337,
-          "oos_trades": 375
-        }
-      ],
-      "rejected": false,
-      "rejection_reason": "",
-      "is_coarse_only": false
-    },
-    {
-      "symbol": "SOL/USDT",
-      "params": {
-        "signal_threshold": 0.3597,
-        "min_alignment": 3,
-        "take_profit_atr": 6.0,
-        "stop_loss_atr": 2.2456,
-        "max_hold_hours": 96,
-        "time_decay_hours": 50,
-        "trailing_stop_atr": 0.01,
-        "score_flip_delay_hrs": 2
-      },
-      "oos_sharpe": 5.647247451368436,
-      "oos_pnl": 182.02872942975242,
-      "oos_pf": 0.5423189909243464,
-      "oos_wr": 0.789994301994302,
-      "oos_max_dd": 6.4014830071463,
-      "oos_consistency": 1.0,
-      "oos_avg_trades_per_fold": 150.0,
-      "oos_mean_hold_hrs": 3.6208319088319088,
-      "oos_exit_reasons": {
-        "trailing_stop": 332,
-        "stop_loss": 80,
-        "score_flip": 34,
-        "take_profit": 2,
-        "mr_target": 2
-      },
-      "is_sharpe": 2.831638668216622,
-      "is_pnl": 63.05448556960979,
-      "overfitting_score": 0,
-      "fragility": 0.05218650973324743,
-      "survivor_score": 5.044247734657302,
-      "folds": [
-        {
-          "fold": 0,
-          "is_sharpe": 0,
-          "oos_sharpe": 1.9992583137632642,
-          "oos_sharpe_raw": 1.9992583137632642,
-          "oos_pnl": 6.380462841139051,
-          "oos_trades": 36
-        },
-        {
-          "fold": 1,
-          "is_sharpe": 2.2864108084367283,
-          "oos_sharpe": 7.3249379272924005,
-          "oos_sharpe_raw": 7.3249379272924005,
-          "oos_pnl": 28.041553642079673,
-          "oos_trades": 39
-        },
-        {
-          "fold": 2,
-          "is_sharpe": 6.208505196213139,
-          "oos_sharpe": 5.647247451368436,
-          "oos_sharpe_raw": 5.647247451368436,
-          "oos_pnl": 147.6067129465337,
-          "oos_trades": 375
-        }
-      ],
-      "rejected": false,
-      "rejection_reason": "",
-      "is_coarse_only": false
-    },
-    {
-      "symbol": "SOL/USDT",
-      "params": {
-        "signal_threshold": 0.3597,
-        "min_alignment": 3,
-        "take_profit_atr": 6.0,
-        "stop_loss_atr": 2.2456,
-        "max_hold_hours": 96,
-        "time_decay_hours": 42,
-        "trailing_stop_atr": 0.01,
-        "score_flip_delay_hrs": 2
-      },
-      "oos_sharpe": 5.647247451368436,
-      "oos_pnl": 182.02872942975242,
-      "oos_pf": 0.5423189909243464,
-      "oos_wr": 0.789994301994302,
-      "oos_max_dd": 6.4014830071463,
-      "oos_consistency": 1.0,
-      "oos_avg_trades_per_fold": 150.0,
-      "oos_mean_hold_hrs": 3.6208319088319088,
-      "oos_exit_reasons": {
-        "trailing_stop": 332,
-        "stop_loss": 80,
-        "score_flip": 34,
-        "take_profit": 2,
-        "mr_target": 2
-      },
-      "is_sharpe": 2.831638668216622,
-      "is_pnl": 63.05448556960979,
-      "overfitting_score": 0,
-      "fragility": 0.05218650973324743,
-      "survivor_score": 5.044247734657302,
-      "folds": [
-        {
-          "fold": 0,
-          "is_sharpe": 0,
-          "oos_sharpe": 1.9992583137632642,
-          "oos_sharpe_raw": 1.9992583137632642,
-          "oos_pnl": 6.380462841139051,
-          "oos_trades": 36
-        },
-        {
-          "fold": 1,
-          "is_sharpe": 2.2864108084367283,
-          "oos_sharpe": 7.3249379272924005,
-          "oos_sharpe_raw": 7.3249379272924005,
-          "oos_pnl": 28.041553642079673,
-          "oos_trades": 39
-        },
-        {
-          "fold": 2,
-          "is_sharpe": 6.208505196213139,
-          "oos_sharpe": 5.647247451368436,
-          "oos_sharpe_raw": 5.647247451368436,
-          "oos_pnl": 147.6067129465337,
-          "oos_trades": 375
-        }
-      ],
-      "rejected": false,
-      "rejection_reason": "",
-      "is_coarse_only": false
-    },
-    {
-      "symbol": "SOL/USDT",
-      "params": {
-        "signal_threshold": 0.3597,
-        "min_alignment": 3,
-        "take_profit_atr": 6.0,
-        "stop_loss_atr": 2.2456,
-        "max_hold_hours": 83,
-        "time_decay_hours": 48,
-        "trailing_stop_atr": 0.01,
-        "score_flip_delay_hrs": 2
-      },
-      "oos_sharpe": 5.647247451368436,
-      "oos_pnl": 182.02872942975242,
-      "oos_pf": 0.5423189909243464,
-      "oos_wr": 0.789994301994302,
-      "oos_max_dd": 6.4014830071463,
-      "oos_consistency": 1.0,
-      "oos_avg_trades_per_fold": 150.0,
-      "oos_mean_hold_hrs": 3.6208319088319088,
-      "oos_exit_reasons": {
-        "trailing_stop": 332,
-        "stop_loss": 80,
-        "score_flip": 34,
-        "take_profit": 2,
-        "mr_target": 2
-      },
-      "is_sharpe": 2.831638668216622,
-      "is_pnl": 63.05448556960979,
-      "overfitting_score": 0,
-      "fragility": 0.05218650973324743,
-      "survivor_score": 5.044247734657302,
-      "folds": [
-        {
-          "fold": 0,
-          "is_sharpe": 0,
-          "oos_sharpe": 1.9992583137632642,
-          "oos_sharpe_raw": 1.9992583137632642,
-          "oos_pnl": 6.380462841139051,
-          "oos_trades": 36
-        },
-        {
-          "fold": 1,
-          "is_sharpe": 2.2864108084367283,
-          "oos_sharpe": 7.3249379272924005,
-          "oos_sharpe_raw": 7.3249379272924005,
-          "oos_pnl": 28.041553642079673,
-          "oos_trades": 39
-        },
-        {
-          "fold": 2,
-          "is_sharpe": 6.208505196213139,
-          "oos_sharpe": 5.647247451368436,
-          "oos_sharpe_raw": 5.647247451368436,
-          "oos_pnl": 147.6067129465337,
-          "oos_trades": 375
-        }
-      ],
-      "rejected": false,
-      "rejection_reason": "",
-      "is_coarse_only": false
-    },
-    {
-      "symbol": "SOL/USDT",
-      "params": {
-        "signal_threshold": 0.3597,
-        "min_alignment": 3,
-        "take_profit_atr": 6.0,
-        "stop_loss_atr": 2.4922,
-        "max_hold_hours": 96,
-        "time_decay_hours": 48,
-        "trailing_stop_atr": 0.01,
-        "score_flip_delay_hrs": 2
-      },
-      "oos_sharpe": 5.814634394033791,
-      "oos_pnl": 188.0301982591704,
-      "oos_pf": 0.5258826848057644,
-      "oos_wr": 0.801894201894202,
-      "oos_max_dd": 6.4014830071463,
-      "oos_consistency": 1.0,
-      "oos_avg_trades_per_fold": 148.0,
-      "oos_mean_hold_hrs": 3.74983004983005,
-      "oos_exit_reasons": {
-        "trailing_stop": 333,
-        "stop_loss": 74,
-        "score_flip": 33,
-        "take_profit": 2,
-        "mr_target": 2
-      },
-      "is_sharpe": 2.9975085731509847,
-      "is_pnl": 65.7485305648594,
-      "overfitting_score": 0,
-      "fragility": 0.08541123315983193,
-      "survivor_score": 5.03477908986179,
-      "folds": [
-        {
-          "fold": 0,
-          "is_sharpe": 0,
-          "oos_sharpe": 2.5406487542580973,
-          "oos_sharpe_raw": 2.5406487542580973,
-          "oos_pnl": 8.125043197630813,
-          "oos_trades": 35
-        },
-        {
-          "fold": 1,
-          "is_sharpe": 2.708662151074751,
-          "oos_sharpe": 7.3249379272924005,
-          "oos_sharpe_raw": 7.3249379272924005,
-          "oos_pnl": 28.041553642079673,
-          "oos_trades": 39
-        },
-        {
-          "fold": 2,
-          "is_sharpe": 6.283863568378204,
-          "oos_sharpe": 5.814634394033791,
-          "oos_sharpe_raw": 5.814634394033791,
-          "oos_pnl": 151.8636014194599,
-          "oos_trades": 370
-        }
-      ],
-      "rejected": false,
-      "rejection_reason": "",
-      "is_coarse_only": false
-    },
-    {
-      "symbol": "SOL/USDT",
-      "params": {
-        "signal_threshold": 0.3597,
-        "min_alignment": 3,
-        "take_profit_atr": 6.0,
-        "stop_loss_atr": 2.4922,
-        "max_hold_hours": 100,
-        "time_decay_hours": 48,
-        "trailing_stop_atr": 0.01,
-        "score_flip_delay_hrs": 2
-      },
-      "oos_sharpe": 5.814634394033791,
-      "oos_pnl": 188.0301982591704,
-      "oos_pf": 0.5258826848057644,
-      "oos_wr": 0.801894201894202,
-      "oos_max_dd": 6.4014830071463,
-      "oos_consistency": 1.0,
-      "oos_avg_trades_per_fold": 148.0,
-      "oos_mean_hold_hrs": 3.74983004983005,
-      "oos_exit_reasons": {
-        "trailing_stop": 333,
-        "stop_loss": 74,
-        "score_flip": 33,
-        "take_profit": 2,
-        "mr_target": 2
-      },
-      "is_sharpe": 2.9975085731509847,
-      "is_pnl": 65.7485305648594,
-      "overfitting_score": 0,
-      "fragility": 0.08541123315983193,
-      "survivor_score": 5.03477908986179,
-      "folds": [
-        {
-          "fold": 0,
-          "is_sharpe": 0,
-          "oos_sharpe": 2.5406487542580973,
-          "oos_sharpe_raw": 2.5406487542580973,
-          "oos_pnl": 8.125043197630813,
-          "oos_trades": 35
-        },
-        {
-          "fold": 1,
-          "is_sharpe": 2.708662151074751,
-          "oos_sharpe": 7.3249379272924005,
-          "oos_sharpe_raw": 7.3249379272924005,
-          "oos_pnl": 28.041553642079673,
-          "oos_trades": 39
-        },
-        {
-          "fold": 2,
-          "is_sharpe": 6.283863568378204,
-          "oos_sharpe": 5.814634394033791,
-          "oos_sharpe_raw": 5.814634394033791,
-          "oos_pnl": 151.8636014194599,
-          "oos_trades": 370
-        }
-      ],
-      "rejected": false,
-      "rejection_reason": "",
-      "is_coarse_only": false
-    },
-    {
-      "symbol": "SOL/USDT",
-      "params": {
-        "signal_threshold": 0.3597,
-        "min_alignment": 3,
-        "take_profit_atr": 6.0,
-        "stop_loss_atr": 2.4922,
-        "max_hold_hours": 96,
-        "time_decay_hours": 54,
-        "trailing_stop_atr": 0.01,
-        "score_flip_delay_hrs": 2
-      },
-      "oos_sharpe": 5.814634394033791,
-      "oos_pnl": 188.0301982591704,
-      "oos_pf": 0.5258826848057644,
-      "oos_wr": 0.801894201894202,
-      "oos_max_dd": 6.4014830071463,
-      "oos_consistency": 1.0,
-      "oos_avg_trades_per_fold": 148.0,
-      "oos_mean_hold_hrs": 3.74983004983005,
-      "oos_exit_reasons": {
-        "trailing_stop": 333,
-        "stop_loss": 74,
-        "score_flip": 33,
-        "take_profit": 2,
-        "mr_target": 2
-      },
-      "is_sharpe": 2.9975085731509847,
-      "is_pnl": 65.7485305648594,
-      "overfitting_score": 0,
-      "fragility": 0.08541123315983193,
-      "survivor_score": 5.03477908986179,
-      "folds": [
-        {
-          "fold": 0,
-          "is_sharpe": 0,
-          "oos_sharpe": 2.5406487542580973,
-          "oos_sharpe_raw": 2.5406487542580973,
-          "oos_pnl": 8.125043197630813,
-          "oos_trades": 35
-        },
-        {
-          "fold": 1,
-          "is_sharpe": 2.708662151074751,
-          "oos_sharpe": 7.3249379272924005,
-          "oos_sharpe_raw": 7.3249379272924005,
-          "oos_pnl": 28.041553642079673,
-          "oos_trades": 39
-        },
-        {
-          "fold": 2,
-          "is_sharpe": 6.283863568378204,
-          "oos_sharpe": 5.814634394033791,
-          "oos_sharpe_raw": 5.814634394033791,
-          "oos_pnl": 151.8636014194599,
-          "oos_trades": 370
-        }
-      ],
-      "rejected": false,
-      "rejection_reason": "",
-      "is_coarse_only": false
-    },
-    {
-      "symbol": "SOL/USDT",
-      "params": {
-        "signal_threshold": 0.3597,
-        "min_alignment": 3,
-        "take_profit_atr": 5.1952,
-        "stop_loss_atr": 2.5,
-        "max_hold_hours": 96,
-        "time_decay_hours": 48,
-        "trailing_stop_atr": 0.01,
-        "score_flip_delay_hrs": 2
-      },
-      "oos_sharpe": 5.7824234160975605,
-      "oos_pnl": 187.44511123562748,
-      "oos_pf": 0.5256227627784266,
-      "oos_wr": 0.801894201894202,
-      "oos_max_dd": 6.4014830071463,
-      "oos_consistency": 1.0,
-      "oos_avg_trades_per_fold": 148.0,
-      "oos_mean_hold_hrs": 3.7376794376794376,
-      "oos_exit_reasons": {
-        "trailing_stop": 330,
-        "stop_loss": 73,
-        "score_flip": 33,
+        "trailing_stop": 199,
+        "score_flip": 46,
+        "stop_loss": 52,
         "take_profit": 6,
-        "mr_target": 2
+        "mr_target": 6
       },
-      "is_sharpe": 2.997526170281692,
-      "is_pnl": 65.76857584405569,
+      "is_sharpe": 0.0,
+      "is_pnl": 0.0,
       "overfitting_score": 0,
-      "fragility": 0.08384706209260928,
-      "survivor_score": 5.01411399922477,
+      "fragility": 0.0,
+      "survivor_score": 5.10806714171378,
       "folds": [
         {
           "fold": 0,
-          "is_sharpe": 0,
-          "oos_sharpe": 2.5406487542580973,
-          "oos_sharpe_raw": 2.5406487542580973,
-          "oos_pnl": 8.125043197630813,
-          "oos_trades": 35
+          "is_sharpe": 0.0,
+          "oos_sharpe": 6.416466449747024,
+          "oos_sharpe_raw": 6.416466449747024,
+          "oos_pnl": 24.93200826120446,
+          "oos_trades": 32
         },
         {
           "fold": 1,
-          "is_sharpe": 2.708662151074751,
-          "oos_sharpe": 7.323716308710235,
-          "oos_sharpe_raw": 7.323716308710235,
-          "oos_pnl": 28.055430338644438,
-          "oos_trades": 39
+          "is_sharpe": 0.0,
+          "oos_sharpe": 5.433633002213753,
+          "oos_sharpe_raw": 5.433633002213753,
+          "oos_pnl": 5.417283641913932,
+          "oos_trades": 17
         },
         {
           "fold": 2,
-          "is_sharpe": 6.283916359770326,
-          "oos_sharpe": 5.7824234160975605,
-          "oos_sharpe_raw": 5.7824234160975605,
-          "oos_pnl": 151.26463769935222,
-          "oos_trades": 370
+          "is_sharpe": 0.0,
+          "oos_sharpe": 1.8536460182813042,
+          "oos_sharpe_raw": 1.8536460182813042,
+          "oos_pnl": 43.12203814486675,
+          "oos_trades": 260
         }
       ],
       "rejected": false,
@@ -1304,306 +66,59 @@
     {
       "symbol": "SOL/USDT",
       "params": {
-        "signal_threshold": 0.3597,
+        "signal_threshold": 0.3,
+        "take_profit_atr": 2.1698,
+        "stop_loss_atr": 1.25,
+        "max_hold_hours": 72,
+        "time_decay_hours": 12,
         "min_alignment": 3,
-        "take_profit_atr": 5.3556,
-        "stop_loss_atr": 2.5,
-        "max_hold_hours": 96,
-        "time_decay_hours": 48,
-        "trailing_stop_atr": 0.01,
-        "score_flip_delay_hrs": 2
-      },
-      "oos_sharpe": 5.782327464733332,
-      "oos_pnl": 187.4378661169548,
-      "oos_pf": 0.5256184239699365,
-      "oos_wr": 0.801894201894202,
-      "oos_max_dd": 6.4014830071463,
-      "oos_consistency": 1.0,
-      "oos_avg_trades_per_fold": 148.0,
-      "oos_mean_hold_hrs": 3.738580338580339,
-      "oos_exit_reasons": {
-        "trailing_stop": 331,
-        "stop_loss": 73,
-        "score_flip": 33,
-        "take_profit": 5,
-        "mr_target": 2
-      },
-      "is_sharpe": 2.997526170281692,
-      "is_pnl": 65.76857584405569,
-      "overfitting_score": 0,
-      "fragility": 0.08385097027901149,
-      "survivor_score": 5.014012717137244,
-      "folds": [
-        {
-          "fold": 0,
-          "is_sharpe": 0,
-          "oos_sharpe": 2.5406487542580973,
-          "oos_sharpe_raw": 2.5406487542580973,
-          "oos_pnl": 8.125043197630813,
-          "oos_trades": 35
-        },
-        {
-          "fold": 1,
-          "is_sharpe": 2.708662151074751,
-          "oos_sharpe": 7.323716308710235,
-          "oos_sharpe_raw": 7.323716308710235,
-          "oos_pnl": 28.055430338644438,
-          "oos_trades": 39
-        },
-        {
-          "fold": 2,
-          "is_sharpe": 6.283916359770326,
-          "oos_sharpe": 5.782327464733332,
-          "oos_sharpe_raw": 5.782327464733332,
-          "oos_pnl": 151.25739258067955,
-          "oos_trades": 370
-        }
-      ],
-      "rejected": false,
-      "rejection_reason": "",
-      "is_coarse_only": false
-    },
-    {
-      "symbol": "SOL/USDT",
-      "params": {
-        "signal_threshold": 0.3597,
-        "min_alignment": 3,
-        "take_profit_atr": 6.7335,
-        "stop_loss_atr": 2.5,
-        "max_hold_hours": 96,
-        "time_decay_hours": 48,
-        "trailing_stop_atr": 0.01,
-        "score_flip_delay_hrs": 2
-      },
-      "oos_sharpe": 5.782311733255993,
-      "oos_pnl": 187.4109892790934,
-      "oos_pf": 0.5254999473286021,
-      "oos_wr": 0.801894201894202,
-      "oos_max_dd": 6.4014830071463,
-      "oos_consistency": 1.0,
-      "oos_avg_trades_per_fold": 148.0,
-      "oos_mean_hold_hrs": 3.7583770583770586,
-      "oos_exit_reasons": {
-        "trailing_stop": 335,
-        "stop_loss": 73,
-        "score_flip": 34,
-        "mr_target": 2
-      },
-      "is_sharpe": 2.997387092311767,
-      "is_pnl": 65.74140846984247,
-      "overfitting_score": 0,
-      "fragility": 0.08385432493622216,
-      "survivor_score": 5.013983557027644,
-      "folds": [
-        {
-          "fold": 0,
-          "is_sharpe": 0,
-          "oos_sharpe": 2.5406487542580973,
-          "oos_sharpe_raw": 2.5406487542580973,
-          "oos_pnl": 8.125043197630813,
-          "oos_trades": 35
-        },
-        {
-          "fold": 1,
-          "is_sharpe": 2.708662151074751,
-          "oos_sharpe": 7.324179354549122,
-          "oos_sharpe_raw": 7.324179354549122,
-          "oos_pnl": 28.03443154706275,
-          "oos_trades": 39
-        },
-        {
-          "fold": 2,
-          "is_sharpe": 6.2834991258605495,
-          "oos_sharpe": 5.782311733255993,
-          "oos_sharpe_raw": 5.782311733255993,
-          "oos_pnl": 151.25151453439983,
-          "oos_trades": 370
-        }
-      ],
-      "rejected": false,
-      "rejection_reason": "",
-      "is_coarse_only": false
-    },
-    {
-      "symbol": "SOL/USDT",
-      "params": {
-        "signal_threshold": 0.3597,
-        "min_alignment": 3,
-        "take_profit_atr": 6.0,
-        "stop_loss_atr": 2.5,
-        "max_hold_hours": 96,
-        "time_decay_hours": 48,
-        "trailing_stop_atr": 0.01,
-        "score_flip_delay_hrs": 2
-      },
-      "oos_sharpe": 5.7822750653127954,
-      "oos_pnl": 187.4156189551381,
-      "oos_pf": 0.5255374441651263,
-      "oos_wr": 0.801894201894202,
-      "oos_max_dd": 6.4014830071463,
-      "oos_consistency": 1.0,
-      "oos_avg_trades_per_fold": 148.0,
-      "oos_mean_hold_hrs": 3.7480282480282483,
-      "oos_exit_reasons": {
-        "trailing_stop": 333,
-        "stop_loss": 73,
-        "score_flip": 34,
-        "take_profit": 2,
-        "mr_target": 2
-      },
-      "is_sharpe": 2.9975085731509847,
-      "is_pnl": 65.7485305648594,
-      "overfitting_score": 0,
-      "fragility": 0.08385565878408116,
-      "survivor_score": 5.01394559093576,
-      "folds": [
-        {
-          "fold": 0,
-          "is_sharpe": 0,
-          "oos_sharpe": 2.5406487542580973,
-          "oos_sharpe_raw": 2.5406487542580973,
-          "oos_pnl": 8.125043197630813,
-          "oos_trades": 35
-        },
-        {
-          "fold": 1,
-          "is_sharpe": 2.708662151074751,
-          "oos_sharpe": 7.3249379272924005,
-          "oos_sharpe_raw": 7.3249379272924005,
-          "oos_pnl": 28.041553642079673,
-          "oos_trades": 39
-        },
-        {
-          "fold": 2,
-          "is_sharpe": 6.283863568378204,
-          "oos_sharpe": 5.7822750653127954,
-          "oos_sharpe_raw": 5.7822750653127954,
-          "oos_pnl": 151.2490221154276,
-          "oos_trades": 370
-        }
-      ],
-      "rejected": false,
-      "rejection_reason": "",
-      "is_coarse_only": false
-    },
-    {
-      "symbol": "SOL/USDT",
-      "params": {
-        "signal_threshold": 0.3597,
-        "min_alignment": 3,
-        "take_profit_atr": 6.0,
-        "stop_loss_atr": 2.5,
-        "max_hold_hours": 96,
-        "time_decay_hours": 50,
-        "trailing_stop_atr": 0.01,
-        "score_flip_delay_hrs": 2
-      },
-      "oos_sharpe": 5.7822750653127954,
-      "oos_pnl": 187.4156189551381,
-      "oos_pf": 0.5255374441651263,
-      "oos_wr": 0.801894201894202,
-      "oos_max_dd": 6.4014830071463,
-      "oos_consistency": 1.0,
-      "oos_avg_trades_per_fold": 148.0,
-      "oos_mean_hold_hrs": 3.7480282480282483,
-      "oos_exit_reasons": {
-        "trailing_stop": 333,
-        "stop_loss": 73,
-        "score_flip": 34,
-        "take_profit": 2,
-        "mr_target": 2
-      },
-      "is_sharpe": 2.9975085731509847,
-      "is_pnl": 65.7485305648594,
-      "overfitting_score": 0,
-      "fragility": 0.08385565878408116,
-      "survivor_score": 5.01394559093576,
-      "folds": [
-        {
-          "fold": 0,
-          "is_sharpe": 0,
-          "oos_sharpe": 2.5406487542580973,
-          "oos_sharpe_raw": 2.5406487542580973,
-          "oos_pnl": 8.125043197630813,
-          "oos_trades": 35
-        },
-        {
-          "fold": 1,
-          "is_sharpe": 2.708662151074751,
-          "oos_sharpe": 7.3249379272924005,
-          "oos_sharpe_raw": 7.3249379272924005,
-          "oos_pnl": 28.041553642079673,
-          "oos_trades": 39
-        },
-        {
-          "fold": 2,
-          "is_sharpe": 6.283863568378204,
-          "oos_sharpe": 5.7822750653127954,
-          "oos_sharpe_raw": 5.7822750653127954,
-          "oos_pnl": 151.2490221154276,
-          "oos_trades": 370
-        }
-      ],
-      "rejected": false,
-      "rejection_reason": "",
-      "is_coarse_only": false
-    },
-    {
-      "symbol": "SOL/USDT",
-      "params": {
-        "signal_threshold": 0.3597,
-        "min_alignment": 3,
-        "take_profit_atr": 6.0,
-        "stop_loss_atr": 2.5,
-        "max_hold_hours": 96,
-        "time_decay_hours": 48,
-        "trailing_stop_atr": 0.01,
+        "trailing_stop_atr": 0.5,
         "score_flip_delay_hrs": 1
       },
-      "oos_sharpe": 5.7822750653127954,
-      "oos_pnl": 187.4156189551381,
-      "oos_pf": 0.5255374441651263,
-      "oos_wr": 0.801894201894202,
-      "oos_max_dd": 6.4014830071463,
+      "oos_sharpe": 7.032727232348589,
+      "oos_pnl": 125.09991413263984,
+      "oos_pf": 1.2539298917650192,
+      "oos_wr": 0.6233409734470546,
+      "oos_max_dd": 7.006731232065061,
       "oos_consistency": 1.0,
-      "oos_avg_trades_per_fold": 148.0,
-      "oos_mean_hold_hrs": 3.7480282480282483,
+      "oos_avg_trades_per_fold": 170.66666666666666,
+      "oos_mean_hold_hrs": 3.2440036468052114,
       "oos_exit_reasons": {
-        "trailing_stop": 333,
-        "stop_loss": 73,
-        "score_flip": 34,
-        "take_profit": 2,
-        "mr_target": 2
+        "trailing_stop": 235,
+        "stop_loss": 135,
+        "take_profit": 112,
+        "mr_target": 2,
+        "score_flip": 28
       },
-      "is_sharpe": 2.9975085731509847,
-      "is_pnl": 65.7485305648594,
+      "is_sharpe": 5.2202181872168625,
+      "is_pnl": 80.6342897959828,
       "overfitting_score": 0,
-      "fragility": 0.08385565878408116,
-      "survivor_score": 5.01394559093576,
+      "fragility": 0.5129300753735031,
+      "survivor_score": 4.344040038438368,
       "folds": [
         {
           "fold": 0,
           "is_sharpe": 0,
-          "oos_sharpe": 2.5406487542580973,
-          "oos_sharpe_raw": 2.5406487542580973,
-          "oos_pnl": 8.125043197630813,
-          "oos_trades": 35
+          "oos_sharpe": 7.160983896773557,
+          "oos_sharpe_raw": 7.160983896773557,
+          "oos_pnl": 22.33175069978721,
+          "oos_trades": 57
         },
         {
           "fold": 1,
-          "is_sharpe": 2.708662151074751,
-          "oos_sharpe": 7.3249379272924005,
-          "oos_sharpe_raw": 7.3249379272924005,
-          "oos_pnl": 28.041553642079673,
-          "oos_trades": 39
+          "is_sharpe": 7.964093252511577,
+          "oos_sharpe": 7.032727232348589,
+          "oos_sharpe_raw": 7.032727232348589,
+          "oos_pnl": 12.215863776047083,
+          "oos_trades": 29
         },
         {
           "fold": 2,
-          "is_sharpe": 6.283863568378204,
-          "oos_sharpe": 5.7822750653127954,
-          "oos_sharpe_raw": 5.7822750653127954,
-          "oos_pnl": 151.2490221154276,
-          "oos_trades": 370
+          "is_sharpe": 7.6965613091390095,
+          "oos_sharpe": 3.692472846266944,
+          "oos_sharpe_raw": 3.692472846266944,
+          "oos_pnl": 90.55229965680554,
+          "oos_trades": 426
         }
       ],
       "rejected": false,
@@ -1613,59 +128,59 @@
     {
       "symbol": "SOL/USDT",
       "params": {
-        "signal_threshold": 0.3597,
+        "signal_threshold": 0.3,
+        "take_profit_atr": 2.3276,
+        "stop_loss_atr": 1.25,
+        "max_hold_hours": 72,
+        "time_decay_hours": 12,
         "min_alignment": 3,
-        "take_profit_atr": 6.0,
-        "stop_loss_atr": 2.5,
-        "max_hold_hours": 96,
-        "time_decay_hours": 54,
-        "trailing_stop_atr": 0.01,
-        "score_flip_delay_hrs": 2
+        "trailing_stop_atr": 0.5,
+        "score_flip_delay_hrs": 0
       },
-      "oos_sharpe": 5.7822750653127954,
-      "oos_pnl": 187.4156189551381,
-      "oos_pf": 0.5255374441651263,
-      "oos_wr": 0.801894201894202,
-      "oos_max_dd": 6.4014830071463,
+      "oos_sharpe": 7.279268238946841,
+      "oos_pnl": 120.16528329218256,
+      "oos_pf": 1.245673809660116,
+      "oos_wr": 0.6296716634353179,
+      "oos_max_dd": 7.006731232065065,
       "oos_consistency": 1.0,
-      "oos_avg_trades_per_fold": 148.0,
-      "oos_mean_hold_hrs": 3.7480282480282483,
+      "oos_avg_trades_per_fold": 169.66666666666666,
+      "oos_mean_hold_hrs": 3.3111631279456506,
       "oos_exit_reasons": {
-        "trailing_stop": 333,
-        "stop_loss": 73,
-        "score_flip": 34,
-        "take_profit": 2,
-        "mr_target": 2
+        "trailing_stop": 240,
+        "stop_loss": 136,
+        "take_profit": 102,
+        "mr_target": 2,
+        "score_flip": 29
       },
-      "is_sharpe": 2.9975085731509847,
-      "is_pnl": 65.7485305648594,
+      "is_sharpe": 5.308281771769354,
+      "is_pnl": 81.8282860281444,
       "overfitting_score": 0,
-      "fragility": 0.08385565878408116,
-      "survivor_score": 5.01394559093576,
+      "fragility": 0.5878356493007801,
+      "survivor_score": 4.284213222857854,
       "folds": [
         {
           "fold": 0,
           "is_sharpe": 0,
-          "oos_sharpe": 2.5406487542580973,
-          "oos_sharpe_raw": 2.5406487542580973,
-          "oos_pnl": 8.125043197630813,
-          "oos_trades": 35
+          "oos_sharpe": 7.279268238946841,
+          "oos_sharpe_raw": 7.279268238946841,
+          "oos_pnl": 22.711736808302998,
+          "oos_trades": 57
         },
         {
           "fold": 1,
-          "is_sharpe": 2.708662151074751,
-          "oos_sharpe": 7.3249379272924005,
-          "oos_sharpe_raw": 7.3249379272924005,
-          "oos_pnl": 28.041553642079673,
-          "oos_trades": 39
+          "is_sharpe": 8.052756984425502,
+          "oos_sharpe": 7.545988396321822,
+          "oos_sharpe_raw": 7.545988396321822,
+          "oos_pnl": 12.649887791177122,
+          "oos_trades": 28
         },
         {
           "fold": 2,
-          "is_sharpe": 6.283863568378204,
-          "oos_sharpe": 5.7822750653127954,
-          "oos_sharpe_raw": 5.7822750653127954,
-          "oos_pnl": 151.2490221154276,
-          "oos_trades": 370
+          "is_sharpe": 7.872088330882559,
+          "oos_sharpe": 3.4701140893490017,
+          "oos_sharpe_raw": 3.4701140893490017,
+          "oos_pnl": 84.80365869270244,
+          "oos_trades": 424
         }
       ],
       "rejected": false,
@@ -1675,59 +190,183 @@
     {
       "symbol": "SOL/USDT",
       "params": {
-        "signal_threshold": 0.3597,
+        "signal_threshold": 0.3,
+        "take_profit_atr": 2.3276,
+        "stop_loss_atr": 1.25,
+        "max_hold_hours": 72,
+        "time_decay_hours": 10,
         "min_alignment": 3,
-        "take_profit_atr": 6.0,
-        "stop_loss_atr": 2.5,
-        "max_hold_hours": 96,
-        "time_decay_hours": 50,
-        "trailing_stop_atr": 0.01,
+        "trailing_stop_atr": 0.5,
+        "score_flip_delay_hrs": 0
+      },
+      "oos_sharpe": 7.279268238946841,
+      "oos_pnl": 120.16528329218256,
+      "oos_pf": 1.245673809660116,
+      "oos_wr": 0.6296716634353179,
+      "oos_max_dd": 7.006731232065065,
+      "oos_consistency": 1.0,
+      "oos_avg_trades_per_fold": 169.66666666666666,
+      "oos_mean_hold_hrs": 3.3111631279456506,
+      "oos_exit_reasons": {
+        "trailing_stop": 240,
+        "stop_loss": 136,
+        "take_profit": 102,
+        "mr_target": 2,
+        "score_flip": 29
+      },
+      "is_sharpe": 5.308281771769354,
+      "is_pnl": 81.8282860281444,
+      "overfitting_score": 0,
+      "fragility": 0.5878356493007801,
+      "survivor_score": 4.284213222857854,
+      "folds": [
+        {
+          "fold": 0,
+          "is_sharpe": 0,
+          "oos_sharpe": 7.279268238946841,
+          "oos_sharpe_raw": 7.279268238946841,
+          "oos_pnl": 22.711736808302998,
+          "oos_trades": 57
+        },
+        {
+          "fold": 1,
+          "is_sharpe": 8.052756984425502,
+          "oos_sharpe": 7.545988396321822,
+          "oos_sharpe_raw": 7.545988396321822,
+          "oos_pnl": 12.649887791177122,
+          "oos_trades": 28
+        },
+        {
+          "fold": 2,
+          "is_sharpe": 7.872088330882559,
+          "oos_sharpe": 3.4701140893490017,
+          "oos_sharpe_raw": 3.4701140893490017,
+          "oos_pnl": 84.80365869270244,
+          "oos_trades": 424
+        }
+      ],
+      "rejected": false,
+      "rejection_reason": "",
+      "is_coarse_only": false
+    },
+    {
+      "symbol": "SOL/USDT",
+      "params": {
+        "signal_threshold": 0.3,
+        "take_profit_atr": 2.3276,
+        "stop_loss_atr": 1.25,
+        "max_hold_hours": 67,
+        "time_decay_hours": 12,
+        "min_alignment": 3,
+        "trailing_stop_atr": 0.5,
+        "score_flip_delay_hrs": 0
+      },
+      "oos_sharpe": 7.279268238946841,
+      "oos_pnl": 120.16528329218256,
+      "oos_pf": 1.245673809660116,
+      "oos_wr": 0.6296716634353179,
+      "oos_max_dd": 7.006731232065065,
+      "oos_consistency": 1.0,
+      "oos_avg_trades_per_fold": 169.66666666666666,
+      "oos_mean_hold_hrs": 3.3111631279456506,
+      "oos_exit_reasons": {
+        "trailing_stop": 240,
+        "stop_loss": 136,
+        "take_profit": 102,
+        "mr_target": 2,
+        "score_flip": 29
+      },
+      "is_sharpe": 5.308281771769354,
+      "is_pnl": 81.8282860281444,
+      "overfitting_score": 0,
+      "fragility": 0.5878356493007801,
+      "survivor_score": 4.284213222857854,
+      "folds": [
+        {
+          "fold": 0,
+          "is_sharpe": 0,
+          "oos_sharpe": 7.279268238946841,
+          "oos_sharpe_raw": 7.279268238946841,
+          "oos_pnl": 22.711736808302998,
+          "oos_trades": 57
+        },
+        {
+          "fold": 1,
+          "is_sharpe": 8.052756984425502,
+          "oos_sharpe": 7.545988396321822,
+          "oos_sharpe_raw": 7.545988396321822,
+          "oos_pnl": 12.649887791177122,
+          "oos_trades": 28
+        },
+        {
+          "fold": 2,
+          "is_sharpe": 7.872088330882559,
+          "oos_sharpe": 3.4701140893490017,
+          "oos_sharpe_raw": 3.4701140893490017,
+          "oos_pnl": 84.80365869270244,
+          "oos_trades": 424
+        }
+      ],
+      "rejected": false,
+      "rejection_reason": "",
+      "is_coarse_only": false
+    },
+    {
+      "symbol": "SOL/USDT",
+      "params": {
+        "signal_threshold": 0.3,
+        "take_profit_atr": 2.3276,
+        "stop_loss_atr": 1.25,
+        "max_hold_hours": 72,
+        "time_decay_hours": 12,
+        "min_alignment": 3,
+        "trailing_stop_atr": 0.5,
         "score_flip_delay_hrs": 1
       },
-      "oos_sharpe": 5.7822750653127954,
-      "oos_pnl": 187.4156189551381,
-      "oos_pf": 0.5255374441651263,
-      "oos_wr": 0.801894201894202,
-      "oos_max_dd": 6.4014830071463,
+      "oos_sharpe": 7.279268238946841,
+      "oos_pnl": 120.16528329218256,
+      "oos_pf": 1.245673809660116,
+      "oos_wr": 0.6296716634353179,
+      "oos_max_dd": 7.006731232065065,
       "oos_consistency": 1.0,
-      "oos_avg_trades_per_fold": 148.0,
-      "oos_mean_hold_hrs": 3.7480282480282483,
+      "oos_avg_trades_per_fold": 169.66666666666666,
+      "oos_mean_hold_hrs": 3.3111631279456506,
       "oos_exit_reasons": {
-        "trailing_stop": 333,
-        "stop_loss": 73,
-        "score_flip": 34,
-        "take_profit": 2,
-        "mr_target": 2
+        "trailing_stop": 240,
+        "stop_loss": 136,
+        "take_profit": 102,
+        "mr_target": 2,
+        "score_flip": 29
       },
-      "is_sharpe": 2.9975085731509847,
-      "is_pnl": 65.7485305648594,
+      "is_sharpe": 5.308281771769354,
+      "is_pnl": 81.8282860281444,
       "overfitting_score": 0,
-      "fragility": 0.08385565878408116,
-      "survivor_score": 5.01394559093576,
+      "fragility": 0.5878356493007801,
+      "survivor_score": 4.284213222857854,
       "folds": [
         {
           "fold": 0,
           "is_sharpe": 0,
-          "oos_sharpe": 2.5406487542580973,
-          "oos_sharpe_raw": 2.5406487542580973,
-          "oos_pnl": 8.125043197630813,
-          "oos_trades": 35
+          "oos_sharpe": 7.279268238946841,
+          "oos_sharpe_raw": 7.279268238946841,
+          "oos_pnl": 22.711736808302998,
+          "oos_trades": 57
         },
         {
           "fold": 1,
-          "is_sharpe": 2.708662151074751,
-          "oos_sharpe": 7.3249379272924005,
-          "oos_sharpe_raw": 7.3249379272924005,
-          "oos_pnl": 28.041553642079673,
-          "oos_trades": 39
+          "is_sharpe": 8.052756984425502,
+          "oos_sharpe": 7.545988396321822,
+          "oos_sharpe_raw": 7.545988396321822,
+          "oos_pnl": 12.649887791177122,
+          "oos_trades": 28
         },
         {
           "fold": 2,
-          "is_sharpe": 6.283863568378204,
-          "oos_sharpe": 5.7822750653127954,
-          "oos_sharpe_raw": 5.7822750653127954,
-          "oos_pnl": 151.2490221154276,
-          "oos_trades": 370
+          "is_sharpe": 7.872088330882559,
+          "oos_sharpe": 3.4701140893490017,
+          "oos_sharpe_raw": 3.4701140893490017,
+          "oos_pnl": 84.80365869270244,
+          "oos_trades": 424
         }
       ],
       "rejected": false,
@@ -1737,679 +376,990 @@
     {
       "symbol": "SOL/USDT",
       "params": {
-        "signal_threshold": 0.3597,
+        "signal_threshold": 0.3,
+        "take_profit_atr": 2.3663,
+        "stop_loss_atr": 1.25,
+        "max_hold_hours": 36,
+        "time_decay_hours": 22,
+        "min_alignment": 3,
+        "trailing_stop_atr": 0.5,
+        "score_flip_delay_hrs": 1
+      },
+      "oos_sharpe": 7.279268238946841,
+      "oos_pnl": 118.66629720507542,
+      "oos_pf": 1.2392063426985305,
+      "oos_wr": 0.6288854999133053,
+      "oos_max_dd": 7.006731232065065,
+      "oos_consistency": 1.0,
+      "oos_avg_trades_per_fold": 169.66666666666666,
+      "oos_mean_hold_hrs": 3.350022067747986,
+      "oos_exit_reasons": {
+        "trailing_stop": 243,
+        "stop_loss": 136,
+        "take_profit": 97,
+        "mr_target": 2,
+        "score_flip": 31
+      },
+      "is_sharpe": 5.296746463368333,
+      "is_pnl": 81.47647601001955,
+      "overfitting_score": 0,
+      "fragility": 0.5890824623933764,
+      "survivor_score": 4.280851777958583,
+      "folds": [
+        {
+          "fold": 0,
+          "is_sharpe": 0,
+          "oos_sharpe": 7.279268238946841,
+          "oos_sharpe_raw": 7.279268238946841,
+          "oos_pnl": 22.711736808302998,
+          "oos_trades": 57
+        },
+        {
+          "fold": 1,
+          "is_sharpe": 8.052756984425502,
+          "oos_sharpe": 7.457541473299584,
+          "oos_sharpe_raw": 7.457541473299584,
+          "oos_pnl": 12.29807777305227,
+          "oos_trades": 28
+        },
+        {
+          "fold": 2,
+          "is_sharpe": 7.837482405679496,
+          "oos_sharpe": 3.4254299229787395,
+          "oos_sharpe_raw": 3.4254299229787395,
+          "oos_pnl": 83.65648262372015,
+          "oos_trades": 424
+        }
+      ],
+      "rejected": false,
+      "rejection_reason": "",
+      "is_coarse_only": false
+    },
+    {
+      "symbol": "SOL/USDT",
+      "params": {
+        "signal_threshold": 0.3,
+        "take_profit_atr": 2.3729,
+        "stop_loss_atr": 1.25,
+        "max_hold_hours": 72,
+        "time_decay_hours": 12,
+        "min_alignment": 3,
+        "trailing_stop_atr": 0.5,
+        "score_flip_delay_hrs": 1
+      },
+      "oos_sharpe": 7.279268238946841,
+      "oos_pnl": 118.66629720507542,
+      "oos_pf": 1.2392063426985305,
+      "oos_wr": 0.6288854999133053,
+      "oos_max_dd": 7.006731232065065,
+      "oos_consistency": 1.0,
+      "oos_avg_trades_per_fold": 169.66666666666666,
+      "oos_mean_hold_hrs": 3.350022067747986,
+      "oos_exit_reasons": {
+        "trailing_stop": 243,
+        "stop_loss": 136,
+        "take_profit": 97,
+        "mr_target": 2,
+        "score_flip": 31
+      },
+      "is_sharpe": 5.296746463368333,
+      "is_pnl": 81.47647601001955,
+      "overfitting_score": 0,
+      "fragility": 0.5890824623933764,
+      "survivor_score": 4.280851777958583,
+      "folds": [
+        {
+          "fold": 0,
+          "is_sharpe": 0,
+          "oos_sharpe": 7.279268238946841,
+          "oos_sharpe_raw": 7.279268238946841,
+          "oos_pnl": 22.711736808302998,
+          "oos_trades": 57
+        },
+        {
+          "fold": 1,
+          "is_sharpe": 8.052756984425502,
+          "oos_sharpe": 7.457541473299584,
+          "oos_sharpe_raw": 7.457541473299584,
+          "oos_pnl": 12.29807777305227,
+          "oos_trades": 28
+        },
+        {
+          "fold": 2,
+          "is_sharpe": 7.837482405679496,
+          "oos_sharpe": 3.4254299229787395,
+          "oos_sharpe_raw": 3.4254299229787395,
+          "oos_pnl": 83.65648262372015,
+          "oos_trades": 424
+        }
+      ],
+      "rejected": false,
+      "rejection_reason": "",
+      "is_coarse_only": false
+    },
+    {
+      "symbol": "SOL/USDT",
+      "params": {
+        "signal_threshold": 0.3249,
+        "take_profit_atr": 2.3663,
+        "stop_loss_atr": 1.25,
+        "max_hold_hours": 36,
+        "time_decay_hours": 22,
+        "min_alignment": 3,
+        "trailing_stop_atr": 0.5,
+        "score_flip_delay_hrs": 1
+      },
+      "oos_sharpe": 7.279268238946841,
+      "oos_pnl": 118.66629720507542,
+      "oos_pf": 1.2392063426985305,
+      "oos_wr": 0.6288854999133053,
+      "oos_max_dd": 7.006731232065065,
+      "oos_consistency": 1.0,
+      "oos_avg_trades_per_fold": 169.66666666666666,
+      "oos_mean_hold_hrs": 3.350022067747986,
+      "oos_exit_reasons": {
+        "trailing_stop": 243,
+        "stop_loss": 136,
+        "take_profit": 97,
+        "mr_target": 2,
+        "score_flip": 31
+      },
+      "is_sharpe": 5.296746463368333,
+      "is_pnl": 81.47647601001955,
+      "overfitting_score": 0,
+      "fragility": 0.5890824623933764,
+      "survivor_score": 4.280851777958583,
+      "folds": [
+        {
+          "fold": 0,
+          "is_sharpe": 0,
+          "oos_sharpe": 7.279268238946841,
+          "oos_sharpe_raw": 7.279268238946841,
+          "oos_pnl": 22.711736808302998,
+          "oos_trades": 57
+        },
+        {
+          "fold": 1,
+          "is_sharpe": 8.052756984425502,
+          "oos_sharpe": 7.457541473299584,
+          "oos_sharpe_raw": 7.457541473299584,
+          "oos_pnl": 12.29807777305227,
+          "oos_trades": 28
+        },
+        {
+          "fold": 2,
+          "is_sharpe": 7.837482405679496,
+          "oos_sharpe": 3.4254299229787395,
+          "oos_sharpe_raw": 3.4254299229787395,
+          "oos_pnl": 83.65648262372015,
+          "oos_trades": 424
+        }
+      ],
+      "rejected": false,
+      "rejection_reason": "",
+      "is_coarse_only": false
+    },
+    {
+      "symbol": "SOL/USDT",
+      "params": {
+        "signal_threshold": 0.3422,
+        "take_profit_atr": 2.3663,
+        "stop_loss_atr": 1.25,
+        "max_hold_hours": 36,
+        "time_decay_hours": 22,
+        "min_alignment": 3,
+        "trailing_stop_atr": 0.5,
+        "score_flip_delay_hrs": 1
+      },
+      "oos_sharpe": 7.279268238946841,
+      "oos_pnl": 118.66629720507542,
+      "oos_pf": 1.2392063426985305,
+      "oos_wr": 0.6288854999133053,
+      "oos_max_dd": 7.006731232065065,
+      "oos_consistency": 1.0,
+      "oos_avg_trades_per_fold": 169.66666666666666,
+      "oos_mean_hold_hrs": 3.350022067747986,
+      "oos_exit_reasons": {
+        "trailing_stop": 243,
+        "stop_loss": 136,
+        "take_profit": 97,
+        "mr_target": 2,
+        "score_flip": 31
+      },
+      "is_sharpe": 5.296746463368333,
+      "is_pnl": 81.47647601001955,
+      "overfitting_score": 0,
+      "fragility": 0.5890824623933764,
+      "survivor_score": 4.280851777958583,
+      "folds": [
+        {
+          "fold": 0,
+          "is_sharpe": 0,
+          "oos_sharpe": 7.279268238946841,
+          "oos_sharpe_raw": 7.279268238946841,
+          "oos_pnl": 22.711736808302998,
+          "oos_trades": 57
+        },
+        {
+          "fold": 1,
+          "is_sharpe": 8.052756984425502,
+          "oos_sharpe": 7.457541473299584,
+          "oos_sharpe_raw": 7.457541473299584,
+          "oos_pnl": 12.29807777305227,
+          "oos_trades": 28
+        },
+        {
+          "fold": 2,
+          "is_sharpe": 7.837482405679496,
+          "oos_sharpe": 3.4254299229787395,
+          "oos_sharpe_raw": 3.4254299229787395,
+          "oos_pnl": 83.65648262372015,
+          "oos_trades": 424
+        }
+      ],
+      "rejected": false,
+      "rejection_reason": "",
+      "is_coarse_only": false
+    },
+    {
+      "symbol": "SOL/USDT",
+      "params": {
+        "signal_threshold": 0.3,
+        "take_profit_atr": 2.3663,
+        "stop_loss_atr": 1.25,
+        "max_hold_hours": 32,
+        "time_decay_hours": 22,
+        "min_alignment": 3,
+        "trailing_stop_atr": 0.5,
+        "score_flip_delay_hrs": 1
+      },
+      "oos_sharpe": 7.279268238946841,
+      "oos_pnl": 118.66629720507542,
+      "oos_pf": 1.2392063426985305,
+      "oos_wr": 0.6288854999133053,
+      "oos_max_dd": 7.006731232065065,
+      "oos_consistency": 1.0,
+      "oos_avg_trades_per_fold": 169.66666666666666,
+      "oos_mean_hold_hrs": 3.350022067747986,
+      "oos_exit_reasons": {
+        "trailing_stop": 243,
+        "stop_loss": 136,
+        "take_profit": 97,
+        "mr_target": 2,
+        "score_flip": 31
+      },
+      "is_sharpe": 5.296746463368333,
+      "is_pnl": 81.47647601001955,
+      "overfitting_score": 0,
+      "fragility": 0.5890824623933764,
+      "survivor_score": 4.280851777958583,
+      "folds": [
+        {
+          "fold": 0,
+          "is_sharpe": 0,
+          "oos_sharpe": 7.279268238946841,
+          "oos_sharpe_raw": 7.279268238946841,
+          "oos_pnl": 22.711736808302998,
+          "oos_trades": 57
+        },
+        {
+          "fold": 1,
+          "is_sharpe": 8.052756984425502,
+          "oos_sharpe": 7.457541473299584,
+          "oos_sharpe_raw": 7.457541473299584,
+          "oos_pnl": 12.29807777305227,
+          "oos_trades": 28
+        },
+        {
+          "fold": 2,
+          "is_sharpe": 7.837482405679496,
+          "oos_sharpe": 3.4254299229787395,
+          "oos_sharpe_raw": 3.4254299229787395,
+          "oos_pnl": 83.65648262372015,
+          "oos_trades": 424
+        }
+      ],
+      "rejected": false,
+      "rejection_reason": "",
+      "is_coarse_only": false
+    },
+    {
+      "symbol": "SOL/USDT",
+      "params": {
+        "signal_threshold": 0.3236,
+        "take_profit_atr": 2.3729,
+        "stop_loss_atr": 1.25,
+        "max_hold_hours": 72,
+        "time_decay_hours": 12,
+        "min_alignment": 3,
+        "trailing_stop_atr": 0.5,
+        "score_flip_delay_hrs": 1
+      },
+      "oos_sharpe": 7.279268238946841,
+      "oos_pnl": 118.66629720507542,
+      "oos_pf": 1.2392063426985305,
+      "oos_wr": 0.6288854999133053,
+      "oos_max_dd": 7.006731232065065,
+      "oos_consistency": 1.0,
+      "oos_avg_trades_per_fold": 169.66666666666666,
+      "oos_mean_hold_hrs": 3.350022067747986,
+      "oos_exit_reasons": {
+        "trailing_stop": 243,
+        "stop_loss": 136,
+        "take_profit": 97,
+        "mr_target": 2,
+        "score_flip": 31
+      },
+      "is_sharpe": 5.296746463368333,
+      "is_pnl": 81.47647601001955,
+      "overfitting_score": 0,
+      "fragility": 0.5890824623933764,
+      "survivor_score": 4.280851777958583,
+      "folds": [
+        {
+          "fold": 0,
+          "is_sharpe": 0,
+          "oos_sharpe": 7.279268238946841,
+          "oos_sharpe_raw": 7.279268238946841,
+          "oos_pnl": 22.711736808302998,
+          "oos_trades": 57
+        },
+        {
+          "fold": 1,
+          "is_sharpe": 8.052756984425502,
+          "oos_sharpe": 7.457541473299584,
+          "oos_sharpe_raw": 7.457541473299584,
+          "oos_pnl": 12.29807777305227,
+          "oos_trades": 28
+        },
+        {
+          "fold": 2,
+          "is_sharpe": 7.837482405679496,
+          "oos_sharpe": 3.4254299229787395,
+          "oos_sharpe_raw": 3.4254299229787395,
+          "oos_pnl": 83.65648262372015,
+          "oos_trades": 424
+        }
+      ],
+      "rejected": false,
+      "rejection_reason": "",
+      "is_coarse_only": false
+    },
+    {
+      "symbol": "SOL/USDT",
+      "params": {
+        "signal_threshold": 0.3,
+        "take_profit_atr": 2.3663,
+        "stop_loss_atr": 1.25,
+        "max_hold_hours": 36,
+        "time_decay_hours": 23,
+        "min_alignment": 3,
+        "trailing_stop_atr": 0.5,
+        "score_flip_delay_hrs": 1
+      },
+      "oos_sharpe": 7.279268238946841,
+      "oos_pnl": 118.66629720507542,
+      "oos_pf": 1.2392063426985305,
+      "oos_wr": 0.6288854999133053,
+      "oos_max_dd": 7.006731232065065,
+      "oos_consistency": 1.0,
+      "oos_avg_trades_per_fold": 169.66666666666666,
+      "oos_mean_hold_hrs": 3.350022067747986,
+      "oos_exit_reasons": {
+        "trailing_stop": 243,
+        "stop_loss": 136,
+        "take_profit": 97,
+        "mr_target": 2,
+        "score_flip": 31
+      },
+      "is_sharpe": 5.296746463368333,
+      "is_pnl": 81.47647601001955,
+      "overfitting_score": 0,
+      "fragility": 0.5890824623933764,
+      "survivor_score": 4.280851777958583,
+      "folds": [
+        {
+          "fold": 0,
+          "is_sharpe": 0,
+          "oos_sharpe": 7.279268238946841,
+          "oos_sharpe_raw": 7.279268238946841,
+          "oos_pnl": 22.711736808302998,
+          "oos_trades": 57
+        },
+        {
+          "fold": 1,
+          "is_sharpe": 8.052756984425502,
+          "oos_sharpe": 7.457541473299584,
+          "oos_sharpe_raw": 7.457541473299584,
+          "oos_pnl": 12.29807777305227,
+          "oos_trades": 28
+        },
+        {
+          "fold": 2,
+          "is_sharpe": 7.837482405679496,
+          "oos_sharpe": 3.4254299229787395,
+          "oos_sharpe_raw": 3.4254299229787395,
+          "oos_pnl": 83.65648262372015,
+          "oos_trades": 424
+        }
+      ],
+      "rejected": false,
+      "rejection_reason": "",
+      "is_coarse_only": false
+    },
+    {
+      "symbol": "SOL/USDT",
+      "params": {
+        "signal_threshold": 0.3292,
+        "take_profit_atr": 2.3663,
+        "stop_loss_atr": 1.25,
+        "max_hold_hours": 36,
+        "time_decay_hours": 22,
+        "min_alignment": 3,
+        "trailing_stop_atr": 0.5,
+        "score_flip_delay_hrs": 1
+      },
+      "oos_sharpe": 7.279268238946841,
+      "oos_pnl": 118.66629720507542,
+      "oos_pf": 1.2392063426985305,
+      "oos_wr": 0.6288854999133053,
+      "oos_max_dd": 7.006731232065065,
+      "oos_consistency": 1.0,
+      "oos_avg_trades_per_fold": 169.66666666666666,
+      "oos_mean_hold_hrs": 3.350022067747986,
+      "oos_exit_reasons": {
+        "trailing_stop": 243,
+        "stop_loss": 136,
+        "take_profit": 97,
+        "mr_target": 2,
+        "score_flip": 31
+      },
+      "is_sharpe": 5.296746463368333,
+      "is_pnl": 81.47647601001955,
+      "overfitting_score": 0,
+      "fragility": 0.5890824623933764,
+      "survivor_score": 4.280851777958583,
+      "folds": [
+        {
+          "fold": 0,
+          "is_sharpe": 0,
+          "oos_sharpe": 7.279268238946841,
+          "oos_sharpe_raw": 7.279268238946841,
+          "oos_pnl": 22.711736808302998,
+          "oos_trades": 57
+        },
+        {
+          "fold": 1,
+          "is_sharpe": 8.052756984425502,
+          "oos_sharpe": 7.457541473299584,
+          "oos_sharpe_raw": 7.457541473299584,
+          "oos_pnl": 12.29807777305227,
+          "oos_trades": 28
+        },
+        {
+          "fold": 2,
+          "is_sharpe": 7.837482405679496,
+          "oos_sharpe": 3.4254299229787395,
+          "oos_sharpe_raw": 3.4254299229787395,
+          "oos_pnl": 83.65648262372015,
+          "oos_trades": 424
+        }
+      ],
+      "rejected": false,
+      "rejection_reason": "",
+      "is_coarse_only": false
+    },
+    {
+      "symbol": "SOL/USDT",
+      "params": {
+        "signal_threshold": 0.3,
+        "take_profit_atr": 2.3729,
+        "stop_loss_atr": 1.25,
+        "max_hold_hours": 72,
+        "time_decay_hours": 13,
+        "min_alignment": 3,
+        "trailing_stop_atr": 0.5,
+        "score_flip_delay_hrs": 1
+      },
+      "oos_sharpe": 7.279268238946841,
+      "oos_pnl": 118.66629720507542,
+      "oos_pf": 1.2392063426985305,
+      "oos_wr": 0.6288854999133053,
+      "oos_max_dd": 7.006731232065065,
+      "oos_consistency": 1.0,
+      "oos_avg_trades_per_fold": 169.66666666666666,
+      "oos_mean_hold_hrs": 3.350022067747986,
+      "oos_exit_reasons": {
+        "trailing_stop": 243,
+        "stop_loss": 136,
+        "take_profit": 97,
+        "mr_target": 2,
+        "score_flip": 31
+      },
+      "is_sharpe": 5.296746463368333,
+      "is_pnl": 81.47647601001955,
+      "overfitting_score": 0,
+      "fragility": 0.5890824623933764,
+      "survivor_score": 4.280851777958583,
+      "folds": [
+        {
+          "fold": 0,
+          "is_sharpe": 0,
+          "oos_sharpe": 7.279268238946841,
+          "oos_sharpe_raw": 7.279268238946841,
+          "oos_pnl": 22.711736808302998,
+          "oos_trades": 57
+        },
+        {
+          "fold": 1,
+          "is_sharpe": 8.052756984425502,
+          "oos_sharpe": 7.457541473299584,
+          "oos_sharpe_raw": 7.457541473299584,
+          "oos_pnl": 12.29807777305227,
+          "oos_trades": 28
+        },
+        {
+          "fold": 2,
+          "is_sharpe": 7.837482405679496,
+          "oos_sharpe": 3.4254299229787395,
+          "oos_sharpe_raw": 3.4254299229787395,
+          "oos_pnl": 83.65648262372015,
+          "oos_trades": 424
+        }
+      ],
+      "rejected": false,
+      "rejection_reason": "",
+      "is_coarse_only": false
+    },
+    {
+      "symbol": "SOL/USDT",
+      "params": {
+        "signal_threshold": 0.3,
+        "take_profit_atr": 2.3729,
+        "stop_loss_atr": 1.25,
+        "max_hold_hours": 72,
+        "time_decay_hours": 11,
+        "min_alignment": 3,
+        "trailing_stop_atr": 0.5,
+        "score_flip_delay_hrs": 1
+      },
+      "oos_sharpe": 7.279268238946841,
+      "oos_pnl": 118.66629720507542,
+      "oos_pf": 1.2392063426985305,
+      "oos_wr": 0.6288854999133053,
+      "oos_max_dd": 7.006731232065065,
+      "oos_consistency": 1.0,
+      "oos_avg_trades_per_fold": 169.66666666666666,
+      "oos_mean_hold_hrs": 3.350022067747986,
+      "oos_exit_reasons": {
+        "trailing_stop": 243,
+        "stop_loss": 136,
+        "take_profit": 97,
+        "mr_target": 2,
+        "score_flip": 31
+      },
+      "is_sharpe": 5.296746463368333,
+      "is_pnl": 81.47647601001955,
+      "overfitting_score": 0,
+      "fragility": 0.5890824623933764,
+      "survivor_score": 4.280851777958583,
+      "folds": [
+        {
+          "fold": 0,
+          "is_sharpe": 0,
+          "oos_sharpe": 7.279268238946841,
+          "oos_sharpe_raw": 7.279268238946841,
+          "oos_pnl": 22.711736808302998,
+          "oos_trades": 57
+        },
+        {
+          "fold": 1,
+          "is_sharpe": 8.052756984425502,
+          "oos_sharpe": 7.457541473299584,
+          "oos_sharpe_raw": 7.457541473299584,
+          "oos_pnl": 12.29807777305227,
+          "oos_trades": 28
+        },
+        {
+          "fold": 2,
+          "is_sharpe": 7.837482405679496,
+          "oos_sharpe": 3.4254299229787395,
+          "oos_sharpe_raw": 3.4254299229787395,
+          "oos_pnl": 83.65648262372015,
+          "oos_trades": 424
+        }
+      ],
+      "rejected": false,
+      "rejection_reason": "",
+      "is_coarse_only": false
+    },
+    {
+      "symbol": "SOL/USDT",
+      "params": {
+        "signal_threshold": 0.3249,
+        "take_profit_atr": 2.3663,
+        "stop_loss_atr": 1.25,
+        "max_hold_hours": 34,
+        "time_decay_hours": 22,
+        "min_alignment": 3,
+        "trailing_stop_atr": 0.5,
+        "score_flip_delay_hrs": 1
+      },
+      "oos_sharpe": 7.279268238946841,
+      "oos_pnl": 118.66629720507542,
+      "oos_pf": 1.2392063426985305,
+      "oos_wr": 0.6288854999133053,
+      "oos_max_dd": 7.006731232065065,
+      "oos_consistency": 1.0,
+      "oos_avg_trades_per_fold": 169.66666666666666,
+      "oos_mean_hold_hrs": 3.350022067747986,
+      "oos_exit_reasons": {
+        "trailing_stop": 243,
+        "stop_loss": 136,
+        "take_profit": 97,
+        "mr_target": 2,
+        "score_flip": 31
+      },
+      "is_sharpe": 5.296746463368333,
+      "is_pnl": 81.47647601001955,
+      "overfitting_score": 0,
+      "fragility": 0.5890824623933764,
+      "survivor_score": 4.280851777958583,
+      "folds": [
+        {
+          "fold": 0,
+          "is_sharpe": 0,
+          "oos_sharpe": 7.279268238946841,
+          "oos_sharpe_raw": 7.279268238946841,
+          "oos_pnl": 22.711736808302998,
+          "oos_trades": 57
+        },
+        {
+          "fold": 1,
+          "is_sharpe": 8.052756984425502,
+          "oos_sharpe": 7.457541473299584,
+          "oos_sharpe_raw": 7.457541473299584,
+          "oos_pnl": 12.29807777305227,
+          "oos_trades": 28
+        },
+        {
+          "fold": 2,
+          "is_sharpe": 7.837482405679496,
+          "oos_sharpe": 3.4254299229787395,
+          "oos_sharpe_raw": 3.4254299229787395,
+          "oos_pnl": 83.65648262372015,
+          "oos_trades": 424
+        }
+      ],
+      "rejected": false,
+      "rejection_reason": "",
+      "is_coarse_only": false
+    },
+    {
+      "symbol": "SOL/USDT",
+      "params": {
+        "signal_threshold": 0.3,
+        "take_profit_atr": 2.3663,
+        "stop_loss_atr": 1.25,
+        "max_hold_hours": 32,
+        "time_decay_hours": 24,
+        "min_alignment": 3,
+        "trailing_stop_atr": 0.5,
+        "score_flip_delay_hrs": 1
+      },
+      "oos_sharpe": 7.279268238946841,
+      "oos_pnl": 118.66629720507542,
+      "oos_pf": 1.2392063426985305,
+      "oos_wr": 0.6288854999133053,
+      "oos_max_dd": 7.006731232065065,
+      "oos_consistency": 1.0,
+      "oos_avg_trades_per_fold": 169.66666666666666,
+      "oos_mean_hold_hrs": 3.350022067747986,
+      "oos_exit_reasons": {
+        "trailing_stop": 243,
+        "stop_loss": 136,
+        "take_profit": 97,
+        "mr_target": 2,
+        "score_flip": 31
+      },
+      "is_sharpe": 5.296746463368333,
+      "is_pnl": 81.47647601001955,
+      "overfitting_score": 0,
+      "fragility": 0.5890824623933764,
+      "survivor_score": 4.280851777958583,
+      "folds": [
+        {
+          "fold": 0,
+          "is_sharpe": 0,
+          "oos_sharpe": 7.279268238946841,
+          "oos_sharpe_raw": 7.279268238946841,
+          "oos_pnl": 22.711736808302998,
+          "oos_trades": 57
+        },
+        {
+          "fold": 1,
+          "is_sharpe": 8.052756984425502,
+          "oos_sharpe": 7.457541473299584,
+          "oos_sharpe_raw": 7.457541473299584,
+          "oos_pnl": 12.29807777305227,
+          "oos_trades": 28
+        },
+        {
+          "fold": 2,
+          "is_sharpe": 7.837482405679496,
+          "oos_sharpe": 3.4254299229787395,
+          "oos_sharpe_raw": 3.4254299229787395,
+          "oos_pnl": 83.65648262372015,
+          "oos_trades": 424
+        }
+      ],
+      "rejected": false,
+      "rejection_reason": "",
+      "is_coarse_only": false
+    },
+    {
+      "symbol": "SOL/USDT",
+      "params": {
+        "signal_threshold": 0.3,
+        "take_profit_atr": 2.3729,
+        "stop_loss_atr": 1.25,
+        "max_hold_hours": 72,
+        "time_decay_hours": 10,
+        "min_alignment": 3,
+        "trailing_stop_atr": 0.5,
+        "score_flip_delay_hrs": 1
+      },
+      "oos_sharpe": 7.279268238946841,
+      "oos_pnl": 118.66629720507542,
+      "oos_pf": 1.2392063426985305,
+      "oos_wr": 0.6288854999133053,
+      "oos_max_dd": 7.006731232065065,
+      "oos_consistency": 1.0,
+      "oos_avg_trades_per_fold": 169.66666666666666,
+      "oos_mean_hold_hrs": 3.350022067747986,
+      "oos_exit_reasons": {
+        "trailing_stop": 243,
+        "stop_loss": 136,
+        "take_profit": 97,
+        "mr_target": 2,
+        "score_flip": 31
+      },
+      "is_sharpe": 5.296746463368333,
+      "is_pnl": 81.47647601001955,
+      "overfitting_score": 0,
+      "fragility": 0.5890824623933764,
+      "survivor_score": 4.280851777958583,
+      "folds": [
+        {
+          "fold": 0,
+          "is_sharpe": 0,
+          "oos_sharpe": 7.279268238946841,
+          "oos_sharpe_raw": 7.279268238946841,
+          "oos_pnl": 22.711736808302998,
+          "oos_trades": 57
+        },
+        {
+          "fold": 1,
+          "is_sharpe": 8.052756984425502,
+          "oos_sharpe": 7.457541473299584,
+          "oos_sharpe_raw": 7.457541473299584,
+          "oos_pnl": 12.29807777305227,
+          "oos_trades": 28
+        },
+        {
+          "fold": 2,
+          "is_sharpe": 7.837482405679496,
+          "oos_sharpe": 3.4254299229787395,
+          "oos_sharpe_raw": 3.4254299229787395,
+          "oos_pnl": 83.65648262372015,
+          "oos_trades": 424
+        }
+      ],
+      "rejected": false,
+      "rejection_reason": "",
+      "is_coarse_only": false
+    },
+    {
+      "symbol": "SOL/USDT",
+      "params": {
+        "signal_threshold": 0.3236,
+        "take_profit_atr": 2.3729,
+        "stop_loss_atr": 1.25,
+        "max_hold_hours": 72,
+        "time_decay_hours": 13,
+        "min_alignment": 3,
+        "trailing_stop_atr": 0.5,
+        "score_flip_delay_hrs": 1
+      },
+      "oos_sharpe": 7.279268238946841,
+      "oos_pnl": 118.66629720507542,
+      "oos_pf": 1.2392063426985305,
+      "oos_wr": 0.6288854999133053,
+      "oos_max_dd": 7.006731232065065,
+      "oos_consistency": 1.0,
+      "oos_avg_trades_per_fold": 169.66666666666666,
+      "oos_mean_hold_hrs": 3.350022067747986,
+      "oos_exit_reasons": {
+        "trailing_stop": 243,
+        "stop_loss": 136,
+        "take_profit": 97,
+        "mr_target": 2,
+        "score_flip": 31
+      },
+      "is_sharpe": 5.296746463368333,
+      "is_pnl": 81.47647601001955,
+      "overfitting_score": 0,
+      "fragility": 0.5890824623933764,
+      "survivor_score": 4.280851777958583,
+      "folds": [
+        {
+          "fold": 0,
+          "is_sharpe": 0,
+          "oos_sharpe": 7.279268238946841,
+          "oos_sharpe_raw": 7.279268238946841,
+          "oos_pnl": 22.711736808302998,
+          "oos_trades": 57
+        },
+        {
+          "fold": 1,
+          "is_sharpe": 8.052756984425502,
+          "oos_sharpe": 7.457541473299584,
+          "oos_sharpe_raw": 7.457541473299584,
+          "oos_pnl": 12.29807777305227,
+          "oos_trades": 28
+        },
+        {
+          "fold": 2,
+          "is_sharpe": 7.837482405679496,
+          "oos_sharpe": 3.4254299229787395,
+          "oos_sharpe_raw": 3.4254299229787395,
+          "oos_pnl": 83.65648262372015,
+          "oos_trades": 424
+        }
+      ],
+      "rejected": false,
+      "rejection_reason": "",
+      "is_coarse_only": false
+    },
+    {
+      "symbol": "SOL/USDT",
+      "params": {
+        "signal_threshold": 0.3,
+        "take_profit_atr": 2.3276,
+        "stop_loss_atr": 1.25,
+        "max_hold_hours": 72,
+        "time_decay_hours": 12,
+        "min_alignment": 3,
+        "trailing_stop_atr": 0.5013,
+        "score_flip_delay_hrs": 0
+      },
+      "oos_sharpe": 7.269355323815738,
+      "oos_pnl": 119.94463034070299,
+      "oos_pf": 1.2444795544656875,
+      "oos_wr": 0.6296716634353179,
+      "oos_max_dd": 7.007632874207663,
+      "oos_consistency": 1.0,
+      "oos_avg_trades_per_fold": 169.66666666666666,
+      "oos_mean_hold_hrs": 3.3111631279456506,
+      "oos_exit_reasons": {
+        "trailing_stop": 240,
+        "stop_loss": 136,
+        "take_profit": 102,
+        "mr_target": 2,
+        "score_flip": 29
+      },
+      "is_sharpe": 5.301423257904994,
+      "is_pnl": 81.7242183519411,
+      "overfitting_score": 0,
+      "fragility": 0.5883499865152554,
+      "survivor_score": 4.276957520467708,
+      "folds": [
+        {
+          "fold": 0,
+          "is_sharpe": 0,
+          "oos_sharpe": 7.269355323815738,
+          "oos_sharpe_raw": 7.269355323815738,
+          "oos_pnl": 22.682000111359105,
+          "oos_trades": 57
+        },
+        {
+          "fold": 1,
+          "is_sharpe": 8.04235155476225,
+          "oos_sharpe": 7.536854085751182,
+          "oos_sharpe_raw": 7.536854085751182,
+          "oos_pnl": 12.63448979284857,
+          "oos_trades": 28
+        },
+        {
+          "fold": 2,
+          "is_sharpe": 7.861918218952733,
+          "oos_sharpe": 3.4630193884788394,
+          "oos_sharpe_raw": 3.4630193884788394,
+          "oos_pnl": 84.62814043649531,
+          "oos_trades": 424
+        }
+      ],
+      "rejected": false,
+      "rejection_reason": "",
+      "is_coarse_only": false
+    },
+    {
+      "symbol": "SOL/USDT",
+      "params": {
+        "signal_threshold": 0.3,
         "min_alignment": 3,
         "take_profit_atr": 6.0,
-        "stop_loss_atr": 2.5,
-        "max_hold_hours": 96,
-        "time_decay_hours": 40,
-        "trailing_stop_atr": 0.01,
-        "score_flip_delay_hrs": 2
-      },
-      "oos_sharpe": 5.7822750653127954,
-      "oos_pnl": 187.4156189551381,
-      "oos_pf": 0.5255374441651263,
-      "oos_wr": 0.801894201894202,
-      "oos_max_dd": 6.4014830071463,
-      "oos_consistency": 1.0,
-      "oos_avg_trades_per_fold": 148.0,
-      "oos_mean_hold_hrs": 3.7480282480282483,
-      "oos_exit_reasons": {
-        "trailing_stop": 333,
-        "stop_loss": 73,
-        "score_flip": 34,
-        "take_profit": 2,
-        "mr_target": 2
-      },
-      "is_sharpe": 2.9975085731509847,
-      "is_pnl": 65.7485305648594,
-      "overfitting_score": 0,
-      "fragility": 0.08385565878408116,
-      "survivor_score": 5.01394559093576,
-      "folds": [
-        {
-          "fold": 0,
-          "is_sharpe": 0,
-          "oos_sharpe": 2.5406487542580973,
-          "oos_sharpe_raw": 2.5406487542580973,
-          "oos_pnl": 8.125043197630813,
-          "oos_trades": 35
-        },
-        {
-          "fold": 1,
-          "is_sharpe": 2.708662151074751,
-          "oos_sharpe": 7.3249379272924005,
-          "oos_sharpe_raw": 7.3249379272924005,
-          "oos_pnl": 28.041553642079673,
-          "oos_trades": 39
-        },
-        {
-          "fold": 2,
-          "is_sharpe": 6.283863568378204,
-          "oos_sharpe": 5.7822750653127954,
-          "oos_sharpe_raw": 5.7822750653127954,
-          "oos_pnl": 151.2490221154276,
-          "oos_trades": 370
-        }
-      ],
-      "rejected": false,
-      "rejection_reason": "",
-      "is_coarse_only": false
-    },
-    {
-      "symbol": "SOL/USDT",
-      "params": {
-        "signal_threshold": 0.3597,
-        "min_alignment": 3,
-        "take_profit_atr": 6.0,
-        "stop_loss_atr": 2.5,
-        "max_hold_hours": 96,
-        "time_decay_hours": 42,
-        "trailing_stop_atr": 0.01,
-        "score_flip_delay_hrs": 2
-      },
-      "oos_sharpe": 5.7822750653127954,
-      "oos_pnl": 187.4156189551381,
-      "oos_pf": 0.5255374441651263,
-      "oos_wr": 0.801894201894202,
-      "oos_max_dd": 6.4014830071463,
-      "oos_consistency": 1.0,
-      "oos_avg_trades_per_fold": 148.0,
-      "oos_mean_hold_hrs": 3.7480282480282483,
-      "oos_exit_reasons": {
-        "trailing_stop": 333,
-        "stop_loss": 73,
-        "score_flip": 34,
-        "take_profit": 2,
-        "mr_target": 2
-      },
-      "is_sharpe": 2.9975085731509847,
-      "is_pnl": 65.7485305648594,
-      "overfitting_score": 0,
-      "fragility": 0.08385565878408116,
-      "survivor_score": 5.01394559093576,
-      "folds": [
-        {
-          "fold": 0,
-          "is_sharpe": 0,
-          "oos_sharpe": 2.5406487542580973,
-          "oos_sharpe_raw": 2.5406487542580973,
-          "oos_pnl": 8.125043197630813,
-          "oos_trades": 35
-        },
-        {
-          "fold": 1,
-          "is_sharpe": 2.708662151074751,
-          "oos_sharpe": 7.3249379272924005,
-          "oos_sharpe_raw": 7.3249379272924005,
-          "oos_pnl": 28.041553642079673,
-          "oos_trades": 39
-        },
-        {
-          "fold": 2,
-          "is_sharpe": 6.283863568378204,
-          "oos_sharpe": 5.7822750653127954,
-          "oos_sharpe_raw": 5.7822750653127954,
-          "oos_pnl": 151.2490221154276,
-          "oos_trades": 370
-        }
-      ],
-      "rejected": false,
-      "rejection_reason": "",
-      "is_coarse_only": false
-    },
-    {
-      "symbol": "SOL/USDT",
-      "params": {
-        "signal_threshold": 0.3597,
-        "min_alignment": 3,
-        "take_profit_atr": 6.4703,
         "stop_loss_atr": 2.5,
         "max_hold_hours": 96,
         "time_decay_hours": 48,
-        "trailing_stop_atr": 0.01,
-        "score_flip_delay_hrs": 2
+        "trailing_stop_atr": 1.0,
+        "score_flip_delay_hrs": 2,
+        "experiment": "lower_threshold"
       },
-      "oos_sharpe": 5.7822750653127954,
-      "oos_pnl": 187.40849686012118,
-      "oos_pf": 0.525498454719704,
-      "oos_wr": 0.801894201894202,
-      "oos_max_dd": 6.4014830071463,
+      "oos_sharpe": 4.6080874542682,
+      "oos_pnl": 84.38137466506674,
+      "oos_pf": 1.23506561421782,
+      "oos_wr": 0.6313265519934472,
+      "oos_max_dd": 8.028212762834661,
       "oos_consistency": 1.0,
-      "oos_avg_trades_per_fold": 148.0,
-      "oos_mean_hold_hrs": 3.756575256575257,
+      "oos_avg_trades_per_fold": 120.66666666666667,
+      "oos_mean_hold_hrs": 6.133002838257425,
       "oos_exit_reasons": {
-        "trailing_stop": 334,
-        "stop_loss": 73,
-        "score_flip": 34,
-        "take_profit": 1,
-        "mr_target": 2
+        "trailing_stop": 221,
+        "score_flip": 64,
+        "stop_loss": 61,
+        "mr_target": 11,
+        "take_profit": 5
       },
-      "is_sharpe": 2.997387092311767,
-      "is_pnl": 65.74140846984247,
+      "is_sharpe": 0.0,
+      "is_pnl": 0.0,
       "overfitting_score": 0,
-      "fragility": 0.08385565878408116,
-      "survivor_score": 5.01394559093576,
+      "fragility": 0.0,
+      "survivor_score": 4.265633334492725,
       "folds": [
         {
           "fold": 0,
-          "is_sharpe": 0,
-          "oos_sharpe": 2.5406487542580973,
-          "oos_sharpe_raw": 2.5406487542580973,
-          "oos_pnl": 8.125043197630813,
-          "oos_trades": 35
-        },
-        {
-          "fold": 1,
-          "is_sharpe": 2.708662151074751,
-          "oos_sharpe": 7.324179354549122,
-          "oos_sharpe_raw": 7.324179354549122,
-          "oos_pnl": 28.03443154706275,
-          "oos_trades": 39
-        },
-        {
-          "fold": 2,
-          "is_sharpe": 6.2834991258605495,
-          "oos_sharpe": 5.7822750653127954,
-          "oos_sharpe_raw": 5.7822750653127954,
-          "oos_pnl": 151.2490221154276,
-          "oos_trades": 370
-        }
-      ],
-      "rejected": false,
-      "rejection_reason": "",
-      "is_coarse_only": false
-    },
-    {
-      "symbol": "SOL/USDT",
-      "params": {
-        "signal_threshold": 0.3597,
-        "min_alignment": 3,
-        "take_profit_atr": 6.0,
-        "stop_loss_atr": 2.5,
-        "max_hold_hours": 96,
-        "time_decay_hours": 51,
-        "trailing_stop_atr": 0.01,
-        "score_flip_delay_hrs": 1
-      },
-      "oos_sharpe": 5.7822750653127954,
-      "oos_pnl": 187.4156189551381,
-      "oos_pf": 0.5255374441651263,
-      "oos_wr": 0.801894201894202,
-      "oos_max_dd": 6.4014830071463,
-      "oos_consistency": 1.0,
-      "oos_avg_trades_per_fold": 148.0,
-      "oos_mean_hold_hrs": 3.7480282480282483,
-      "oos_exit_reasons": {
-        "trailing_stop": 333,
-        "stop_loss": 73,
-        "score_flip": 34,
-        "take_profit": 2,
-        "mr_target": 2
-      },
-      "is_sharpe": 2.9975085731509847,
-      "is_pnl": 65.7485305648594,
-      "overfitting_score": 0,
-      "fragility": 0.08385565878408116,
-      "survivor_score": 5.01394559093576,
-      "folds": [
-        {
-          "fold": 0,
-          "is_sharpe": 0,
-          "oos_sharpe": 2.5406487542580973,
-          "oos_sharpe_raw": 2.5406487542580973,
-          "oos_pnl": 8.125043197630813,
-          "oos_trades": 35
-        },
-        {
-          "fold": 1,
-          "is_sharpe": 2.708662151074751,
-          "oos_sharpe": 7.3249379272924005,
-          "oos_sharpe_raw": 7.3249379272924005,
-          "oos_pnl": 28.041553642079673,
-          "oos_trades": 39
-        },
-        {
-          "fold": 2,
-          "is_sharpe": 6.283863568378204,
-          "oos_sharpe": 5.7822750653127954,
-          "oos_sharpe_raw": 5.7822750653127954,
-          "oos_pnl": 151.2490221154276,
-          "oos_trades": 370
-        }
-      ],
-      "rejected": false,
-      "rejection_reason": "",
-      "is_coarse_only": false
-    },
-    {
-      "symbol": "SOL/USDT",
-      "params": {
-        "signal_threshold": 0.3597,
-        "min_alignment": 3,
-        "take_profit_atr": 6.0,
-        "stop_loss_atr": 2.5,
-        "max_hold_hours": 96,
-        "time_decay_hours": 58,
-        "trailing_stop_atr": 0.01,
-        "score_flip_delay_hrs": 2
-      },
-      "oos_sharpe": 5.7822750653127954,
-      "oos_pnl": 187.4156189551381,
-      "oos_pf": 0.5255374441651263,
-      "oos_wr": 0.801894201894202,
-      "oos_max_dd": 6.4014830071463,
-      "oos_consistency": 1.0,
-      "oos_avg_trades_per_fold": 148.0,
-      "oos_mean_hold_hrs": 3.7480282480282483,
-      "oos_exit_reasons": {
-        "trailing_stop": 333,
-        "stop_loss": 73,
-        "score_flip": 34,
-        "take_profit": 2,
-        "mr_target": 2
-      },
-      "is_sharpe": 2.9975085731509847,
-      "is_pnl": 65.7485305648594,
-      "overfitting_score": 0,
-      "fragility": 0.08385565878408116,
-      "survivor_score": 5.01394559093576,
-      "folds": [
-        {
-          "fold": 0,
-          "is_sharpe": 0,
-          "oos_sharpe": 2.5406487542580973,
-          "oos_sharpe_raw": 2.5406487542580973,
-          "oos_pnl": 8.125043197630813,
-          "oos_trades": 35
-        },
-        {
-          "fold": 1,
-          "is_sharpe": 2.708662151074751,
-          "oos_sharpe": 7.3249379272924005,
-          "oos_sharpe_raw": 7.3249379272924005,
-          "oos_pnl": 28.041553642079673,
-          "oos_trades": 39
-        },
-        {
-          "fold": 2,
-          "is_sharpe": 6.283863568378204,
-          "oos_sharpe": 5.7822750653127954,
-          "oos_sharpe_raw": 5.7822750653127954,
-          "oos_pnl": 151.2490221154276,
-          "oos_trades": 370
-        }
-      ],
-      "rejected": false,
-      "rejection_reason": "",
-      "is_coarse_only": false
-    },
-    {
-      "symbol": "SOL/USDT",
-      "params": {
-        "signal_threshold": 0.3597,
-        "min_alignment": 3,
-        "take_profit_atr": 6.0,
-        "stop_loss_atr": 2.5,
-        "max_hold_hours": 87,
-        "time_decay_hours": 54,
-        "trailing_stop_atr": 0.01,
-        "score_flip_delay_hrs": 2
-      },
-      "oos_sharpe": 5.7822750653127954,
-      "oos_pnl": 187.4156189551381,
-      "oos_pf": 0.5255374441651263,
-      "oos_wr": 0.801894201894202,
-      "oos_max_dd": 6.4014830071463,
-      "oos_consistency": 1.0,
-      "oos_avg_trades_per_fold": 148.0,
-      "oos_mean_hold_hrs": 3.7480282480282483,
-      "oos_exit_reasons": {
-        "trailing_stop": 333,
-        "stop_loss": 73,
-        "score_flip": 34,
-        "take_profit": 2,
-        "mr_target": 2
-      },
-      "is_sharpe": 2.9975085731509847,
-      "is_pnl": 65.7485305648594,
-      "overfitting_score": 0,
-      "fragility": 0.08385565878408116,
-      "survivor_score": 5.01394559093576,
-      "folds": [
-        {
-          "fold": 0,
-          "is_sharpe": 0,
-          "oos_sharpe": 2.5406487542580973,
-          "oos_sharpe_raw": 2.5406487542580973,
-          "oos_pnl": 8.125043197630813,
-          "oos_trades": 35
-        },
-        {
-          "fold": 1,
-          "is_sharpe": 2.708662151074751,
-          "oos_sharpe": 7.3249379272924005,
-          "oos_sharpe_raw": 7.3249379272924005,
-          "oos_pnl": 28.041553642079673,
-          "oos_trades": 39
-        },
-        {
-          "fold": 2,
-          "is_sharpe": 6.283863568378204,
-          "oos_sharpe": 5.7822750653127954,
-          "oos_sharpe_raw": 5.7822750653127954,
-          "oos_pnl": 151.2490221154276,
-          "oos_trades": 370
-        }
-      ],
-      "rejected": false,
-      "rejection_reason": "",
-      "is_coarse_only": false
-    },
-    {
-      "symbol": "SOL/USDT",
-      "params": {
-        "signal_threshold": 0.3597,
-        "min_alignment": 3,
-        "take_profit_atr": 6.3282,
-        "stop_loss_atr": 2.5,
-        "max_hold_hours": 96,
-        "time_decay_hours": 54,
-        "trailing_stop_atr": 0.01,
-        "score_flip_delay_hrs": 2
-      },
-      "oos_sharpe": 5.7822750653127954,
-      "oos_pnl": 187.40849686012118,
-      "oos_pf": 0.525498454719704,
-      "oos_wr": 0.801894201894202,
-      "oos_max_dd": 6.4014830071463,
-      "oos_consistency": 1.0,
-      "oos_avg_trades_per_fold": 148.0,
-      "oos_mean_hold_hrs": 3.756575256575257,
-      "oos_exit_reasons": {
-        "trailing_stop": 334,
-        "stop_loss": 73,
-        "score_flip": 34,
-        "take_profit": 1,
-        "mr_target": 2
-      },
-      "is_sharpe": 2.997387092311767,
-      "is_pnl": 65.74140846984247,
-      "overfitting_score": 0,
-      "fragility": 0.08385565878408116,
-      "survivor_score": 5.01394559093576,
-      "folds": [
-        {
-          "fold": 0,
-          "is_sharpe": 0,
-          "oos_sharpe": 2.5406487542580973,
-          "oos_sharpe_raw": 2.5406487542580973,
-          "oos_pnl": 8.125043197630813,
-          "oos_trades": 35
-        },
-        {
-          "fold": 1,
-          "is_sharpe": 2.708662151074751,
-          "oos_sharpe": 7.324179354549122,
-          "oos_sharpe_raw": 7.324179354549122,
-          "oos_pnl": 28.03443154706275,
-          "oos_trades": 39
-        },
-        {
-          "fold": 2,
-          "is_sharpe": 6.2834991258605495,
-          "oos_sharpe": 5.7822750653127954,
-          "oos_sharpe_raw": 5.7822750653127954,
-          "oos_pnl": 151.2490221154276,
-          "oos_trades": 370
-        }
-      ],
-      "rejected": false,
-      "rejection_reason": "",
-      "is_coarse_only": false
-    },
-    {
-      "symbol": "SOL/USDT",
-      "params": {
-        "signal_threshold": 0.3597,
-        "min_alignment": 3,
-        "take_profit_atr": 6.0,
-        "stop_loss_atr": 2.5,
-        "max_hold_hours": 107,
-        "time_decay_hours": 40,
-        "trailing_stop_atr": 0.01,
-        "score_flip_delay_hrs": 2
-      },
-      "oos_sharpe": 5.7822750653127954,
-      "oos_pnl": 187.4156189551381,
-      "oos_pf": 0.5255374441651263,
-      "oos_wr": 0.801894201894202,
-      "oos_max_dd": 6.4014830071463,
-      "oos_consistency": 1.0,
-      "oos_avg_trades_per_fold": 148.0,
-      "oos_mean_hold_hrs": 3.7480282480282483,
-      "oos_exit_reasons": {
-        "trailing_stop": 333,
-        "stop_loss": 73,
-        "score_flip": 34,
-        "take_profit": 2,
-        "mr_target": 2
-      },
-      "is_sharpe": 2.9975085731509847,
-      "is_pnl": 65.7485305648594,
-      "overfitting_score": 0,
-      "fragility": 0.08385565878408116,
-      "survivor_score": 5.01394559093576,
-      "folds": [
-        {
-          "fold": 0,
-          "is_sharpe": 0,
-          "oos_sharpe": 2.5406487542580973,
-          "oos_sharpe_raw": 2.5406487542580973,
-          "oos_pnl": 8.125043197630813,
-          "oos_trades": 35
-        },
-        {
-          "fold": 1,
-          "is_sharpe": 2.708662151074751,
-          "oos_sharpe": 7.3249379272924005,
-          "oos_sharpe_raw": 7.3249379272924005,
-          "oos_pnl": 28.041553642079673,
-          "oos_trades": 39
-        },
-        {
-          "fold": 2,
-          "is_sharpe": 6.283863568378204,
-          "oos_sharpe": 5.7822750653127954,
-          "oos_sharpe_raw": 5.7822750653127954,
-          "oos_pnl": 151.2490221154276,
-          "oos_trades": 370
-        }
-      ],
-      "rejected": false,
-      "rejection_reason": "",
-      "is_coarse_only": false
-    },
-    {
-      "symbol": "SOL/USDT",
-      "params": {
-        "signal_threshold": 0.3597,
-        "min_alignment": 3,
-        "take_profit_atr": 6.0,
-        "stop_loss_atr": 2.5,
-        "max_hold_hours": 96,
-        "time_decay_hours": 34,
-        "trailing_stop_atr": 0.01,
-        "score_flip_delay_hrs": 2
-      },
-      "oos_sharpe": 5.7822750653127954,
-      "oos_pnl": 187.4156189551381,
-      "oos_pf": 0.5255374441651263,
-      "oos_wr": 0.801894201894202,
-      "oos_max_dd": 6.4014830071463,
-      "oos_consistency": 1.0,
-      "oos_avg_trades_per_fold": 148.0,
-      "oos_mean_hold_hrs": 3.7480282480282483,
-      "oos_exit_reasons": {
-        "trailing_stop": 333,
-        "stop_loss": 73,
-        "score_flip": 34,
-        "take_profit": 2,
-        "mr_target": 2
-      },
-      "is_sharpe": 2.9975085731509847,
-      "is_pnl": 65.7485305648594,
-      "overfitting_score": 0,
-      "fragility": 0.08385565878408116,
-      "survivor_score": 5.01394559093576,
-      "folds": [
-        {
-          "fold": 0,
-          "is_sharpe": 0,
-          "oos_sharpe": 2.5406487542580973,
-          "oos_sharpe_raw": 2.5406487542580973,
-          "oos_pnl": 8.125043197630813,
-          "oos_trades": 35
-        },
-        {
-          "fold": 1,
-          "is_sharpe": 2.708662151074751,
-          "oos_sharpe": 7.3249379272924005,
-          "oos_sharpe_raw": 7.3249379272924005,
-          "oos_pnl": 28.041553642079673,
-          "oos_trades": 39
-        },
-        {
-          "fold": 2,
-          "is_sharpe": 6.283863568378204,
-          "oos_sharpe": 5.7822750653127954,
-          "oos_sharpe_raw": 5.7822750653127954,
-          "oos_pnl": 151.2490221154276,
-          "oos_trades": 370
-        }
-      ],
-      "rejected": false,
-      "rejection_reason": "",
-      "is_coarse_only": false
-    },
-    {
-      "symbol": "SOL/USDT",
-      "params": {
-        "signal_threshold": 0.3597,
-        "min_alignment": 3,
-        "take_profit_atr": 6.0,
-        "stop_loss_atr": 2.5,
-        "max_hold_hours": 96,
-        "time_decay_hours": 48,
-        "trailing_stop_atr": 0.0114,
-        "score_flip_delay_hrs": 1
-      },
-      "oos_sharpe": 5.772832870761482,
-      "oos_pnl": 187.07396350350035,
-      "oos_pf": 0.528042875792074,
-      "oos_wr": 0.800993300993301,
-      "oos_max_dd": 6.402123221953473,
-      "oos_consistency": 1.0,
-      "oos_avg_trades_per_fold": 148.0,
-      "oos_mean_hold_hrs": 3.7480282480282483,
-      "oos_exit_reasons": {
-        "trailing_stop": 333,
-        "stop_loss": 73,
-        "score_flip": 34,
-        "take_profit": 2,
-        "mr_target": 2
-      },
-      "is_sharpe": 2.99106962243679,
-      "is_pnl": 65.61193404757292,
-      "overfitting_score": 0,
-      "fragility": 0.08396627829271988,
-      "survivor_score": 5.005217086458789,
-      "folds": [
-        {
-          "fold": 0,
-          "is_sharpe": 0,
-          "oos_sharpe": 2.5313904817065573,
-          "oos_sharpe_raw": 2.5313904817065573,
-          "oos_pnl": 8.093332683953893,
-          "oos_trades": 35
-        },
-        {
-          "fold": 1,
-          "is_sharpe": 2.699131462874179,
-          "oos_sharpe": 7.318156091060444,
-          "oos_sharpe_raw": 7.318156091060444,
-          "oos_pnl": 28.01140699896325,
-          "oos_trades": 39
-        },
-        {
-          "fold": 2,
-          "is_sharpe": 6.274077404436192,
-          "oos_sharpe": 5.772832870761482,
-          "oos_sharpe_raw": 5.772832870761482,
-          "oos_pnl": 150.9692238205832,
-          "oos_trades": 370
-        }
-      ],
-      "rejected": false,
-      "rejection_reason": "",
-      "is_coarse_only": false
-    },
-    {
-      "symbol": "SOL/USDT",
-      "params": {
-        "signal_threshold": 0.3597,
-        "min_alignment": 3,
-        "take_profit_atr": 6.0,
-        "stop_loss_atr": 2.1404,
-        "max_hold_hours": 96,
-        "time_decay_hours": 50,
-        "trailing_stop_atr": 0.01,
-        "score_flip_delay_hrs": 1
-      },
-      "oos_sharpe": 5.65620739242805,
-      "oos_pnl": 181.2215459770917,
-      "oos_pf": 0.5804304819596591,
-      "oos_wr": 0.7796858203850289,
-      "oos_max_dd": 6.254934554610351,
-      "oos_consistency": 1.0,
-      "oos_avg_trades_per_fold": 151.66666666666666,
-      "oos_mean_hold_hrs": 3.509549985341542,
-      "oos_exit_reasons": {
-        "trailing_stop": 331,
-        "stop_loss": 85,
-        "score_flip": 35,
-        "take_profit": 2,
-        "mr_target": 2
-      },
-      "is_sharpe": 2.883980380411644,
-      "is_pnl": 63.53180042890696,
-      "overfitting_score": 0,
-      "fragility": 0.0639296173538151,
-      "survivor_score": 5.003378040303729,
-      "folds": [
-        {
-          "fold": 0,
-          "is_sharpe": 0,
-          "oos_sharpe": 2.1182197156090696,
-          "oos_sharpe_raw": 2.1182197156090696,
-          "oos_pnl": 6.706689986272181,
+          "is_sharpe": 0.0,
+          "oos_sharpe": 6.175053756282496,
+          "oos_sharpe_raw": 6.175053756282496,
+          "oos_pnl": 23.722854417397226,
           "oos_trades": 36
         },
         {
           "fold": 1,
-          "is_sharpe": 2.3810304896818932,
-          "oos_sharpe": 7.342210852385671,
-          "oos_sharpe_raw": 7.342210852385671,
-          "oos_pnl": 27.866414211110584,
-          "oos_trades": 40
+          "is_sharpe": 0.0,
+          "oos_sharpe": 4.6080874542682,
+          "oos_sharpe_raw": 4.6080874542682,
+          "oos_pnl": 5.391172732707966,
+          "oos_trades": 19
         },
         {
           "fold": 2,
-          "is_sharpe": 6.270910651553039,
-          "oos_sharpe": 5.65620739242805,
-          "oos_sharpe_raw": 5.65620739242805,
-          "oos_pnl": 146.64844177970895,
-          "oos_trades": 379
+          "is_sharpe": 0.0,
+          "oos_sharpe": 2.149445052158231,
+          "oos_sharpe_raw": 2.149445052158231,
+          "oos_pnl": 55.26734751496156,
+          "oos_trades": 307
         }
       ],
       "rejected": false,
@@ -2419,59 +1369,59 @@
     {
       "symbol": "SOL/USDT",
       "params": {
-        "signal_threshold": 0.3324,
+        "signal_threshold": 0.3,
+        "take_profit_atr": 2.3276,
+        "stop_loss_atr": 1.25,
+        "max_hold_hours": 72,
+        "time_decay_hours": 12,
         "min_alignment": 3,
-        "take_profit_atr": 6.0,
-        "stop_loss_atr": 2.8142,
-        "max_hold_hours": 96,
-        "time_decay_hours": 41,
-        "trailing_stop_atr": 0.01,
-        "score_flip_delay_hrs": 3
+        "trailing_stop_atr": 0.5738,
+        "score_flip_delay_hrs": 0
       },
-      "oos_sharpe": 5.785907687504631,
-      "oos_pnl": 206.1103681723509,
-      "oos_pf": 0.4880117455948232,
-      "oos_wr": 0.8108221097351533,
-      "oos_max_dd": 9.054048212302535,
+      "oos_sharpe": 7.280932880809457,
+      "oos_pnl": 118.69053002495309,
+      "oos_pf": 1.2613552417284364,
+      "oos_wr": 0.6261723774619118,
+      "oos_max_dd": 7.011504712465903,
       "oos_consistency": 1.0,
-      "oos_avg_trades_per_fold": 166.33333333333334,
-      "oos_mean_hold_hrs": 3.8919126065865193,
+      "oos_avg_trades_per_fold": 166.0,
+      "oos_mean_hold_hrs": 3.412740966256644,
       "oos_exit_reasons": {
-        "trailing_stop": 372,
-        "stop_loss": 74,
-        "score_flip": 49,
-        "take_profit": 2,
-        "mr_target": 2
+        "trailing_stop": 226,
+        "stop_loss": 134,
+        "take_profit": 110,
+        "mr_target": 2,
+        "score_flip": 26
       },
-      "is_sharpe": 3.6064457259471685,
-      "is_pnl": 81.61269750013804,
+      "is_sharpe": 5.200812336894773,
+      "is_pnl": 79.35985792416876,
       "overfitting_score": 0,
-      "fragility": 0.08945764072345554,
-      "survivor_score": 4.869892331720097,
+      "fragility": 0.6040096793449354,
+      "survivor_score": 4.2417939860083775,
       "folds": [
         {
           "fold": 0,
           "is_sharpe": 0,
-          "oos_sharpe": 3.0160922729903206,
-          "oos_sharpe_raw": 3.0160922729903206,
-          "oos_pnl": 10.193451085120964,
-          "oos_trades": 37
+          "oos_sharpe": 7.280932880809457,
+          "oos_sharpe_raw": 7.280932880809457,
+          "oos_pnl": 22.357371284669693,
+          "oos_trades": 53
         },
         {
           "fold": 1,
-          "is_sharpe": 3.710311953853814,
-          "oos_sharpe": 7.609792790374164,
-          "oos_sharpe_raw": 7.609792790374164,
-          "oos_pnl": 30.25849425337898,
-          "oos_trades": 46
+          "is_sharpe": 7.888999983680524,
+          "oos_sharpe": 7.477067578610745,
+          "oos_sharpe_raw": 7.477067578610745,
+          "oos_pnl": 12.553323320218567,
+          "oos_trades": 28
         },
         {
           "fold": 2,
-          "is_sharpe": 7.109025223987692,
-          "oos_sharpe": 5.785907687504631,
-          "oos_sharpe_raw": 5.785907687504631,
-          "oos_pnl": 165.65842283385095,
-          "oos_trades": 416
+          "is_sharpe": 7.713437027003797,
+          "oos_sharpe": 3.3894702343304557,
+          "oos_sharpe_raw": 3.3894702343304557,
+          "oos_pnl": 83.77983542006483,
+          "oos_trades": 417
         }
       ],
       "rejected": false,
@@ -2481,58 +1431,1050 @@
     {
       "symbol": "SOL/USDT",
       "params": {
-        "signal_threshold": 0.3416,
+        "signal_threshold": 0.3,
+        "take_profit_atr": 2.3276,
+        "stop_loss_atr": 1.25,
+        "max_hold_hours": 72,
+        "time_decay_hours": 12,
         "min_alignment": 3,
-        "take_profit_atr": 6.0,
-        "stop_loss_atr": 2.8299,
-        "max_hold_hours": 90,
-        "time_decay_hours": 48,
-        "trailing_stop_atr": 0.01,
+        "trailing_stop_atr": 0.5738,
+        "score_flip_delay_hrs": 1
+      },
+      "oos_sharpe": 7.280932880809457,
+      "oos_pnl": 118.69053002495309,
+      "oos_pf": 1.2613552417284364,
+      "oos_wr": 0.6261723774619118,
+      "oos_max_dd": 7.011504712465903,
+      "oos_consistency": 1.0,
+      "oos_avg_trades_per_fold": 166.0,
+      "oos_mean_hold_hrs": 3.412740966256644,
+      "oos_exit_reasons": {
+        "trailing_stop": 226,
+        "stop_loss": 134,
+        "take_profit": 110,
+        "mr_target": 2,
+        "score_flip": 26
+      },
+      "is_sharpe": 5.200812336894773,
+      "is_pnl": 79.35985792416876,
+      "overfitting_score": 0,
+      "fragility": 0.6040096793449354,
+      "survivor_score": 4.2417939860083775,
+      "folds": [
+        {
+          "fold": 0,
+          "is_sharpe": 0,
+          "oos_sharpe": 7.280932880809457,
+          "oos_sharpe_raw": 7.280932880809457,
+          "oos_pnl": 22.357371284669693,
+          "oos_trades": 53
+        },
+        {
+          "fold": 1,
+          "is_sharpe": 7.888999983680524,
+          "oos_sharpe": 7.477067578610745,
+          "oos_sharpe_raw": 7.477067578610745,
+          "oos_pnl": 12.553323320218567,
+          "oos_trades": 28
+        },
+        {
+          "fold": 2,
+          "is_sharpe": 7.713437027003797,
+          "oos_sharpe": 3.3894702343304557,
+          "oos_sharpe_raw": 3.3894702343304557,
+          "oos_pnl": 83.77983542006483,
+          "oos_trades": 417
+        }
+      ],
+      "rejected": false,
+      "rejection_reason": "",
+      "is_coarse_only": false
+    },
+    {
+      "symbol": "SOL/USDT",
+      "params": {
+        "signal_threshold": 0.3,
+        "take_profit_atr": 2.6114,
+        "stop_loss_atr": 1.25,
+        "max_hold_hours": 72,
+        "time_decay_hours": 12,
+        "min_alignment": 3,
+        "trailing_stop_atr": 0.3979,
+        "score_flip_delay_hrs": 1
+      },
+      "oos_sharpe": 6.822146341243192,
+      "oos_pnl": 114.89122734485606,
+      "oos_pf": 1.1003882008398345,
+      "oos_wr": 0.6456232737679279,
+      "oos_max_dd": 7.043368915527374,
+      "oos_consistency": 1.0,
+      "oos_avg_trades_per_fold": 168.66666666666666,
+      "oos_mean_hold_hrs": 3.405710292502745,
+      "oos_exit_reasons": {
+        "trailing_stop": 271,
+        "stop_loss": 135,
+        "take_profit": 65,
+        "mr_target": 3,
+        "score_flip": 32
+      },
+      "is_sharpe": 5.101355913865759,
+      "is_pnl": 74.26839455620302,
+      "overfitting_score": 0,
+      "fragility": 0.509520563185728,
+      "survivor_score": 4.222038883957435,
+      "folds": [
+        {
+          "fold": 0,
+          "is_sharpe": 0,
+          "oos_sharpe": 6.8247227933897605,
+          "oos_sharpe_raw": 6.8247227933897605,
+          "oos_pnl": 19.755255415870554,
+          "oos_trades": 54
+        },
+        {
+          "fold": 1,
+          "is_sharpe": 7.828719247996893,
+          "oos_sharpe": 6.822146341243192,
+          "oos_sharpe_raw": 6.822146341243192,
+          "oos_pnl": 10.782144582651718,
+          "oos_trades": 28
+        },
+        {
+          "fold": 2,
+          "is_sharpe": 7.475348493600382,
+          "oos_sharpe": 3.5060567140477286,
+          "oos_sharpe_raw": 3.5060567140477286,
+          "oos_pnl": 84.35382734633379,
+          "oos_trades": 424
+        }
+      ],
+      "rejected": false,
+      "rejection_reason": "",
+      "is_coarse_only": false
+    },
+    {
+      "symbol": "SOL/USDT",
+      "params": {
+        "signal_threshold": 0.3,
+        "take_profit_atr": 2.2432,
+        "stop_loss_atr": 1.25,
+        "max_hold_hours": 72,
+        "time_decay_hours": 12,
+        "min_alignment": 3,
+        "trailing_stop_atr": 0.5,
+        "score_flip_delay_hrs": 0
+      },
+      "oos_sharpe": 7.0767892148482145,
+      "oos_pnl": 122.03407326020596,
+      "oos_pf": 1.2543762670774927,
+      "oos_wr": 0.6225585008335961,
+      "oos_max_dd": 7.006731232065065,
+      "oos_consistency": 1.0,
+      "oos_avg_trades_per_fold": 170.66666666666666,
+      "oos_mean_hold_hrs": 3.2570628449056915,
+      "oos_exit_reasons": {
+        "trailing_stop": 237,
+        "stop_loss": 137,
+        "take_profit": 107,
+        "mr_target": 2,
+        "score_flip": 29
+      },
+      "is_sharpe": 5.224954946130038,
+      "is_pnl": 80.75446605449528,
+      "overfitting_score": 0,
+      "fragility": 0.5666811384375893,
+      "survivor_score": 4.221283765432224,
+      "folds": [
+        {
+          "fold": 0,
+          "is_sharpe": 0,
+          "oos_sharpe": 7.160983896773557,
+          "oos_sharpe_raw": 7.160983896773557,
+          "oos_pnl": 22.33175069978721,
+          "oos_trades": 57
+        },
+        {
+          "fold": 1,
+          "is_sharpe": 7.964093252511577,
+          "oos_sharpe": 7.0767892148482145,
+          "oos_sharpe_raw": 7.0767892148482145,
+          "oos_pnl": 12.336040034559574,
+          "oos_trades": 29
+        },
+        {
+          "fold": 2,
+          "is_sharpe": 7.710771585878535,
+          "oos_sharpe": 3.5689881217512727,
+          "oos_sharpe_raw": 3.5689881217512727,
+          "oos_pnl": 87.36628252585918,
+          "oos_trades": 426
+        }
+      ],
+      "rejected": false,
+      "rejection_reason": "",
+      "is_coarse_only": false
+    },
+    {
+      "symbol": "SOL/USDT",
+      "params": {
+        "signal_threshold": 0.3,
+        "take_profit_atr": 2.2432,
+        "stop_loss_atr": 1.25,
+        "max_hold_hours": 81,
+        "time_decay_hours": 12,
+        "min_alignment": 3,
+        "trailing_stop_atr": 0.5,
+        "score_flip_delay_hrs": 0
+      },
+      "oos_sharpe": 7.0767892148482145,
+      "oos_pnl": 122.03407326020596,
+      "oos_pf": 1.2543762670774927,
+      "oos_wr": 0.6225585008335961,
+      "oos_max_dd": 7.006731232065065,
+      "oos_consistency": 1.0,
+      "oos_avg_trades_per_fold": 170.66666666666666,
+      "oos_mean_hold_hrs": 3.2570628449056915,
+      "oos_exit_reasons": {
+        "trailing_stop": 237,
+        "stop_loss": 137,
+        "take_profit": 107,
+        "mr_target": 2,
+        "score_flip": 29
+      },
+      "is_sharpe": 5.224954946130038,
+      "is_pnl": 80.75446605449528,
+      "overfitting_score": 0,
+      "fragility": 0.5666811384375893,
+      "survivor_score": 4.221283765432224,
+      "folds": [
+        {
+          "fold": 0,
+          "is_sharpe": 0,
+          "oos_sharpe": 7.160983896773557,
+          "oos_sharpe_raw": 7.160983896773557,
+          "oos_pnl": 22.33175069978721,
+          "oos_trades": 57
+        },
+        {
+          "fold": 1,
+          "is_sharpe": 7.964093252511577,
+          "oos_sharpe": 7.0767892148482145,
+          "oos_sharpe_raw": 7.0767892148482145,
+          "oos_pnl": 12.336040034559574,
+          "oos_trades": 29
+        },
+        {
+          "fold": 2,
+          "is_sharpe": 7.710771585878535,
+          "oos_sharpe": 3.5689881217512727,
+          "oos_sharpe_raw": 3.5689881217512727,
+          "oos_pnl": 87.36628252585918,
+          "oos_trades": 426
+        }
+      ],
+      "rejected": false,
+      "rejection_reason": "",
+      "is_coarse_only": false
+    },
+    {
+      "symbol": "SOL/USDT",
+      "params": {
+        "signal_threshold": 0.3,
+        "take_profit_atr": 2.2432,
+        "stop_loss_atr": 1.25,
+        "max_hold_hours": 72,
+        "time_decay_hours": 12,
+        "min_alignment": 3,
+        "trailing_stop_atr": 0.5,
+        "score_flip_delay_hrs": 1
+      },
+      "oos_sharpe": 7.0767892148482145,
+      "oos_pnl": 122.03407326020596,
+      "oos_pf": 1.2543762670774927,
+      "oos_wr": 0.6225585008335961,
+      "oos_max_dd": 7.006731232065065,
+      "oos_consistency": 1.0,
+      "oos_avg_trades_per_fold": 170.66666666666666,
+      "oos_mean_hold_hrs": 3.2570628449056915,
+      "oos_exit_reasons": {
+        "trailing_stop": 237,
+        "stop_loss": 137,
+        "take_profit": 107,
+        "mr_target": 2,
+        "score_flip": 29
+      },
+      "is_sharpe": 5.224954946130038,
+      "is_pnl": 80.75446605449528,
+      "overfitting_score": 0,
+      "fragility": 0.5666811384375893,
+      "survivor_score": 4.221283765432224,
+      "folds": [
+        {
+          "fold": 0,
+          "is_sharpe": 0,
+          "oos_sharpe": 7.160983896773557,
+          "oos_sharpe_raw": 7.160983896773557,
+          "oos_pnl": 22.33175069978721,
+          "oos_trades": 57
+        },
+        {
+          "fold": 1,
+          "is_sharpe": 7.964093252511577,
+          "oos_sharpe": 7.0767892148482145,
+          "oos_sharpe_raw": 7.0767892148482145,
+          "oos_pnl": 12.336040034559574,
+          "oos_trades": 29
+        },
+        {
+          "fold": 2,
+          "is_sharpe": 7.710771585878535,
+          "oos_sharpe": 3.5689881217512727,
+          "oos_sharpe_raw": 3.5689881217512727,
+          "oos_pnl": 87.36628252585918,
+          "oos_trades": 426
+        }
+      ],
+      "rejected": false,
+      "rejection_reason": "",
+      "is_coarse_only": false
+    },
+    {
+      "symbol": "SOL/USDT",
+      "params": {
+        "signal_threshold": 0.3,
+        "take_profit_atr": 2.2432,
+        "stop_loss_atr": 1.25,
+        "max_hold_hours": 88,
+        "time_decay_hours": 12,
+        "min_alignment": 3,
+        "trailing_stop_atr": 0.5,
+        "score_flip_delay_hrs": 0
+      },
+      "oos_sharpe": 7.0767892148482145,
+      "oos_pnl": 122.03407326020596,
+      "oos_pf": 1.2543762670774927,
+      "oos_wr": 0.6225585008335961,
+      "oos_max_dd": 7.006731232065065,
+      "oos_consistency": 1.0,
+      "oos_avg_trades_per_fold": 170.66666666666666,
+      "oos_mean_hold_hrs": 3.2570628449056915,
+      "oos_exit_reasons": {
+        "trailing_stop": 237,
+        "stop_loss": 137,
+        "take_profit": 107,
+        "mr_target": 2,
+        "score_flip": 29
+      },
+      "is_sharpe": 5.224954946130038,
+      "is_pnl": 80.75446605449528,
+      "overfitting_score": 0,
+      "fragility": 0.5666811384375893,
+      "survivor_score": 4.221283765432224,
+      "folds": [
+        {
+          "fold": 0,
+          "is_sharpe": 0,
+          "oos_sharpe": 7.160983896773557,
+          "oos_sharpe_raw": 7.160983896773557,
+          "oos_pnl": 22.33175069978721,
+          "oos_trades": 57
+        },
+        {
+          "fold": 1,
+          "is_sharpe": 7.964093252511577,
+          "oos_sharpe": 7.0767892148482145,
+          "oos_sharpe_raw": 7.0767892148482145,
+          "oos_pnl": 12.336040034559574,
+          "oos_trades": 29
+        },
+        {
+          "fold": 2,
+          "is_sharpe": 7.710771585878535,
+          "oos_sharpe": 3.5689881217512727,
+          "oos_sharpe_raw": 3.5689881217512727,
+          "oos_pnl": 87.36628252585918,
+          "oos_trades": 426
+        }
+      ],
+      "rejected": false,
+      "rejection_reason": "",
+      "is_coarse_only": false
+    },
+    {
+      "symbol": "SOL/USDT",
+      "params": {
+        "signal_threshold": 0.3,
+        "take_profit_atr": 2.2432,
+        "stop_loss_atr": 1.25,
+        "max_hold_hours": 81,
+        "time_decay_hours": 13,
+        "min_alignment": 3,
+        "trailing_stop_atr": 0.5,
+        "score_flip_delay_hrs": 0
+      },
+      "oos_sharpe": 7.0767892148482145,
+      "oos_pnl": 122.03407326020596,
+      "oos_pf": 1.2543762670774927,
+      "oos_wr": 0.6225585008335961,
+      "oos_max_dd": 7.006731232065065,
+      "oos_consistency": 1.0,
+      "oos_avg_trades_per_fold": 170.66666666666666,
+      "oos_mean_hold_hrs": 3.2570628449056915,
+      "oos_exit_reasons": {
+        "trailing_stop": 237,
+        "stop_loss": 137,
+        "take_profit": 107,
+        "mr_target": 2,
+        "score_flip": 29
+      },
+      "is_sharpe": 5.224954946130038,
+      "is_pnl": 80.75446605449528,
+      "overfitting_score": 0,
+      "fragility": 0.5666811384375893,
+      "survivor_score": 4.221283765432224,
+      "folds": [
+        {
+          "fold": 0,
+          "is_sharpe": 0,
+          "oos_sharpe": 7.160983896773557,
+          "oos_sharpe_raw": 7.160983896773557,
+          "oos_pnl": 22.33175069978721,
+          "oos_trades": 57
+        },
+        {
+          "fold": 1,
+          "is_sharpe": 7.964093252511577,
+          "oos_sharpe": 7.0767892148482145,
+          "oos_sharpe_raw": 7.0767892148482145,
+          "oos_pnl": 12.336040034559574,
+          "oos_trades": 29
+        },
+        {
+          "fold": 2,
+          "is_sharpe": 7.710771585878535,
+          "oos_sharpe": 3.5689881217512727,
+          "oos_sharpe_raw": 3.5689881217512727,
+          "oos_pnl": 87.36628252585918,
+          "oos_trades": 426
+        }
+      ],
+      "rejected": false,
+      "rejection_reason": "",
+      "is_coarse_only": false
+    },
+    {
+      "symbol": "SOL/USDT",
+      "params": {
+        "signal_threshold": 0.3,
+        "take_profit_atr": 2.2432,
+        "stop_loss_atr": 1.25,
+        "max_hold_hours": 81,
+        "time_decay_hours": 12,
+        "min_alignment": 3,
+        "trailing_stop_atr": 0.5,
+        "score_flip_delay_hrs": 1
+      },
+      "oos_sharpe": 7.0767892148482145,
+      "oos_pnl": 122.03407326020596,
+      "oos_pf": 1.2543762670774927,
+      "oos_wr": 0.6225585008335961,
+      "oos_max_dd": 7.006731232065065,
+      "oos_consistency": 1.0,
+      "oos_avg_trades_per_fold": 170.66666666666666,
+      "oos_mean_hold_hrs": 3.2570628449056915,
+      "oos_exit_reasons": {
+        "trailing_stop": 237,
+        "stop_loss": 137,
+        "take_profit": 107,
+        "mr_target": 2,
+        "score_flip": 29
+      },
+      "is_sharpe": 5.224954946130038,
+      "is_pnl": 80.75446605449528,
+      "overfitting_score": 0,
+      "fragility": 0.5666811384375893,
+      "survivor_score": 4.221283765432224,
+      "folds": [
+        {
+          "fold": 0,
+          "is_sharpe": 0,
+          "oos_sharpe": 7.160983896773557,
+          "oos_sharpe_raw": 7.160983896773557,
+          "oos_pnl": 22.33175069978721,
+          "oos_trades": 57
+        },
+        {
+          "fold": 1,
+          "is_sharpe": 7.964093252511577,
+          "oos_sharpe": 7.0767892148482145,
+          "oos_sharpe_raw": 7.0767892148482145,
+          "oos_pnl": 12.336040034559574,
+          "oos_trades": 29
+        },
+        {
+          "fold": 2,
+          "is_sharpe": 7.710771585878535,
+          "oos_sharpe": 3.5689881217512727,
+          "oos_sharpe_raw": 3.5689881217512727,
+          "oos_pnl": 87.36628252585918,
+          "oos_trades": 426
+        }
+      ],
+      "rejected": false,
+      "rejection_reason": "",
+      "is_coarse_only": false
+    },
+    {
+      "symbol": "SOL/USDT",
+      "params": {
+        "signal_threshold": 0.3236,
+        "take_profit_atr": 2.2513,
+        "stop_loss_atr": 1.25,
+        "max_hold_hours": 72,
+        "time_decay_hours": 12,
+        "min_alignment": 3,
+        "trailing_stop_atr": 0.5,
+        "score_flip_delay_hrs": 1
+      },
+      "oos_sharpe": 7.0767892148482145,
+      "oos_pnl": 122.03407326020596,
+      "oos_pf": 1.2543762670774927,
+      "oos_wr": 0.6225585008335961,
+      "oos_max_dd": 7.006731232065065,
+      "oos_consistency": 1.0,
+      "oos_avg_trades_per_fold": 170.66666666666666,
+      "oos_mean_hold_hrs": 3.2570628449056915,
+      "oos_exit_reasons": {
+        "trailing_stop": 237,
+        "stop_loss": 137,
+        "take_profit": 107,
+        "mr_target": 2,
+        "score_flip": 29
+      },
+      "is_sharpe": 5.224954946130038,
+      "is_pnl": 80.75446605449528,
+      "overfitting_score": 0,
+      "fragility": 0.5681454385024225,
+      "survivor_score": 4.217342022568562,
+      "folds": [
+        {
+          "fold": 0,
+          "is_sharpe": 0,
+          "oos_sharpe": 7.160983896773557,
+          "oos_sharpe_raw": 7.160983896773557,
+          "oos_pnl": 22.33175069978721,
+          "oos_trades": 57
+        },
+        {
+          "fold": 1,
+          "is_sharpe": 7.964093252511577,
+          "oos_sharpe": 7.0767892148482145,
+          "oos_sharpe_raw": 7.0767892148482145,
+          "oos_pnl": 12.336040034559574,
+          "oos_trades": 29
+        },
+        {
+          "fold": 2,
+          "is_sharpe": 7.710771585878535,
+          "oos_sharpe": 3.5689881217512727,
+          "oos_sharpe_raw": 3.5689881217512727,
+          "oos_pnl": 87.36628252585918,
+          "oos_trades": 426
+        }
+      ],
+      "rejected": false,
+      "rejection_reason": "",
+      "is_coarse_only": false
+    },
+    {
+      "symbol": "SOL/USDT",
+      "params": {
+        "signal_threshold": 0.3,
+        "take_profit_atr": 3.4587,
+        "stop_loss_atr": 1.25,
+        "max_hold_hours": 36,
+        "time_decay_hours": 36,
+        "min_alignment": 3,
+        "trailing_stop_atr": 0.3616,
+        "score_flip_delay_hrs": 0
+      },
+      "oos_sharpe": 6.4985993171211245,
+      "oos_pnl": 126.67691655998853,
+      "oos_pf": 1.2515451543296374,
+      "oos_wr": 0.6252910227501879,
+      "oos_max_dd": 7.0142726080961895,
+      "oos_consistency": 1.0,
+      "oos_avg_trades_per_fold": 167.0,
+      "oos_mean_hold_hrs": 3.404474264728348,
+      "oos_exit_reasons": {
+        "trailing_stop": 297,
+        "stop_loss": 132,
+        "take_profit": 32,
+        "mr_target": 4,
+        "score_flip": 36
+      },
+      "is_sharpe": 5.0020398469467375,
+      "is_pnl": 86.99017591746902,
+      "overfitting_score": 0,
+      "fragility": 0.4399457843651255,
+      "survivor_score": 4.217274947539526,
+      "folds": [
+        {
+          "fold": 0,
+          "is_sharpe": 0,
+          "oos_sharpe": 6.628099088774433,
+          "oos_sharpe_raw": 6.628099088774433,
+          "oos_pnl": 24.613587853057194,
+          "oos_trades": 54
+        },
+        {
+          "fold": 1,
+          "is_sharpe": 7.785857359668468,
+          "oos_sharpe": 6.4985993171211245,
+          "oos_sharpe_raw": 6.4985993171211245,
+          "oos_pnl": 10.20653325979086,
+          "oos_trades": 29
+        },
+        {
+          "fold": 2,
+          "is_sharpe": 7.220262181171745,
+          "oos_sharpe": 3.7715154313056902,
+          "oos_sharpe_raw": 3.7715154313056902,
+          "oos_pnl": 91.85679544714047,
+          "oos_trades": 418
+        }
+      ],
+      "rejected": false,
+      "rejection_reason": "",
+      "is_coarse_only": false
+    },
+    {
+      "symbol": "SOL/USDT",
+      "params": {
+        "signal_threshold": 0.3,
+        "take_profit_atr": 2.2432,
+        "stop_loss_atr": 1.25,
+        "max_hold_hours": 72,
+        "time_decay_hours": 12,
+        "min_alignment": 3,
+        "trailing_stop_atr": 0.5324,
+        "score_flip_delay_hrs": 0
+      },
+      "oos_sharpe": 7.140324814948057,
+      "oos_pnl": 118.38788395191193,
+      "oos_pf": 1.2334970497744127,
+      "oos_wr": 0.6273816565130813,
+      "oos_max_dd": 7.029202928542053,
+      "oos_consistency": 1.0,
+      "oos_avg_trades_per_fold": 169.33333333333334,
+      "oos_mean_hold_hrs": 3.294709292009227,
+      "oos_exit_reasons": {
+        "trailing_stop": 232,
+        "stop_loss": 137,
+        "take_profit": 108,
+        "mr_target": 2,
+        "score_flip": 29
+      },
+      "is_sharpe": 5.194040210633111,
+      "is_pnl": 79.90554152262341,
+      "overfitting_score": 0,
+      "fragility": 0.5832310699545221,
+      "survivor_score": 4.213775300873433,
+      "folds": [
+        {
+          "fold": 0,
+          "is_sharpe": 0,
+          "oos_sharpe": 7.140324814948057,
+          "oos_sharpe_raw": 7.140324814948057,
+          "oos_pnl": 22.06188286335176,
+          "oos_trades": 55
+        },
+        {
+          "fold": 1,
+          "is_sharpe": 7.878268890822854,
+          "oos_sharpe": 7.297773360459201,
+          "oos_sharpe_raw": 7.297773360459201,
+          "oos_pnl": 12.759784449977477,
+          "oos_trades": 29
+        },
+        {
+          "fold": 2,
+          "is_sharpe": 7.7038517410764795,
+          "oos_sharpe": 3.414621772494057,
+          "oos_sharpe_raw": 3.414621772494057,
+          "oos_pnl": 83.5662166385827,
+          "oos_trades": 424
+        }
+      ],
+      "rejected": false,
+      "rejection_reason": "",
+      "is_coarse_only": false
+    },
+    {
+      "symbol": "SOL/USDT",
+      "params": {
+        "signal_threshold": 0.3382,
+        "take_profit_atr": 2.6013,
+        "stop_loss_atr": 1.25,
+        "max_hold_hours": 48,
+        "time_decay_hours": 12,
+        "min_alignment": 3,
+        "trailing_stop_atr": 0.394,
         "score_flip_delay_hrs": 2
       },
-      "oos_sharpe": 5.7842110111790515,
-      "oos_pnl": 205.3728446034631,
-      "oos_pf": 0.4815501562804463,
-      "oos_wr": 0.8105279192235715,
-      "oos_max_dd": 9.270915148946408,
+      "oos_sharpe": 6.855702077365329,
+      "oos_pnl": 115.34891969202292,
+      "oos_pf": 1.1054450287551696,
+      "oos_wr": 0.645173773212989,
+      "oos_max_dd": 7.040242865968653,
       "oos_consistency": 1.0,
-      "oos_avg_trades_per_fold": 165.66666666666666,
-      "oos_mean_hold_hrs": 3.9089524306915613,
+      "oos_avg_trades_per_fold": 169.0,
+      "oos_mean_hold_hrs": 3.4024805477746654,
       "oos_exit_reasons": {
-        "trailing_stop": 370,
-        "stop_loss": 73,
-        "score_flip": 50,
-        "take_profit": 2,
-        "mr_target": 2
+        "trailing_stop": 272,
+        "stop_loss": 135,
+        "take_profit": 65,
+        "mr_target": 3,
+        "score_flip": 32
       },
-      "is_sharpe": 3.570519683957949,
-      "is_pnl": 80.96209669020641,
+      "is_sharpe": 5.123987886347359,
+      "is_pnl": 74.61266036327369,
       "overfitting_score": 0,
-      "fragility": 0.0891905523234238,
-      "survivor_score": 4.859993427631597,
+      "fragility": 0.5226942515047942,
+      "survivor_score": 4.206221535023121,
       "folds": [
         {
           "fold": 0,
           "is_sharpe": 0,
-          "oos_sharpe": 3.0160922729903206,
-          "oos_sharpe_raw": 3.0160922729903206,
-          "oos_pnl": 10.193451085120964,
-          "oos_trades": 37
+          "oos_sharpe": 6.856011987263266,
+          "oos_sharpe_raw": 6.856011987263266,
+          "oos_pnl": 19.846954151493424,
+          "oos_trades": 54
         },
         {
           "fold": 1,
-          "is_sharpe": 3.710311953853814,
-          "oos_sharpe": 7.352080338556288,
-          "oos_sharpe_raw": 7.352080338556288,
-          "oos_pnl": 29.607893443447367,
-          "oos_trades": 46
+          "is_sharpe": 7.862329789767658,
+          "oos_sharpe": 6.855702077365329,
+          "oos_sharpe_raw": 6.855702077365329,
+          "oos_pnl": 10.841544535737118,
+          "oos_trades": 28
         },
         {
           "fold": 2,
-          "is_sharpe": 7.001247098020032,
-          "oos_sharpe": 5.7842110111790515,
-          "oos_sharpe_raw": 5.7842110111790515,
-          "oos_pnl": 165.57150007489477,
+          "is_sharpe": 7.509633869274417,
+          "oos_sharpe": 3.5175156455741305,
+          "oos_sharpe_raw": 3.5175156455741305,
+          "oos_pnl": 84.66042100479237,
+          "oos_trades": 425
+        }
+      ],
+      "rejected": false,
+      "rejection_reason": "",
+      "is_coarse_only": false
+    },
+    {
+      "symbol": "SOL/USDT",
+      "params": {
+        "signal_threshold": 0.3382,
+        "take_profit_atr": 2.6013,
+        "stop_loss_atr": 1.25,
+        "max_hold_hours": 43,
+        "time_decay_hours": 12,
+        "min_alignment": 3,
+        "trailing_stop_atr": 0.394,
+        "score_flip_delay_hrs": 2
+      },
+      "oos_sharpe": 6.855702077365329,
+      "oos_pnl": 115.34891969202292,
+      "oos_pf": 1.1054450287551696,
+      "oos_wr": 0.645173773212989,
+      "oos_max_dd": 7.040242865968653,
+      "oos_consistency": 1.0,
+      "oos_avg_trades_per_fold": 169.0,
+      "oos_mean_hold_hrs": 3.4024805477746654,
+      "oos_exit_reasons": {
+        "trailing_stop": 272,
+        "stop_loss": 135,
+        "take_profit": 65,
+        "mr_target": 3,
+        "score_flip": 32
+      },
+      "is_sharpe": 5.123987886347359,
+      "is_pnl": 74.61266036327369,
+      "overfitting_score": 0,
+      "fragility": 0.5226942515047942,
+      "survivor_score": 4.206221535023121,
+      "folds": [
+        {
+          "fold": 0,
+          "is_sharpe": 0,
+          "oos_sharpe": 6.856011987263266,
+          "oos_sharpe_raw": 6.856011987263266,
+          "oos_pnl": 19.846954151493424,
+          "oos_trades": 54
+        },
+        {
+          "fold": 1,
+          "is_sharpe": 7.862329789767658,
+          "oos_sharpe": 6.855702077365329,
+          "oos_sharpe_raw": 6.855702077365329,
+          "oos_pnl": 10.841544535737118,
+          "oos_trades": 28
+        },
+        {
+          "fold": 2,
+          "is_sharpe": 7.509633869274417,
+          "oos_sharpe": 3.5175156455741305,
+          "oos_sharpe_raw": 3.5175156455741305,
+          "oos_pnl": 84.66042100479237,
+          "oos_trades": 425
+        }
+      ],
+      "rejected": false,
+      "rejection_reason": "",
+      "is_coarse_only": false
+    },
+    {
+      "symbol": "SOL/USDT",
+      "params": {
+        "signal_threshold": 0.3,
+        "take_profit_atr": 2.5616,
+        "stop_loss_atr": 1.25,
+        "max_hold_hours": 41,
+        "time_decay_hours": 12,
+        "min_alignment": 3,
+        "trailing_stop_atr": 0.383,
+        "score_flip_delay_hrs": 1
+      },
+      "oos_sharpe": 6.648801158675933,
+      "oos_pnl": 119.3560225552154,
+      "oos_pf": 1.1996188960136551,
+      "oos_wr": 0.6315532956955237,
+      "oos_max_dd": 7.031425803110718,
+      "oos_consistency": 1.0,
+      "oos_avg_trades_per_fold": 170.33333333333334,
+      "oos_mean_hold_hrs": 3.298790895310393,
+      "oos_exit_reasons": {
+        "trailing_stop": 270,
+        "stop_loss": 135,
+        "take_profit": 70,
+        "mr_target": 3,
+        "score_flip": 33
+      },
+      "is_sharpe": 5.118023140279734,
+      "is_pnl": 74.82769376579277,
+      "overfitting_score": 0,
+      "fragility": 0.48744707177980917,
+      "survivor_score": 4.176288699739321,
+      "folds": [
+        {
+          "fold": 0,
+          "is_sharpe": 0,
+          "oos_sharpe": 6.944173480827571,
+          "oos_sharpe_raw": 6.944173480827571,
+          "oos_pnl": 20.105591610942554,
+          "oos_trades": 54
+        },
+        {
+          "fold": 1,
+          "is_sharpe": 7.796413546650608,
+          "oos_sharpe": 6.648801158675933,
+          "oos_sharpe_raw": 6.648801158675933,
+          "oos_pnl": 10.929586888402017,
+          "oos_trades": 29
+        },
+        {
+          "fold": 2,
+          "is_sharpe": 7.557655874188593,
+          "oos_sharpe": 3.6557756767734464,
+          "oos_sharpe_raw": 3.6557756767734464,
+          "oos_pnl": 88.32084405587084,
+          "oos_trades": 428
+        }
+      ],
+      "rejected": false,
+      "rejection_reason": "",
+      "is_coarse_only": false
+    },
+    {
+      "symbol": "SOL/USDT",
+      "params": {
+        "signal_threshold": 0.3,
+        "take_profit_atr": 3.7604,
+        "stop_loss_atr": 1.25,
+        "max_hold_hours": 38,
+        "time_decay_hours": 12,
+        "min_alignment": 3,
+        "trailing_stop_atr": 0.3989,
+        "score_flip_delay_hrs": 4
+      },
+      "oos_sharpe": 6.330575844252522,
+      "oos_pnl": 127.9930867354708,
+      "oos_pf": 1.1549609771058253,
+      "oos_wr": 0.6405030938929245,
+      "oos_max_dd": 7.044170466696275,
+      "oos_consistency": 1.0,
+      "oos_avg_trades_per_fold": 165.0,
+      "oos_mean_hold_hrs": 3.529182733984994,
+      "oos_exit_reasons": {
+        "trailing_stop": 294,
+        "stop_loss": 131,
+        "take_profit": 31,
+        "mr_target": 4,
+        "score_flip": 35
+      },
+      "is_sharpe": 4.823451654281954,
+      "is_pnl": 83.22807753607981,
+      "overfitting_score": 0,
+      "fragility": 0.4181862009173232,
+      "survivor_score": 4.170104516643034,
+      "folds": [
+        {
+          "fold": 0,
+          "is_sharpe": 0,
+          "oos_sharpe": 6.330575844252522,
+          "oos_sharpe_raw": 6.330575844252522,
+          "oos_pnl": 23.444505231451615,
+          "oos_trades": 54
+        },
+        {
+          "fold": 1,
+          "is_sharpe": 7.461951601939928,
+          "oos_sharpe": 6.653950468753916,
+          "oos_sharpe_raw": 6.653950468753916,
+          "oos_pnl": 10.279095435629252,
+          "oos_trades": 28
+        },
+        {
+          "fold": 2,
+          "is_sharpe": 7.008403360905937,
+          "oos_sharpe": 3.8388871331080563,
+          "oos_sharpe_raw": 3.8388871331080563,
+          "oos_pnl": 94.26948606838994,
+          "oos_trades": 413
+        }
+      ],
+      "rejected": false,
+      "rejection_reason": "",
+      "is_coarse_only": false
+    },
+    {
+      "symbol": "SOL/USDT",
+      "params": {
+        "signal_threshold": 0.3,
+        "take_profit_atr": 3.0,
+        "stop_loss_atr": 1.25,
+        "max_hold_hours": 36,
+        "time_decay_hours": 12,
+        "min_alignment": 3,
+        "trailing_stop_atr": 0.3573,
+        "score_flip_delay_hrs": 1
+      },
+      "oos_sharpe": 6.395122235513394,
+      "oos_pnl": 123.68111729953974,
+      "oos_pf": 1.2005918157069064,
+      "oos_wr": 0.6258012384013365,
+      "oos_max_dd": 7.010825938069909,
+      "oos_consistency": 1.0,
+      "oos_avg_trades_per_fold": 168.33333333333334,
+      "oos_mean_hold_hrs": 3.3477440233718494,
+      "oos_exit_reasons": {
+        "trailing_stop": 284,
+        "stop_loss": 133,
+        "take_profit": 53,
+        "mr_target": 4,
+        "score_flip": 31
+      },
+      "is_sharpe": 4.88103894038064,
+      "is_pnl": 70.93499648280081,
+      "overfitting_score": 0,
+      "fragility": 0.4378990700471405,
+      "survivor_score": 4.156164524286846,
+      "folds": [
+        {
+          "fold": 0,
+          "is_sharpe": 0,
+          "oos_sharpe": 6.395122235513394,
+          "oos_sharpe_raw": 6.395122235513394,
+          "oos_pnl": 18.505838729242004,
+          "oos_trades": 54
+        },
+        {
+          "fold": 1,
+          "is_sharpe": 7.463980048902629,
+          "oos_sharpe": 6.539585878757975,
+          "oos_sharpe_raw": 6.539585878757975,
+          "oos_pnl": 10.280522644412326,
+          "oos_trades": 29
+        },
+        {
+          "fold": 2,
+          "is_sharpe": 7.179136772239292,
+          "oos_sharpe": 3.884576838743278,
+          "oos_sharpe_raw": 3.884576838743278,
+          "oos_pnl": 94.8947559258854,
+          "oos_trades": 422
+        }
+      ],
+      "rejected": false,
+      "rejection_reason": "",
+      "is_coarse_only": false
+    },
+    {
+      "symbol": "SOL/USDT",
+      "params": {
+        "signal_threshold": 0.3,
+        "take_profit_atr": 3.4587,
+        "stop_loss_atr": 1.25,
+        "max_hold_hours": 36,
+        "time_decay_hours": 36,
+        "min_alignment": 3,
+        "trailing_stop_atr": 0.3894,
+        "score_flip_delay_hrs": 0
+      },
+      "oos_sharpe": 6.231348269843548,
+      "oos_pnl": 126.10770609487741,
+      "oos_pf": 1.2409998022702293,
+      "oos_wr": 0.6223554889222056,
+      "oos_max_dd": 7.036555730591694,
+      "oos_consistency": 1.0,
+      "oos_avg_trades_per_fold": 165.66666666666666,
+      "oos_mean_hold_hrs": 3.4235937586762173,
+      "oos_exit_reasons": {
+        "trailing_stop": 295,
+        "stop_loss": 131,
+        "take_profit": 32,
+        "mr_target": 4,
+        "score_flip": 35
+      },
+      "is_sharpe": 4.854167305693727,
+      "is_pnl": 83.8560538411673,
+      "overfitting_score": 0,
+      "fragility": 0.41402007065195623,
+      "survivor_score": 4.117127580485658,
+      "folds": [
+        {
+          "fold": 0,
+          "is_sharpe": 0,
+          "oos_sharpe": 6.440256454161397,
+          "oos_sharpe_raw": 6.440256454161397,
+          "oos_pnl": 23.903320614400045,
+          "oos_trades": 54
+        },
+        {
+          "fold": 1,
+          "is_sharpe": 7.56775108152108,
+          "oos_sharpe": 6.231348269843548,
+          "oos_sharpe_raw": 6.231348269843548,
+          "oos_pnl": 9.728183284796259,
+          "oos_trades": 29
+        },
+        {
+          "fold": 2,
+          "is_sharpe": 6.9947508355601,
+          "oos_sharpe": 3.801037320298567,
+          "oos_sharpe_raw": 3.801037320298567,
+          "oos_pnl": 92.47620219568111,
           "oos_trades": 414
         }
       ],
@@ -2543,491 +2485,59 @@
     {
       "symbol": "SOL/USDT",
       "params": {
-        "signal_threshold": 0.3597,
-        "min_alignment": 3,
-        "take_profit_atr": 6.0,
-        "stop_loss_atr": 2.6502,
-        "max_hold_hours": 96,
-        "time_decay_hours": 48,
-        "trailing_stop_atr": 0.01,
-        "score_flip_delay_hrs": 1
-      },
-      "oos_sharpe": 5.543470729865962,
-      "oos_pnl": 179.58049857671728,
-      "oos_pf": 0.49924963400340366,
-      "oos_wr": 0.8090702487494855,
-      "oos_max_dd": 6.025514625242079,
-      "oos_consistency": 1.0,
-      "oos_avg_trades_per_fold": 146.0,
-      "oos_mean_hold_hrs": 3.8564375419422876,
-      "oos_exit_reasons": {
-        "trailing_stop": 330,
-        "stop_loss": 68,
-        "score_flip": 36,
-        "take_profit": 2,
-        "mr_target": 2
-      },
-      "is_sharpe": 3.00882885822365,
-      "is_pnl": 65.6206859853171,
-      "overfitting_score": 0,
-      "fragility": 0.07646768974275317,
-      "survivor_score": 4.857025355553119,
-      "folds": [
-        {
-          "fold": 0,
-          "is_sharpe": 0,
-          "oos_sharpe": 2.8700336025446354,
-          "oos_sharpe_raw": 2.8700336025446354,
-          "oos_pnl": 9.252948343343478,
-          "oos_trades": 34
-        },
-        {
-          "fold": 1,
-          "is_sharpe": 2.929893026567084,
-          "oos_sharpe": 6.834609890958971,
-          "oos_sharpe_raw": 6.834609890958971,
-          "oos_pnl": 26.449451964300774,
-          "oos_trades": 38
-        },
-        {
-          "fold": 2,
-          "is_sharpe": 6.0965935481038676,
-          "oos_sharpe": 5.543470729865962,
-          "oos_sharpe_raw": 5.543470729865962,
-          "oos_pnl": 143.878098269073,
-          "oos_trades": 366
-        }
-      ],
-      "rejected": false,
-      "rejection_reason": "",
-      "is_coarse_only": false
-    },
-    {
-      "symbol": "SOL/USDT",
-      "params": {
-        "signal_threshold": 0.3597,
-        "min_alignment": 3,
-        "take_profit_atr": 6.0,
-        "stop_loss_atr": 2.7013,
-        "max_hold_hours": 96,
-        "time_decay_hours": 48,
-        "trailing_stop_atr": 0.01,
-        "score_flip_delay_hrs": 1
-      },
-      "oos_sharpe": 5.635497438248895,
-      "oos_pnl": 181.76538077177918,
-      "oos_pf": 0.500942507000698,
-      "oos_wr": 0.8098138173798719,
-      "oos_max_dd": 6.025514625242079,
-      "oos_consistency": 1.0,
-      "oos_avg_trades_per_fold": 145.66666666666666,
-      "oos_mean_hold_hrs": 3.9529793460282456,
-      "oos_exit_reasons": {
-        "trailing_stop": 330,
-        "stop_loss": 67,
-        "score_flip": 36,
-        "take_profit": 2,
-        "mr_target": 2
-      },
-      "is_sharpe": 3.0591097455160554,
-      "is_pnl": 66.22061099469089,
-      "overfitting_score": 0,
-      "fragility": 0.09806740805714083,
-      "survivor_score": 4.840529444370754,
-      "folds": [
-        {
-          "fold": 0,
-          "is_sharpe": 0,
-          "oos_sharpe": 2.9933780139003323,
-          "oos_sharpe_raw": 2.9933780139003323,
-          "oos_pnl": 9.552910848030375,
-          "oos_trades": 34
-        },
-        {
-          "fold": 1,
-          "is_sharpe": 3.0264539240164994,
-          "oos_sharpe": 6.834609890958971,
-          "oos_sharpe_raw": 6.834609890958971,
-          "oos_pnl": 26.449451964300774,
-          "oos_trades": 38
-        },
-        {
-          "fold": 2,
-          "is_sharpe": 6.150875312531666,
-          "oos_sharpe": 5.635497438248895,
-          "oos_sharpe_raw": 5.635497438248895,
-          "oos_pnl": 145.76301795944804,
-          "oos_trades": 365
-        }
-      ],
-      "rejected": false,
-      "rejection_reason": "",
-      "is_coarse_only": false
-    },
-    {
-      "symbol": "SOL/USDT",
-      "params": {
-        "signal_threshold": 0.3597,
-        "min_alignment": 3,
-        "take_profit_atr": 6.0,
-        "stop_loss_atr": 2.7245,
-        "max_hold_hours": 96,
-        "time_decay_hours": 48,
-        "trailing_stop_atr": 0.01,
-        "score_flip_delay_hrs": 2
-      },
-      "oos_sharpe": 5.582228204370929,
-      "oos_pnl": 180.80124121431228,
-      "oos_pf": 0.49976679347907377,
-      "oos_wr": 0.8098138173798719,
-      "oos_max_dd": 6.025514625242079,
-      "oos_consistency": 1.0,
-      "oos_avg_trades_per_fold": 145.66666666666666,
-      "oos_mean_hold_hrs": 3.953892588037378,
-      "oos_exit_reasons": {
-        "trailing_stop": 330,
-        "stop_loss": 67,
-        "score_flip": 36,
-        "take_profit": 2,
-        "mr_target": 2
-      },
-      "is_sharpe": 3.0591097455160554,
-      "is_pnl": 66.22061099469089,
-      "overfitting_score": 0,
-      "fragility": 0.09365586192060862,
-      "survivor_score": 4.81411557613838,
-      "folds": [
-        {
-          "fold": 0,
-          "is_sharpe": 0,
-          "oos_sharpe": 2.9933780139003323,
-          "oos_sharpe_raw": 2.9933780139003323,
-          "oos_pnl": 9.552910848030375,
-          "oos_trades": 34
-        },
-        {
-          "fold": 1,
-          "is_sharpe": 3.0264539240164994,
-          "oos_sharpe": 6.834609890958971,
-          "oos_sharpe_raw": 6.834609890958971,
-          "oos_pnl": 26.449451964300774,
-          "oos_trades": 38
-        },
-        {
-          "fold": 2,
-          "is_sharpe": 6.150875312531666,
-          "oos_sharpe": 5.582228204370929,
-          "oos_sharpe_raw": 5.582228204370929,
-          "oos_pnl": 144.79887840198114,
-          "oos_trades": 365
-        }
-      ],
-      "rejected": false,
-      "rejection_reason": "",
-      "is_coarse_only": false
-    },
-    {
-      "symbol": "SOL/USDT",
-      "params": {
-        "signal_threshold": 0.3597,
-        "min_alignment": 3,
-        "take_profit_atr": 6.0,
-        "stop_loss_atr": 2.8299,
-        "max_hold_hours": 96,
-        "time_decay_hours": 48,
-        "trailing_stop_atr": 0.01,
-        "score_flip_delay_hrs": 2
-      },
-      "oos_sharpe": 5.268314036336762,
-      "oos_pnl": 174.60067296689851,
-      "oos_pf": 0.4817490604618524,
-      "oos_wr": 0.8103949713856835,
-      "oos_max_dd": 6.025514625242079,
-      "oos_consistency": 1.0,
-      "oos_avg_trades_per_fold": 145.0,
-      "oos_mean_hold_hrs": 3.982174688057041,
-      "oos_exit_reasons": {
-        "trailing_stop": 329,
-        "stop_loss": 67,
-        "score_flip": 35,
-        "take_profit": 2,
-        "mr_target": 2
-      },
-      "is_sharpe": 3.0191471759688224,
-      "is_pnl": 65.47055329794499,
-      "overfitting_score": 0,
-      "fragility": 0.10666628399552003,
-      "survivor_score": 4.4899818638798035,
-      "folds": [
-        {
-          "fold": 0,
-          "is_sharpe": 0,
-          "oos_sharpe": 2.9933780139003323,
-          "oos_sharpe_raw": 2.9933780139003323,
-          "oos_pnl": 9.552910848030375,
-          "oos_trades": 34
-        },
-        {
-          "fold": 1,
-          "is_sharpe": 3.0264539240164994,
-          "oos_sharpe": 6.550691618140629,
-          "oos_sharpe_raw": 6.550691618140629,
-          "oos_pnl": 25.699394267554865,
-          "oos_trades": 38
-        },
-        {
-          "fold": 2,
-          "is_sharpe": 6.030987603889969,
-          "oos_sharpe": 5.268314036336762,
-          "oos_sharpe_raw": 5.268314036336762,
-          "oos_pnl": 139.34836785131327,
-          "oos_trades": 363
-        }
-      ],
-      "rejected": false,
-      "rejection_reason": "",
-      "is_coarse_only": false
-    },
-    {
-      "symbol": "SOL/USDT",
-      "params": {
-        "signal_threshold": 0.3597,
-        "min_alignment": 3,
-        "take_profit_atr": 6.0,
-        "stop_loss_atr": 2.8299,
-        "max_hold_hours": 96,
-        "time_decay_hours": 48,
-        "trailing_stop_atr": 0.01,
-        "score_flip_delay_hrs": 1
-      },
-      "oos_sharpe": 5.268314036336762,
-      "oos_pnl": 174.60067296689851,
-      "oos_pf": 0.4817490604618524,
-      "oos_wr": 0.8103949713856835,
-      "oos_max_dd": 6.025514625242079,
-      "oos_consistency": 1.0,
-      "oos_avg_trades_per_fold": 145.0,
-      "oos_mean_hold_hrs": 3.982174688057041,
-      "oos_exit_reasons": {
-        "trailing_stop": 329,
-        "stop_loss": 67,
-        "score_flip": 35,
-        "take_profit": 2,
-        "mr_target": 2
-      },
-      "is_sharpe": 3.0191471759688224,
-      "is_pnl": 65.47055329794499,
-      "overfitting_score": 0,
-      "fragility": 0.10666628399552003,
-      "survivor_score": 4.4899818638798035,
-      "folds": [
-        {
-          "fold": 0,
-          "is_sharpe": 0,
-          "oos_sharpe": 2.9933780139003323,
-          "oos_sharpe_raw": 2.9933780139003323,
-          "oos_pnl": 9.552910848030375,
-          "oos_trades": 34
-        },
-        {
-          "fold": 1,
-          "is_sharpe": 3.0264539240164994,
-          "oos_sharpe": 6.550691618140629,
-          "oos_sharpe_raw": 6.550691618140629,
-          "oos_pnl": 25.699394267554865,
-          "oos_trades": 38
-        },
-        {
-          "fold": 2,
-          "is_sharpe": 6.030987603889969,
-          "oos_sharpe": 5.268314036336762,
-          "oos_sharpe_raw": 5.268314036336762,
-          "oos_pnl": 139.34836785131327,
-          "oos_trades": 363
-        }
-      ],
-      "rejected": false,
-      "rejection_reason": "",
-      "is_coarse_only": false
-    },
-    {
-      "symbol": "SOL/USDT",
-      "params": {
-        "signal_threshold": 0.3597,
-        "min_alignment": 3,
-        "take_profit_atr": 6.0,
-        "stop_loss_atr": 2.8299,
-        "max_hold_hours": 90,
-        "time_decay_hours": 48,
-        "trailing_stop_atr": 0.01,
-        "score_flip_delay_hrs": 2
-      },
-      "oos_sharpe": 5.268314036336762,
-      "oos_pnl": 174.60067296689851,
-      "oos_pf": 0.4817490604618524,
-      "oos_wr": 0.8103949713856835,
-      "oos_max_dd": 6.025514625242079,
-      "oos_consistency": 1.0,
-      "oos_avg_trades_per_fold": 145.0,
-      "oos_mean_hold_hrs": 3.982174688057041,
-      "oos_exit_reasons": {
-        "trailing_stop": 329,
-        "stop_loss": 67,
-        "score_flip": 35,
-        "take_profit": 2,
-        "mr_target": 2
-      },
-      "is_sharpe": 3.0191471759688224,
-      "is_pnl": 65.47055329794499,
-      "overfitting_score": 0,
-      "fragility": 0.10666628399552003,
-      "survivor_score": 4.4899818638798035,
-      "folds": [
-        {
-          "fold": 0,
-          "is_sharpe": 0,
-          "oos_sharpe": 2.9933780139003323,
-          "oos_sharpe_raw": 2.9933780139003323,
-          "oos_pnl": 9.552910848030375,
-          "oos_trades": 34
-        },
-        {
-          "fold": 1,
-          "is_sharpe": 3.0264539240164994,
-          "oos_sharpe": 6.550691618140629,
-          "oos_sharpe_raw": 6.550691618140629,
-          "oos_pnl": 25.699394267554865,
-          "oos_trades": 38
-        },
-        {
-          "fold": 2,
-          "is_sharpe": 6.030987603889969,
-          "oos_sharpe": 5.268314036336762,
-          "oos_sharpe_raw": 5.268314036336762,
-          "oos_pnl": 139.34836785131327,
-          "oos_trades": 363
-        }
-      ],
-      "rejected": false,
-      "rejection_reason": "",
-      "is_coarse_only": false
-    },
-    {
-      "symbol": "SOL/USDT",
-      "params": {
-        "signal_threshold": 0.3597,
-        "min_alignment": 3,
-        "take_profit_atr": 6.0,
-        "stop_loss_atr": 2.7992,
-        "max_hold_hours": 96,
-        "time_decay_hours": 48,
-        "trailing_stop_atr": 0.01,
-        "score_flip_delay_hrs": 2
-      },
-      "oos_sharpe": 5.268314036336762,
-      "oos_pnl": 175.3507306636444,
-      "oos_pf": 0.49199107823569327,
-      "oos_wr": 0.8103949713856835,
-      "oos_max_dd": 6.025514625242079,
-      "oos_consistency": 1.0,
-      "oos_avg_trades_per_fold": 145.0,
-      "oos_mean_hold_hrs": 3.9734027582324796,
-      "oos_exit_reasons": {
-        "trailing_stop": 329,
-        "stop_loss": 67,
-        "score_flip": 35,
-        "take_profit": 2,
-        "mr_target": 2
-      },
-      "is_sharpe": 3.0591097455160554,
-      "is_pnl": 66.22061099469089,
-      "overfitting_score": 0,
-      "fragility": 0.11108816031191411,
-      "survivor_score": 4.472112764762273,
-      "folds": [
-        {
-          "fold": 0,
-          "is_sharpe": 0,
-          "oos_sharpe": 2.9933780139003323,
-          "oos_sharpe_raw": 2.9933780139003323,
-          "oos_pnl": 9.552910848030375,
-          "oos_trades": 34
-        },
-        {
-          "fold": 1,
-          "is_sharpe": 3.0264539240164994,
-          "oos_sharpe": 6.834609890958971,
-          "oos_sharpe_raw": 6.834609890958971,
-          "oos_pnl": 26.449451964300774,
-          "oos_trades": 38
-        },
-        {
-          "fold": 2,
-          "is_sharpe": 6.150875312531666,
-          "oos_sharpe": 5.268314036336762,
-          "oos_sharpe_raw": 5.268314036336762,
-          "oos_pnl": 139.34836785131327,
-          "oos_trades": 363
-        }
-      ],
-      "rejected": false,
-      "rejection_reason": "",
-      "is_coarse_only": false
-    },
-    {
-      "symbol": "SOL/USDT",
-      "params": {
-        "rsi_oversold": 33,
-        "stop_loss_atr_multiplier": 2.0,
-        "take_profit_atr_multiplier": 2.0,
+        "signal_threshold": 0.3,
+        "take_profit_atr": 3.4587,
+        "stop_loss_atr": 1.25,
         "max_hold_hours": 36,
-        "trend_filter_period": 100,
-        "min_alignment": 0,
-        "strategy": "bb_mean_reversion"
+        "time_decay_hours": 36,
+        "min_alignment": 3,
+        "trailing_stop_atr": 0.3894,
+        "score_flip_delay_hrs": 1
       },
-      "oos_sharpe": 7.015063034482322,
-      "oos_pnl": 3.5726974457510092,
-      "oos_pf": 10.107137050345004,
-      "oos_wr": 0.7388888888888889,
-      "oos_max_dd": 2.614422764780527,
-      "oos_consistency": 0.6666666666666666,
-      "oos_avg_trades_per_fold": 8.333333333333334,
-      "oos_mean_hold_hrs": 9.327777777777778,
+      "oos_sharpe": 6.231348269843548,
+      "oos_pnl": 126.10770609487741,
+      "oos_pf": 1.2409998022702293,
+      "oos_wr": 0.6223554889222056,
+      "oos_max_dd": 7.036555730591694,
+      "oos_consistency": 1.0,
+      "oos_avg_trades_per_fold": 165.66666666666666,
+      "oos_mean_hold_hrs": 3.4235937586762173,
       "oos_exit_reasons": {
-        "take_profit": 2,
-        "time_decay": 1,
-        "middle_band": 14,
-        "stop_loss": 8
+        "trailing_stop": 295,
+        "stop_loss": 131,
+        "take_profit": 32,
+        "mr_target": 4,
+        "score_flip": 35
       },
-      "is_sharpe": 0.0,
-      "is_pnl": 0.0,
+      "is_sharpe": 4.854167305693727,
+      "is_pnl": 83.8560538411673,
       "overfitting_score": 0,
-      "fragility": 0.0,
-      "survivor_score": 3.797962446577919,
+      "fragility": 0.41402007065195623,
+      "survivor_score": 4.117127580485658,
       "folds": [
         {
           "fold": 0,
-          "is_sharpe": 0.0,
-          "oos_sharpe": 7.015063034482322,
-          "oos_sharpe_raw": 7.015063034482322,
-          "oos_pnl": 7.1000974296452775,
-          "oos_trades": 3
+          "is_sharpe": 0,
+          "oos_sharpe": 6.440256454161397,
+          "oos_sharpe_raw": 6.440256454161397,
+          "oos_pnl": 23.903320614400045,
+          "oos_trades": 54
         },
         {
           "fold": 1,
-          "is_sharpe": 0.0,
-          "oos_sharpe": 28.32076567155345,
-          "oos_sharpe_raw": 28.32076567155345,
-          "oos_pnl": 2.7773310706290064,
-          "oos_trades": 2
+          "is_sharpe": 7.56775108152108,
+          "oos_sharpe": 6.231348269843548,
+          "oos_sharpe_raw": 6.231348269843548,
+          "oos_pnl": 9.728183284796259,
+          "oos_trades": 29
         },
         {
           "fold": 2,
-          "is_sharpe": 0.0,
-          "oos_sharpe": -0.7038004553252776,
-          "oos_sharpe_raw": -0.7038004553252776,
-          "oos_pnl": -6.304731054523275,
-          "oos_trades": 20
+          "is_sharpe": 6.9947508355601,
+          "oos_sharpe": 3.801037320298567,
+          "oos_sharpe_raw": 3.801037320298567,
+          "oos_pnl": 92.47620219568111,
+          "oos_trades": 414
         }
       ],
       "rejected": false,
@@ -3037,57 +2547,555 @@
     {
       "symbol": "SOL/USDT",
       "params": {
-        "rsi_oversold": 33,
-        "stop_loss_atr_multiplier": 2.0,
-        "take_profit_atr_multiplier": 2.0,
+        "signal_threshold": 0.3,
+        "take_profit_atr": 2.5616,
+        "stop_loss_atr": 1.25,
         "max_hold_hours": 48,
-        "trend_filter_period": 100,
-        "min_alignment": 0,
-        "strategy": "bb_mean_reversion"
+        "time_decay_hours": 12,
+        "min_alignment": 3,
+        "trailing_stop_atr": 0.4189,
+        "score_flip_delay_hrs": 1
       },
-      "oos_sharpe": 7.015063034482322,
-      "oos_pnl": 3.5726974457510092,
-      "oos_pf": 10.107137050345004,
-      "oos_wr": 0.7388888888888889,
-      "oos_max_dd": 2.614422764780527,
-      "oos_consistency": 0.6666666666666666,
-      "oos_avg_trades_per_fold": 8.333333333333334,
-      "oos_mean_hold_hrs": 9.327777777777778,
+      "oos_sharpe": 6.655964270595101,
+      "oos_pnl": 112.43613300814829,
+      "oos_pf": 1.0620438792683269,
+      "oos_wr": 0.6524283717679944,
+      "oos_max_dd": 7.060201490074334,
+      "oos_consistency": 1.0,
+      "oos_avg_trades_per_fold": 168.33333333333334,
+      "oos_mean_hold_hrs": 3.4745515956207775,
       "oos_exit_reasons": {
-        "take_profit": 2,
-        "time_decay": 1,
-        "middle_band": 14,
-        "stop_loss": 8
+        "trailing_stop": 266,
+        "stop_loss": 135,
+        "take_profit": 69,
+        "mr_target": 3,
+        "score_flip": 32
       },
-      "is_sharpe": 0.0,
-      "is_pnl": 0.0,
+      "is_sharpe": 5.038883958169477,
+      "is_pnl": 73.70936770318414,
       "overfitting_score": 0,
-      "fragility": 0.0,
-      "survivor_score": 3.797962446577919,
+      "fragility": 0.5125120305645382,
+      "survivor_score": 4.110400008809265,
       "folds": [
         {
           "fold": 0,
-          "is_sharpe": 0.0,
-          "oos_sharpe": 7.015063034482322,
-          "oos_sharpe_raw": 7.015063034482322,
-          "oos_pnl": 7.1000974296452775,
-          "oos_trades": 3
+          "is_sharpe": 0,
+          "oos_sharpe": 6.655964270595101,
+          "oos_sharpe_raw": 6.655964270595101,
+          "oos_pnl": 19.26149299328586,
+          "oos_trades": 54
         },
         {
           "fold": 1,
-          "is_sharpe": 0.0,
-          "oos_sharpe": 28.32076567155345,
-          "oos_sharpe_raw": 28.32076567155345,
-          "oos_pnl": 2.7773310706290064,
-          "oos_trades": 2
+          "is_sharpe": 7.647388246917241,
+          "oos_sharpe": 6.805662243480997,
+          "oos_sharpe_raw": 6.805662243480997,
+          "oos_pnl": 10.995546430713322,
+          "oos_trades": 27
         },
         {
           "fold": 2,
-          "is_sharpe": 0.0,
-          "oos_sharpe": -0.7038004553252776,
-          "oos_sharpe_raw": -0.7038004553252776,
-          "oos_pnl": -6.304731054523275,
-          "oos_trades": 20
+          "is_sharpe": 7.4692636275911894,
+          "oos_sharpe": 3.4226226599567897,
+          "oos_sharpe_raw": 3.4226226599567897,
+          "oos_pnl": 82.17909358414911,
+          "oos_trades": 424
+        }
+      ],
+      "rejected": false,
+      "rejection_reason": "",
+      "is_coarse_only": false
+    },
+    {
+      "symbol": "SOL/USDT",
+      "params": {
+        "signal_threshold": 0.3,
+        "take_profit_atr": 2.5616,
+        "stop_loss_atr": 1.25,
+        "max_hold_hours": 48,
+        "time_decay_hours": 11,
+        "min_alignment": 3,
+        "trailing_stop_atr": 0.4189,
+        "score_flip_delay_hrs": 1
+      },
+      "oos_sharpe": 6.655964270595101,
+      "oos_pnl": 112.43613300814829,
+      "oos_pf": 1.0620438792683269,
+      "oos_wr": 0.6524283717679944,
+      "oos_max_dd": 7.060201490074334,
+      "oos_consistency": 1.0,
+      "oos_avg_trades_per_fold": 168.33333333333334,
+      "oos_mean_hold_hrs": 3.4745515956207775,
+      "oos_exit_reasons": {
+        "trailing_stop": 266,
+        "stop_loss": 135,
+        "take_profit": 69,
+        "mr_target": 3,
+        "score_flip": 32
+      },
+      "is_sharpe": 5.038883958169477,
+      "is_pnl": 73.70936770318414,
+      "overfitting_score": 0,
+      "fragility": 0.5153841329150043,
+      "survivor_score": 4.102609581768203,
+      "folds": [
+        {
+          "fold": 0,
+          "is_sharpe": 0,
+          "oos_sharpe": 6.655964270595101,
+          "oos_sharpe_raw": 6.655964270595101,
+          "oos_pnl": 19.26149299328586,
+          "oos_trades": 54
+        },
+        {
+          "fold": 1,
+          "is_sharpe": 7.647388246917241,
+          "oos_sharpe": 6.805662243480997,
+          "oos_sharpe_raw": 6.805662243480997,
+          "oos_pnl": 10.995546430713322,
+          "oos_trades": 27
+        },
+        {
+          "fold": 2,
+          "is_sharpe": 7.4692636275911894,
+          "oos_sharpe": 3.4226226599567897,
+          "oos_sharpe_raw": 3.4226226599567897,
+          "oos_pnl": 82.17909358414911,
+          "oos_trades": 424
+        }
+      ],
+      "rejected": false,
+      "rejection_reason": "",
+      "is_coarse_only": false
+    },
+    {
+      "symbol": "SOL/USDT",
+      "params": {
+        "signal_threshold": 0.3,
+        "take_profit_atr": 3.0,
+        "stop_loss_atr": 1.25,
+        "max_hold_hours": 36,
+        "time_decay_hours": 10,
+        "min_alignment": 3,
+        "trailing_stop_atr": 0.3677,
+        "score_flip_delay_hrs": 1
+      },
+      "oos_sharpe": 6.309223722391589,
+      "oos_pnl": 121.92249148684053,
+      "oos_pf": 1.1939692271570423,
+      "oos_wr": 0.6246848863770806,
+      "oos_max_dd": 7.0191620702265025,
+      "oos_consistency": 1.0,
+      "oos_avg_trades_per_fold": 168.0,
+      "oos_mean_hold_hrs": 3.3533726890403663,
+      "oos_exit_reasons": {
+        "trailing_stop": 283,
+        "stop_loss": 133,
+        "take_profit": 53,
+        "mr_target": 4,
+        "score_flip": 31
+      },
+      "is_sharpe": 4.818042046484003,
+      "is_pnl": 69.95271986261052,
+      "overfitting_score": 0,
+      "fragility": 0.4376393909640502,
+      "survivor_score": 4.100760612582046,
+      "folds": [
+        {
+          "fold": 0,
+          "is_sharpe": 0,
+          "oos_sharpe": 6.309223722391589,
+          "oos_sharpe_raw": 6.309223722391589,
+          "oos_pnl": 18.245704094216112,
+          "oos_trades": 54
+        },
+        {
+          "fold": 1,
+          "is_sharpe": 7.37123351065201,
+          "oos_sharpe": 6.440294286741355,
+          "oos_sharpe_raw": 6.440294286741355,
+          "oos_pnl": 10.101571574630167,
+          "oos_trades": 29
+        },
+        {
+          "fold": 2,
+          "is_sharpe": 7.082892628799997,
+          "oos_sharpe": 3.8284093828011247,
+          "oos_sharpe_raw": 3.8284093828011247,
+          "oos_pnl": 93.57521581799425,
+          "oos_trades": 421
+        }
+      ],
+      "rejected": false,
+      "rejection_reason": "",
+      "is_coarse_only": false
+    },
+    {
+      "symbol": "SOL/USDT",
+      "params": {
+        "signal_threshold": 0.3,
+        "take_profit_atr": 3.0,
+        "stop_loss_atr": 1.25,
+        "max_hold_hours": 72,
+        "time_decay_hours": 12,
+        "min_alignment": 3,
+        "trailing_stop_atr": 0.3679,
+        "score_flip_delay_hrs": 0
+      },
+      "oos_sharpe": 6.307569955706968,
+      "oos_pnl": 121.88191897027369,
+      "oos_pf": 1.1937348183391012,
+      "oos_wr": 0.6246848863770806,
+      "oos_max_dd": 7.019322380460278,
+      "oos_consistency": 1.0,
+      "oos_avg_trades_per_fold": 168.0,
+      "oos_mean_hold_hrs": 3.3533726890403663,
+      "oos_exit_reasons": {
+        "trailing_stop": 283,
+        "stop_loss": 133,
+        "take_profit": 53,
+        "mr_target": 4,
+        "score_flip": 31
+      },
+      "is_sharpe": 4.816828921739433,
+      "is_pnl": 69.93382992760687,
+      "overfitting_score": 0,
+      "fragility": 0.43769163340623984,
+      "survivor_score": 4.0995306116092145,
+      "folds": [
+        {
+          "fold": 0,
+          "is_sharpe": 0,
+          "oos_sharpe": 6.307569955706968,
+          "oos_sharpe_raw": 6.307569955706968,
+          "oos_pnl": 18.240701505081002,
+          "oos_trades": 54
+        },
+        {
+          "fold": 1,
+          "is_sharpe": 7.369447858776746,
+          "oos_sharpe": 6.438379443174268,
+          "oos_sharpe_raw": 6.438379443174268,
+          "oos_pnl": 10.098130207903594,
+          "oos_trades": 29
+        },
+        {
+          "fold": 2,
+          "is_sharpe": 7.081038906441553,
+          "oos_sharpe": 3.8271423048643447,
+          "oos_sharpe_raw": 3.8271423048643447,
+          "oos_pnl": 93.54308725728909,
+          "oos_trades": 421
+        }
+      ],
+      "rejected": false,
+      "rejection_reason": "",
+      "is_coarse_only": false
+    },
+    {
+      "symbol": "SOL/USDT",
+      "params": {
+        "signal_threshold": 0.3,
+        "take_profit_atr": 3.0,
+        "stop_loss_atr": 1.25,
+        "max_hold_hours": 72,
+        "time_decay_hours": 12,
+        "min_alignment": 3,
+        "trailing_stop_atr": 0.3679,
+        "score_flip_delay_hrs": 1
+      },
+      "oos_sharpe": 6.307569955706968,
+      "oos_pnl": 121.88191897027369,
+      "oos_pf": 1.1937348183391012,
+      "oos_wr": 0.6246848863770806,
+      "oos_max_dd": 7.019322380460278,
+      "oos_consistency": 1.0,
+      "oos_avg_trades_per_fold": 168.0,
+      "oos_mean_hold_hrs": 3.3533726890403663,
+      "oos_exit_reasons": {
+        "trailing_stop": 283,
+        "stop_loss": 133,
+        "take_profit": 53,
+        "mr_target": 4,
+        "score_flip": 31
+      },
+      "is_sharpe": 4.816828921739433,
+      "is_pnl": 69.93382992760687,
+      "overfitting_score": 0,
+      "fragility": 0.43769163340623984,
+      "survivor_score": 4.0995306116092145,
+      "folds": [
+        {
+          "fold": 0,
+          "is_sharpe": 0,
+          "oos_sharpe": 6.307569955706968,
+          "oos_sharpe_raw": 6.307569955706968,
+          "oos_pnl": 18.240701505081002,
+          "oos_trades": 54
+        },
+        {
+          "fold": 1,
+          "is_sharpe": 7.369447858776746,
+          "oos_sharpe": 6.438379443174268,
+          "oos_sharpe_raw": 6.438379443174268,
+          "oos_pnl": 10.098130207903594,
+          "oos_trades": 29
+        },
+        {
+          "fold": 2,
+          "is_sharpe": 7.081038906441553,
+          "oos_sharpe": 3.8271423048643447,
+          "oos_sharpe_raw": 3.8271423048643447,
+          "oos_pnl": 93.54308725728909,
+          "oos_trades": 421
+        }
+      ],
+      "rejected": false,
+      "rejection_reason": "",
+      "is_coarse_only": false
+    },
+    {
+      "symbol": "SOL/USDT",
+      "params": {
+        "signal_threshold": 0.3,
+        "take_profit_atr": 3.0,
+        "stop_loss_atr": 1.25,
+        "max_hold_hours": 72,
+        "time_decay_hours": 13,
+        "min_alignment": 3,
+        "trailing_stop_atr": 0.3679,
+        "score_flip_delay_hrs": 0
+      },
+      "oos_sharpe": 6.307569955706968,
+      "oos_pnl": 121.88191897027369,
+      "oos_pf": 1.1937348183391012,
+      "oos_wr": 0.6246848863770806,
+      "oos_max_dd": 7.019322380460278,
+      "oos_consistency": 1.0,
+      "oos_avg_trades_per_fold": 168.0,
+      "oos_mean_hold_hrs": 3.3533726890403663,
+      "oos_exit_reasons": {
+        "trailing_stop": 283,
+        "stop_loss": 133,
+        "take_profit": 53,
+        "mr_target": 4,
+        "score_flip": 31
+      },
+      "is_sharpe": 4.816828921739433,
+      "is_pnl": 69.93382992760687,
+      "overfitting_score": 0,
+      "fragility": 0.43769163340623984,
+      "survivor_score": 4.0995306116092145,
+      "folds": [
+        {
+          "fold": 0,
+          "is_sharpe": 0,
+          "oos_sharpe": 6.307569955706968,
+          "oos_sharpe_raw": 6.307569955706968,
+          "oos_pnl": 18.240701505081002,
+          "oos_trades": 54
+        },
+        {
+          "fold": 1,
+          "is_sharpe": 7.369447858776746,
+          "oos_sharpe": 6.438379443174268,
+          "oos_sharpe_raw": 6.438379443174268,
+          "oos_pnl": 10.098130207903594,
+          "oos_trades": 29
+        },
+        {
+          "fold": 2,
+          "is_sharpe": 7.081038906441553,
+          "oos_sharpe": 3.8271423048643447,
+          "oos_sharpe_raw": 3.8271423048643447,
+          "oos_pnl": 93.54308725728909,
+          "oos_trades": 421
+        }
+      ],
+      "rejected": false,
+      "rejection_reason": "",
+      "is_coarse_only": false
+    },
+    {
+      "symbol": "SOL/USDT",
+      "params": {
+        "signal_threshold": 0.3,
+        "take_profit_atr": 3.0,
+        "stop_loss_atr": 1.25,
+        "max_hold_hours": 36,
+        "time_decay_hours": 12,
+        "min_alignment": 3,
+        "trailing_stop_atr": 0.3701,
+        "score_flip_delay_hrs": 4
+      },
+      "oos_sharpe": 6.28937388779617,
+      "oos_pnl": 121.43562128803805,
+      "oos_pf": 1.1911587417099503,
+      "oos_wr": 0.6246848863770806,
+      "oos_max_dd": 7.02108579303187,
+      "oos_consistency": 1.0,
+      "oos_avg_trades_per_fold": 168.0,
+      "oos_mean_hold_hrs": 3.3533726890403663,
+      "oos_exit_reasons": {
+        "trailing_stop": 283,
+        "stop_loss": 133,
+        "take_profit": 53,
+        "mr_target": 4,
+        "score_flip": 31
+      },
+      "is_sharpe": 4.803480469244676,
+      "is_pnl": 69.7260406425666,
+      "overfitting_score": 0,
+      "fragility": 0.43826815512198486,
+      "survivor_score": 4.0859984317122855,
+      "folds": [
+        {
+          "fold": 0,
+          "is_sharpe": 0,
+          "oos_sharpe": 6.28937388779617,
+          "oos_sharpe_raw": 6.28937388779617,
+          "oos_pnl": 18.18567302459476,
+          "oos_trades": 54
+        },
+        {
+          "fold": 1,
+          "is_sharpe": 7.349800575204566,
+          "oos_sharpe": 6.417302742651007,
+          "oos_sharpe_raw": 6.417302742651007,
+          "oos_pnl": 10.060275173911219,
+          "oos_trades": 29
+        },
+        {
+          "fold": 2,
+          "is_sharpe": 7.060640832529463,
+          "oos_sharpe": 3.8132015746933097,
+          "oos_sharpe_raw": 3.8132015746933097,
+          "oos_pnl": 93.18967308953208,
+          "oos_trades": 421
+        }
+      ],
+      "rejected": false,
+      "rejection_reason": "",
+      "is_coarse_only": false
+    },
+    {
+      "symbol": "SOL/USDT",
+      "params": {
+        "signal_threshold": 0.3,
+        "take_profit_atr": 2.6114,
+        "stop_loss_atr": 1.25,
+        "max_hold_hours": 72,
+        "time_decay_hours": 12,
+        "min_alignment": 3,
+        "trailing_stop_atr": 0.4218,
+        "score_flip_delay_hrs": 1
+      },
+      "oos_sharpe": 6.573383534531652,
+      "oos_pnl": 110.35269710726052,
+      "oos_pf": 1.0465838940981607,
+      "oos_wr": 0.6520882584712372,
+      "oos_max_dd": 7.062525988464155,
+      "oos_consistency": 1.0,
+      "oos_avg_trades_per_fold": 168.0,
+      "oos_mean_hold_hrs": 3.490937746256895,
+      "oos_exit_reasons": {
+        "trailing_stop": 269,
+        "stop_loss": 135,
+        "take_profit": 65,
+        "mr_target": 3,
+        "score_flip": 32
+      },
+      "is_sharpe": 4.95758043168751,
+      "is_pnl": 72.04843698907295,
+      "overfitting_score": 0,
+      "fragility": 0.5105655956917656,
+      "survivor_score": 4.064544641287007,
+      "folds": [
+        {
+          "fold": 0,
+          "is_sharpe": 0,
+          "oos_sharpe": 6.63262358285529,
+          "oos_sharpe_raw": 6.63262358285529,
+          "oos_pnl": 19.19330675397654,
+          "oos_trades": 54
+        },
+        {
+          "fold": 1,
+          "is_sharpe": 7.622301695229564,
+          "oos_sharpe": 6.573383534531652,
+          "oos_sharpe_raw": 6.573383534531652,
+          "oos_pnl": 10.307903402764946,
+          "oos_trades": 27
+        },
+        {
+          "fold": 2,
+          "is_sharpe": 7.2504395998329665,
+          "oos_sharpe": 3.3669625664832,
+          "oos_sharpe_raw": 3.3669625664832,
+          "oos_pnl": 80.85148695051903,
+          "oos_trades": 423
+        }
+      ],
+      "rejected": false,
+      "rejection_reason": "",
+      "is_coarse_only": false
+    },
+    {
+      "symbol": "SOL/USDT",
+      "params": {
+        "signal_threshold": 0.3,
+        "take_profit_atr": 2.6114,
+        "stop_loss_atr": 1.25,
+        "max_hold_hours": 72,
+        "time_decay_hours": 12,
+        "min_alignment": 3,
+        "trailing_stop_atr": 0.3862,
+        "score_flip_delay_hrs": 1
+      },
+      "oos_sharpe": 6.421075332890218,
+      "oos_pnl": 115.39818078399524,
+      "oos_pf": 1.1793621535852863,
+      "oos_wr": 0.630451644678138,
+      "oos_max_dd": 7.0339907668512085,
+      "oos_consistency": 1.0,
+      "oos_avg_trades_per_fold": 170.0,
+      "oos_mean_hold_hrs": 3.3126927298775803,
+      "oos_exit_reasons": {
+        "trailing_stop": 274,
+        "stop_loss": 135,
+        "take_profit": 65,
+        "mr_target": 3,
+        "score_flip": 33
+      },
+      "is_sharpe": 5.036610467175138,
+      "is_pnl": 73.17246236766238,
+      "overfitting_score": 0,
+      "fragility": 0.4771456992673001,
+      "survivor_score": 4.0612779421955825,
+      "folds": [
+        {
+          "fold": 0,
+          "is_sharpe": 0,
+          "oos_sharpe": 6.918540360355017,
+          "oos_sharpe_raw": 6.918540360355017,
+          "oos_pnl": 20.030351622739165,
+          "oos_trades": 54
+        },
+        {
+          "fold": 1,
+          "is_sharpe": 7.768384259263322,
+          "oos_sharpe": 6.421075332890218,
+          "oos_sharpe_raw": 6.421075332890218,
+          "oos_pnl": 10.255532598269873,
+          "oos_trades": 29
+        },
+        {
+          "fold": 2,
+          "is_sharpe": 7.3414471422620915,
+          "oos_sharpe": 3.534597934614397,
+          "oos_sharpe_raw": 3.534597934614397,
+          "oos_pnl": 85.1122965629862,
+          "oos_trades": 427
         }
       ],
       "rejected": false,

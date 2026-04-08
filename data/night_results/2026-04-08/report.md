@@ -1,13 +1,13 @@
 # Night Shift Report — 2026-04-08
 
-**Runtime:** 1956s | **Folds:** 3 | **Symbols:** SOL/USDT
+**Runtime:** 2118s | **Folds:** 3 | **Symbols:** SOL/USDT
 **Aggregation:** Median OOS Sharpe, per-fold Sharpe winsorized at ±100
 
 ## Market State
 
 | Symbol | Regime | ADX | ADX Trend | Vol %ile | 30d Return |
 |--------|--------|-----|-----------|----------|------------|
-| SOL/USDT | RANGE | 15.4 | STABLE | 23% | -3.5% |
+| SOL/USDT | TREND | 40.6 | FALLING | 71% | +1.4% |
 
 **Correlations:**
 
@@ -15,285 +15,284 @@
 
 | Symbol | OOS Sharpe | OOS PF | OOS WR | Consistency | MaxDD | Survivor |
 |--------|-----------|--------|--------|-------------|-------|----------|
-| SOL/USDT | +1.68 | 1.6 | 57% | 100% | 5.2% | 1.08 |
+| SOL/USDT | +1.85 | 1.3 | 61% | 100% | 4.3% | 0.56 |
 
 ## Top 10 Candidates (Ranked by Survivor Score)
 
 *Only candidates validated on 5+ WFA folds are shown.*
 
-**Strategy breakdown:** 156 MultiTF, 216 BB Mean Reversion
+**Strategy breakdown:** 1626 MultiTF, 216 BB Mean Reversion
 
-### #1: SOL/USDT (Survivor: 5.36 +4.28)
+### #1: SOL/USDT (Survivor: 5.11 +4.54)
 ```json
 {
-  "signal_threshold": 0.3174,
-  "min_alignment": 3,
-  "take_profit_atr": 6.0,
-  "stop_loss_atr": 2.5,
-  "max_hold_hours": 96,
-  "time_decay_hours": 50,
-  "trailing_stop_atr": 0.01,
-  "score_flip_delay_hrs": 2
-}
-```
-| Metric | Baseline | Candidate | Delta |
-|--------|----------|-----------|-------|
-| OOS Sharpe | +1.68 | +5.99 | +4.31 |
-| OOS PF | 1.6 | 0.5 | -1.0 |
-| Consistency | 100% | 100% | +0% |
-| MaxDD | 5.2% | 8.4% | +3.2% |
-| Overfitting | 0.05 | 0.00 | -0.05 |
-| Fragility | 0.40 | 0.03 | |
-
-✅ **STRONG RECOMMEND** — trades/fold: 171, exits: {'trailing_stop': 377, 'stop_loss': 85, 'score_flip': 47, 'take_profit': 1, 'mr_target': 2}
-
-### #2: SOL/USDT (Survivor: 5.36 +4.28)
-```json
-{
-  "signal_threshold": 0.3174,
-  "min_alignment": 3,
-  "take_profit_atr": 6.0,
-  "stop_loss_atr": 2.5,
-  "max_hold_hours": 96,
-  "time_decay_hours": 56,
-  "trailing_stop_atr": 0.01,
-  "score_flip_delay_hrs": 2
-}
-```
-| Metric | Baseline | Candidate | Delta |
-|--------|----------|-----------|-------|
-| OOS Sharpe | +1.68 | +5.99 | +4.31 |
-| OOS PF | 1.6 | 0.5 | -1.0 |
-| Consistency | 100% | 100% | +0% |
-| MaxDD | 5.2% | 8.4% | +3.2% |
-| Overfitting | 0.05 | 0.00 | -0.05 |
-| Fragility | 0.40 | 0.03 | |
-
-✅ **STRONG RECOMMEND** — trades/fold: 171, exits: {'trailing_stop': 377, 'stop_loss': 85, 'score_flip': 47, 'take_profit': 1, 'mr_target': 2}
-
-### #3: SOL/USDT (Survivor: 5.36 +4.28)
-```json
-{
-  "signal_threshold": 0.3174,
-  "min_alignment": 3,
-  "take_profit_atr": 6.0,
-  "stop_loss_atr": 2.5,
-  "max_hold_hours": 96,
-  "time_decay_hours": 45,
-  "trailing_stop_atr": 0.01,
-  "score_flip_delay_hrs": 2
-}
-```
-| Metric | Baseline | Candidate | Delta |
-|--------|----------|-----------|-------|
-| OOS Sharpe | +1.68 | +5.99 | +4.31 |
-| OOS PF | 1.6 | 0.5 | -1.0 |
-| Consistency | 100% | 100% | +0% |
-| MaxDD | 5.2% | 8.4% | +3.2% |
-| Overfitting | 0.05 | 0.00 | -0.05 |
-| Fragility | 0.40 | 0.03 | |
-
-✅ **STRONG RECOMMEND** — trades/fold: 171, exits: {'trailing_stop': 377, 'stop_loss': 85, 'score_flip': 47, 'take_profit': 1, 'mr_target': 2}
-
-### #4: SOL/USDT (Survivor: 5.35 +4.27)
-```json
-{
-  "signal_threshold": 0.3174,
-  "min_alignment": 3,
-  "take_profit_atr": 6.0,
-  "stop_loss_atr": 2.5,
-  "max_hold_hours": 96,
-  "time_decay_hours": 50,
-  "trailing_stop_atr": 0.0114,
-  "score_flip_delay_hrs": 2
-}
-```
-| Metric | Baseline | Candidate | Delta |
-|--------|----------|-----------|-------|
-| OOS Sharpe | +1.68 | +5.98 | +4.30 |
-| OOS PF | 1.6 | 0.5 | -1.0 |
-| Consistency | 100% | 100% | +0% |
-| MaxDD | 5.2% | 8.4% | +3.2% |
-| Overfitting | 0.05 | 0.00 | -0.05 |
-| Fragility | 0.40 | 0.03 | |
-
-✅ **STRONG RECOMMEND** — trades/fold: 171, exits: {'trailing_stop': 377, 'stop_loss': 85, 'score_flip': 47, 'take_profit': 1, 'mr_target': 2}
-
-### #5: SOL/USDT (Survivor: 5.34 +4.26)
-```json
-{
-  "signal_threshold": 0.3378,
-  "min_alignment": 3,
-  "take_profit_atr": 6.7348,
-  "stop_loss_atr": 2.5,
-  "max_hold_hours": 96,
-  "time_decay_hours": 48,
-  "trailing_stop_atr": 0.01,
-  "score_flip_delay_hrs": 2
-}
-```
-| Metric | Baseline | Candidate | Delta |
-|--------|----------|-----------|-------|
-| OOS Sharpe | +1.68 | +5.99 | +4.31 |
-| OOS PF | 1.6 | 0.5 | -1.0 |
-| Consistency | 100% | 100% | +0% |
-| MaxDD | 5.2% | 8.4% | +3.2% |
-| Overfitting | 0.05 | 0.00 | -0.05 |
-| Fragility | 0.40 | 0.03 | |
-
-✅ **STRONG RECOMMEND** — trades/fold: 171, exits: {'trailing_stop': 378, 'stop_loss': 85, 'score_flip': 47, 'mr_target': 2}
-
-### #6: SOL/USDT (Survivor: 5.34 +4.26)
-```json
-{
-  "signal_threshold": 0.3378,
+  "signal_threshold": 0.35,
   "min_alignment": 3,
   "take_profit_atr": 6.0,
   "stop_loss_atr": 2.5,
   "max_hold_hours": 96,
   "time_decay_hours": 48,
-  "trailing_stop_atr": 0.01,
-  "score_flip_delay_hrs": 2
+  "trailing_stop_atr": 1.0,
+  "score_flip_delay_hrs": 2,
+  "experiment": "lower_threshold"
 }
 ```
 | Metric | Baseline | Candidate | Delta |
 |--------|----------|-----------|-------|
-| OOS Sharpe | +1.68 | +5.99 | +4.31 |
-| OOS PF | 1.6 | 0.5 | -1.0 |
+| OOS Sharpe | +1.85 | +5.43 | +3.59 |
+| OOS PF | 1.3 | 1.2 | -0.2 |
 | Consistency | 100% | 100% | +0% |
-| MaxDD | 5.2% | 8.4% | +3.2% |
-| Overfitting | 0.05 | 0.00 | -0.05 |
-| Fragility | 0.40 | 0.03 | |
+| MaxDD | 4.3% | 6.4% | +2.1% |
+| Overfitting | 0.54 | 0.00 | -0.54 |
+| Fragility | 0.44 | 0.00 | |
 
-✅ **STRONG RECOMMEND** — trades/fold: 171, exits: {'trailing_stop': 377, 'stop_loss': 85, 'score_flip': 47, 'take_profit': 1, 'mr_target': 2}
+✅ **STRONG RECOMMEND** — trades/fold: 103, exits: {'trailing_stop': 199, 'score_flip': 46, 'stop_loss': 52, 'take_profit': 6, 'mr_target': 6}
 
-### #7: SOL/USDT (Survivor: 5.34 +4.26)
+### #2: SOL/USDT (Survivor: 4.34 +3.78)
 ```json
 {
-  "signal_threshold": 0.3378,
+  "signal_threshold": 0.3,
+  "take_profit_atr": 2.1698,
+  "stop_loss_atr": 1.25,
+  "max_hold_hours": 72,
+  "time_decay_hours": 12,
   "min_alignment": 3,
-  "take_profit_atr": 6.0,
-  "stop_loss_atr": 2.5,
-  "max_hold_hours": 81,
-  "time_decay_hours": 48,
-  "trailing_stop_atr": 0.01,
-  "score_flip_delay_hrs": 2
+  "trailing_stop_atr": 0.5,
+  "score_flip_delay_hrs": 1
 }
 ```
 | Metric | Baseline | Candidate | Delta |
 |--------|----------|-----------|-------|
-| OOS Sharpe | +1.68 | +5.99 | +4.31 |
-| OOS PF | 1.6 | 0.5 | -1.0 |
+| OOS Sharpe | +1.85 | +7.03 | +5.19 |
+| OOS PF | 1.3 | 1.3 | -0.1 |
 | Consistency | 100% | 100% | +0% |
-| MaxDD | 5.2% | 8.4% | +3.2% |
-| Overfitting | 0.05 | 0.00 | -0.05 |
-| Fragility | 0.40 | 0.03 | |
+| MaxDD | 4.3% | 7.0% | +2.7% |
+| Overfitting | 0.54 | 0.00 | -0.54 |
+| Fragility | 0.44 | 0.51 | |
 
-✅ **STRONG RECOMMEND** — trades/fold: 171, exits: {'trailing_stop': 377, 'stop_loss': 85, 'score_flip': 47, 'take_profit': 1, 'mr_target': 2}
+✅ **STRONG RECOMMEND** — trades/fold: 171, exits: {'trailing_stop': 235, 'stop_loss': 135, 'take_profit': 112, 'mr_target': 2, 'score_flip': 28}
 
-### #8: SOL/USDT (Survivor: 5.34 +4.26)
+### #3: SOL/USDT (Survivor: 4.28 +3.72)
 ```json
 {
-  "signal_threshold": 0.3378,
+  "signal_threshold": 0.3,
+  "take_profit_atr": 2.3276,
+  "stop_loss_atr": 1.25,
+  "max_hold_hours": 72,
+  "time_decay_hours": 12,
   "min_alignment": 3,
-  "take_profit_atr": 6.0,
-  "stop_loss_atr": 2.5,
-  "max_hold_hours": 83,
-  "time_decay_hours": 48,
-  "trailing_stop_atr": 0.01,
-  "score_flip_delay_hrs": 2
+  "trailing_stop_atr": 0.5,
+  "score_flip_delay_hrs": 0
 }
 ```
 | Metric | Baseline | Candidate | Delta |
 |--------|----------|-----------|-------|
-| OOS Sharpe | +1.68 | +5.99 | +4.31 |
-| OOS PF | 1.6 | 0.5 | -1.0 |
+| OOS Sharpe | +1.85 | +7.28 | +5.43 |
+| OOS PF | 1.3 | 1.2 | -0.1 |
 | Consistency | 100% | 100% | +0% |
-| MaxDD | 5.2% | 8.4% | +3.2% |
-| Overfitting | 0.05 | 0.00 | -0.05 |
-| Fragility | 0.40 | 0.03 | |
+| MaxDD | 4.3% | 7.0% | +2.7% |
+| Overfitting | 0.54 | 0.00 | -0.54 |
+| Fragility | 0.44 | 0.59 | |
 
-✅ **STRONG RECOMMEND** — trades/fold: 171, exits: {'trailing_stop': 377, 'stop_loss': 85, 'score_flip': 47, 'take_profit': 1, 'mr_target': 2}
+✅ **STRONG RECOMMEND** — trades/fold: 170, exits: {'trailing_stop': 240, 'stop_loss': 136, 'take_profit': 102, 'mr_target': 2, 'score_flip': 29}
 
-### #9: SOL/USDT (Survivor: 5.34 +4.26)
+### #4: SOL/USDT (Survivor: 4.28 +3.72)
 ```json
 {
-  "signal_threshold": 0.343,
+  "signal_threshold": 0.3,
+  "take_profit_atr": 2.3276,
+  "stop_loss_atr": 1.25,
+  "max_hold_hours": 72,
+  "time_decay_hours": 10,
   "min_alignment": 3,
-  "take_profit_atr": 6.0,
-  "stop_loss_atr": 2.5,
-  "max_hold_hours": 96,
-  "time_decay_hours": 48,
-  "trailing_stop_atr": 0.01,
-  "score_flip_delay_hrs": 3
+  "trailing_stop_atr": 0.5,
+  "score_flip_delay_hrs": 0
 }
 ```
 | Metric | Baseline | Candidate | Delta |
 |--------|----------|-----------|-------|
-| OOS Sharpe | +1.68 | +5.99 | +4.31 |
-| OOS PF | 1.6 | 0.5 | -1.0 |
+| OOS Sharpe | +1.85 | +7.28 | +5.43 |
+| OOS PF | 1.3 | 1.2 | -0.1 |
 | Consistency | 100% | 100% | +0% |
-| MaxDD | 5.2% | 8.4% | +3.2% |
-| Overfitting | 0.05 | 0.00 | -0.05 |
-| Fragility | 0.40 | 0.03 | |
+| MaxDD | 4.3% | 7.0% | +2.7% |
+| Overfitting | 0.54 | 0.00 | -0.54 |
+| Fragility | 0.44 | 0.59 | |
 
-✅ **STRONG RECOMMEND** — trades/fold: 171, exits: {'trailing_stop': 377, 'stop_loss': 85, 'score_flip': 47, 'take_profit': 1, 'mr_target': 2}
+✅ **STRONG RECOMMEND** — trades/fold: 170, exits: {'trailing_stop': 240, 'stop_loss': 136, 'take_profit': 102, 'mr_target': 2, 'score_flip': 29}
 
-### #10: SOL/USDT (Survivor: 5.34 +4.25)
+### #5: SOL/USDT (Survivor: 4.28 +3.72)
 ```json
 {
-  "signal_threshold": 0.3356,
+  "signal_threshold": 0.3,
+  "take_profit_atr": 2.3276,
+  "stop_loss_atr": 1.25,
+  "max_hold_hours": 67,
+  "time_decay_hours": 12,
   "min_alignment": 3,
-  "take_profit_atr": 6.0,
-  "stop_loss_atr": 2.5,
-  "max_hold_hours": 100,
-  "time_decay_hours": 48,
-  "trailing_stop_atr": 0.0107,
-  "score_flip_delay_hrs": 3
+  "trailing_stop_atr": 0.5,
+  "score_flip_delay_hrs": 0
 }
 ```
 | Metric | Baseline | Candidate | Delta |
 |--------|----------|-----------|-------|
-| OOS Sharpe | +1.68 | +5.98 | +4.30 |
-| OOS PF | 1.6 | 0.5 | -1.0 |
+| OOS Sharpe | +1.85 | +7.28 | +5.43 |
+| OOS PF | 1.3 | 1.2 | -0.1 |
 | Consistency | 100% | 100% | +0% |
-| MaxDD | 5.2% | 8.4% | +3.2% |
-| Overfitting | 0.05 | 0.00 | -0.05 |
-| Fragility | 0.40 | 0.03 | |
+| MaxDD | 4.3% | 7.0% | +2.7% |
+| Overfitting | 0.54 | 0.00 | -0.54 |
+| Fragility | 0.44 | 0.59 | |
 
-✅ **STRONG RECOMMEND** — trades/fold: 171, exits: {'trailing_stop': 377, 'stop_loss': 85, 'score_flip': 47, 'take_profit': 1, 'mr_target': 2}
+✅ **STRONG RECOMMEND** — trades/fold: 170, exits: {'trailing_stop': 240, 'stop_loss': 136, 'take_profit': 102, 'mr_target': 2, 'score_flip': 29}
+
+### #6: SOL/USDT (Survivor: 4.28 +3.72)
+```json
+{
+  "signal_threshold": 0.3,
+  "take_profit_atr": 2.3276,
+  "stop_loss_atr": 1.25,
+  "max_hold_hours": 72,
+  "time_decay_hours": 12,
+  "min_alignment": 3,
+  "trailing_stop_atr": 0.5,
+  "score_flip_delay_hrs": 1
+}
+```
+| Metric | Baseline | Candidate | Delta |
+|--------|----------|-----------|-------|
+| OOS Sharpe | +1.85 | +7.28 | +5.43 |
+| OOS PF | 1.3 | 1.2 | -0.1 |
+| Consistency | 100% | 100% | +0% |
+| MaxDD | 4.3% | 7.0% | +2.7% |
+| Overfitting | 0.54 | 0.00 | -0.54 |
+| Fragility | 0.44 | 0.59 | |
+
+✅ **STRONG RECOMMEND** — trades/fold: 170, exits: {'trailing_stop': 240, 'stop_loss': 136, 'take_profit': 102, 'mr_target': 2, 'score_flip': 29}
+
+### #7: SOL/USDT (Survivor: 4.28 +3.72)
+```json
+{
+  "signal_threshold": 0.3,
+  "take_profit_atr": 2.3663,
+  "stop_loss_atr": 1.25,
+  "max_hold_hours": 36,
+  "time_decay_hours": 22,
+  "min_alignment": 3,
+  "trailing_stop_atr": 0.5,
+  "score_flip_delay_hrs": 1
+}
+```
+| Metric | Baseline | Candidate | Delta |
+|--------|----------|-----------|-------|
+| OOS Sharpe | +1.85 | +7.28 | +5.43 |
+| OOS PF | 1.3 | 1.2 | -0.1 |
+| Consistency | 100% | 100% | +0% |
+| MaxDD | 4.3% | 7.0% | +2.7% |
+| Overfitting | 0.54 | 0.00 | -0.54 |
+| Fragility | 0.44 | 0.59 | |
+
+✅ **STRONG RECOMMEND** — trades/fold: 170, exits: {'trailing_stop': 243, 'stop_loss': 136, 'take_profit': 97, 'mr_target': 2, 'score_flip': 31}
+
+### #8: SOL/USDT (Survivor: 4.28 +3.72)
+```json
+{
+  "signal_threshold": 0.3,
+  "take_profit_atr": 2.3729,
+  "stop_loss_atr": 1.25,
+  "max_hold_hours": 72,
+  "time_decay_hours": 12,
+  "min_alignment": 3,
+  "trailing_stop_atr": 0.5,
+  "score_flip_delay_hrs": 1
+}
+```
+| Metric | Baseline | Candidate | Delta |
+|--------|----------|-----------|-------|
+| OOS Sharpe | +1.85 | +7.28 | +5.43 |
+| OOS PF | 1.3 | 1.2 | -0.1 |
+| Consistency | 100% | 100% | +0% |
+| MaxDD | 4.3% | 7.0% | +2.7% |
+| Overfitting | 0.54 | 0.00 | -0.54 |
+| Fragility | 0.44 | 0.59 | |
+
+✅ **STRONG RECOMMEND** — trades/fold: 170, exits: {'trailing_stop': 243, 'stop_loss': 136, 'take_profit': 97, 'mr_target': 2, 'score_flip': 31}
+
+### #9: SOL/USDT (Survivor: 4.28 +3.72)
+```json
+{
+  "signal_threshold": 0.3249,
+  "take_profit_atr": 2.3663,
+  "stop_loss_atr": 1.25,
+  "max_hold_hours": 36,
+  "time_decay_hours": 22,
+  "min_alignment": 3,
+  "trailing_stop_atr": 0.5,
+  "score_flip_delay_hrs": 1
+}
+```
+| Metric | Baseline | Candidate | Delta |
+|--------|----------|-----------|-------|
+| OOS Sharpe | +1.85 | +7.28 | +5.43 |
+| OOS PF | 1.3 | 1.2 | -0.1 |
+| Consistency | 100% | 100% | +0% |
+| MaxDD | 4.3% | 7.0% | +2.7% |
+| Overfitting | 0.54 | 0.00 | -0.54 |
+| Fragility | 0.44 | 0.59 | |
+
+✅ **STRONG RECOMMEND** — trades/fold: 170, exits: {'trailing_stop': 243, 'stop_loss': 136, 'take_profit': 97, 'mr_target': 2, 'score_flip': 31}
+
+### #10: SOL/USDT (Survivor: 4.28 +3.72)
+```json
+{
+  "signal_threshold": 0.3422,
+  "take_profit_atr": 2.3663,
+  "stop_loss_atr": 1.25,
+  "max_hold_hours": 36,
+  "time_decay_hours": 22,
+  "min_alignment": 3,
+  "trailing_stop_atr": 0.5,
+  "score_flip_delay_hrs": 1
+}
+```
+| Metric | Baseline | Candidate | Delta |
+|--------|----------|-----------|-------|
+| OOS Sharpe | +1.85 | +7.28 | +5.43 |
+| OOS PF | 1.3 | 1.2 | -0.1 |
+| Consistency | 100% | 100% | +0% |
+| MaxDD | 4.3% | 7.0% | +2.7% |
+| Overfitting | 0.54 | 0.00 | -0.54 |
+| Fragility | 0.44 | 0.59 | |
+
+✅ **STRONG RECOMMEND** — trades/fold: 170, exits: {'trailing_stop': 243, 'stop_loss': 136, 'take_profit': 97, 'mr_target': 2, 'score_flip': 31}
 
 ## Overfitting Warnings
 
-⚠️ SOL/USDT {'rsi_oversold': 25, 'stop_loss_atr_multiplier': 1.5, 'take_profit_atr_multiplier': 2.0, 'max_hold_hours': 36, 'trend_filter_period': 50, 'min_alignment': 0, 'strategy': 'bb_mean_reversion'}: oos_consistency=0% < 50% (OOS Sharpe: +0.00, IS-OOS gap: 0.00)
-⚠️ SOL/USDT {'rsi_oversold': 25, 'stop_loss_atr_multiplier': 1.5, 'take_profit_atr_multiplier': 2.0, 'max_hold_hours': 48, 'trend_filter_period': 50, 'min_alignment': 0, 'strategy': 'bb_mean_reversion'}: oos_consistency=0% < 50% (OOS Sharpe: +0.00, IS-OOS gap: 0.00)
-⚠️ SOL/USDT {'rsi_oversold': 25, 'stop_loss_atr_multiplier': 1.5, 'take_profit_atr_multiplier': 2.0, 'max_hold_hours': 36, 'trend_filter_period': 100, 'min_alignment': 0, 'strategy': 'bb_mean_reversion'}: oos_consistency=33% < 50% (OOS Sharpe: +0.00, IS-OOS gap: 0.00)
-⚠️ SOL/USDT {'rsi_oversold': 25, 'stop_loss_atr_multiplier': 1.5, 'take_profit_atr_multiplier': 2.0, 'max_hold_hours': 48, 'trend_filter_period': 100, 'min_alignment': 0, 'strategy': 'bb_mean_reversion'}: oos_consistency=33% < 50% (OOS Sharpe: +0.00, IS-OOS gap: 0.00)
+⚠️ SOL/USDT {'signal_threshold': 0.3, 'take_profit_atr': 3.0, 'stop_loss_atr': 1.25, 'max_hold_hours': 36, 'time_decay_hours': 24, 'min_alignment': 3, 'trailing_stop_atr': 1.5, 'score_flip_delay_hrs': 0}: overfitting_score=0.52 > 0.5 (OOS Sharpe: +1.67, IS-OOS gap: 0.52)
+⚠️ SOL/USDT {'signal_threshold': 0.3, 'take_profit_atr': 3.0, 'stop_loss_atr': 1.25, 'max_hold_hours': 36, 'time_decay_hours': 24, 'min_alignment': 3, 'trailing_stop_atr': 1.5, 'score_flip_delay_hrs': 1}: overfitting_score=0.52 > 0.5 (OOS Sharpe: +1.67, IS-OOS gap: 0.52)
 
 ## Per-Symbol WFA Fold Detail
 
-### SOL/USDT — Best Validated Candidate (Survivor: 5.36)
+### SOL/USDT — Best Validated Candidate (Survivor: 5.11)
 | Fold | IS Sharpe | OOS Sharpe | OOS PnL | OOS Trades |
 |------|-----------|-----------|---------|------------|
-| 0 | +0.00 | +3.44 | +11.77% | 40 ✅ |
-| 1 | +3.48 | +8.62 | +33.33% | 47 ✅ |
-| 2 | +7.44 | +5.99 | +171.07% | 425 ✅ |
+| 0 | +0.00 | +6.42 | +24.93% | 32 ✅ |
+| 1 | +0.00 | +5.43 | +5.42% | 17 ✅ |
+| 2 | +0.00 | +1.85 | +43.12% | 260 ✅ |
 
 ## Action Items
 
-1. **[HIGH]** SOL/USDT: signal_threshold: 0.4→0.3174, time_decay_hours: 48→50, trailing_stop_atr: 1.0→0.01
-   OOS Sharpe: +5.99 (vs +1.68), consistency: 100%, DD: 8.4%, trades/fold: 171
+1. **[HIGH]** SOL/USDT: signal_threshold: 0.4→0.35, experiment: None→lower_threshold
+   OOS Sharpe: +5.43 (vs +1.85), consistency: 100%, DD: 6.4%, trades/fold: 103
 
-2. **[HIGH]** SOL/USDT: signal_threshold: 0.4→0.3174, time_decay_hours: 48→56, trailing_stop_atr: 1.0→0.01
-   OOS Sharpe: +5.99 (vs +1.68), consistency: 100%, DD: 8.4%, trades/fold: 171
+2. **[HIGH]** SOL/USDT: signal_threshold: 0.4→0.3, take_profit_atr: 6.0→2.1698, stop_loss_atr: 2.5→1.25, max_hold_hours: 96→72, time_decay_hours: 48→12, trailing_stop_atr: 1.0→0.5, score_flip_delay_hrs: 2→1
+   OOS Sharpe: +7.03 (vs +1.85), consistency: 100%, DD: 7.0%, trades/fold: 171
 
-3. **[HIGH]** SOL/USDT: signal_threshold: 0.4→0.3174, time_decay_hours: 48→45, trailing_stop_atr: 1.0→0.01
-   OOS Sharpe: +5.99 (vs +1.68), consistency: 100%, DD: 8.4%, trades/fold: 171
+3. **[HIGH]** SOL/USDT: signal_threshold: 0.4→0.3, take_profit_atr: 6.0→2.3276, stop_loss_atr: 2.5→1.25, max_hold_hours: 96→72, time_decay_hours: 48→12, trailing_stop_atr: 1.0→0.5, score_flip_delay_hrs: 2→0
+   OOS Sharpe: +7.28 (vs +1.85), consistency: 100%, DD: 7.0%, trades/fold: 170
 
-4. **[HIGH]** SOL/USDT: signal_threshold: 0.4→0.3174, time_decay_hours: 48→50, trailing_stop_atr: 1.0→0.0114
-   OOS Sharpe: +5.98 (vs +1.68), consistency: 100%, DD: 8.4%, trades/fold: 171
+4. **[HIGH]** SOL/USDT: signal_threshold: 0.4→0.3, take_profit_atr: 6.0→2.3276, stop_loss_atr: 2.5→1.25, max_hold_hours: 96→72, time_decay_hours: 48→10, trailing_stop_atr: 1.0→0.5, score_flip_delay_hrs: 2→0
+   OOS Sharpe: +7.28 (vs +1.85), consistency: 100%, DD: 7.0%, trades/fold: 170
 
-5. **[HIGH]** SOL/USDT: signal_threshold: 0.4→0.3378, take_profit_atr: 6.0→6.7348, trailing_stop_atr: 1.0→0.01
-   OOS Sharpe: +5.99 (vs +1.68), consistency: 100%, DD: 8.4%, trades/fold: 171
+5. **[HIGH]** SOL/USDT: signal_threshold: 0.4→0.3, take_profit_atr: 6.0→2.3276, stop_loss_atr: 2.5→1.25, max_hold_hours: 96→67, time_decay_hours: 48→12, trailing_stop_atr: 1.0→0.5, score_flip_delay_hrs: 2→0
+   OOS Sharpe: +7.28 (vs +1.85), consistency: 100%, DD: 7.0%, trades/fold: 170
 
-Total: 5 actionable recommendations out of 291 validated candidates.
+Total: 5 actionable recommendations out of 1386 validated candidates.
