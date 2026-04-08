@@ -8,7 +8,11 @@
 # ============================================================
 
 # --- Data (too large for repo, fetch locally) ---
-data/
+data/*
+!data/ohlcv/
+!data/ohlcv/**
+!data/night_results/
+!data/night_results/**
 
 # --- Python artifacts ---
 __pycache__/

@@ -28,6 +28,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 300  # Kill if >5 hrs (added BB grid + validation phases)
 
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
@@ -39,15 +42,17 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install -q pandas numpy ccxt pyarrow redis
+          pip install -q "pandas>=2.2" "numpy>=1.26" "ccxt>=4.5" pyarrow redis aiohttp
 
-      - name: Cache OHLCV data
-        uses: actions/cache@v4
-        with:
-          path: data/ohlcv
-          key: ohlcv-${{ github.run_id }}
-          restore-keys: |
-            ohlcv-
+      - name: Check OHLCV data availability
+        run: |
+          if ls data/ohlcv/*.parquet 1>/dev/null 2>&1; then
+            echo "HAS_DATA=true" >> $GITHUB_ENV
+            echo "Found $(ls data/ohlcv/*.parquet | wc -l) parquet files"
+          else
+            echo "HAS_DATA=false" >> $GITHUB_ENV
+            echo "WARNING: No parquet files found — pipeline will attempt live fetch (may fail on geo-blocked runners)"
+          fi
 
       - name: Run Night Shift
         env:
@@ -55,9 +60,12 @@ jobs:
           FETCH_DATA: ${{ github.event.inputs.fetch_fresh_data || 'false' }}
           FOLDS: ${{ github.event.inputs.num_folds || '9' }}
         run: |
-          ARGS="--skip-fetch"
+          ARGS=""
+          if [ "$HAS_DATA" = "true" ]; then
+            ARGS="--skip-fetch"
+          fi
           if [ "$FETCH_DATA" = "true" ]; then
-            ARGS=""
+            ARGS=""  # Override: always fetch when explicitly requested
           fi
           python3 scripts/night_shift.py --config scripts/night_config.json $ARGS \
             --symbols $(echo $SYMBOLS | tr ',' ' ') \

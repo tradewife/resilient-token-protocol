@@ -1402,7 +1402,7 @@ def run_night_shift(
     dfs = load_data(symbols)
     if not dfs:
         log(f"FATAL: No data loaded. Exiting.")
-        return
+        sys.exit(1)
 
     # ── Phase 2: WFA Folds ──
     log(f"\n── Phase 2: Expanding-Window WFA ──")
