@@ -1584,6 +1584,103 @@ def run_night_shift(
 
 # ─── CLI ─────────────────────────────────────────────────────────────────────
 
+def bridge_mode():
+    """Bridge mode: read BridgeRequest JSON from stdin, write BridgeResponse JSON to stdout.
+
+    This is the interface the Rust swarm uses via bridge.rs.
+    Input:  {"symbol": "SOL/USDT", "config": {"data_dir": "/path/to/data/ohlcv", "params": {...}}}
+    Output: {"strategy": "...", "yield_estimate": ..., "confidence": ..., "params": {...},
+             "folds_validated": ..., "consistency": ...}
+    """
+    try:
+        input_data = json.loads(sys.stdin.read())
+    except (json.JSONDecodeError, EOFError) as e:
+        json.dump({"error": f"Invalid JSON input: {e}"}, sys.stdout)
+        sys.stdout.flush()
+        sys.exit(1)
+
+    symbol = input_data.get("symbol", "SOL/USDT")
+    config = input_data.get("config", {})
+
+    # Resolve data directory:
+    # 1. Explicit data_dir in config
+    # 2. Relative to the binary's location (sys.executable for PyInstaller)
+    # 3. Relative to CWD
+    data_dir = config.get("data_dir")
+    if not data_dir:
+        # In PyInstaller onefile mode, sys.executable points to the actual binary.
+        binary_dir = os.path.dirname(os.path.abspath(sys.executable))
+        for candidate in [binary_dir, os.getcwd()]:
+            candidate_data = os.path.join(candidate, "data", "ohlcv")
+            if os.path.isdir(candidate_data):
+                data_dir = candidate_data
+                break
+    if not data_dir:
+        data_dir = DATA_DIR
+
+    # Load data for the requested symbol.
+    safe = symbol.replace("/", "_")
+    path = os.path.join(data_dir, f"{safe}_1h.parquet")
+    if not os.path.exists(path):
+        json.dump({
+            "error": f"No data for {symbol} at {path}",
+            "strategy": "none",
+            "yield_estimate": 0.0,
+            "confidence": 0.0,
+            "params": {},
+            "folds_validated": 0,
+            "consistency": 0.0,
+        }, sys.stdout)
+        sys.stdout.flush()
+        sys.exit(0)
+
+    try:
+        df = pd.read_parquet(path)
+        df = compute_indicators(df)
+
+        # Create WFA folds.
+        total_bars = len(df)
+        num_folds = config.get("folds", WFA_CONFIG["num_folds"])
+        test_days = config.get("test_fold_days", WFA_CONFIG["test_fold_days"])
+        folds = create_folds(total_bars, num_folds, test_days)
+
+        # Use the config params if provided, otherwise use production baseline.
+        params = {**PRODUCTION_CONFIG, **config.get("params", {})}
+
+        # Evaluate on all folds.
+        result = evaluate_candidate(
+            df, folds, params, symbol,
+            OVERFITTING_CONFIG,
+            compute_fragility=True,
+        )
+
+        response = {
+            "strategy": config.get("strategy", params.get("strategy", "multi_tf")),
+            "yield_estimate": round(result.oos_pnl, 2),
+            "confidence": round(min(result.oos_consistency * (1.0 - result.overfitting_score), 1.0), 4),
+            "params": {k: v for k, v in result.params.items() if k != "min_alignment"},
+            "folds_validated": len(folds),
+            "consistency": round(result.oos_consistency, 4),
+        }
+
+        json.dump(response, sys.stdout)
+        sys.stdout.flush()
+        sys.exit(0)
+
+    except Exception as e:
+        json.dump({
+            "error": f"Evaluation error: {e}",
+            "strategy": "none",
+            "yield_estimate": 0.0,
+            "confidence": 0.0,
+            "params": {},
+            "folds_validated": 0,
+            "consistency": 0.0,
+        }, sys.stdout)
+        sys.stdout.flush()
+        sys.exit(1)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Night Shift: Zero-token autonomous strategy optimization")
     parser.add_argument("--config", type=str, default=None, help="Path to night_config.json")
@@ -1591,7 +1688,14 @@ def main():
     parser.add_argument("--symbols", nargs="+", default=None, help="Symbols to optimize (default: all 4)")
     parser.add_argument("--folds", type=int, default=None, help="Number of WFA folds")
     parser.add_argument("--test-days", type=int, default=None, help="Test fold duration in days")
+    parser.add_argument("--bridge-mode", action="store_true",
+                        help="Bridge mode: read JSON from stdin, write JSON to stdout (for Rust bridge)")
     args = parser.parse_args()
+
+    # Bridge mode: typed JSON interface for the Rust swarm.
+    if args.bridge_mode:
+        bridge_mode()
+        return
 
     symbols = args.symbols or DEFAULT_SYMBOLS
 

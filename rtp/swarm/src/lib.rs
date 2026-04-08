@@ -30,7 +30,9 @@
 //! - soulcontract.md core values cannot be amended without human signature
 
 pub mod bridge;
+pub mod config;
 pub mod coordinator;
+pub mod demo;
 pub mod types;
 pub mod wings;
 

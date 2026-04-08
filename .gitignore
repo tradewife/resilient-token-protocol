@@ -52,3 +52,12 @@ target/
 anchor/target/
 **/target/deploy/*.json
 node_modules/
+.anchor/
+test-ledger/
+
+# --- PyInstaller build artifacts ---
+night_shift.bin
+*.spec.bak
+
+# --- Encrypted configs (contain secrets) ---
+configs/*.json

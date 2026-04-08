@@ -96,9 +96,39 @@ pub fn call_bridge_with_bin(
     }
     drop(child.stdin.take());
 
-    let output = child
-        .wait_with_output()
-        .map_err(|e| BridgeError::ProcessFailed(format!("Process error: {}", e)))?;
+    // Wait for the subprocess with a 5-minute timeout.
+    // Strategy evaluation should complete in seconds; 5 min is a generous ceiling.
+    const BRIDGE_TIMEOUT_SECS: u64 = 300;
+    let child_id = child.id();
+
+    let handle = std::thread::spawn(move || child.wait_with_output());
+
+    // Poll for completion with timeout.
+    let timeout = std::time::Duration::from_secs(BRIDGE_TIMEOUT_SECS);
+    let start = std::time::Instant::now();
+
+    let output = loop {
+        if handle.is_finished() {
+            break handle
+                .join()
+                .map_err(|_| BridgeError::ProcessFailed("Thread panicked".to_string()))?
+                .map_err(|e| BridgeError::ProcessFailed(format!("Process error: {}", e)))?;
+        }
+        if start.elapsed() > timeout {
+            // Best-effort kill — send SIGKILL via kill command as a fallback.
+            let _ = std::process::Command::new("kill")
+                .arg("-9")
+                .arg(child_id.to_string())
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status();
+            return Err(BridgeError::ProcessFailed(format!(
+                "Bridge timed out after {}s (pid={})",
+                BRIDGE_TIMEOUT_SECS, child_id
+            )));
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    };
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -284,5 +314,33 @@ mod tests {
     #[test]
     fn night_shift_bin_constant_is_swappable() {
         assert_eq!(NIGHT_SHIFT_BIN, "night_shift.bin");
+    }
+
+    // ── Integration: real binary (optional, only runs if binary exists) ──
+
+    #[test]
+    fn real_binary_bridge_mode_integration() {
+        // This test only runs if night_shift.bin exists at repo root.
+        // It validates the full Python↔Rust round-trip.
+        let bin_path = format!(
+            "{}/../../../night_shift.bin",
+            env!("CARGO_MANIFEST_DIR")
+        );
+        if !std::path::Path::new(&bin_path).exists() {
+            eprintln!("Skipping: {} not found", bin_path);
+            return;
+        }
+
+        let req = BridgeRequest::new(
+            "BTC/USDT",
+            serde_json::json!({"params": {"signal_threshold": 0.40}}),
+        );
+        let resp = call_bridge_with_bin(&bin_path, &req).unwrap();
+
+        assert!(!resp.strategy.is_empty());
+        assert!(resp.yield_estimate != 0.0 || resp.consistency >= 0.0);
+        assert!(resp.folds_validated > 0);
+        assert!(resp.consistency >= 0.0 && resp.consistency <= 1.0);
+        assert!(resp.confidence >= 0.0 && resp.confidence <= 1.0);
     }
 }

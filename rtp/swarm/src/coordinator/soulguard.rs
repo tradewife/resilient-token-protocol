@@ -52,11 +52,10 @@ pub enum Phase {
 impl Phase {
     /// Phase transitions are strictly forward — no reversal.
     pub fn can_transition_to(&self, target: &Phase) -> bool {
-        match (self, target) {
-            (Phase::Sustenance, Phase::Ecosystem) => true,
-            (Phase::Ecosystem, Phase::Humanity) => true,
-            _ => false,
-        }
+        matches!(
+            (self, target),
+            (Phase::Sustenance, Phase::Ecosystem) | (Phase::Ecosystem, Phase::Humanity)
+        )
     }
 
     /// Treasury threshold for each phase (from parsed spec).
@@ -83,6 +82,7 @@ impl Soulguard {
     }
 
     /// Create with default spec (uses soulcontract.md from repo root).
+    #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         let spec_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .ancestors()

@@ -1,0 +1,91 @@
+name: Swarm CI — Build + Test + Lint
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  swarm-build-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Cache cargo registry + target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            rtp/swarm/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('rtp/swarm/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Cargo build
+        working-directory: rtp/swarm
+        run: cargo build --release
+
+      - name: Cargo test
+        working-directory: rtp/swarm
+        run: cargo test
+
+      - name: Cargo clippy
+        working-directory: rtp/swarm
+        run: cargo clippy -- -D warnings
+
+      - name: Cargo fmt check
+        working-directory: rtp/swarm
+        run: cargo fmt --check
+
+  anchor-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Install Solana CLI
+        run: |
+          sh -c "$(curl -sSfL https://release.anza.xyz/stable/install)"
+          export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+          solana --version
+
+      - name: Install Anchor
+        run: |
+          cargo install --git https://github.com/coral-xyz/anchor avm --force
+          avm install 1.0.0
+          avm use 1.0.0
+          echo "$HOME/.avm/bin" >> $GITHUB_PATH
+          anchor --version
+
+      - name: Anchor build
+        working-directory: rtp/programs/rtp-treasury
+        run: anchor build
+
+  test-summary:
+    needs: [swarm-build-and-test, anchor-build]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Check all jobs passed
+        run: |
+          echo "Swarm CI: ${{ needs.swarm-build-and-test.result }}"
+          echo "Anchor build: ${{ needs.anchor-build.result }}"
+          if [[ "${{ needs.swarm-build-and-test.result }}" == "failure" ]] || \
+             [[ "${{ needs.anchor-build.result }}" == "failure" ]]; then
+            echo "::error::One or more CI jobs failed"
+            exit 1
+          fi
+          echo "All CI jobs passed"

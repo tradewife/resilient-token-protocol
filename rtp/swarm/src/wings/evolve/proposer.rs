@@ -84,14 +84,14 @@ impl ChangeProposal {
 
     /// Transition the proposal to a new status.
     pub fn transition_to(&mut self, new_status: ProposalStatus) -> Result<(), String> {
-        let valid = match (&self.status, &new_status) {
-            (ProposalStatus::Proposed, ProposalStatus::Approved) => true,
-            (ProposalStatus::Proposed, ProposalStatus::Rejected) => true,
-            (ProposalStatus::Approved, ProposalStatus::Executed) => true,
-            (ProposalStatus::Approved, ProposalStatus::Rejected) => true,
-            (ProposalStatus::Executed, ProposalStatus::RolledBack) => true,
-            _ => false,
-        };
+        let valid = matches!(
+            (&self.status, &new_status),
+            (ProposalStatus::Proposed, ProposalStatus::Approved)
+                | (ProposalStatus::Proposed, ProposalStatus::Rejected)
+                | (ProposalStatus::Approved, ProposalStatus::Executed)
+                | (ProposalStatus::Approved, ProposalStatus::Rejected)
+                | (ProposalStatus::Executed, ProposalStatus::RolledBack)
+        );
 
         if valid {
             self.status = new_status;
@@ -128,6 +128,12 @@ pub struct Proposer {
     wing_proposals: Arc<DashMap<WingId, Vec<uuid::Uuid>>>,
 }
 
+impl Default for Proposer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Proposer {
     pub fn new() -> Self {
         Self {
@@ -156,7 +162,7 @@ impl Proposer {
 
         self.wing_proposals
             .entry(target_wing)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(id);
 
         self.proposals.insert(id, proposal.clone());
@@ -192,7 +198,7 @@ impl Proposer {
 
         self.wing_proposals
             .entry(target_wing)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(id);
 
         self.proposals.insert(id, proposal.clone());

@@ -55,6 +55,7 @@ impl SoulcontractSpec {
     }
 
     /// Parse soulcontract.md from a string (for testing).
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(content: &str) -> Result<Self, String> {
         let mut immutable_constraints = Vec::new();
         let mut evolvable_items = Vec::new();
@@ -104,31 +105,29 @@ impl SoulcontractSpec {
             match current_section.as_str() {
                 "Core Values" => {
                     // Parse "N. The protocol..." lines.
-                    if let Some(rest) = trimmed.strip_prefix(|c: char| c.is_ascii_digit()) {
-                        if let Some(value) = rest.trim_start().strip_prefix(". ") {
+                    if let Some(rest) = trimmed.strip_prefix(|c: char| c.is_ascii_digit())
+                        && let Some(value) = rest.trim_start().strip_prefix(". ") {
                             core_values.push(value.trim_end_matches('.').to_string());
                         }
-                    }
                 }
                 "What Cannot Evolve" => {
                     // Parse bullet lines like "- **PDA ownership** — ..."
-                    if let Some(rest) = trimmed.strip_prefix("- **") {
-                        if let Some((name, desc)) = rest.split_once("**") {
+                    if let Some(rest) = trimmed.strip_prefix("- **")
+                        && let Some((name, desc)) = rest.split_once("**") {
                             let name = name.trim();
-                            let desc = desc.trim_start_matches(&['-', '\u{2014}', '\u{2013}']);
+                            let desc = desc.trim_start_matches(['-', '\u{2014}', '\u{2013}']);
                             let desc = desc.trim();
                             immutable_constraints.push(Constraint {
-                                name: name.to_lowercase().replace(' ', "_").replace('-', "_"),
+                                name: name.to_lowercase().replace([' ', '-'], "_"),
                                 section: "What Cannot Evolve".to_string(),
                                 raw_text: format!("{}: {}", name, desc),
                                 requires_human_consent: true,
                             });
                         }
-                    }
                 }
                 "What Can Evolve" => {
-                    if trimmed.starts_with("- ") {
-                        evolvable_items.push(trimmed[2..].to_string());
+                    if let Some(item) = trimmed.strip_prefix("- ") {
+                        evolvable_items.push(item.to_string());
                     }
                 }
                 "Phase Evolution" => {

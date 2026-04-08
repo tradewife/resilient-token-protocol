@@ -57,6 +57,7 @@ pub struct LifecycleManager {
     /// Health check configuration.
     health_config: HealthConfig,
     /// Callback when a wing is retired.
+    #[allow(clippy::type_complexity)]
     on_retire: Arc<dyn Fn(WingId, &str) + Send + Sync>,
 }
 

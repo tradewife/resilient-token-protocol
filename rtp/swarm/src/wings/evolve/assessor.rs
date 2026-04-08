@@ -71,6 +71,12 @@ pub struct Assessor {
     rollback_threshold: f64,
 }
 
+impl Default for Assessor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Assessor {
     pub fn new() -> Self {
         Self {

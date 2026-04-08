@@ -1,0 +1,1428 @@
+{
+  "run_at": "2026-04-05T23:53:21.183422+00:00",
+  "simulator": "FutureBlindSimulator (fees + slippage)",
+  "results": [
+    {
+      "symbol": "SOL/USDT",
+      "label": "production",
+      "params": {
+        "signal_threshold": 0.4,
+        "min_alignment": 3,
+        "take_profit_atr": 6.0,
+        "stop_loss_atr": 2.5,
+        "max_hold_hours": 96,
+        "time_decay_hours": 48,
+        "trailing_stop_atr": 1.0,
+        "score_flip_delay_hrs": 2
+      },
+      "total_pnl_pct": 36.92,
+      "median_sharpe": 19.18,
+      "consistency": 0.889,
+      "avg_win_rate": 0.565,
+      "avg_pf": 1.26,
+      "avg_max_dd": 4.53,
+      "total_trades": 137,
+      "avg_trades_per_fold": 15.2,
+      "folds": [
+        {
+          "fold": 0,
+          "round_trips": 11,
+          "win_rate": 0.5454545454545454,
+          "total_pnl_pct": 4.46114259461869,
+          "avg_pnl_pct": 0.40555841769260825,
+          "avg_hold_hrs": 4.545454545454546,
+          "max_drawdown_pct": 3.223374636253017,
+          "sharpe": 16.415127786550666,
+          "profit_factor": 1.4241226920007755,
+          "exit_reasons": {
+            "trailing_stop": 7,
+            "score_flip": 1,
+            "take_profit": 1,
+            "stop_loss": 2
+          },
+          "final_balance": 10446.114259461869
+        },
+        {
+          "fold": 1,
+          "round_trips": 21,
+          "win_rate": 0.6666666666666666,
+          "total_pnl_pct": 9.301481562270121,
+          "avg_pnl_pct": 0.44292769344143434,
+          "avg_hold_hrs": 6.476190476190476,
+          "max_drawdown_pct": 5.486497642200848,
+          "sharpe": 20.028292167906326,
+          "profit_factor": 0.889643484642236,
+          "exit_reasons": {
+            "stop_loss": 4,
+            "take_profit": 3,
+            "trailing_stop": 14
+          },
+          "final_balance": 10930.148156227013
+        },
+        {
+          "fold": 2,
+          "round_trips": 7,
+          "win_rate": 0.7142857142857143,
+          "total_pnl_pct": 5.450261525515087,
+          "avg_pnl_pct": 0.7786087893592981,
+          "avg_hold_hrs": 6.571428571428571,
+          "max_drawdown_pct": 1.6244002741603865,
+          "sharpe": 50.020482477901524,
+          "profit_factor": 1.5135379630564327,
+          "exit_reasons": {
+            "trailing_stop": 6,
+            "stop_loss": 1
+          },
+          "final_balance": 10545.026152551509
+        },
+        {
+          "fold": 3,
+          "round_trips": 20,
+          "win_rate": 0.6,
+          "total_pnl_pct": 7.627775952181597,
+          "avg_pnl_pct": 0.3813887976090798,
+          "avg_hold_hrs": 5.45,
+          "max_drawdown_pct": 4.354470165338791,
+          "sharpe": 22.2445335766274,
+          "profit_factor": 1.2755597773696226,
+          "exit_reasons": {
+            "mr_target": 1,
+            "trailing_stop": 14,
+            "stop_loss": 4,
+            "take_profit": 1
+          },
+          "final_balance": 10762.77759521816
+        },
+        {
+          "fold": 4,
+          "round_trips": 18,
+          "win_rate": 0.6666666666666666,
+          "total_pnl_pct": 3.9134064764648873,
+          "avg_pnl_pct": 0.21741147091471597,
+          "avg_hold_hrs": 4.5,
+          "max_drawdown_pct": 3.646764118349906,
+          "sharpe": 16.866277981202412,
+          "profit_factor": 0.7825383749436194,
+          "exit_reasons": {
+            "trailing_stop": 15,
+            "mr_target": 1,
+            "stop_loss": 2
+          },
+          "final_balance": 10391.34064764649
+        },
+        {
+          "fold": 5,
+          "round_trips": 16,
+          "win_rate": 0.5625,
+          "total_pnl_pct": 5.830648396552902,
+          "avg_pnl_pct": 0.36441552478455635,
+          "avg_hold_hrs": 6.0625,
+          "max_drawdown_pct": 4.401468019181391,
+          "sharpe": 19.176183896813242,
+          "profit_factor": 1.3374631085407411,
+          "exit_reasons": {
+            "take_profit": 1,
+            "trailing_stop": 11,
+            "stop_loss": 4
+          },
+          "final_balance": 10583.06483965529
+        },
+        {
+          "fold": 6,
+          "round_trips": 6,
+          "win_rate": 0.6666666666666666,
+          "total_pnl_pct": 3.154627596908615,
+          "avg_pnl_pct": 0.5257712661514359,
+          "avg_hold_hrs": 5.666666666666667,
+          "max_drawdown_pct": 2.1127813737458934,
+          "sharpe": 38.75730072847638,
+          "profit_factor": 1.2465579818406771,
+          "exit_reasons": {
+            "trailing_stop": 5,
+            "stop_loss": 1
+          },
+          "final_balance": 10315.462759690861
+        },
+        {
+          "fold": 7,
+          "round_trips": 9,
+          "win_rate": 0.1111111111111111,
+          "total_pnl_pct": -8.49351368264966,
+          "avg_pnl_pct": -0.9437237425166288,
+          "avg_hold_hrs": 5.777777777777778,
+          "max_drawdown_pct": 8.115960738424095,
+          "sharpe": -62.39889596235772,
+          "profit_factor": 1.8043473235076897,
+          "exit_reasons": {
+            "stop_loss": 5,
+            "trailing_stop": 4
+          },
+          "final_balance": 9150.648631735034
+        },
+        {
+          "fold": 8,
+          "round_trips": 29,
+          "win_rate": 0.5517241379310345,
+          "total_pnl_pct": 5.672929764350235,
+          "avg_pnl_pct": 0.19561826773621502,
+          "avg_hold_hrs": 5.724137931034483,
+          "max_drawdown_pct": 7.839281321023295,
+          "sharpe": 11.390656182011197,
+          "profit_factor": 1.09219134697326,
+          "exit_reasons": {
+            "trailing_stop": 18,
+            "take_profit": 1,
+            "stop_loss": 8,
+            "mr_target": 1,
+            "score_flip": 1
+          },
+          "final_balance": 10567.292976435023
+        }
+      ]
+    },
+    {
+      "symbol": "SOL/USDT",
+      "label": "night_shift_2026-04-05_1",
+      "params": {
+        "signal_threshold": 0.35,
+        "take_profit_atr": 4.0,
+        "stop_loss_atr": 1.25,
+        "max_hold_hours": 36,
+        "time_decay_hours": 41,
+        "min_alignment": 3,
+        "trailing_stop_atr": 0.7036,
+        "score_flip_delay_hrs": 1
+      },
+      "total_pnl_pct": 118.28,
+      "median_sharpe": 17.03,
+      "consistency": 0.778,
+      "avg_win_rate": 0.525,
+      "avg_pf": 1.45,
+      "avg_max_dd": 5.93,
+      "total_trades": 429,
+      "avg_trades_per_fold": 47.7,
+      "folds": [
+        {
+          "fold": 0,
+          "round_trips": 38,
+          "win_rate": 0.4473684210526316,
+          "total_pnl_pct": 12.41763903982515,
+          "avg_pnl_pct": 0.32677997473224085,
+          "avg_hold_hrs": 3.9210526315789473,
+          "max_drawdown_pct": 7.466945642638576,
+          "sharpe": 18.010406788336244,
+          "profit_factor": 2.12732186295199,
+          "exit_reasons": {
+            "trailing_stop": 24,
+            "stop_loss": 9,
+            "take_profit": 5
+          },
+          "final_balance": 11241.763903982515
+        },
+        {
+          "fold": 1,
+          "round_trips": 58,
+          "win_rate": 0.4827586206896552,
+          "total_pnl_pct": 15.867659144323241,
+          "avg_pnl_pct": 0.2735803300745386,
+          "avg_hold_hrs": 3.810344827586207,
+          "max_drawdown_pct": 4.72866370172268,
+          "sharpe": 16.261181019303578,
+          "profit_factor": 1.8098475282767428,
+          "exit_reasons": {
+            "trailing_stop": 38,
+            "stop_loss": 14,
+            "take_profit": 6
+          },
+          "final_balance": 11586.765914432324
+        },
+        {
+          "fold": 2,
+          "round_trips": 30,
+          "win_rate": 0.7,
+          "total_pnl_pct": 9.53876752074061,
+          "avg_pnl_pct": 0.31795891735802034,
+          "avg_hold_hrs": 4.766666666666667,
+          "max_drawdown_pct": 2.9998385720472376,
+          "sharpe": 29.430549955804878,
+          "profit_factor": 0.9444090048244723,
+          "exit_reasons": {
+            "trailing_stop": 23,
+            "take_profit": 1,
+            "stop_loss": 6
+          },
+          "final_balance": 10953.87675207406
+        },
+        {
+          "fold": 3,
+          "round_trips": 67,
+          "win_rate": 0.5223880597014925,
+          "total_pnl_pct": 24.174138291517238,
+          "avg_pnl_pct": 0.3608080342017498,
+          "avg_hold_hrs": 3.8358208955223883,
+          "max_drawdown_pct": 5.058730119990107,
+          "sharpe": 23.593128356545698,
+          "profit_factor": 1.8137910370456516,
+          "exit_reasons": {
+            "stop_loss": 20,
+            "take_profit": 9,
+            "trailing_stop": 38
+          },
+          "final_balance": 12417.413829151725
+        },
+        {
+          "fold": 4,
+          "round_trips": 48,
+          "win_rate": 0.6041666666666666,
+          "total_pnl_pct": 13.0583806073571,
+          "avg_pnl_pct": 0.2720495959866062,
+          "avg_hold_hrs": 4.0,
+          "max_drawdown_pct": 8.530984399950693,
+          "sharpe": 17.034350079938847,
+          "profit_factor": 1.0576346290749747,
+          "exit_reasons": {
+            "trailing_stop": 32,
+            "take_profit": 3,
+            "stop_loss": 13
+          },
+          "final_balance": 11305.83806073571
+        },
+        {
+          "fold": 5,
+          "round_trips": 46,
+          "win_rate": 0.5652173913043478,
+          "total_pnl_pct": 10.363797616376162,
+          "avg_pnl_pct": 0.2252999481820904,
+          "avg_hold_hrs": 4.108695652173913,
+          "max_drawdown_pct": 7.960678847194933,
+          "sharpe": 16.359077141301302,
+          "profit_factor": 1.2303728514014485,
+          "exit_reasons": {
+            "take_profit": 5,
+            "trailing_stop": 28,
+            "stop_loss": 13
+          },
+          "final_balance": 11036.379761637616
+        },
+        {
+          "fold": 6,
+          "round_trips": 22,
+          "win_rate": 0.5,
+          "total_pnl_pct": -0.3665510514718542,
+          "avg_pnl_pct": -0.016661411430538807,
+          "avg_hold_hrs": 3.772727272727273,
+          "max_drawdown_pct": 7.387961645932,
+          "sharpe": -1.284543158065612,
+          "profit_factor": 0.9652312618344641,
+          "exit_reasons": {
+            "trailing_stop": 14,
+            "stop_loss": 7,
+            "take_profit": 1
+          },
+          "final_balance": 9963.344894852815
+        },
+        {
+          "fold": 7,
+          "round_trips": 22,
+          "win_rate": 0.36363636363636365,
+          "total_pnl_pct": -1.5297243251527182,
+          "avg_pnl_pct": -0.06953292387057808,
+          "avg_hold_hrs": 4.590909090909091,
+          "max_drawdown_pct": 4.157297730915157,
+          "sharpe": -6.308595618647701,
+          "profit_factor": 1.4665089222442624,
+          "exit_reasons": {
+            "trailing_stop": 14,
+            "stop_loss": 8
+          },
+          "final_balance": 9847.027567484729
+        },
+        {
+          "fold": 8,
+          "round_trips": 98,
+          "win_rate": 0.5408163265306123,
+          "total_pnl_pct": 34.75853846330255,
+          "avg_pnl_pct": 0.35467896391125053,
+          "avg_hold_hrs": 4.255102040816326,
+          "max_drawdown_pct": 5.081506003235089,
+          "sharpe": 21.356843995813147,
+          "profit_factor": 1.661941646742865,
+          "exit_reasons": {
+            "trailing_stop": 55,
+            "stop_loss": 27,
+            "take_profit": 13,
+            "mr_target": 1,
+            "score_flip": 2
+          },
+          "final_balance": 13475.853846330254
+        }
+      ]
+    },
+    {
+      "symbol": "SOL/USDT",
+      "label": "night_shift_2026-04-05_2",
+      "params": {
+        "signal_threshold": 0.35,
+        "take_profit_atr": 3.9107,
+        "stop_loss_atr": 1.25,
+        "max_hold_hours": 48,
+        "time_decay_hours": 36,
+        "min_alignment": 3,
+        "trailing_stop_atr": 0.7033,
+        "score_flip_delay_hrs": 0
+      },
+      "total_pnl_pct": 120.29,
+      "median_sharpe": 16.37,
+      "consistency": 0.778,
+      "avg_win_rate": 0.525,
+      "avg_pf": 1.46,
+      "avg_max_dd": 5.8,
+      "total_trades": 430,
+      "avg_trades_per_fold": 47.8,
+      "folds": [
+        {
+          "fold": 0,
+          "round_trips": 38,
+          "win_rate": 0.4473684210526316,
+          "total_pnl_pct": 12.880613784862268,
+          "avg_pnl_pct": 0.33896352065427027,
+          "avg_hold_hrs": 3.8947368421052633,
+          "max_drawdown_pct": 7.4659062888887355,
+          "sharpe": 18.423923153889636,
+          "profit_factor": 2.160749887381454,
+          "exit_reasons": {
+            "trailing_stop": 23,
+            "stop_loss": 9,
+            "take_profit": 6
+          },
+          "final_balance": 11288.061378486227
+        },
+        {
+          "fold": 1,
+          "round_trips": 58,
+          "win_rate": 0.4827586206896552,
+          "total_pnl_pct": 15.876790973417659,
+          "avg_pnl_pct": 0.27373777540375277,
+          "avg_hold_hrs": 3.810344827586207,
+          "max_drawdown_pct": 4.728422392208858,
+          "sharpe": 16.27037937498828,
+          "profit_factor": 1.8104001709918398,
+          "exit_reasons": {
+            "trailing_stop": 38,
+            "stop_loss": 14,
+            "take_profit": 6
+          },
+          "final_balance": 11587.679097341765
+        },
+        {
+          "fold": 2,
+          "round_trips": 30,
+          "win_rate": 0.7,
+          "total_pnl_pct": 9.544250694031902,
+          "avg_pnl_pct": 0.3181416898010634,
+          "avg_hold_hrs": 4.766666666666667,
+          "max_drawdown_pct": 2.9998385720472376,
+          "sharpe": 29.44552881344908,
+          "profit_factor": 0.9447445739577172,
+          "exit_reasons": {
+            "trailing_stop": 23,
+            "take_profit": 1,
+            "stop_loss": 6
+          },
+          "final_balance": 10954.42506940319
+        },
+        {
+          "fold": 3,
+          "round_trips": 67,
+          "win_rate": 0.5373134328358209,
+          "total_pnl_pct": 26.750125716363492,
+          "avg_pnl_pct": 0.3992556077069178,
+          "avg_hold_hrs": 3.8208955223880596,
+          "max_drawdown_pct": 3.870850485514019,
+          "sharpe": 25.860161461041322,
+          "profit_factor": 1.8509635492272256,
+          "exit_reasons": {
+            "stop_loss": 19,
+            "take_profit": 10,
+            "trailing_stop": 38
+          },
+          "final_balance": 12675.012571636351
+        },
+        {
+          "fold": 4,
+          "round_trips": 49,
+          "win_rate": 0.5918367346938775,
+          "total_pnl_pct": 11.670148470572007,
+          "avg_pnl_pct": 0.2381662953177961,
+          "avg_hold_hrs": 3.857142857142857,
+          "max_drawdown_pct": 8.529771914792779,
+          "sharpe": 14.720775905101274,
+          "profit_factor": 1.0385316086909746,
+          "exit_reasons": {
+            "take_profit": 4,
+            "stop_loss": 15,
+            "trailing_stop": 30
+          },
+          "final_balance": 11167.014847057202
+        },
+        {
+          "fold": 5,
+          "round_trips": 46,
+          "win_rate": 0.5652173913043478,
+          "total_pnl_pct": 10.368828241330721,
+          "avg_pnl_pct": 0.2254093095941462,
+          "avg_hold_hrs": 4.108695652173913,
+          "max_drawdown_pct": 7.959779177933097,
+          "sharpe": 16.366781548617357,
+          "profit_factor": 1.230630030732605,
+          "exit_reasons": {
+            "take_profit": 5,
+            "trailing_stop": 28,
+            "stop_loss": 13
+          },
+          "final_balance": 11036.882824133072
+        },
+        {
+          "fold": 6,
+          "round_trips": 22,
+          "win_rate": 0.5,
+          "total_pnl_pct": -0.3638744251158885,
+          "avg_pnl_pct": -0.01653974659617681,
+          "avg_hold_hrs": 3.772727272727273,
+          "max_drawdown_pct": 7.387251234262724,
+          "sharpe": -1.2751169059654697,
+          "profit_factor": 0.9654826378521806,
+          "exit_reasons": {
+            "trailing_stop": 14,
+            "stop_loss": 7,
+            "take_profit": 1
+          },
+          "final_balance": 9963.612557488412
+        },
+        {
+          "fold": 7,
+          "round_trips": 22,
+          "win_rate": 0.36363636363636365,
+          "total_pnl_pct": -1.5263941026793926,
+          "avg_pnl_pct": -0.06938155012179058,
+          "avg_hold_hrs": 4.590909090909091,
+          "max_drawdown_pct": 4.156439735766822,
+          "sharpe": -6.294376832590901,
+          "profit_factor": 1.467080584861949,
+          "exit_reasons": {
+            "trailing_stop": 14,
+            "stop_loss": 8
+          },
+          "final_balance": 9847.360589732061
+        },
+        {
+          "fold": 8,
+          "round_trips": 98,
+          "win_rate": 0.5408163265306123,
+          "total_pnl_pct": 35.09359554163552,
+          "avg_pnl_pct": 0.3580979136901585,
+          "avg_hold_hrs": 4.244897959183674,
+          "max_drawdown_pct": 5.079128495562498,
+          "sharpe": 21.525215079690895,
+          "profit_factor": 1.6698521082231133,
+          "exit_reasons": {
+            "trailing_stop": 54,
+            "stop_loss": 27,
+            "take_profit": 14,
+            "mr_target": 1,
+            "score_flip": 2
+          },
+          "final_balance": 13509.359554163551
+        }
+      ]
+    },
+    {
+      "symbol": "SOL/USDT",
+      "label": "night_shift_prev",
+      "params": {
+        "signal_threshold": 0.35,
+        "take_profit_atr": 2.9537,
+        "stop_loss_atr": 1.25,
+        "max_hold_hours": 48,
+        "time_decay_hours": 28,
+        "min_alignment": 3,
+        "trailing_stop_atr": 0.7012,
+        "score_flip_delay_hrs": 4
+      },
+      "total_pnl_pct": 112.53,
+      "median_sharpe": 16.06,
+      "consistency": 0.889,
+      "avg_win_rate": 0.527,
+      "avg_pf": 1.43,
+      "avg_max_dd": 6.05,
+      "total_trades": 436,
+      "avg_trades_per_fold": 48.4,
+      "folds": [
+        {
+          "fold": 0,
+          "round_trips": 38,
+          "win_rate": 0.4473684210526316,
+          "total_pnl_pct": 10.539547502212338,
+          "avg_pnl_pct": 0.2773565132161141,
+          "avg_hold_hrs": 3.736842105263158,
+          "max_drawdown_pct": 7.458630812639834,
+          "sharpe": 16.05968939155978,
+          "profit_factor": 1.9935223111182985,
+          "exit_reasons": {
+            "trailing_stop": 23,
+            "stop_loss": 9,
+            "take_profit": 6
+          },
+          "final_balance": 11053.954750221234
+        },
+        {
+          "fold": 1,
+          "round_trips": 59,
+          "win_rate": 0.4915254237288136,
+          "total_pnl_pct": 14.359374860129098,
+          "avg_pnl_pct": 0.24337923491744226,
+          "avg_hold_hrs": 3.6271186440677967,
+          "max_drawdown_pct": 4.7267332256121035,
+          "sharpe": 15.144726765801932,
+          "profit_factor": 1.6805627214289038,
+          "exit_reasons": {
+            "trailing_stop": 37,
+            "stop_loss": 14,
+            "take_profit": 8
+          },
+          "final_balance": 11435.93748601291
+        },
+        {
+          "fold": 2,
+          "round_trips": 30,
+          "win_rate": 0.7,
+          "total_pnl_pct": 10.385989454656107,
+          "avg_pnl_pct": 0.3461996484885368,
+          "avg_hold_hrs": 4.533333333333333,
+          "max_drawdown_pct": 2.9998385720472376,
+          "sharpe": 31.146674548673158,
+          "profit_factor": 0.9905652139572975,
+          "exit_reasons": {
+            "trailing_stop": 21,
+            "take_profit": 3,
+            "stop_loss": 6
+          },
+          "final_balance": 11038.59894546561
+        },
+        {
+          "fold": 3,
+          "round_trips": 69,
+          "win_rate": 0.5217391304347826,
+          "total_pnl_pct": 24.241424464716438,
+          "avg_pnl_pct": 0.3513249922422672,
+          "avg_hold_hrs": 3.4782608695652173,
+          "max_drawdown_pct": 3.982037533118313,
+          "sharpe": 24.019323018576614,
+          "profit_factor": 1.8259355566639588,
+          "exit_reasons": {
+            "stop_loss": 20,
+            "take_profit": 14,
+            "trailing_stop": 35
+          },
+          "final_balance": 12424.142446471644
+        },
+        {
+          "fold": 4,
+          "round_trips": 50,
+          "win_rate": 0.6,
+          "total_pnl_pct": 15.366773365735188,
+          "avg_pnl_pct": 0.3073354673147037,
+          "avg_hold_hrs": 3.78,
+          "max_drawdown_pct": 8.521284518687384,
+          "sharpe": 18.89474857234126,
+          "profit_factor": 1.1294054609476591,
+          "exit_reasons": {
+            "take_profit": 8,
+            "stop_loss": 14,
+            "trailing_stop": 28
+          },
+          "final_balance": 11536.677336573517
+        },
+        {
+          "fold": 5,
+          "round_trips": 46,
+          "win_rate": 0.5652173913043478,
+          "total_pnl_pct": 8.259164513857607,
+          "avg_pnl_pct": 0.1795470546490784,
+          "avg_hold_hrs": 3.9782608695652173,
+          "max_drawdown_pct": 7.953481493100229,
+          "sharpe": 13.91973492844357,
+          "profit_factor": 1.1321201356714918,
+          "exit_reasons": {
+            "take_profit": 7,
+            "trailing_stop": 26,
+            "stop_loss": 13
+          },
+          "final_balance": 10825.91645138576
+        },
+        {
+          "fold": 6,
+          "round_trips": 23,
+          "win_rate": 0.5217391304347826,
+          "total_pnl_pct": 1.4058009864108996,
+          "avg_pnl_pct": 0.06112178201786512,
+          "avg_hold_hrs": 3.5217391304347827,
+          "max_drawdown_pct": 7.38227835257779,
+          "sharpe": 4.568785183288045,
+          "profit_factor": 1.038971230371491,
+          "exit_reasons": {
+            "trailing_stop": 11,
+            "take_profit": 5,
+            "stop_loss": 7
+          },
+          "final_balance": 10140.58009864109
+        },
+        {
+          "fold": 7,
+          "round_trips": 22,
+          "win_rate": 0.36363636363636365,
+          "total_pnl_pct": -0.9444614832446114,
+          "avg_pnl_pct": -0.04293006742020963,
+          "avg_hold_hrs": 4.545454545454546,
+          "max_drawdown_pct": 4.150433769728485,
+          "sharpe": -3.6596077958009534,
+          "profit_factor": 1.57474533467859,
+          "exit_reasons": {
+            "trailing_stop": 13,
+            "stop_loss": 8,
+            "take_profit": 1
+          },
+          "final_balance": 9905.553851675539
+        },
+        {
+          "fold": 8,
+          "round_trips": 99,
+          "win_rate": 0.5353535353535354,
+          "total_pnl_pct": 28.919581440282844,
+          "avg_pnl_pct": 0.29211698424528115,
+          "avg_hold_hrs": 4.111111111111111,
+          "max_drawdown_pct": 7.24921819163602,
+          "sharpe": 18.528625558526176,
+          "profit_factor": 1.5262337878941739,
+          "exit_reasons": {
+            "trailing_stop": 51,
+            "stop_loss": 28,
+            "take_profit": 19,
+            "mr_target": 1
+          },
+          "final_balance": 12891.958144028284
+        }
+      ]
+    },
+    {
+      "symbol": "BTC/USDT",
+      "label": "production",
+      "params": {
+        "signal_threshold": 0.4,
+        "min_alignment": 3,
+        "take_profit_atr": 6.0,
+        "stop_loss_atr": 2.5,
+        "max_hold_hours": 96,
+        "time_decay_hours": 48,
+        "trailing_stop_atr": 1.0,
+        "score_flip_delay_hrs": 2
+      },
+      "total_pnl_pct": 17.45,
+      "median_sharpe": 10.68,
+      "consistency": 0.667,
+      "avg_win_rate": 0.536,
+      "avg_pf": 1.3,
+      "avg_max_dd": 2.61,
+      "total_trades": 153,
+      "avg_trades_per_fold": 17.0,
+      "folds": [
+        {
+          "fold": 0,
+          "round_trips": 16,
+          "win_rate": 0.5,
+          "total_pnl_pct": -1.1801373253550527,
+          "avg_pnl_pct": -0.07375858283469075,
+          "avg_hold_hrs": 5.8125,
+          "max_drawdown_pct": 3.313565644824391,
+          "sharpe": -5.331520745884294,
+          "profit_factor": 0.8626960535449791,
+          "exit_reasons": {
+            "stop_loss": 5,
+            "trailing_stop": 11
+          },
+          "final_balance": 9881.986267464494
+        },
+        {
+          "fold": 1,
+          "round_trips": 26,
+          "win_rate": 0.6538461538461539,
+          "total_pnl_pct": 8.437670873520027,
+          "avg_pnl_pct": 0.32452580282769333,
+          "avg_hold_hrs": 6.0,
+          "max_drawdown_pct": 2.1009988483247923,
+          "sharpe": 37.31524370865361,
+          "profit_factor": 1.7291484067989584,
+          "exit_reasons": {
+            "stop_loss": 3,
+            "trailing_stop": 21,
+            "take_profit": 2
+          },
+          "final_balance": 10843.767087352004
+        },
+        {
+          "fold": 2,
+          "round_trips": 11,
+          "win_rate": 0.6363636363636364,
+          "total_pnl_pct": 2.1096281227870524,
+          "avg_pnl_pct": 0.19178437479882293,
+          "avg_hold_hrs": 6.454545454545454,
+          "max_drawdown_pct": 2.7754720912868978,
+          "sharpe": 15.34212719816428,
+          "profit_factor": 0.9062235353038756,
+          "exit_reasons": {
+            "trailing_stop": 7,
+            "stop_loss": 3,
+            "take_profit": 1
+          },
+          "final_balance": 10210.962812278705
+        },
+        {
+          "fold": 3,
+          "round_trips": 20,
+          "win_rate": 0.5,
+          "total_pnl_pct": -0.5484780650657073,
+          "avg_pnl_pct": -0.027423903253285385,
+          "avg_hold_hrs": 5.1,
+          "max_drawdown_pct": 2.9704307007841284,
+          "sharpe": -3.881246694262753,
+          "profit_factor": 0.8878131148124655,
+          "exit_reasons": {
+            "trailing_stop": 13,
+            "stop_loss": 5,
+            "take_profit": 2
+          },
+          "final_balance": 9945.15219349343
+        },
+        {
+          "fold": 4,
+          "round_trips": 13,
+          "win_rate": 0.6923076923076923,
+          "total_pnl_pct": 5.621340349134398,
+          "avg_pnl_pct": 0.43241079608726135,
+          "avg_hold_hrs": 6.538461538461538,
+          "max_drawdown_pct": 1.4409238634476609,
+          "sharpe": 38.564445255808046,
+          "profit_factor": 1.3882560186210122,
+          "exit_reasons": {
+            "trailing_stop": 9,
+            "stop_loss": 3,
+            "take_profit": 1
+          },
+          "final_balance": 10562.134034913439
+        },
+        {
+          "fold": 5,
+          "round_trips": 18,
+          "win_rate": 0.5,
+          "total_pnl_pct": 1.9481914173474764,
+          "avg_pnl_pct": 0.1082328565193043,
+          "avg_hold_hrs": 5.833333333333333,
+          "max_drawdown_pct": 1.819616782901216,
+          "sharpe": 10.675891645294229,
+          "profit_factor": 1.365918006528201,
+          "exit_reasons": {
+            "trailing_stop": 13,
+            "stop_loss": 4,
+            "take_profit": 1
+          },
+          "final_balance": 10194.819141734748
+        },
+        {
+          "fold": 6,
+          "round_trips": 10,
+          "win_rate": 0.4,
+          "total_pnl_pct": 0.07707707962718469,
+          "avg_pnl_pct": 0.007707707962718469,
+          "avg_hold_hrs": 5.3,
+          "max_drawdown_pct": 0.9684357198814206,
+          "sharpe": 1.0573799497275134,
+          "profit_factor": 1.5429550174081568,
+          "exit_reasons": {
+            "trailing_stop": 8,
+            "stop_loss": 2
+          },
+          "final_balance": 10007.707707962718
+        },
+        {
+          "fold": 7,
+          "round_trips": 11,
+          "win_rate": 0.5454545454545454,
+          "total_pnl_pct": 6.257145168186471,
+          "avg_pnl_pct": 0.568831378926043,
+          "avg_hold_hrs": 5.454545454545454,
+          "max_drawdown_pct": 2.957183429782754,
+          "sharpe": 29.806585069009248,
+          "profit_factor": 2.14666777519097,
+          "exit_reasons": {
+            "take_profit": 2,
+            "trailing_stop": 7,
+            "stop_loss": 2
+          },
+          "final_balance": 10625.714516818647
+        },
+        {
+          "fold": 8,
+          "round_trips": 28,
+          "win_rate": 0.39285714285714285,
+          "total_pnl_pct": -5.2737725837301515,
+          "avg_pnl_pct": -0.1883490208475054,
+          "avg_hold_hrs": 5.571428571428571,
+          "max_drawdown_pct": 5.1865757445549825,
+          "sharpe": -18.144762327554517,
+          "profit_factor": 0.9088021872955688,
+          "exit_reasons": {
+            "trailing_stop": 19,
+            "stop_loss": 7,
+            "take_profit": 1,
+            "score_flip": 1
+          },
+          "final_balance": 9472.622741626985
+        }
+      ]
+    },
+    {
+      "symbol": "BTC/USDT",
+      "label": "night_shift_btc_1",
+      "params": {
+        "signal_threshold": 0.45,
+        "take_profit_atr": 3.5,
+        "stop_loss_atr": 1.5,
+        "max_hold_hours": 36,
+        "time_decay_hours": 12,
+        "min_alignment": 3,
+        "trailing_stop_atr": 1.0,
+        "score_flip_delay_hrs": 0
+      },
+      "total_pnl_pct": 8.54,
+      "median_sharpe": 1.22,
+      "consistency": 0.556,
+      "avg_win_rate": 0.499,
+      "avg_pf": 1.29,
+      "avg_max_dd": 2.73,
+      "total_trades": 140,
+      "avg_trades_per_fold": 15.6,
+      "folds": [
+        {
+          "fold": 0,
+          "round_trips": 13,
+          "win_rate": 0.46153846153846156,
+          "total_pnl_pct": -1.0299674555641158,
+          "avg_pnl_pct": -0.0792282658126243,
+          "avg_hold_hrs": 4.230769230769231,
+          "max_drawdown_pct": 2.6885576329365914,
+          "sharpe": -7.433567318579673,
+          "profit_factor": 0.9664017782843478,
+          "exit_reasons": {
+            "stop_loss": 6,
+            "take_profit": 2,
+            "trailing_stop": 5
+          },
+          "final_balance": 9897.003254443589
+        },
+        {
+          "fold": 1,
+          "round_trips": 25,
+          "win_rate": 0.44,
+          "total_pnl_pct": -0.4039483653385285,
+          "avg_pnl_pct": -0.016157934613541158,
+          "avg_hold_hrs": 3.52,
+          "max_drawdown_pct": 6.353740290871336,
+          "sharpe": -1.6060945955930404,
+          "profit_factor": 1.2143574918838824,
+          "exit_reasons": {
+            "stop_loss": 10,
+            "trailing_stop": 11,
+            "take_profit": 4
+          },
+          "final_balance": 9959.605163466147
+        },
+        {
+          "fold": 2,
+          "round_trips": 12,
+          "win_rate": 0.5833333333333334,
+          "total_pnl_pct": 1.4239729988167413,
+          "avg_pnl_pct": 0.11866441656806186,
+          "avg_hold_hrs": 4.833333333333333,
+          "max_drawdown_pct": 2.565193559279332,
+          "sharpe": 11.249764379430271,
+          "profit_factor": 0.9944332986776772,
+          "exit_reasons": {
+            "take_profit": 3,
+            "stop_loss": 4,
+            "trailing_stop": 5
+          },
+          "final_balance": 10142.397299881673
+        },
+        {
+          "fold": 3,
+          "round_trips": 17,
+          "win_rate": 0.4117647058823529,
+          "total_pnl_pct": -1.6073185609269218,
+          "avg_pnl_pct": -0.0945481506427601,
+          "avg_hold_hrs": 3.823529411764706,
+          "max_drawdown_pct": 2.6645426576742044,
+          "sharpe": -16.073622587133542,
+          "profit_factor": 0.9124103654641954,
+          "exit_reasons": {
+            "trailing_stop": 10,
+            "stop_loss": 5,
+            "take_profit": 2
+          },
+          "final_balance": 9839.268143907308
+        },
+        {
+          "fold": 4,
+          "round_trips": 11,
+          "win_rate": 0.6363636363636364,
+          "total_pnl_pct": 3.171219296275945,
+          "avg_pnl_pct": 0.28829266329781317,
+          "avg_hold_hrs": 3.6363636363636362,
+          "max_drawdown_pct": 0.761304143925166,
+          "sharpe": 32.560701656085,
+          "profit_factor": 1.4579006751097447,
+          "exit_reasons": {
+            "stop_loss": 4,
+            "trailing_stop": 5,
+            "take_profit": 2
+          },
+          "final_balance": 10317.121929627596
+        },
+        {
+          "fold": 5,
+          "round_trips": 17,
+          "win_rate": 0.5882352941176471,
+          "total_pnl_pct": 4.678825597703403,
+          "avg_pnl_pct": 0.2752250351590237,
+          "avg_hold_hrs": 4.117647058823529,
+          "max_drawdown_pct": 1.351568629567345,
+          "sharpe": 30.691633660864344,
+          "profit_factor": 1.5937001608134052,
+          "exit_reasons": {
+            "trailing_stop": 7,
+            "stop_loss": 4,
+            "take_profit": 6
+          },
+          "final_balance": 10467.88255977034
+        },
+        {
+          "fold": 6,
+          "round_trips": 9,
+          "win_rate": 0.4444444444444444,
+          "total_pnl_pct": 0.0772677778831165,
+          "avg_pnl_pct": 0.008585308653679612,
+          "avg_hold_hrs": 4.666666666666667,
+          "max_drawdown_pct": 0.9403828354659173,
+          "sharpe": 1.2239033116505147,
+          "profit_factor": 1.2976019570507324,
+          "exit_reasons": {
+            "trailing_stop": 6,
+            "take_profit": 1,
+            "stop_loss": 2
+          },
+          "final_balance": 10007.72677778831
+        },
+        {
+          "fold": 7,
+          "round_trips": 10,
+          "win_rate": 0.5,
+          "total_pnl_pct": 3.7956204920234144,
+          "avg_pnl_pct": 0.37956204920234154,
+          "avg_hold_hrs": 4.3,
+          "max_drawdown_pct": 2.957183429782753,
+          "sharpe": 23.812025953406156,
+          "profit_factor": 2.0006392159506015,
+          "exit_reasons": {
+            "take_profit": 3,
+            "trailing_stop": 5,
+            "stop_loss": 2
+          },
+          "final_balance": 10379.562049202343
+        },
+        {
+          "fold": 8,
+          "round_trips": 26,
+          "win_rate": 0.4230769230769231,
+          "total_pnl_pct": -1.5615914565144267,
+          "avg_pnl_pct": -0.060061209865939505,
+          "avg_hold_hrs": 4.884615384615385,
+          "max_drawdown_pct": 4.242928370987007,
+          "sharpe": -6.254965700776921,
+          "profit_factor": 1.1422571789071903,
+          "exit_reasons": {
+            "trailing_stop": 17,
+            "stop_loss": 7,
+            "take_profit": 2
+          },
+          "final_balance": 9843.840854348558
+        }
+      ]
+    },
+    {
+      "symbol": "BNB/USDT",
+      "label": "production",
+      "params": {
+        "signal_threshold": 0.4,
+        "min_alignment": 3,
+        "take_profit_atr": 6.0,
+        "stop_loss_atr": 2.5,
+        "max_hold_hours": 96,
+        "time_decay_hours": 48,
+        "trailing_stop_atr": 1.0,
+        "score_flip_delay_hrs": 2
+      },
+      "total_pnl_pct": 49.59,
+      "median_sharpe": 21.62,
+      "consistency": 0.667,
+      "avg_win_rate": 0.482,
+      "avg_pf": 1.67,
+      "avg_max_dd": 3.9,
+      "total_trades": 178,
+      "avg_trades_per_fold": 19.8,
+      "folds": [
+        {
+          "fold": 0,
+          "round_trips": 14,
+          "win_rate": 0.5,
+          "total_pnl_pct": 3.4998574933955386,
+          "avg_pnl_pct": 0.24998982095682412,
+          "avg_hold_hrs": 6.642857142857143,
+          "max_drawdown_pct": 2.178362623171588,
+          "sharpe": 21.62374217647613,
+          "profit_factor": 1.8204482998196585,
+          "exit_reasons": {
+            "trailing_stop": 10,
+            "take_profit": 2,
+            "stop_loss": 2
+          },
+          "final_balance": 10349.985749339554
+        },
+        {
+          "fold": 1,
+          "round_trips": 19,
+          "win_rate": 0.5789473684210527,
+          "total_pnl_pct": 7.803753262249611,
+          "avg_pnl_pct": 0.4107238559078743,
+          "avg_hold_hrs": 6.2631578947368425,
+          "max_drawdown_pct": 2.8486948443225995,
+          "sharpe": 34.5637615206061,
+          "profit_factor": 2.0040751127373477,
+          "exit_reasons": {
+            "trailing_stop": 15,
+            "stop_loss": 3,
+            "take_profit": 1
+          },
+          "final_balance": 10780.375326224961
+        },
+        {
+          "fold": 2,
+          "round_trips": 16,
+          "win_rate": 0.25,
+          "total_pnl_pct": -0.9679144793911749,
+          "avg_pnl_pct": -0.060494654961948446,
+          "avg_hold_hrs": 4.5625,
+          "max_drawdown_pct": 4.639252134748474,
+          "sharpe": -7.000695960678837,
+          "profit_factor": 2.3775435260117734,
+          "exit_reasons": {
+            "trailing_stop": 12,
+            "stop_loss": 4
+          },
+          "final_balance": 9903.208552060883
+        },
+        {
+          "fold": 3,
+          "round_trips": 32,
+          "win_rate": 0.4375,
+          "total_pnl_pct": -2.9618095301599268,
+          "avg_pnl_pct": -0.09255654781749767,
+          "avg_hold_hrs": 4.34375,
+          "max_drawdown_pct": 7.952276505152687,
+          "sharpe": -7.4096459311835305,
+          "profit_factor": 1.0254162429965108,
+          "exit_reasons": {
+            "trailing_stop": 22,
+            "stop_loss": 9,
+            "take_profit": 1
+          },
+          "final_balance": 9703.819046984006
+        },
+        {
+          "fold": 4,
+          "round_trips": 24,
+          "win_rate": 0.5833333333333334,
+          "total_pnl_pct": 9.754327076187792,
+          "avg_pnl_pct": 0.40643029484115806,
+          "avg_hold_hrs": 5.041666666666667,
+          "max_drawdown_pct": 3.9966083194198605,
+          "sharpe": 28.369768791796396,
+          "profit_factor": 1.752079515678371,
+          "exit_reasons": {
+            "trailing_stop": 18,
+            "stop_loss": 3,
+            "take_profit": 2,
+            "score_flip": 1
+          },
+          "final_balance": 10975.43270761878
+        },
+        {
+          "fold": 5,
+          "round_trips": 25,
+          "win_rate": 0.6,
+          "total_pnl_pct": 19.99927138971036,
+          "avg_pnl_pct": 0.7999708555884142,
+          "avg_hold_hrs": 7.2,
+          "max_drawdown_pct": 4.106055286736982,
+          "sharpe": 38.1767990816775,
+          "profit_factor": 2.3916444507824237,
+          "exit_reasons": {
+            "trailing_stop": 17,
+            "take_profit": 6,
+            "stop_loss": 2
+          },
+          "final_balance": 11999.927138971036
+        },
+        {
+          "fold": 6,
+          "round_trips": 7,
+          "win_rate": 0.5714285714285714,
+          "total_pnl_pct": 1.6039227585668616,
+          "avg_pnl_pct": 0.2291318226524088,
+          "avg_hold_hrs": 6.0,
+          "max_drawdown_pct": 3.095595602238994,
+          "sharpe": 13.84824822602858,
+          "profit_factor": 1.1385979383273053,
+          "exit_reasons": {
+            "trailing_stop": 6,
+            "stop_loss": 1
+          },
+          "final_balance": 10160.392275856686
+        },
+        {
+          "fold": 7,
+          "round_trips": 9,
+          "win_rate": 0.2222222222222222,
+          "total_pnl_pct": -3.0351362414744165,
+          "avg_pnl_pct": -0.33723736016382405,
+          "avg_hold_hrs": 3.6666666666666665,
+          "max_drawdown_pct": 3.689111514033821,
+          "sharpe": -46.08480973202108,
+          "profit_factor": 0.8191827125775705,
+          "exit_reasons": {
+            "trailing_stop": 6,
+            "stop_loss": 2,
+            "score_flip": 1
+          },
+          "final_balance": 9696.486375852559
+        },
+        {
+          "fold": 8,
+          "round_trips": 32,
+          "win_rate": 0.59375,
+          "total_pnl_pct": 13.890780868059977,
+          "avg_pnl_pct": 0.4340869021268744,
+          "avg_hold_hrs": 6.5625,
+          "max_drawdown_pct": 2.6232161897901736,
+          "sharpe": 27.476278984875936,
+          "profit_factor": 1.7239321839327186,
+          "exit_reasons": {
+            "trailing_stop": 23,
+            "stop_loss": 5,
+            "take_profit": 4
+          },
+          "final_balance": 11389.078086805997
+        }
+      ]
+    },
+    {
+      "symbol": "BNB/USDT",
+      "label": "night_shift_bnb_1",
+      "params": {
+        "signal_threshold": 0.35,
+        "take_profit_atr": 3.0,
+        "stop_loss_atr": 1.0,
+        "max_hold_hours": 36,
+        "time_decay_hours": 12,
+        "min_alignment": 3,
+        "trailing_stop_atr": 0.0,
+        "score_flip_delay_hrs": 0
+      },
+      "total_pnl_pct": -9.93,
+      "median_sharpe": -5.65,
+      "consistency": 0.444,
+      "avg_win_rate": 0.287,
+      "avg_pf": 2.27,
+      "avg_max_dd": 9.1,
+      "total_trades": 388,
+      "avg_trades_per_fold": 43.1,
+      "folds": [
+        {
+          "fold": 0,
+          "round_trips": 32,
+          "win_rate": 0.28125,
+          "total_pnl_pct": -5.190328067037245,
+          "avg_pnl_pct": -0.16219775209491394,
+          "avg_hold_hrs": 5.78125,
+          "max_drawdown_pct": 9.242794754680405,
+          "sharpe": -16.20287859285924,
+          "profit_factor": 1.7382446991214437,
+          "exit_reasons": {
+            "stop_loss": 21,
+            "time_decay": 2,
+            "take_profit": 9
+          },
+          "final_balance": 9480.967193296276
+        },
+        {
+          "fold": 1,
+          "round_trips": 38,
+          "win_rate": 0.34210526315789475,
+          "total_pnl_pct": 6.909144616369834,
+          "avg_pnl_pct": 0.18181959516762716,
+          "avg_hold_hrs": 6.684210526315789,
+          "max_drawdown_pct": 5.406835561855037,
+          "sharpe": 13.526170970467295,
+          "profit_factor": 2.851549068155481,
+          "exit_reasons": {
+            "take_profit": 13,
+            "time_decay": 3,
+            "stop_loss": 20,
+            "score_flip": 2
+          },
+          "final_balance": 10690.914461636983
+        },
+        {
+          "fold": 2,
+          "round_trips": 34,
+          "win_rate": 0.17647058823529413,
+          "total_pnl_pct": -4.260347752372493,
+          "avg_pnl_pct": -0.12530434565801452,
+          "avg_hold_hrs": 5.5,
+          "max_drawdown_pct": 7.6831908118945815,
+          "sharpe": -15.76621797340019,
+          "profit_factor": 3.0349174526634473,
+          "exit_reasons": {
+            "take_profit": 6,
+            "time_decay": 4,
+            "stop_loss": 23,
+            "score_flip": 1
+          },
+          "final_balance": 9573.965224762751
+        },
+        {
+          "fold": 3,
+          "round_trips": 61,
+          "win_rate": 0.3442622950819672,
+          "total_pnl_pct": 2.6398369441715346,
+          "avg_pnl_pct": 0.04327601547822191,
+          "avg_hold_hrs": 5.934426229508197,
+          "max_drawdown_pct": 7.373972771374606,
+          "sharpe": 3.301166226270752,
+          "profit_factor": 2.079872521854693,
+          "exit_reasons": {
+            "stop_loss": 39,
+            "time_decay": 1,
+            "take_profit": 21
+          },
+          "final_balance": 10263.983694417153
+        },
+        {
+          "fold": 4,
+          "round_trips": 43,
+          "win_rate": 0.27906976744186046,
+          "total_pnl_pct": -8.049380100440159,
+          "avg_pnl_pct": -0.18719488605674794,
+          "avg_hold_hrs": 5.534883720930233,
+          "max_drawdown_pct": 13.942329082249213,
+          "sharpe": -14.445199764370075,
+          "profit_factor": 1.799225826750691,
+          "exit_reasons": {
+            "score_flip": 1,
+            "stop_loss": 28,
+            "take_profit": 12,
+            "time_decay": 2
+          },
+          "final_balance": 9195.061989955984
+        },
+        {
+          "fold": 5,
+          "round_trips": 56,
+          "win_rate": 0.375,
+          "total_pnl_pct": 9.892062895112593,
+          "avg_pnl_pct": 0.17664398026986775,
+          "avg_hold_hrs": 5.589285714285714,
+          "max_drawdown_pct": 8.896133368167078,
+          "sharpe": 9.946682839462508,
+          "profit_factor": 2.1923148366752128,
+          "exit_reasons": {
+            "take_profit": 21,
+            "stop_loss": 32,
+            "time_decay": 3
+          },
+          "final_balance": 10989.20628951126
+        },
+        {
+          "fold": 6,
+          "round_trips": 13,
+          "win_rate": 0.3076923076923077,
+          "total_pnl_pct": 2.7259559797402884,
+          "avg_pnl_pct": 0.20968892151848373,
+          "avg_hold_hrs": 7.6923076923076925,
+          "max_drawdown_pct": 4.3073308911609995,
+          "sharpe": 9.990870438578098,
+          "profit_factor": 2.9755604664236466,
+          "exit_reasons": {
+            "take_profit": 4,
+            "stop_loss": 7,
+            "time_decay": 2
+          },
+          "final_balance": 10272.595597974028
+        },
+        {
+          "fold": 7,
+          "round_trips": 22,
+          "win_rate": 0.13636363636363635,
+          "total_pnl_pct": -9.385731634969071,
+          "avg_pnl_pct": -0.42662416522586705,
+          "avg_hold_hrs": 5.454545454545454,
+          "max_drawdown_pct": 8.475775845613203,
+          "sharpe": -44.88113948355416,
+          "profit_factor": 2.0755183500357424,
+          "exit_reasons": {
+            "stop_loss": 17,
+            "time_decay": 2,
+            "take_profit": 3
+          },
+          "final_balance": 9061.426836503093
+        },
+        {
+          "fold": 8,
+          "round_trips": 89,
+          "win_rate": 0.33707865168539325,
+          "total_pnl_pct": -5.2086330290960765,
+          "avg_pnl_pct": -0.058523966619057066,
+          "avg_hold_hrs": 5.842696629213483,
+          "max_drawdown_pct": 16.53373247629166,
+          "sharpe": -5.6494932253561645,
+          "profit_factor": 1.7097682429973737,
+          "exit_reasons": {
+            "take_profit": 30,
+            "stop_loss": 53,
+            "time_decay": 5,
+            "score_flip": 1
+          },
+          "final_balance": 9479.136697090393
+        }
+      ]
+    }
+  ]
+}

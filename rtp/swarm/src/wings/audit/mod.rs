@@ -12,20 +12,17 @@ use serde::{Deserialize, Serialize};
 
 /// Consensus algorithm for tribunal decisions.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Default)]
 pub enum ConsensusMode {
     /// Simple majority — most votes win.
     Majority,
     /// Queen (Audit Wing) vote counts 3x weight.
     Weighted,
     /// Requires 2/3 supermajority for approval.
+    #[default]
     Byzantine,
 }
 
-impl Default for ConsensusMode {
-    fn default() -> Self {
-        ConsensusMode::Byzantine
-    }
-}
 
 /// Vote from a tribunal agent.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -113,7 +110,7 @@ impl AuditWing {
             Payload::AuditResult {
                 proposal_id: msg.id,
                 approved: result.approved,
-                risk_level: result.risk_level.clone(),
+                risk_level: result.risk_level,
                 findings: result.reviews.iter().flat_map(|r| r.findings.clone()).collect(),
             },
         );

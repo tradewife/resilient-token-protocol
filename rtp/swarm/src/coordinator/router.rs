@@ -20,8 +20,10 @@ use tokio::time::{Duration, sleep};
 
 /// Routing topology for the swarm.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Default)]
 pub enum Topology {
     /// Central Coordinator routes all messages (RTP default).
+    #[default]
     Hub,
     /// Wings can discover peers and request mediated peer messages.
     Mesh,
@@ -29,11 +31,6 @@ pub enum Topology {
     Hierarchical,
 }
 
-impl Default for Topology {
-    fn default() -> Self {
-        Topology::Hub
-    }
-}
 
 /// Fault tolerance configuration.
 #[derive(Debug, Clone)]

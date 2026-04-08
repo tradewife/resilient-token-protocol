@@ -143,7 +143,7 @@ impl KnowledgeWing {
             let key_lower = key.to_lowercase();
             let key_match = key_lower.contains(&q) || q.contains(&key_lower);
             let content_match = entry.values.iter().any(|v| v.to_lowercase().contains(&q));
-            let ctx_match = context.map_or(false, |ctx| {
+            let ctx_match = context.is_some_and(|ctx| {
                 entry
                     .values
                     .iter()
