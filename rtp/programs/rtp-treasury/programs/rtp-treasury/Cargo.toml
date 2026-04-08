@@ -23,3 +23,6 @@ spl-token-2022-interface = "2.1.0"
 
 [profile.release]
 overflow-checks = true
+
+[lints.rust]
+unexpected_cfgs = { level = "allow", check-cfg = ['cfg(anchor_debug, values("true", "false"))'] }

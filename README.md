@@ -373,14 +373,16 @@ The Trading Wing's research layer is shipping today. Everything else is scaffold
 | Self-Correction (fast sim vs full sim calibration) | Trading | Python | **Shipping** |
 | CI Pipeline (nightly cron, auto-commit, 300min timeout) | Trading | Infra | **Shipping** |
 | SOL Optimized Config (+118.3% PnL, 78% consistency, 429 trades) | Trading | Python | **Shipping** |
-| Treasury Program (Anchor: deposit, distribute, hydrate, evolve) | — | Solana | **Built** (audit in progress) |
+| Treasury Program (Anchor: deposit, distribute, hydrate, evolve) | — | Solana | **Built** (audit remediated) |
 | soulcontract.md (constitutional governance layer) | — | Governance | **Defined** |
-| Coordinator (soulguard + router + lifecycle) | — | Rust | **Built** (88 tests) |
-| Evolve Wing (assessor + proposer + rollback) | Evolve | Rust | **Built** (88 tests) |
-| Audit Wing (3-agent tribunal, Byzantine consensus) | Audit | Rust | **Built** (88 tests) |
-| Security Wing | Security | Rust | Stub |
-| Knowledge Wing | Knowledge | Rust | Stub |
-| Future-proof Wing | Future-proof | Rust | Stub |
+| Python ↔ Rust Bridge (typed JSON, bridge-mode subprocess) | Trading | Both | **Built** |
+| Coordinator (soulguard + router + lifecycle) | — | Rust | **Built** (146 tests) |
+| Evolve Wing (assessor + proposer + rollback) | Evolve | Rust | **Built** |
+| Audit Wing (3-agent tribunal, Byzantine consensus) | Audit | Rust | **Built** |
+| Trading Wing (bridge-backed execution, in-memory state) | Trading | Rust | **Built** |
+| Security Wing (threat detection, rate-limiting, alert tracking) | Security | Rust | **Built** |
+| Knowledge Wing (in-memory graph, cross-wing queries) | Knowledge | Rust | **Built** |
+| Future-proof Wing (deprecation monitoring, heartbeat) | Future-proof | Rust | **Built** |
 
 ## Project Structure
 
@@ -389,8 +391,11 @@ rtp/
 ├── swarm/                           # Rust swarm runtime
 │   ├── Cargo.toml
 │   ├── src/
-│   │   ├── lib.rs
+│   │   ├── lib.rs                  # Re-exports, module declarations
 │   │   ├── types.rs                # Message, Payload, WingId, Priority
+│   │   ├── bridge.rs               # Python ↔ Rust typed subprocess interface
+│   │   ├── config.rs               # Swarm configuration
+│   │   ├── demo.rs                 # End-to-end demo loop (8-step pipeline)
 │   │   ├── coordinator/
 │   │   │   ├── mod.rs              # Multi-stage quality gate pipeline
 │   │   │   ├── router.rs           # Typed routing, retry, proposal→audit flow
@@ -398,16 +403,16 @@ rtp/
 │   │   │   ├── soulcontract_spec.rs # Parse soulcontract.md → constraints
 │   │   │   └── lifecycle.rs        # Wing spawn, health-check, retire
 │   │   └── wings/
-│   │       ├── trading/mod.rs      # Stub — TradingConfig handler
-│   │       ├── security/mod.rs     # Stub — heartbeat handler
+│   │       ├── trading/mod.rs      # Bridge-backed execution, in-memory state
+│   │       ├── security/mod.rs     # Threat detection, rate-limiting, alerts
 │   │       ├── evolve/
 │   │       │   ├── mod.rs          # Darwinian loop orchestration
 │   │       │   ├── assessor.rs     # Treasury-native performance scoring
 │   │       │   ├── proposer.rs     # SPARC-inspired proposal lifecycle
 │   │       │   └── rollback.rs     # Auto-revert on >5% degradation
-│   │       ├── knowledge/mod.rs    # Stub — query handler
+│   │       ├── knowledge/mod.rs    # In-memory knowledge graph, cross-wing queries
 │   │       ├── audit/mod.rs        # 3-agent tribunal (Byzantine consensus)
-│   │       └── futureproof/mod.rs  # Stub — heartbeat handler
+│   │       └── futureproof/mod.rs  # Deprecation monitoring, heartbeat
 │
 ├── programs/                        # Solana (Anchor)
 │   └── rtp-treasury/              # Deposit, distribute, hydrate, evolve
@@ -420,12 +425,13 @@ rtp/
 │   ├── ohlcv/
 │   ├── night_results/
 │   ├── paper_trading/
-│   ├── deployments/
 │   ├── calibration/
-│   └── audit/
+│   └── discrepancies/
 │
 └── .github/workflows/
-    └── night_shift.yml
+    ├── night_shift.yml             # Nightly research pipeline
+    ├── swarm-ci.yml                # Rust build + test + clippy + anchor build
+    └── python-tests.yml            # Python lint + smoke tests
 ```
 
 ## Development Phases
@@ -442,17 +448,21 @@ The Python fractal-swarm — already running, already profitable, already autono
 - Self-correction (calibration + discrepancy detection)
 - CI pipeline (nightly cron, auto-commit)
 
-### Phase 1: Treasury + Coordinator + Core Wings (Current)
+### Phase 1: Treasury + Coordinator + All Wings (Current)
 
-Treasury program, Coordinator, Evolve Wing, and Audit Wing are built. Security audit completed — fixing critical findings before demo.
+Treasury program audit-remediated. All 6 wings built. Coordinator with full quality gate pipeline. Bridge connecting Python research to Rust execution.
 
 - ✅ Coordinator + typed message bus + soulguard + spec-based drift detection
 - ✅ Evolve Wing (assessor + proposer + rollback with 5% degradation threshold)
 - ✅ Audit Wing (3-agent tribunal: Skeptic/UserProxy/Optimizer, Byzantine consensus)
-- ✅ Treasury program on devnet (Anchor 1.0)
-- 🔧 Treasury audit remediation and repo/docs alignment (see `docs/SECURITY_AUDIT_2026-04-07.md`)
+- ✅ Trading Wing (bridge-backed execution, 5 payload types, in-memory state)
+- ✅ Security Wing (threat detection, rate-limiting, suspicious-proposal flagging)
+- ✅ Knowledge Wing (in-memory knowledge graph, cross-wing queries)
+- ✅ Futureproof Wing (deprecation monitoring, heartbeat)
+- ✅ Treasury program on devnet (Anchor 1.0, audit remediated)
 - ✅ Python ↔ Rust typed bridge (`rtp/swarm/src/bridge.rs`)
-- ✅ Trading Wing bridge integration and in-memory execution state
+- ✅ End-to-end demo loop (`rtp/swarm/src/demo.rs`, 8-step pipeline)
+- ✅ 146 tests passing, 0 warnings
 
 ### Phase 2: End-to-End Integration + Full Loop
 
@@ -476,7 +486,7 @@ All wings operational. Human role reduced to soulcontract amendments. The swarm 
 ```bash
 # Set up environment
 python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+pip install pandas numpy ccxt pyarrow redis
 
 # Run the fractal-swarm (night shift)
 python -m research.orchestration.night_shift --skip-fetch

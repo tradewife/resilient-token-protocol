@@ -491,17 +491,17 @@ pub mod rtp_treasury {
         /// Holders wallet — receives 70% of redistribution.
         /// Stored as pubkey in treasury state for on-chain verification.
         /// CHECK: plain pubkey, no data read
-        pub holders_wallet: AccountInfo<'info>,
+        pub holders_wallet: UncheckedAccount<'info>,
 
         /// Project dev wallet — receives 20% of redistribution.
         /// Stored as pubkey in treasury state for on-chain verification.
         /// CHECK: plain pubkey, no data read
-        pub project_dev_wallet: AccountInfo<'info>,
+        pub project_dev_wallet: UncheckedAccount<'info>,
 
         /// Ecosystem wallet — receives 10% of redistribution.
         /// Stored as pubkey in treasury state for on-chain verification.
         /// CHECK: plain pubkey, no data read
-        pub ecosystem_wallet: AccountInfo<'info>,
+        pub ecosystem_wallet: UncheckedAccount<'info>,
 
         /// Authority paying for initialization (anyone can initialize).
         #[account(mut)]

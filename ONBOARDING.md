@@ -132,15 +132,9 @@ Docs already aligned recently:
 
 ### Pre-existing broken module
 
-`research/optimization/save_winning_config.py` imports a missing dependency:
+`research/optimization/save_winning_config.py` — **deprecated but importable**.
 
-```python
-from knowledge_base_schema import KnowledgeBase, StrategyGenome, StrategyPerformance
-```
-
-That module does not exist in this repository.
-
-Treat it as a pre-existing broken path, not as a regression from the refactor.
+The `knowledge_base_schema` dependency does not exist in this repository. The import is now guarded with a try/except. The file imports cleanly and retains historical config data (`WINNING_CONFIGS`, `SIGNAL_WEIGHTS`) as reference. The `save_configs()` function exits gracefully with a deprecation notice.
 
 ### Black-boxing is deferred
 

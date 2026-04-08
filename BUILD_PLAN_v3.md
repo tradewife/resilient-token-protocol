@@ -278,11 +278,11 @@ WEEK 3 (Apr 14-18): KNOWLEDGE + SECURITY WINGS + BRIDGE ✅ COMPLETE
   [x] I-1 fix: all wings return Payload::Error for unhandled types (no silent drops)
   [x] Code review: 4 findings fixed (TOCTOU, alert audit trail, ETXTBSY race,
       solana-sdk version string)
-  [x] Integration tests: 6 new tests (full suite: 133 tests, 0 failures, 0 warnings)
+  [x] Integration tests: 6 new tests (full suite: 146 tests, 0 failures, 0 warnings)
   [x] Treasury program: still compiles clean after all swarm changes
 
   DELIVERABLES: bridge.rs working, all 6 wings functional (not stubs),
-                full message loop demoable. 88→133 tests (+45).
+                full message loop demoable. 88→146 tests (+58).
 
 WEEK 4 (Apr 21-25): FULL LOOP + BLACK-BOXING
 ─────────────────────────────────────────────────────────────────────

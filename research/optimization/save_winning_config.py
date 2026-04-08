@@ -1,5 +1,10 @@
 """
-Save the winning backtest configuration to the knowledge base.
+DEPRECATED: This module is non-functional.
+The `knowledge_base_schema` dependency does not exist in this repository.
+
+The WINNING_CONFIGS and SIGNAL_WEIGHTS data below are retained as historical
+reference for validated strategy parameters. If the knowledge base is restored,
+update the import and this module will work again.
 
 Validated on 365 days of real Binance data (2025-04-02 to 2026-04-02).
 Best config: wide_tp — +49.2% annual return, 2.2 profit factor, 4.05 Sharpe.
@@ -11,7 +16,12 @@ from datetime import datetime
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
-from knowledge_base_schema import KnowledgeBase, StrategyGenome, StrategyPerformance
+try:
+    from knowledge_base_schema import KnowledgeBase, StrategyGenome, StrategyPerformance
+except ImportError:
+    KnowledgeBase = None  # type: ignore[misc,assignment]
+    StrategyGenome = None  # type: ignore[misc,assignment]
+    StrategyPerformance = None  # type: ignore[misc,assignment]
 
 
 # ─── Winning configuration ───────────────────────────────────────────────────
@@ -99,7 +109,11 @@ SIGNAL_WEIGHTS = {
 
 
 def save_configs():
-    kb = KnowledgeBase()
+    if KnowledgeBase is None:
+        print("ERROR: knowledge_base_schema not available.")
+        print("This module is deprecated. Configs are kept as reference data.")
+        print(f"Available configs: {list(WINNING_CONFIGS.keys())}")
+        return
 
     for key, cfg in WINNING_CONFIGS.items():
         # Build StrategyGenome
