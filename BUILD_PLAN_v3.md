@@ -3,7 +3,7 @@
   BUILD PLAN v3.0 — POST-AUDIT REMEDIATION
   Supersedes: BUILD_PLAN.md (v2.2) for the weekly schedule
   Audit ref:  docs/SECURITY_AUDIT_2026-04-07.md
-  Status:     Week 2 complete (Apr 8-11), all audit fixes applied, code reviewed
+  Status:     Week 2+3 complete (Apr 8), all audit fixes applied, all wings functional
 ================================================================================
 
 CONTEXT:
@@ -239,42 +239,50 @@ WEEK 2 REMAINDER (Apr 8-11): AUDIT REMEDIATION
         The audit findings are specific enough to fix without tooling.
 
   DELIVERABLES: All CRITICAL and HIGH findings fixed, Anchor tests
-                passing, treasury program ready for demo path
+                passing (15/15), treasury program ready for demo path
 
-WEEK 3 (Apr 14-18): KNOWLEDGE + SECURITY WINGS + BRIDGE
+WEEK 3 (Apr 14-18): KNOWLEDGE + SECURITY WINGS + BRIDGE ✅ COMPLETE
 ─────────────────────────────────────────────────────────────────────
 
-  Day 1-2:
-  [ ] Create bridge.rs — typed Python↔Rust interface
-      - Define BridgeRequest / BridgeResponse JSON schema
-      - Trading Wing calls Python binary via std::process::Command
-      - Receives typed JSON proposal, validates schema
-      - Error handling for binary not found / malformed output
-  [ ] Wire Trading Wing beyond stub:
-      - Handle Proposal payloads (not just TradingConfig)
-      - Handle ExecutePermit → trigger bridge call
-      - Return YieldReport after execution
+  Day 1-2 (COMPLETED — Apr 8, ahead of schedule):
+  [x] Create bridge.rs — typed Python↔Rust interface
+      - BridgeRequest / BridgeResponse JSON schema (serde)
+      - call_bridge() / call_bridge_with_bin() via std::process::Command
+      - BridgeError: BinaryNotFound, ProcessFailed, ParseError
+      - NIGHT_SHIFT_BIN constant for easy swap in Week 4
+      - 10 unit tests (round-trips, mock binary success/failure/malformed)
+  [x] Wire Trading Wing beyond stub:
+      - Handles 5 payloads: TradingConfig, Proposal, ExecutePermit, YieldReport, Heartbeat
+      - ExecutePermit calls bridge.rs → returns YieldReport on success
+      - In-memory state: last proposal, last yield report, execution count
+      - I-1 fix: unhandled payloads return Payload::Error
 
-  Day 3-4:
-  [ ] Knowledge Wing: basic in-memory knowledge graph
-      - Store/retrieve strategy results
-      - Cross-wing query support
-  [ ] Security Wing: basic threat detection
-      - Monitor message patterns for anomalies
-      - Rate-limit proposals per wing
-  [ ] Wire both wings to Coordinator (register + handle messages)
+  Day 3-4 (COMPLETED — Apr 8):
+  [x] Knowledge Wing: in-memory knowledge graph
+      - HashMap-based append-only store (key → Vec of timestamped entries)
+      - Case-insensitive search with optional context filter
+      - Handles 4 payloads: KnowledgeQuery, YieldReport, Assessment, Heartbeat
+  [x] Security Wing: threat detection + rate-limiting
+      - Suspicious proposal detection: SoulcontractAmendment→Critical,
+        RiskThresholdChange→High, PhaseTransition→Medium
+      - Rate-limit: 10 proposals/wing/window, stored per-wing counters
+      - Alert store with 1-hour expiry, suspicious detections audit-trailed
+      - Handles 3 payloads: SecurityAlert, Proposal, Heartbeat
+  [x] All 4 new wings wired to Coordinator (no router changes needed —
+      default message.to delivery covers SecurityAlert, YieldReport, etc.)
 
-  Day 5:
-  [ ] All 6 wings respond to at least 2 payload types each
-  [ ] Futureproof Wing: heartbeat + deprecation check stub
-  [ ] Integration test: full proposal→audit→execute→report loop
-  [ ] Checkpoint: all wings registered, no silent message drops
-  NOTE: No skills needed. v2.2 planned agentdb-memory-patterns for
-        Knowledge Wing — that's an npm vector DB, not useful here.
-        Build a simple Rust HashMap/DashMap-based store instead.
+  Day 5 (COMPLETED — Apr 8):
+  [x] All 6 wings respond to ≥2 payload types each:
+      Trading(5), Security(3), Knowledge(4), Evolve(3), Audit(2+), Futureproof(2)
+  [x] Futureproof Wing: heartbeat + deprecation check (7 crates monitored)
+  [x] I-1 fix: all wings return Payload::Error for unhandled types (no silent drops)
+  [x] Code review: 4 findings fixed (TOCTOU, alert audit trail, ETXTBSY race,
+      solana-sdk version string)
+  [x] Integration tests: 6 new tests (full suite: 133 tests, 0 failures, 0 warnings)
+  [x] Treasury program: still compiles clean after all swarm changes
 
   DELIVERABLES: bridge.rs working, all 6 wings functional (not stubs),
-                full message loop demoable
+                full message loop demoable. 88→133 tests (+45).
 
 WEEK 4 (Apr 21-25): FULL LOOP + BLACK-BOXING
 ─────────────────────────────────────────────────────────────────────

@@ -263,4 +263,173 @@ mod integration_tests {
         let report = coord.detect_spec_drift().await;
         assert!(report.in_sync);
     }
+
+    // ── Week 3: New wing integration tests ─────────────────────────────
+
+    #[tokio::test]
+    async fn all_six_wings_registered() {
+        let coord = Coordinator::new(health_config());
+        coord.register_wing(WingId::Trading).await;
+        coord.register_wing(WingId::Security).await;
+        coord.register_wing(WingId::Evolve).await;
+        coord.register_wing(WingId::Knowledge).await;
+        coord.register_wing(WingId::Audit).await;
+        coord.register_wing(WingId::Futureproof).await;
+        assert_eq!(coord.lifecycle().active_count(), 6);
+    }
+
+    #[tokio::test]
+    async fn security_wing_receives_routed_alert() {
+        let coord = Coordinator::new(health_config());
+        let mut security_rx = coord.register_wing(WingId::Security).await;
+
+        let msg = Message::new(
+            WingId::Coordinator,
+            WingId::Security,
+            Payload::SecurityAlert {
+                severity: RiskLevel::Medium,
+                threat: "Anomaly detected".to_string(),
+            },
+        );
+        let result = coord.process(&msg).await;
+        assert!(matches!(result, ProcessingResult::Routed { stage: 2, .. }));
+
+        let received = security_rx.recv().await.unwrap();
+        assert!(matches!(received.payload, Payload::SecurityAlert { .. }));
+    }
+
+    #[tokio::test]
+    async fn knowledge_wing_receives_routed_query() {
+        let coord = Coordinator::new(health_config());
+        let mut knowledge_rx = coord.register_wing(WingId::Knowledge).await;
+
+        let msg = Message::new(
+            WingId::Coordinator,
+            WingId::Knowledge,
+            Payload::KnowledgeQuery {
+                query: "yield SOL".to_string(),
+                context: None,
+            },
+        );
+        let result = coord.process(&msg).await;
+        assert!(matches!(result, ProcessingResult::Routed { stage: 2, .. }));
+
+        let received = knowledge_rx.recv().await.unwrap();
+        assert!(matches!(received.payload, Payload::KnowledgeQuery { .. }));
+    }
+
+    #[tokio::test]
+    async fn knowledge_store_and_query_loop() {
+        use crate::wings::knowledge::KnowledgeWing;
+
+        let knowledge = KnowledgeWing::new();
+
+        // Store a yield report via the wing handler.
+        let yield_msg = Message::new(
+            WingId::Coordinator,
+            WingId::Knowledge,
+            Payload::YieldReport {
+                usdc_yield: 5000.0,
+                sol_reserves: 50000.0,
+                drawdown: 0.03,
+            },
+        );
+        let resp = knowledge.handle_message(&yield_msg);
+        assert!(matches!(resp.unwrap().payload, Payload::Ack { .. }));
+
+        // Query for it.
+        let query_msg = Message::new(
+            WingId::Coordinator,
+            WingId::Knowledge,
+            Payload::KnowledgeQuery {
+                query: "yield".to_string(),
+                context: None,
+            },
+        );
+        let resp = knowledge.handle_message(&query_msg).unwrap();
+        match resp.payload {
+            Payload::KnowledgeResult { results } => {
+                assert!(results.iter().any(|r| r.contains("yield=5000")));
+            }
+            _ => panic!("Expected KnowledgeResult with yield data"),
+        }
+    }
+
+    #[tokio::test]
+    async fn security_flags_suspicious_proposals() {
+        use crate::wings::security::SecurityWing;
+
+        let security = SecurityWing::new();
+
+        // SoulcontractAmendment should trigger a critical alert.
+        let amendment = Message::new(
+            WingId::Evolve,
+            WingId::Security,
+            Payload::Proposal {
+                kind: ProposalKind::SoulcontractAmendment,
+                description: "Remove PDA ownership".to_string(),
+                changes: serde_json::json!({}),
+                confidence: 0.99,
+            },
+        );
+        let resp = security.handle_message(&amendment).unwrap();
+        match resp.payload {
+            Payload::SecurityAlert { severity, threat } => {
+                assert_eq!(severity, RiskLevel::Critical);
+                assert!(threat.contains("SoulcontractAmendment"));
+            }
+            _ => panic!("Expected SecurityAlert for amendment"),
+        }
+
+        // Safe strategy change should just get an Ack.
+        let safe = Message::new(
+            WingId::Trading,
+            WingId::Security,
+            Payload::Proposal {
+                kind: ProposalKind::StrategyChange,
+                description: "Update RSI params".to_string(),
+                changes: serde_json::json!({"rsi_entry": 28}),
+                confidence: 0.9,
+            },
+        );
+        let resp = security.handle_message(&safe).unwrap();
+        assert!(matches!(resp.payload, Payload::Ack { .. }));
+    }
+
+    #[tokio::test]
+    async fn trading_wing_receives_execute_permit() {
+        let coord = Coordinator::new(health_config());
+        let mut trading_rx = coord.register_wing(WingId::Trading).await;
+        let mut audit_rx = coord.register_wing(WingId::Audit).await;
+
+        // Submit proposal → routed to Audit.
+        let proposal = Message::new(
+            WingId::Trading,
+            WingId::Coordinator,
+            Payload::Proposal {
+                kind: ProposalKind::StrategyChange,
+                description: "New strategy".to_string(),
+                changes: serde_json::json!({"symbol": "SOL/USDT"}),
+                confidence: 0.92,
+            },
+        );
+        coord.process(&proposal).await;
+        let audit_msg = audit_rx.recv().await.unwrap();
+        let proposal_id = audit_msg.id;
+
+        // Audit approves → ExecutePermit sent to Trading.
+        let audit_response = Message::new(
+            WingId::Audit,
+            WingId::Coordinator,
+            Payload::AuditResult {
+                proposal_id,
+                approved: true,
+                risk_level: RiskLevel::Low,
+                findings: vec![],
+            },
+        );
+        coord.process(&audit_response).await;
+        let permit = trading_rx.recv().await.unwrap();
+        assert!(matches!(permit.payload, Payload::ExecutePermit { .. }));
+    }
 }

@@ -1,24 +1,47 @@
-# RTP — Agent Onboarding (Week 3+)
+# RTP — Agent Onboarding (Week 4)
 
 > Read this file first. Then read the three context files below. Then start building.
 
 ## Before writing any code — read these in order
 
-1. **[`CLAUDE.md`](./CLAUDE.md)** — Architecture, three-layer stack, message flow, invariant
+1. **[`CLAUDE.md`](../CLAUDE.md)** — Architecture, three-layer stack, message flow, invariant
    list, design decisions, command reference. This is the project's brain.
-2. **[`BUILD_PLAN_v3.md`](./BUILD_PLAN_v3.md)** — Post-audit remediation schedule, invariant
+2. **[`BUILD_PLAN_v3.md`](../BUILD_PLAN_v3.md)** — Post-audit remediation schedule, invariant
    enforcement tracker, risk register, weekly timeline through May 11 deadline.
-3. **[`README.md`](./README.md)** — Project overview, demo flow, architecture diagram,
-   yield brain results, wing descriptions.
+3. **[`README.md`](../README.md)** — Project overview, demo flow, wing descriptions.
 
 After reading all three, you'll have the full context needed for the tasks below.
 
 ## What is this project?
 
-RTP is a Solana-native treasury governed by a Rust agent swarm. Token projects adopt RTP
-by enabling TransferFeeConfig — their trading fees route to a PDA-owned treasury. A
-6-wing swarm researches, validates, and executes yield strategies, returning yield to
-the project and its holders. **Hackathon deadline: May 11, 2026.**
+RTP is a Solana-native, self-funding treasury governed by a modular Rust swarm. Token projects adopt RTP — their trading fees route to the swarm, which autonomously researches, validates, and executes yield strategies — returning yield back to the project and its holders. Funded by its own yield, forever.
+
+```
+                    ┌─────────────────────────────┐
+                    │     RTP SWARM COORDINATOR    │
+                    │   (soulcontract.md governance)│
+                    └──────────┬──────────────────┘
+                               │
+          ┌────────────┬───────┼───────┬───────────┬────────────┐
+          │            │       │       │           │            │
+     ┌────▼────┐ ┌────▼───┐ ┌▼─────┐ ┌▼────────┐ ┌▼────────┐ ┌▼────────┐
+     │TRADING  │ │SECURITY│ │EVOLVE│ │KNOWLEDGE │ │AUDIT    │ │FUTURE   │
+     │WING     │ │WING    │ │WING  │ │WING      │ │WING     │ │PROOF    │
+     │Yield    │ │Threat  │ │Self- │ │Realtime  │ │Intent   │ │Quantum  │
+     │gen +    │ │detect  │ │modify │ │knowledge │ │complian.│ │future-  │
+     │exec     │ │defend  │ │adapt  │ │graph     │ │safety   │ │proofing │
+     └────┬────┘ └────┬───┘ └──┬───┘ └────┬─────┘ └────┬────┘ └────┬────┘
+          │           │        │          │            │           │
+          └───────────┴────────┴────────┴────────────┴──────────┘
+                               │
+                    ┌──────────▼──────────────────┐
+                    │     SOLANA TREASURY PDA      │
+                    │  fees → yield → redistribute │
+                    │  self-hydrate → run forever  │
+                    └─────────────────────────────┘
+```
+
+## Hackathon deadline: May 11, 2026
 
 ## What's already built? (ALL COMPLETE ✅)
 
@@ -45,111 +68,163 @@ Anchor 1.0 with Agave 3.1.12 (`solana-test-validator`). Seven instructions:
 **Integration tests**: 15 tests in `rtp/programs/rtp-treasury/tests/treasury.ts` (797 lines),
 covering every instruction and all audit fixes. All pass.
 
-### Swarm runtime — 88 tests passing
+### Swarm runtime — 133 tests passing
 **Path**: `rtp/swarm/src/`
 
 - **Coordinator**: soulguard, router, lifecycle (multi-stage quality gate)
 - **Evolve Wing**: assessor, proposer, rollback (complete, tested)
 - **Audit Wing**: 3-agent tribunal (Skeptic/UserProxy/Optimizer), Byzantine consensus
+- **Trading Wing**: 5 payload types (TradingConfig, Proposal, ExecutePermit,
+  YieldReport, Heartbeat), bridge.rs integration
+- **Security Wing**: threat detection, rate-limiting, suspicious proposal
+  pattern detection, 1-hour alert expiry
+- **Knowledge Wing**: in-memory HashMap store, case-insensitive search, context
+  filtering, cross-wing query support
+- **Futureproof Wing**: heartbeat with deprecation monitoring (7 crates)
+- **bridge.rs**: typed Python↔Rust interface (BridgeRequest/BridgeResponse),
+  subprocess call with error handling, `NIGHT_SHIFT_BIN` constant ready for Week 4 swap
 - **Types system**: Message, Payload, WingId, Priority (see `rtp/swarm/src/types.rs`)
 
-### Wing stubs (need implementation in Week 3)
-- **Trading**: only handles `TradingConfig` → returns `Ack`. Silently drops `Proposal`, `ExecutePermit`, `YieldReport`.
-- **Security**: only handles `Heartbeat` → returns `Ack`. Silently drops `SecurityAlert`, `Proposal`.
-- **Knowledge**: only handles `KnowledgeQuery` → returns placeholder. Silently drops `Assessment`, `YieldReport`.
-- **Futureproof**: only handles `Heartbeat` → returns `Ack`.
+### I-1 fix: no silent message drops
+All 6 wings return `Payload::Error { reason: "Unimplemented: <type>" }` for
+unhandled payload types. The `None` return that caused silent drops has been
+eliminated from every wing.
 
-> **⚠️ Silent message drops (I-1 from audit)**: All stub wings return `None` for
-> unhandled payloads. This means messages are silently lost with no audit trail.
-> When implementing each wing, the `None` fallback should return
-> `Payload::Error { reason: "Unimplemented: <payload_type>" }` so dropped
-> messages are visible in the Coordinator's processing results. Do this as part
-> of each wing's implementation, not as a separate task.
+## What needs to happen NOW (Week 4: Apr 21–25)
 
-## What needs to happen NOW (Week 3: Apr 14–18)
+Full schedule: [`BUILD_PLAN_v3.md`](../BUILD_PLAN_v3.md) Week 4 section.
 
-Full schedule: [`BUILD_PLAN_v3.md`](./BUILD_PLAN_v3.md) Week 3 section.
-Full audit: [`docs/SECURITY_AUDIT_2026-04-07.md`](./docs/SECURITY_AUDIT_2026-04-07.md).
+### Task 1: Black-box Python fractal-swarm → night_shift.bin
+**File**: `scripts/` (Python, gitignored — ships as compiled binary)
+**Output**: `night_shift.bin` at repo root
 
-### Task 1: Create `bridge.rs` — Python↔Rust typed interface
-**File**: `rtp/swarm/src/bridge.rs` (new)
-
-The Trading Wing needs to call the Python fractal-swarm binary and receive
-typed JSON proposals. This is the bridge between the research layer and
-execution layer.
+The Python fractal-swarm already works (night_shift.py, paper_trader.py). This task
+packages it into a standalone PyInstaller binary so the Rust swarm can call it through
+bridge.rs without a Python runtime.
 
 **What to build**:
-- Define `BridgeRequest` and `BridgeResponse` structs (serde JSON)
-- Function that calls Python binary via `std::process::Command`
-- Input: strategy parameters (symbol, config JSON)
-- Output: typed `BridgeResponse` with yield estimate, confidence, params
-- Error handling: binary not found, malformed output, timeout
-- Unit tests with mock binary or captured output
+- `pyinstaller` spec that produces a single `night_shift.bin` executable
+- Binary should accept `--bridge-mode` and read JSON from stdin, write JSON to stdout
+- Binary should include all dependencies (pandas, numpy, ccxt) — or a minimal
+  interface that only carries the config/params needed for bridge mode
+- Test: `bridge.rs` `call_bridge("night_shift.bin", request)` returns a valid
+  `BridgeResponse`
 
-**Reference**: See `rtp/swarm/src/types.rs` for existing `Payload::TradingConfig` and
-`Payload::YieldReport` — bridge output should map to these.
+**Reference**: See `rtp/swarm/src/bridge.rs` — the Rust side is done.
+**Key file**: `scripts/night_shift.py` — the Python entry point for bridge mode.
+**Key constraint**: the binary must work on a clean Ubuntu system with no Python install.
+  All Python deps must be bundled. Consider using `--hidden-imports` to trim fat.
 
-### Task 2: Wire Trading Wing beyond stub
-**File**: `rtp/swarm/src/wings/trading/mod.rs`
+### Task 2: Encrypted configs (AES, build-time key)
+**File**: `rtp/swarm/src/config.rs` (new) or inline in bridge.rs
 
-Currently only handles `TradingConfig`. Extend to handle:
-- `Proposal` → validate strategy params, submit yield proposal
-- `ExecutePermit` → call bridge.rs to execute strategy via Python binary
-- `YieldReport` → report execution results back to Coordinator
-- `Heartbeat` → report wing health with last execution metrics
+Protect strategy parameters with AES-256-GCM encryption so they're not visible in
+the binary. Build-time key derivation from an environment variable or a `.env` file
+that gitignore'd.
 
-**Keep it simple**: in-memory state for the wing (last proposal, last report,
-execution count). No external dependencies beyond bridge.rs.
+**What to build**:
+- `ConfigEncryption` struct with encrypt/decrypt using `aes-gcm` crate
+- Load key from env var `RTP_CONFIG_KEY` (hex-encoded 256-bit key)
+- Store/load encrypted configs from `configs/` directory
+- Fallback: if no key, work in plaintext (for development)
 
-**Important**: The stub's `None` fallback must become `Payload::Error { reason: ... }`
-for any unhandled payload type. See the silent-drop warning above.
+**Constraint**: Don't add heavy crypto dependencies. Use the `aes-gcm` crate (pure Rust,
+no FFI). The `RTP_CONFIG_KEY` env var is only needed for production builds.
 
-### Task 3: Knowledge Wing — in-memory knowledge graph
-**File**: `rtp/swarm/src/wings/knowledge/mod.rs`
+### Task 3: End-to-end devnet demo loop
+**Files**: `rtp/swarm/src/` (coordination code), `rtp/programs/` (Anchor)
 
-Replace the stub with a functional wing:
-- `DashMap` or `HashMap`-based store for strategy results, wing metrics, decisions
-- `KnowledgeQuery` → search stored entries by key/context
-- `Heartbeat` → report store size and query count
-- `YieldReport` → store yield results for cross-wing recall
-- `Assessment` → store evolve wing assessments
-- Cross-wing query support: any wing can ask "what do we know about X?"
+Wire the full message loop end-to-end on devnet:
 
-**Do NOT**: use a database, npm packages, or external services. Pure Rust HashMap.
+1. Token adopts RTP (initialize + verify_adoption on devnet)
+2. Fees accumulate (withdraw_fees)
+3. Threshold hit → check_redistribute (70/20/10 split)
+4. Swarm proposes strategy → Audit tribunal approves → Trading executes via bridge
+5. Self-hydration (hydrate_swarm with runway check)
 
-### Task 4: Security Wing — threat detection
-**File**: `rtp/swarm/src/wings/security/mod.rs`
+The individual pieces already work (treasury program tests, swarm tests, bridge.rs).
+This task is about wiring them together into a runnable demo flow.
 
-Replace the stub with a functional wing:
-- `SecurityAlert` → log and track threats (severity, threat description)
-- `Heartbeat` → report threat count, last alert timestamp
-- Rate-limit tracking: count proposals per wing, flag if above threshold
-- `Proposal` → check for suspicious patterns (e.g., SoulcontractAmendment proposals)
-- In-memory alert store with timestamp-based expiry
+**Reference**: [`docs/demo-flow.md`](../docs/demo-flow.md) — the 3-minute demo script.
+**Key file**: `rtp/swarm/src/coordinator/mod.rs` — the existing integration tests
+  already demonstrate the proposal→audit→execute→permit flow. Extend to include
+  yield report ingestion and knowledge storage.
 
-### Task 5: Wire wings to Coordinator + integration tests
-**Files**: `rtp/swarm/src/coordinator/mod.rs`, `rtp/swarm/src/coordinator/router.rs`
+**Devnet RPC**: use Triton One free tier — https://triton.one (always free devnet/testnet).
+**Anchor 1.0 caveat**: `anchor test --skip-build` only works with `--validator legacy
+  --provider.cluster localnet`. For devnet, you'd use a local `solana-test-validator`
+  with the deployed program loaded.
 
-- Ensure all 6 wings respond to at least 2 payload types each
-- Wire Security and Knowledge wing handlers in the Coordinator's routing
-- Integration test: send a `Proposal` through Coordinator → Audit → Trading → execute
-- Integration test: Knowledge query returns stored yield report data
-- Integration test: Security wing flags suspicious proposal pattern
+### Task 4: GitHub Actions CI
+**File**: `.github/workflows/swarm-ci.yml` (modify existing night_shift.yml or create new)
 
-**Reference**: See how Evolve and Audit wings are wired in the Coordinator for the pattern.
+Add a CI pipeline that runs on every push:
+- `cargo build` (swarm compiles clean)
+- `cargo test` (all 133+ tests pass)
+- `anchor build` (treasury compiles clean)
+- `cargo clippy` (no warnings)
 
-### Task 6: Futureproof Wing — minimal heartbeat + deprecation stub
-**File**: `rtp/swarm/src/wings/futureproof/mod.rs`
+**Reference**: See existing `.github/workflows/night_shift.yml` for the project's
+CI patterns. Build on that YAML structure — don't create from scratch.
 
-Add at minimum:
-- `Heartbeat` → report wing status
-- Deprecation check stub: check a hardcoded list of crate versions
-- 2 payload types handled
+## Key files for Week 4
+
+| File | What |
+|------|------|
+| [`CLAUDE.md`](../CLAUDE.md) | Architecture, commands, design decisions, invariant list |
+| [`BUILD_PLAN_v3.md`](../BUILD_PLAN.md) | Full schedule, risk register, invariant tracker |
+| [`README.md`](../README.md) | Project overview, demo flow, yield brain results |
+| [`docs/demo-flow.md`](../docs/demo-flow.md) | 3-minute hackathon demo script |
+| [`docs/SECURITY_AUDIT_2026-04-07.md`](../docs/SECURITY_AUDIT_2026-04-07.md) | All 18 audit findings with fixes |
+| [`CODEREVIEW.md`](../CODEREVIEW.md) | Code review instructions for AI agents |
+| [`soulcontract.md`](../soulcontract.md) | Constitutional constraints (DO NOT MODIFY) |
+| `rtp/swarm/src/types.rs` | All message/payload types — read before any wing changes |
+| `rtp/swarm/src/bridge.rs` | Python↔Rust typed interface — `NIGHT_SHIFT_BIN` constant |
+| `rtp/swarm/src/coordinator/mod.rs` | Coordinator quality gate pipeline |
+| `rtp/swarm/src/coordinator/router.rs` | Message routing |
+| `rtp/swarm/src/coordinator/soulguard.rs` | Soulcontract enforcement on every message |
+| `rtp/swarm/src/wings/trading/mod.rs` | Trading Wing (complete ✅) |
+| `rtp/swarm/src/wings/security/mod.rs` | Security Wing (complete ✅) |
+| `rtp/swarm/src/wings/knowledge/mod.rs` | Knowledge Wing (complete ✅) |
+| `rtp/swarm/src/wings/audit/mod.rs` | Audit Wing (complete ✅) |
+| `rtp/swarm/src/wings/evolve/` | Evolve Wing (complete ✅) |
+| `rtp/swarm/src/wings/futureproof/mod.rs` | Futureproof Wing (complete ✅) |
+| `rtp/programs/rtp-treasury/programs/rtp-treasury/src/lib.rs` | Treasury program (Anchor) |
+| `rtp/programs/rtp-treasury/tests/treasury.ts` | Treasury integration tests (15 tests) |
+| `rtp/programs/rtp-treasury/Anchor.toml` | Anchor config (program ID, cluster, test runner) |
+| `rtp/programs/rtp-treasury/target/idl/rtp_treasury.json` | IDL for Anchor client |
+
+## Reference links for Week 4 tasks
+
+### PyInstaller packaging
+- PyInstaller docs: https://pyinstaller.org/en/stable/
+- `--onefile` mode: https://pyinstaller.org/en/stable/specs/onefile.html
+- `--hidden-imports`: https://pyinstaller.org/en/stable/specs/hidden-imports.html
+- Night shift entry point: `scripts/night_shift.py`
+
+### AES-256-GCM encryption
+- `aes-gcm` crate: https://docs.rs/crate/aes-gcm/
+- RustCrypto/hmac: https://docs.rs/crate/hmac/ (key derivation)
+- Solana encrypt/decrypt pattern: https://solanacookbook.com/guides/advanced/encrypt-sensitive-data.html
+
+### Devnet setup
+- Triton One RPC: https://triton.one (free devnet/testnet)
+- Solana devnet faucet: https://faucet.solana.com
+- TransferFeeConfig docs: https://solana.com/docs/tokens/extensions/transfer-fees
+
+### GitHub Actions CI
+- Existing CI pattern: `.github/workflows/night_shift.yml`
+- YAML matrix for multiple jobs: https://docs.github.com/en/actions/using-workflows/using-workflows
+- Cargo cache: https://github.com/rust-lang/cargo/issues/7841
+
+### Demo
+- Demo script: [`docs/demo-flow.md`](../docs/demo-flow.md)
+- Build plan demo section: [`BUILD_PLAN_v3.md`](../BUILD_PLAN.md) Week 5
 
 ## Verify after every change
 
 ```bash
-# Swarm — must stay green (88+ tests, growing as you add tests)
+# Swarm — must stay green (133+ tests)
 cd rtp/swarm && cargo test
 
 # Treasury — must compile clean
@@ -172,59 +247,38 @@ cd rtp/programs/rtp-treasury && anchor test --skip-build --validator legacy --pr
 | 7 | Soulcontract amend = human sig | ⚠️ | Week 5: reload signature check |
 | 8 | Auto-rollback >5% degradation | ✅ | H-5: threshold from spec |
 | 9 | Self-hydration >90-day runway | ✅ | Enforced in hydrate_swarm |
-| 10 | Strategies black-boxed | ✅ | PyInstaller binary design |
+| 10| Strategies black-boxed | ✅ | PyInstaller binary design |
 
 Target: 9/10 enforced now. Invariant 7 is planned for Week 5.
 
-**Note on invariant 8**: `soulguard.exceeds_rollback_threshold()` reads the cached
-threshold via `try_read()` and falls back to hardcoded `0.05` if the `RwLock` is
-poisoned. This is a minor robustness issue — a poisoned lock indicates a bug
-elsewhere, and the silent fallback masks it. **Not a blocker for Week 3** but
-should be hardened (log a warning on poisoned lock) before Week 5 security sweep.
-
-**Note on M-2 (from security audit)**: `Initialize` has no explicit `has_one = mint`
-constraint on the Treasury account. The code review (2026-04-08) concluded this is
-**safe by construction** — Anchor's `init` with `seeds = [TREASURY_SEED, mint.key()]`
-guarantees the PDA is derived from the correct mint. No fix needed.
-
-**Note on `soulguard.set_risk_budget()`**: Silently clamps values > 1.0 without
-error or log. If a caller passes an invalid budget, it is dropped with no feedback.
-Not a blocker, but should return `Result` or log a warning.
-
 ## Code review findings (2026-04-08)
 
-Full review is in `CODEREVIEW.md`. Summary of findings relevant to Week 3:
+Full review is in `CODEREVIEW.md`. Summary of findings relevant to Week 4:
 
-| Severity | Finding | File | Action for Week 3 |
-|----------|---------|------|-------------------|
-| MEDIUM | Stub wings silently drop messages (return `None`) | `wings/*/mod.rs` | Return `Payload::Error` for unhandled types — do as part of wing implementation |
+| Severity | Finding | File | Status |
+|----------|---------|------|--------|
+| MEDIUM | Stub wings silently drop messages (return `None`) | `wings/*/mod.rs` | ✅ Fixed in Week 3 |
 | MEDIUM | `set_risk_budget()` silent clamp at 1.0 | `soulguard.rs:266` | Not a blocker; return `Result` or log if time permits |
 | MEDIUM | `exceeds_rollback_threshold` falls back to 0.05 on poisoned lock | `soulguard.rs:293` | Not a blocker; log warning before Week 5 |
 | LOW | Phase threshold parser case-sensitive (`k` vs `K`) | `soulcontract_spec.rs:148` | Use `.to_lowercase().contains("k")` if time permits |
 | LOW | CI `git pull --rebase || true` swallows failures | `night_shift.yml:89` | Improve echo message |
+| INFO | No subprocess timeout in bridge.rs | `bridge.rs` | Add tokio::time::timeout in Week 4 |
 
 **No CRITICAL or HIGH findings.** Treasury program patches are solid. Swarm architecture
-is clean. The codebase is ready for Week 3 work.
+is clean. The codebase is ready for Week 4 work.
 
-## After Week 3 (Weeks 4–6 at a glance)
+## After Week 4 (Weeks 5–6 at a glance)
 
-### Week 4 (Apr 21–25): Full Loop + Black-Boxing
-- Black-box Python fractal-swarm → `night_shift.bin` (PyInstaller)
-- Encrypted configs (AES, build-time key)
-- End-to-end devnet demo: adopt → fees → redistribute → swarm executes → yield
-- GitHub Actions CI (`cargo build` + `cargo test` + `anchor build`)
-- **Skill load**: `github-workflow-automation` (YAML templates only — ignore ruv-swarm/claude-flow refs)
-
-### Week 5 (Apr 28–May 2): Polish + Hardening
-- Demo rehearsal (3 minutes) — see [`docs/demo-flow.md`](./docs/demo-flow.md)
-- **Skill load**: `walkthrough` (builtin) — generate Mermaid diagrams for README
-- **Skill load**: `code-review` (builtin) — formal diff review of treasury program
+### Week 5 (Apr 28 – May 2): Polish + Hardening
+- Demo rehearsal (3 minutes) — see [`docs/demo-flow.md`](../docs/demo-flow.md)
+- soulguard reload with signature verification (or document as production TODO)
 - Final security sweep, README polish, video recording
+- Colosseum Copilot final check: https://arena.colosseum.org/copilot
 
 ### Week 6 (May 5–11): Submission
-- Register individually (deadline May 4)
+- Register individually (deadline May 4 — DO THIS FIRST)
 - Final `cargo test` + `anchor test` runs
-- Submit to Colosseum
+- Submit to Colosseum: https://arena.colosseum.org/register
 - **Deadline: May 11**
 
 ## Rules
@@ -238,36 +292,9 @@ is clean. The codebase is ready for Week 3 work.
 - **Wings NEVER modify each other directly** — all cross-wing communication via Coordinator.
 - **Every message passes through soulguard** — the Coordinator enforces this.
 - **Wings must never silently drop messages** — unhandled payloads must return
-  `Payload::Error { reason: "..." }`, not `None`. The `None` return in current stubs
-  is a known issue (I-1) that gets fixed as each wing is implemented.
+  `Payload::Error { reason: "..." }`, not `None`.
 - **Token-2022 gotchas** (if you touch treasury tests):
   - `transferCheckedWithFee` stores withheld fees in the **DESTINATION** token account
   - Use `sendAndConfirmTransaction` directly — NOT the `@solana/spl-token` wrapper
   - Add 200-300ms sleeps after `.rpc()` calls that perform CPI before reading state
   - CPI from Anchor to Token-2022 requires `mut` on accounts the CPI marks as writable
-
-## Key files
-
-| File | What |
-|------|------|
-| [`CLAUDE.md`](./CLAUDE.md) | Architecture, commands, design decisions, invariant list |
-| [`BUILD_PLAN_v3.md`](./BUILD_PLAN_v3.md) | Full schedule, risk register, invariant tracker |
-| [`README.md`](./README.md) | Project overview, demo flow, yield brain results |
-| [`soulcontract.md`](./soulcontract.md) | Constitutional constraints (DO NOT MODIFY) |
-| [`docs/SECURITY_AUDIT_2026-04-07.md`](./docs/SECURITY_AUDIT_2026-04-07.md) | All 18 audit findings with fixes |
-| [`docs/demo-flow.md`](./docs/demo-flow.md) | 3-minute hackathon demo script |
-| `rtp/programs/rtp-treasury/programs/rtp-treasury/src/lib.rs` | Treasury program (Anchor) |
-| `rtp/programs/rtp-treasury/tests/treasury.ts` | Treasury integration tests (15 tests) |
-| `rtp/swarm/src/types.rs` | All message/payload types — **read this before building wings** |
-| `rtp/swarm/src/coordinator/mod.rs` | Coordinator quality gate pipeline |
-| `rtp/swarm/src/coordinator/router.rs` | Message routing — wire new wings here |
-| `rtp/swarm/src/coordinator/soulguard.rs` | Soulcontract enforcement on every message |
-| `rtp/swarm/src/coordinator/lifecycle.rs` | Wing spawn, health-check, retire |
-| `rtp/swarm/src/wings/trading/mod.rs` | Trading Wing (stub → Week 3) |
-| `rtp/swarm/src/wings/security/mod.rs` | Security Wing (stub → Week 3) |
-| `rtp/swarm/src/wings/knowledge/mod.rs` | Knowledge Wing (stub → Week 3) |
-| `rtp/swarm/src/wings/evolve/mod.rs` | Evolve Wing (complete ✅) |
-| `rtp/swarm/src/wings/audit/mod.rs` | Audit Wing (complete ✅) |
-| `rtp/swarm/src/wings/futureproof/mod.rs` | Futureproof Wing (stub) |
-| `rtp/programs/rtp-treasury/Anchor.toml` | Anchor config (program ID, cluster, test runner) |
-| `rtp/programs/rtp-treasury/target/idl/rtp_treasury.json` | IDL for Anchor client |
