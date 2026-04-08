@@ -7,13 +7,18 @@
   },
   "devDependencies": {
     "@coral-xyz/anchor": "^0.31.0",
-    "@solana/web3.js": "^1.95.0",
     "@solana/spl-token": "^0.4.0",
+    "@solana/web3.js": "^1.95.0",
+    "@types/chai": "^4.3.11",
+    "@types/mocha": "^10.0.6",
+    "@types/node": "^25.5.2",
     "chai": "^4.3.10",
     "mocha": "^10.2.0",
     "ts-mocha": "^10.0.0",
-    "typescript": "^5.3.0",
-    "@types/chai": "^4.3.11",
-    "@types/mocha": "^10.0.6"
+    "tsx": "^4.21.0",
+    "typescript": "^5.3.0"
+  },
+  "dependencies": {
+    "@solana-program/token-2022": "^0.9.0"
   }
 }

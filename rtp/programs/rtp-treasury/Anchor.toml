@@ -8,13 +8,16 @@ skip-lint = false
 rtp_treasury = "4LvsHbe9LLwgogcDbH7ieTsGcWZctjYFZkzZwaHDM8Ad"
 
 [programs.localnet]
-rtp_treasury = "6Fqz1h17BxqQTWxQmj6nuLUJw2JVCofgbYgsixgxtxR4"
+rtp_treasury = "4LvsHbe9LLwgogcDbH7ieTsGcWZctjYFZkzZwaHDM8Ad"
 
 [provider]
-cluster = "devnet"
+cluster = "localnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]
-test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"
+test = "npx ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"
+
+[test]
+startup_wait = 10000
 
 [hooks]

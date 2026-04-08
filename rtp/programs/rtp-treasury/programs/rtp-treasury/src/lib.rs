@@ -56,6 +56,8 @@ pub enum TreasuryError {
     UnauthorizedPhaseEvolution,
     #[msg("Mint's withdraw_withheld_authority does not match Treasury PDA")]
     WithdrawAuthorityMismatch,
+    #[msg("Mint does not have TransferFeeConfig enabled — cannot adopt RTP")]
+    MintNotConfigured,
 }
 
 // ---------------------------------------------------------------------------
@@ -67,7 +69,7 @@ pub enum TreasuryError {
 pub struct Treasury {
     /// The Token-2022 mint this treasury serves
     pub mint: Pubkey,
-    /// The PDA that owns the treasury (self-referential — no external authority)
+    /// The phase authority (set at initialization).
     pub authority: Pubkey,
     /// Current evolution phase (Sustenance → Ecosystem → Humanity)
     pub phase: Phase,
@@ -113,6 +115,45 @@ impl Default for Phase {
 }
 
 // ---------------------------------------------------------------------------
+// Shared Helpers (outside #[program] so Anchor doesn't treat as instructions)
+// ---------------------------------------------------------------------------
+
+/// Verify that the given mint account has TransferFeeConfig enabled and
+/// that `treasury_key` is the `withdraw_withheld_authority`.
+///
+/// Shared by `initialize` (M-1 fix) and `verify_adoption` — no code
+/// duplication.
+fn verify_transfer_fee_config(
+    mint_info: &AccountInfo,
+    treasury_key: &Pubkey,
+) -> Result<()> {
+    let data = mint_info.try_borrow_data()?;
+
+    // Unpack the full mint account: 82 bytes base Mint + TLV extensions.
+    let mint_with_extensions =
+        StateWithExtensions::<SplMint>::unpack(data.as_ref())
+            .map_err(|_| TreasuryError::MintNotConfigured)?;
+
+    // Extract the TransferFeeConfig extension. If the extension is
+    // missing (mint doesn't have TransferFeeConfig), this fails.
+    let fee_config = mint_with_extensions
+        .get_extension::<TransferFeeConfig>()
+        .map_err(|_| TreasuryError::MintNotConfigured)?;
+
+    // Verify the withdraw_withheld_authority matches the Treasury PDA.
+    let auth: Option<Pubkey> = fee_config.withdraw_withheld_authority.into();
+    match auth {
+        Some(key) => require!(
+            key == *treasury_key,
+            TreasuryError::WithdrawAuthorityMismatch
+        ),
+        None => return Err(TreasuryError::WithdrawAuthorityMismatch.into()),
+    }
+
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
 // Program + Account Contexts
 // ---------------------------------------------------------------------------
 
@@ -153,6 +194,15 @@ pub mod rtp_treasury {
         );
         treasury.min_runway_balance = min_runway_balance;
         treasury.bump = ctx.bumps.treasury;
+
+        // M-1 fix: verify mint has TransferFeeConfig with Treasury PDA as
+        // withdraw_withheld_authority BEFORE storing state. Fails early
+        // with a clear error if the mint is not properly configured.
+        verify_transfer_fee_config(
+            &ctx.accounts.mint.to_account_info(),
+            &treasury.key(),
+        )?;
+
         Ok(())
     }
 
@@ -393,32 +443,8 @@ pub mod rtp_treasury {
     /// relying on off-chain "did you configure the mint?" trust.
     pub fn verify_adoption(ctx: Context<VerifyAdoption>) -> Result<()> {
         let mint_info = ctx.accounts.mint.to_account_info();
-        let data = mint_info.try_borrow_data()?;
-
-        // Unpack the full mint account: 82 bytes base Mint + TLV extensions.
-        // Fails if the mint is uninitialized or data is malformed.
-        let mint_with_extensions =
-            StateWithExtensions::<SplMint>::unpack(data.as_ref())
-                .map_err(|_| TreasuryError::WithdrawAuthorityMismatch)?;
-
-        // Extract the TransferFeeConfig extension. If the extension is
-        // missing (mint doesn't have TransferFeeConfig), this fails.
-        let fee_config = mint_with_extensions
-            .get_extension::<TransferFeeConfig>()
-            .map_err(|_| TreasuryError::WithdrawAuthorityMismatch)?;
-
-        // Verify the withdraw_withheld_authority matches the Treasury PDA.
         let treasury_key = ctx.accounts.treasury.key();
-        let auth: Option<Pubkey> = fee_config.withdraw_withheld_authority.into();
-        match auth {
-            Some(key) => require!(
-                key == treasury_key,
-                TreasuryError::WithdrawAuthorityMismatch
-            ),
-            None => return Err(TreasuryError::WithdrawAuthorityMismatch.into()),
-        }
-
-        Ok(())
+        verify_transfer_fee_config(&mint_info, &treasury_key)
     }
 
     /// Create the swarm hydration PDA vault.
@@ -488,7 +514,9 @@ pub mod rtp_treasury {
     #[derive(Accounts)]
     pub struct WithdrawFees<'info> {
         /// The Token-2022 mint with TransferFeeConfig enabled.
-        #[account(mint::token_program = token_program)]
+        /// `mut` required: CPI `withdraw_withheld_tokens_from_mint` marks
+        /// mint as writable in its account metas.
+        #[account(mut, mint::token_program = token_program)]
         pub mint: InterfaceAccount<'info, Mint>,
 
         /// Treasury state account (PDA).

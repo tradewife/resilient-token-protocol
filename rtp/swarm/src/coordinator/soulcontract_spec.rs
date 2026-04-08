@@ -320,9 +320,13 @@ Auto-rollback if system performance degrades > 5% post-amendment
 
     #[test]
     fn parse_full_soulcontract() {
-        let path = Path::new("/home/kt/kt/tabs/resilient-token-protocol/soulcontract.md");
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .ancestors()
+            .nth(2)
+            .unwrap_or(Path::new("."))
+            .join("soulcontract.md");
         if path.exists() {
-            let spec = SoulcontractSpec::from_file(path).unwrap();
+            let spec = SoulcontractSpec::from_file(&path).unwrap();
             assert!(spec.immutable_constraints.len() >= 5);
             assert!(spec.core_values.len() >= 5);
             assert_eq!(spec.phases.len(), 3);
