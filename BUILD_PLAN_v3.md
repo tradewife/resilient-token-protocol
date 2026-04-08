@@ -288,31 +288,30 @@ WEEK 4 (Apr 21-25): FULL LOOP + BLACK-BOXING
 ─────────────────────────────────────────────────────────────────────
 
   Day 1-2:
-  [ ] Black-box Python fractal-swarm: pyinstaller → night_shift.bin
-  [ ] Encrypted configs (AES, build-time key)
-  [ ] End-to-end: Python proposes → bridge.rs → Audit tribunal
+  [x] Black-box Python fractal-swarm: pyinstaller → night_shift.bin (pre-built)
+  [ ] Encrypted configs (AES, build-time key) — DEFERRED (repo private)
+  [x] End-to-end: Python proposes → bridge.rs → Audit tribunal
       → Coordinator routes → Trading executes → YieldReport
+      Verified via: ./demo.sh (3-layer combined demo)
+      Bridge round-trip: night_shift.bin --bridge-mode → real strategy output
 
   Day 3-4:
-  [ ] Full loop demo on devnet:
-      1. Token adopts RTP (initialize + verify_adoption)
+  [x] Full loop demo on devnet:
+      1. Token adopts RTP (initialize + verify_adoption) — scripts/devnet-demo.ts
       2. Fees accumulate (withdraw_fees)
       3. Threshold hit → check_redistribute (70/20/10)
       4. Swarm proposes strategy → audit approves → execute
       5. Self-hydration (hydrate_swarm with runway check)
   [ ] MoonPay Agents integration (if time permits)
-  [ ] Phase evolution demo (evolve_phase with threshold enforcement)
+  [x] Phase evolution demo (evolve_phase with threshold enforcement)
+      Shows correct BelowThreshold rejection when vault < $50k
 
   Day 5:
-  [ ] GitHub Actions CI: cargo build + cargo test + anchor build
-      SKILL: Load github-workflow-automation — extract the GitHub
-      Actions YAML templates for Rust/Anchor CI. Ignore all
-      ruv-swarm and claude-flow references in the skill. You only
-      need the workflow YAML structure for:
-        - matrix: [cargo build, cargo test, anchor build]
-        - cache: cargo registry + target dir
-        - timeout: 30 min
-  [ ] Weekly checkpoint: full end-to-end loop demoable on devnet
+  [x] GitHub Actions CI: cargo build + cargo test + anchor build
+      swarm-ci.yml: build + test + clippy + fmt + anchor build
+      python-tests.yml: module imports + CLI help + bridge-mode schema
+      night_shift.yml: nightly research pipeline (cron 14:00 UTC)
+  [x] Weekly checkpoint: full end-to-end loop demoable on devnet
 
   DELIVERABLES: Complete loop, source-visible research pipeline, devnet demo
 
@@ -320,27 +319,21 @@ WEEK 5 (Apr 28 - May 2): POLISH + HARDENING
 ─────────────────────────────────────────────────────────────────────
 
   Day 1-2:
-  [ ] Demo flow rehearsed (3 minutes):
+  [x] Demo flow rehearsed (3 minutes):
       1. Token adopts RTP — TransferFeeConfig enabled
       2. Trading fees auto-route to Treasury PDA
       3. Swarm researches, validates, executes yield strategy
       4. Reserves hit threshold → live redistribution tx
       5. Verify: project + holders receive yield, SOL untouched
-      SKILL: Load walkthrough (builtin) — generate Mermaid diagrams
-      of the 3-layer architecture and fee flow for README and demo
-      slides. This is the one skill that directly helps judges
-      understand the system.
+      Run via: ./demo.sh (combined 3-layer) or npm run demo:localnet
+      Script: docs/demo-flow.md updated with actual runnable commands
   [ ] soulguard reload with signature verification
       (or document as production TODO)
 
   Day 3-4:
   [ ] Final security sweep
-      SKILL: Load code-review (builtin) — run formal review on the
-      full treasury program diff since the audit. This catches
-      regressions. Do NOT load red-team-tribunal — it returns fake
-      hardcoded results. Amp's built-in code-review is the real tool.
-  [ ] README polished — invariant table shows enforced status
-  [ ] third-party-disclosure.md updated
+  [x] README polished — invariant table shows enforced status
+  [x] third-party-disclosure.md updated (deferred black-boxing noted)
   [ ] Video recording of demo
 
   Day 5:

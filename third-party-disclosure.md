@@ -34,13 +34,13 @@ RTP (Resilient Token Protocol) uses the following open-source frameworks and spo
 
 ## Black-Box Components
 
-The following components ship as compiled binaries. Source code is not included to protect the competitive strategy moat.
+The following components are intended to ship as compiled binaries to protect the competitive strategy moat. However, **black-boxing is currently deferred** while the repo remains private for active collaboration. Source code is readable for all contributors.
 
-- **night_shift.bin** — Yield brain optimizer (PyInstaller binary)
-- **configs/encrypted/** — AES-encrypted strategy parameters
-- **loss_function.bin** — Treasury-native scoring function
+- **night_shift.bin** — Yield brain optimizer (PyInstaller binary from `research/orchestration/night_shift.py`)
+- **configs/** — Strategy parameters (not currently encrypted; encryption planned for production)
+- **Bridge interface** — Typed JSON interface between Python research and Rust execution (`rtp/swarm/src/bridge.rs`)
 
-These binaries are deterministic — given the same input data and parameters, they produce identical outputs. The open-source swarm architecture interacts with them via a typed JSON interface.
+The binaries are deterministic — given the same input data and parameters, they produce identical outputs. The open-source swarm architecture interacts with them via a typed JSON interface (`BridgeRequest` → stdin → `BridgeResponse` → stdout).
 
 ## Contact
 

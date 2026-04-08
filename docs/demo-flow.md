@@ -4,10 +4,11 @@ Hackathon demo script for RTP (Resilient Token Protocol).
 
 ## Setup
 
-- Devnet RPC running (Triton One free tier)
-- Phantom wallet connected (CASH enabled)
-- Treasury PDA deployed with test funds
-- Night shift results visible (from latest run)
+- Repo cloned, `.venv` active, Rust toolchain installed
+- **Quick demo:** `./demo.sh` (runs all three layers)
+- **On-chain demo:** `cd rtp/programs/rtp-treasury && npm run demo:localnet`
+- **Swarm only:** `cd rtp/swarm && cargo run --bin rtp-demo`
+- Night shift results visible (from latest CI run or local run)
 
 ## Script
 
@@ -23,19 +24,19 @@ Show: a token project enabling TransferFeeConfig, pointing fees to the RTP Treas
 
 ### 0:45 — The Research Engine (30 seconds)
 
-Show terminal: `data/night_results/latest/report.md`
+Show terminal: `./demo.sh` Layer 1 output (or `echo '{"symbol":"SOL/USDT","config":{}}' | ./night_shift.bin --bridge-mode`)
 
-"Last night, while we slept, the fractal-swarm tested 30,000 strategy configurations across 9 independent validation windows. The best one: +118% PnL, 78% consistency, 429 validated trades. This is not a backtest — these are out-of-sample walk-forward results with realistic fees and slippage."
+"Last night, while we slept, the fractal-swarm tested 30,000 strategy configurations across 9 independent validation windows. The best one: +118% PnL, 78% consistency, 429 validated trades. This is not a backtest — these are out-of-sample walk-forward results with realistic fees and slippage. The Rust swarm calls this engine via a typed JSON bridge."
 
 ### 1:15 — Wing Architecture (30 seconds)
 
-Show: Coordinator routing a proposal through Audit Wing.
+Show: `cargo run --bin rtp-demo` output (10-step swarm demo).
 
 "The Trading Wing proposes a deployment. The Audit Wing checks it against the soulcontract — our constitutional governance layer. Every action, every transaction, every proposed change must pass. The swarm is autonomous, but never uncontrolled."
 
 ### 1:45 — Fee Flow (30 seconds)
 
-Show: trading fees → Treasury PDA → redistribution on devnet.
+Show: `npm run demo:localnet` output (treasury lifecycle with 70/20/10 split).
 
 "Fees flow in from the adopting project's trades. The swarm converts to USDC and puts it to work. At threshold, it auto-redistributes: 70% to the project's token holders, 20% to the project dev, 10% to ecosystem. The project and its holders benefit — no trust required."
 

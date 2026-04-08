@@ -68,6 +68,14 @@ Most "autonomous agent" projects are marketing wrappers around a simple bot. RTP
 
 This is not a backtest screenshot. These are out-of-sample walk-forward results through a fee-aware simulator with 429 real trades across 9 independent time windows.
 
+## Quick Demo
+
+```bash
+./demo.sh    # Runs all three layers end-to-end
+```
+
+See [docs/demo-flow.md](docs/demo-flow.md) for the 3-minute hackathon demo script.
+
 ## Architecture
 
 ```
