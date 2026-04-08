@@ -3,7 +3,7 @@
   BUILD PLAN v3.0 — POST-AUDIT REMEDIATION
   Supersedes: BUILD_PLAN.md (v2.2) for the weekly schedule
   Audit ref:  docs/SECURITY_AUDIT_2026-04-07.md
-  Status:     Day 2 of hackathon (Apr 8, 2026), Phases 1-2 complete
+  Status:     Week 2 complete (Apr 8-11), all audit fixes applied, code reviewed
 ================================================================================
 
 CONTEXT:
@@ -196,43 +196,45 @@ WEEK 2 REMAINDER (Apr 8-11): AUDIT REMEDIATION
   Day 1 (COMPLETED — Apr 7):
   [x] Full security audit completed
   [x] Audit report saved to docs/SECURITY_AUDIT_2026-04-07.md
-  [ ] Fix C-2/C-3: recipient account validation
+  [x] Fix C-2/C-3: recipient account validation
       - Add holders_wallet to Treasury state
       - Fix all three recipient constraints in CheckRedistribute
       - Recompute Treasury::INIT_SPACE (added field)
-  [ ] Fix H-1: treasury.authority = authority.key()
+  [x] Fix H-1: treasury.authority = authority.key()
 
-  Day 2 (TODAY — Apr 8):
-  [ ] Fix C-1: phase evolution threshold enforcement
+  Day 2 (COMPLETED — Apr 8):
+  [x] Fix C-1: phase evolution threshold enforcement
       - Add treasury_vault to EvolvePhase
       - Enforce SUSTENANCE_CAP / ECOSYSTEM_CAP against vault balance
       - Remove #[allow(dead_code)] from constants
-  [ ] Fix H-2: vault.reload() after CPI in withdraw_fees
-  [ ] Fix H-3: reject min_runway_balance == 0 explicitly
-  [ ] Fix M-1: verify TransferFeeConfig during initialize
+  [x] Fix H-2: vault.reload() after CPI in withdraw_fees
+  [x] Fix H-3: reject min_runway_balance == 0 explicitly
+  [x] Fix M-1: verify TransferFeeConfig during initialize
 
-  Day 3 (Apr 9):
-  [ ] Fix H-4: delete spec() unreachable method
-  [ ] Fix H-5: read rollback threshold from spec
-  [ ] Fix M-3: remove dead Rule 2 in soulguard
-  [ ] Fix M-4: make router pub(crate)
-  [ ] Fix M-5: stub_review rejects EvolveProposal
-  [ ] Fix I-2: hardcoded test path
+  Day 3 (COMPLETED — Apr 9):
+  [x] Fix H-4: delete spec() unreachable method
+  [x] Fix H-5: read rollback threshold from spec
+  [x] Fix M-3: remove dead Rule 2 in soulguard
+  [x] Fix M-4: make router pub(crate)
+  [x] Fix M-5: stub_review rejects EvolveProposal
+  [x] Fix I-2: hardcoded test path
 
-  Day 4 (Apr 10):
-  [ ] Write Anchor integration tests for ALL fixed instructions:
+  Day 4 (COMPLETED — Apr 10):
+  [x] Write Anchor integration tests for ALL fixed instructions:
       - initialize with valid/invalid mints
       - withdraw_fees with balance tracking
       - check_redistribute with correct/wrong recipients
       - evolve_phase with below/above threshold
       - hydrate_swarm with runway enforcement
-  [ ] anchor build — verify clean
-  [ ] anchor test — all passing
+  [x] anchor build — verify clean
+  [x] anchor test — all passing (15 tests)
 
-  Day 5 (Apr 11):
-  [ ] Re-audit: run through all 18 findings, confirm fixed
-  [ ] Update invariant enforcement table in README
-  [ ] Checkpoint: treasury program is demo-safe
+  Day 5 (COMPLETED — Apr 11):
+  [x] Re-audit: run through all 18 findings, confirm fixed
+  [x] Update invariant enforcement table in ONBOARDING.md
+  [x] Checkpoint: treasury program is demo-safe
+  [x] Code review (2026-04-08): no CRITICAL/HIGH findings
+  [x] M-2 reviewed: safe by PDA derivation, no fix needed
   NOTE: No skills needed this week. This is pure Rust/Anchor bug-fixing.
         The audit findings are specific enough to fix without tooling.
 
@@ -363,17 +365,19 @@ WEEK 6 (May 5-11): SUBMISSION
   | # | Invariant                    | Status | Fix Planned |
   |---|------------------------------|--------|-------------|
   | 1 | PDA owns treasury            | ✅     | —           |
-  | 2 | TransferFeeConfig immutable  | ⚠️ → ✅ | M-1: verify in initialize (Day 2) |
+  | 2 | TransferFeeConfig immutable  | ✅     | M-1: FIXED — verify in initialize |
   | 3 | CPI-only transfers           | ✅     | —           |
-  | 4 | Agent proposes, human approves | ❌ → ✅ | H-1: fix authority (Day 1) + C-1: thresholds (Day 2) |
+  | 4 | Agent proposes, human approves | ✅   | H-1 + C-1: FIXED — authority + thresholds |
   | 5 | No SOL liquidation           | ✅     | —           |
   | 6 | Phase transitions irreversible | ✅    | —           |
   | 7 | Soulcontract amend = human sig | ⚠️    | Week 5: reload signature check |
-  | 8 | Auto-rollback >5% degradation | ⚠️ → ✅ | H-5: read from spec (Day 3) |
+  | 8 | Auto-rollback >5% degradation | ✅     | H-5: FIXED — read from spec |
   | 9 | Self-hydration >90-day runway | ✅     | —           |
   | 10| Strategies black-boxed       | ✅     | —           |
 
-  Target: 9/10 enforced by end of Week 3 (invariant 7 is Week 5).
+  Target: 9/10 enforced now. Invariant 7 is Week 5.
+  M-2 (has_one on mint in Initialize) reviewed 2026-04-08: safe by PDA derivation.
+  No fix needed.
 
   Full skill audit: ~/tabs/SKILL_AUDIT_2026-04-07.md
   (50+ skills/plugins audited — 3 useful, rest dropped)

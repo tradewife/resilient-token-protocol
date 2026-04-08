@@ -54,10 +54,17 @@ covering every instruction and all audit fixes. All pass.
 - **Types system**: Message, Payload, WingId, Priority (see `rtp/swarm/src/types.rs`)
 
 ### Wing stubs (need implementation in Week 3)
-- **Trading**: only handles `TradingConfig` → returns `Ack`
-- **Security**: only handles `Heartbeat` → returns `Ack`
-- **Knowledge**: only handles `KnowledgeQuery` → returns placeholder
-- **Futureproof**: only handles `Heartbeat` → returns `Ack`
+- **Trading**: only handles `TradingConfig` → returns `Ack`. Silently drops `Proposal`, `ExecutePermit`, `YieldReport`.
+- **Security**: only handles `Heartbeat` → returns `Ack`. Silently drops `SecurityAlert`, `Proposal`.
+- **Knowledge**: only handles `KnowledgeQuery` → returns placeholder. Silently drops `Assessment`, `YieldReport`.
+- **Futureproof**: only handles `Heartbeat` → returns `Ack`.
+
+> **⚠️ Silent message drops (I-1 from audit)**: All stub wings return `None` for
+> unhandled payloads. This means messages are silently lost with no audit trail.
+> When implementing each wing, the `None` fallback should return
+> `Payload::Error { reason: "Unimplemented: <payload_type>" }` so dropped
+> messages are visible in the Coordinator's processing results. Do this as part
+> of each wing's implementation, not as a separate task.
 
 ## What needs to happen NOW (Week 3: Apr 14–18)
 
@@ -93,6 +100,9 @@ Currently only handles `TradingConfig`. Extend to handle:
 
 **Keep it simple**: in-memory state for the wing (last proposal, last report,
 execution count). No external dependencies beyond bridge.rs.
+
+**Important**: The stub's `None` fallback must become `Payload::Error { reason: ... }`
+for any unhandled payload type. See the silent-drop warning above.
 
 ### Task 3: Knowledge Wing — in-memory knowledge graph
 **File**: `rtp/swarm/src/wings/knowledge/mod.rs`
@@ -166,6 +176,36 @@ cd rtp/programs/rtp-treasury && anchor test --skip-build --validator legacy --pr
 
 Target: 9/10 enforced now. Invariant 7 is planned for Week 5.
 
+**Note on invariant 8**: `soulguard.exceeds_rollback_threshold()` reads the cached
+threshold via `try_read()` and falls back to hardcoded `0.05` if the `RwLock` is
+poisoned. This is a minor robustness issue — a poisoned lock indicates a bug
+elsewhere, and the silent fallback masks it. **Not a blocker for Week 3** but
+should be hardened (log a warning on poisoned lock) before Week 5 security sweep.
+
+**Note on M-2 (from security audit)**: `Initialize` has no explicit `has_one = mint`
+constraint on the Treasury account. The code review (2026-04-08) concluded this is
+**safe by construction** — Anchor's `init` with `seeds = [TREASURY_SEED, mint.key()]`
+guarantees the PDA is derived from the correct mint. No fix needed.
+
+**Note on `soulguard.set_risk_budget()`**: Silently clamps values > 1.0 without
+error or log. If a caller passes an invalid budget, it is dropped with no feedback.
+Not a blocker, but should return `Result` or log a warning.
+
+## Code review findings (2026-04-08)
+
+Full review is in `CODEREVIEW.md`. Summary of findings relevant to Week 3:
+
+| Severity | Finding | File | Action for Week 3 |
+|----------|---------|------|-------------------|
+| MEDIUM | Stub wings silently drop messages (return `None`) | `wings/*/mod.rs` | Return `Payload::Error` for unhandled types — do as part of wing implementation |
+| MEDIUM | `set_risk_budget()` silent clamp at 1.0 | `soulguard.rs:266` | Not a blocker; return `Result` or log if time permits |
+| MEDIUM | `exceeds_rollback_threshold` falls back to 0.05 on poisoned lock | `soulguard.rs:293` | Not a blocker; log warning before Week 5 |
+| LOW | Phase threshold parser case-sensitive (`k` vs `K`) | `soulcontract_spec.rs:148` | Use `.to_lowercase().contains("k")` if time permits |
+| LOW | CI `git pull --rebase || true` swallows failures | `night_shift.yml:89` | Improve echo message |
+
+**No CRITICAL or HIGH findings.** Treasury program patches are solid. Swarm architecture
+is clean. The codebase is ready for Week 3 work.
+
 ## After Week 3 (Weeks 4–6 at a glance)
 
 ### Week 4 (Apr 21–25): Full Loop + Black-Boxing
@@ -197,6 +237,9 @@ Target: 9/10 enforced now. Invariant 7 is planned for Week 5.
   (See `~/tabs/SKILL_AUDIT_2026-04-07.md` — most are stubs or mocks.)
 - **Wings NEVER modify each other directly** — all cross-wing communication via Coordinator.
 - **Every message passes through soulguard** — the Coordinator enforces this.
+- **Wings must never silently drop messages** — unhandled payloads must return
+  `Payload::Error { reason: "..." }`, not `None`. The `None` return in current stubs
+  is a known issue (I-1) that gets fixed as each wing is implemented.
 - **Token-2022 gotchas** (if you touch treasury tests):
   - `transferCheckedWithFee` stores withheld fees in the **DESTINATION** token account
   - Use `sendAndConfirmTransaction` directly — NOT the `@solana/spl-token` wrapper
