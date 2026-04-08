@@ -42,25 +42,53 @@ PRODUCTION_PARAMS = {
 }
 
 # Per-symbol overrides — night shift validated configs
-# Updated: 2026-04-06 from night shift run (9-fold WFA, full pipeline)
-# SOL: OOS Sharpe +18.68, 100% consistency, 0 overfitting, 28 trades/fold
-# BTC/ETH/BNB: production baseline underperforming — kept as learning probes
-#   to identify what the optimizer can't improve (helps build self-correction)
+# Updated: 2026-04-08 from full 4-symbol night shift (9-fold WFA, FutureBlindSim validated)
+# All configs validated through full-sim with fees + slippage (STRONG verdict)
 SYMBOL_PARAMS = {
-    "BTC/USDT": PRODUCTION_PARAMS,  # TODO: night shift can't find edge — needs regime-aware config
-    "ETH/USDT": PRODUCTION_PARAMS,  # TODO: marginal survivor 3.04, overfitting flagged
+    "BTC/USDT": {
+        "signal_threshold": 0.4,
+        "min_alignment": 3,
+        "take_profit_atr": 6.0,
+        "stop_loss_atr": 2.5,
+        "max_hold_hours": 36,
+        "time_decay_hours": 12,
+        "trailing_stop_atr": 1.0,
+        "score_flip_delay_hrs": 0,
+        "label": "night_shift_2026-04-08_full_sim_STRONG",
+    },
+    "ETH/USDT": {
+        "signal_threshold": 0.3,
+        "min_alignment": 3,
+        "take_profit_atr": 3.5,
+        "stop_loss_atr": 3.0,
+        "max_hold_hours": 36,
+        "time_decay_hours": 12,
+        "trailing_stop_atr": 1.0,
+        "score_flip_delay_hrs": 0,
+        "label": "night_shift_2026-04-08_full_sim_STRONG",
+    },
     "SOL/USDT": {
+        "signal_threshold": 0.3,
+        "min_alignment": 3,
+        "take_profit_atr": 3.0,
+        "stop_loss_atr": 1.0,
+        "max_hold_hours": 36,
+        "time_decay_hours": 12,
+        "trailing_stop_atr": 1.0,
+        "score_flip_delay_hrs": 0,
+        "label": "night_shift_2026-04-08_full_sim_STRONG",
+    },
+    "BNB/USDT": {
         "signal_threshold": 0.35,
         "min_alignment": 3,
-        "take_profit_atr": 4.0,
-        "stop_loss_atr": 1.25,
+        "take_profit_atr": 3.0,
+        "stop_loss_atr": 1.0,
         "max_hold_hours": 36,
-        "time_decay_hours": 41,
-        "score_flip_delay_hrs": 1,
-        "trailing_stop_atr": 0.7036,
-        "label": "night_shift_2026-04-05",
+        "time_decay_hours": 12,
+        "trailing_stop_atr": 1.0,
+        "score_flip_delay_hrs": 0,
+        "label": "night_shift_2026-04-08_full_sim_MODERATE",
     },
-    "BNB/USDT": PRODUCTION_PARAMS,  # TODO: highly correlated to BTC (0.90), same problem
 }
 
 # Drop XRP — confirmed net-negative across all WFA folds (-10.4% total)
