@@ -53,28 +53,48 @@ DEFAULT_CONFIG = {
     "stop_loss_atr": 2.5,
     "max_hold_hours": 96,
     "time_decay_hours": 48,
+    "trailing_stop_atr": 1.0,
 }
 
-# Known optimized configs (from per_symbol_optimizer.py)
+# Night shift validated configs — full-sim with fees + slippage (2026-04-08)
+# BTC/ETH/SOL: STRONG verdict, BNB: MODERATE verdict
 OPTIMIZED_CONFIGS = {
     "BTC/USDT": {
-        "signal_threshold": 0.35,
+        "signal_threshold": 0.4,
         "min_alignment": 3,
-        "take_profit_atr": 5.0,
-        "stop_loss_atr": 1.5,
-        "max_hold_hours": 72,
-        "time_decay_hours": 24,
+        "take_profit_atr": 6.0,
+        "stop_loss_atr": 2.5,
+        "max_hold_hours": 36,
+        "time_decay_hours": 12,
+        "trailing_stop_atr": 1.0,
     },
-    "ETH/USDT": DEFAULT_CONFIG,
+    "ETH/USDT": {
+        "signal_threshold": 0.3,
+        "min_alignment": 3,
+        "take_profit_atr": 3.5,
+        "stop_loss_atr": 3.0,
+        "max_hold_hours": 36,
+        "time_decay_hours": 12,
+        "trailing_stop_atr": 1.0,
+    },
     "SOL/USDT": {
+        "signal_threshold": 0.3,
+        "min_alignment": 3,
+        "take_profit_atr": 3.0,
+        "stop_loss_atr": 1.0,
+        "max_hold_hours": 36,
+        "time_decay_hours": 12,
+        "trailing_stop_atr": 1.0,
+    },
+    "BNB/USDT": {
         "signal_threshold": 0.35,
         "min_alignment": 3,
-        "take_profit_atr": 4.0,
-        "stop_loss_atr": 1.5,
-        "max_hold_hours": 48,
-        "time_decay_hours": 24,
+        "take_profit_atr": 3.0,
+        "stop_loss_atr": 1.0,
+        "max_hold_hours": 36,
+        "time_decay_hours": 12,
+        "trailing_stop_atr": 1.0,
     },
-    "BNB/USDT": DEFAULT_CONFIG,
 }
 
 
@@ -191,6 +211,12 @@ def generate_modification(symbol: str, current_config: Dict, baseline_metrics: D
     mods.append({"param": "time_decay_hours", "old": p["time_decay_hours"],
                   "new": max(12, p["time_decay_hours"] - 12),
                   "reason": "explore: faster decay"})
+    mods.append({"param": "trailing_stop_atr", "old": p.get("trailing_stop_atr", 1.0),
+                  "new": max(0.0, p.get("trailing_stop_atr", 1.0) - 0.5),
+                  "reason": "explore: tighter trailing stop"})
+    mods.append({"param": "trailing_stop_atr", "old": p.get("trailing_stop_atr", 1.0),
+                  "new": p.get("trailing_stop_atr", 1.0) + 0.5,
+                  "reason": "explore: wider trailing stop"})
     
     # Deduplicate by param (keep first occurrence of each)
     seen = set()

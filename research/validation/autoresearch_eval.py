@@ -7,7 +7,7 @@ sys.stdout.reconfigure(line_buffering=True)
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 from research.optimization.per_symbol_optimizer import compute_indicators, simulate_trades, compute_metrics
 
-DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "ohlcv")
+DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "data", "ohlcv")
 SYMBOLS = ["BTC/USDT", "ETH/USDT", "SOL/USDT", "BNB/USDT"]
 
 DEFAULT_CONFIGS = {
