@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "description": "RTP Treasury Anchor program",
   "scripts": {
-    "test": "ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"
+    "test": "ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts",
+    "demo:localnet": "ANCHOR_PROVIDER_URL=http://localhost:8899 npx tsx scripts/devnet-demo.ts",
+    "demo:devnet": "ANCHOR_PROVIDER_URL=https://api.devnet.solana.com npx tsx scripts/devnet-demo.ts"
   },
   "devDependencies": {
     "@coral-xyz/anchor": "^0.31.0",
