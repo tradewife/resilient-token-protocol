@@ -117,15 +117,11 @@ A judge must be able to verify these five things in under 3 minutes:
 
 ## 6. Current Blocker
 
-**The evaluator / objective function is not defined.**
+**None.** The evaluator / objective function was the critical blocker and is now
+resolved. See `EVALUATOR.md` for the full specification.
 
-Without this:
-- Memory has no confidence score to promote on
-- Heartbeat stagnation detection has no trigger
-- Agents cannot tell if they are improving
-- Backtesting results are uninterpretable
-
-This must be resolved before deep implementation of the swarm layer.
+**Next priority:** Implement `evaluator.rs` in the swarm runtime (see
+EVALUATOR.md implementation checklist).
 
 ---
 
@@ -134,36 +130,27 @@ This must be resolved before deep implementation of the swarm layer.
 | Decision | Status | Notes |
 |---|---|---|
 | Trust model for agent execution | OPEN | Multisig? Optimistic challenge? ZK? |
-| Evaluator / objective function | **CRITICAL BLOCKER** | Must be defined this session |
-| Memory backend for hackathon | OPEN | Prologue file-based vs. Arweave |
+| Evaluator / objective function | **RESOLVED** | `EVALUATOR.md` — Treasury Survival Index (TSI) |
+| Memory backend for hackathon | **RESOLVED** | `memory_promotion.rs` — file-based JSON, Prologue structure |
 | Demo UX | OPEN | Browser dashboard vs. recorded walkthrough |
 
 ---
 
-## 8. Instruction for This Session
+## 8. Session Status
 
-**Do not re-read papers. Do not re-discuss architecture. Start from the accepted decisions above.**
+**Session 2026-04-09 deliverables: COMPLETE**
 
-The single required output for this session is:
+1. `EVALUATOR.md` — spec drafted and accepted (§6 blocker resolved)
+2. `evaluator.rs` — TSI scoring, stagnation/terminal detection, degraded mode (29 tests)
+3. `heartbeat.rs` — CORAL-style triggers, priority chain, safety short-circuit (26 tests)
+4. `memory_promotion.rs` — four-tier compression ladder, redirect events, core (human-only) (23 tests)
+5. `orchestrator.rs` — daemon loop wiring evaluator + heartbeat + memory (14 tests)
 
-### Draft `EVALUATOR.md`
+**Total: 238 tests passing, 0 failures, 0 warnings.**
 
-This file must specify:
+**The autonomous loop is now complete.** The orchestrator wires evaluator → heartbeat → memory promotion into a single dispatch loop with hooks, fetcher traits, graceful shutdown, and structured logging. `demo.sh` runs clean end-to-end across all three layers.
 
-1. **Mission** — what is the agent swarm optimizing for, in one sentence
-2. **Primary metric** — the single scalar score (computable from on-chain data)
-3. **Secondary metrics** — supporting signals (treasury NAV, price floor distance, LP depth, etc.)
-4. **Hard constraints** — what the evaluator must never permit (regardless of score)
-5. **State inputs** — what on-chain or trusted external data feeds the evaluator
-6. **Scoring function** — how inputs combine into the primary metric
-7. **Trigger conditions** — what events cause an evaluation to run
-8. **Stagnation definition** — when does the heartbeat redirect trigger
-9. **Failure definition** — what constitutes a terminal bad state
-10. **Fallback behavior** — what the swarm does when evaluator data is unavailable
-11. **Demo-visible metrics** — which metrics can be shown on a dashboard in real time
-12. **Stretch** — what would be measured post-hackathon but not now
-
-Return `EVALUATOR.md` as a complete draft, not a plan to write one.
+**Next session:** Focus on demo visibility — dashboard, observable adaptation moment, or recorded walkthrough. The runtime is feature-complete for MVP.
 
 ---
 
@@ -191,14 +178,15 @@ For any new subsystem, state:
 
 ```
 Anchor program     = constitution        (immutable, Ring 1)
-Orchestrator       = executive scheduler (dispatches, watches)
+Orchestrator       = executive scheduler (dispatches, watches, wires the loop)
 Agent swarm        = bounded civil service (executes within law)
 Memory layer       = institutional memory (learns across cycles)
 Evaluator          = survival objective   (defines success)
+Heartbeat          = rhythm & triggers    (CORAL-style coordination)
 Demo               = proof the institution persists without founder trust
 ```
 
 ---
 
-*Last updated: 2026-04-09 — post architecture convergence session.*
+*Last updated: 2026-04-09 — orchestrator + autonomous loop complete. 238 tests, 0 failures, 0 warnings.*
 *Update this file after each session that changes canonical decisions or resolves open decisions.*

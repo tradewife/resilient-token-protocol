@@ -33,6 +33,10 @@ pub mod bridge;
 pub mod config;
 pub mod coordinator;
 pub mod demo;
+pub mod evaluator;
+pub mod heartbeat;
+pub mod memory_promotion;
+pub mod orchestrator;
 pub mod types;
 pub mod wings;
 
@@ -40,6 +44,17 @@ pub mod wings;
 pub use coordinator::{Coordinator, ProcessingResult};
 pub use coordinator::lifecycle::HealthConfig as LifecycleHealthConfig;
 pub use coordinator::soulcontract_spec::{DriftReport, SoulcontractSpec};
+pub use evaluator::{Evaluator, Evaluation, HealthCheck, OnChainState, BridgeMetrics, compute_tsi};
+pub use heartbeat::{HeartbeatEngine, HeartbeatSignal, HeartbeatType, HeartbeatConfig, RecommendedAction};
+pub use memory_promotion::{
+    MemoryPromotion, MemoryConfig, WorkingMemory, ProjectMemory, RedirectEvent,
+    RedirectTrigger, OverviewMemory, CoreMemory, PromotionResult,
+};
+pub use orchestrator::{
+    Orchestrator, OrchestratorConfig, OrchestratorStatus, CycleResult,
+    Hooks, TreasuryFetcher, BridgeFetcher,
+    MockTreasuryFetcher, MockBridgeFetcher,
+};
 pub use types::{
     AuditLogEntry, HealthStatus, Message, MessageId, Payload, Priority, ProposalKind, RiskLevel,
     TrackedChange, WingId,
