@@ -18,6 +18,8 @@ RTP (Resilient Token Protocol) uses the following open-source frameworks and spo
 | Sponsor | Link | Use in RTP |
 |---------|------|------------|
 | Phantom Connect + CASH | https://docs.phantom.app/phantom-connect/introduction | Agentic wallet for treasury interactions + CASH stablecoin flows |
+| **Phantom MCP Server** | https://help.phantom.com/hc/en-us/articles/49235725504147 | Primary MCP interface for swarm agent wallet operations (swap, sign, manage addresses) — v0.2.4, 13 tools |
+| **Phantom × Hyperliquid** | https://unchainedcrypto.com/phantom-wallet-launches-direct-perpetual-trading-with-hyperliquid/ | Native perps integration: SOL → Hyperliquid account in a single Solana tx. No Arbitrum bridge. No EVM wallet. |
 | Squads Multisig | https://docs.squads.so | Securing treasury PDA upgrade authority |
 | Swig | https://docs.swig.fi | Programmable smart wallets for wing message bus |
 | MoonPay Agents | https://www.moonpay.com/developers/agents | Agent money movement infrastructure |
