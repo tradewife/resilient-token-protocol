@@ -85,6 +85,13 @@ Do not re-read the papers. Use only these extracted design consequences.
 - MCP server available — Claude Code compatible via stdio transport
 - Python bridge available for optional Graphiti knowledge graph + embedding support
 
+### Night Shift Research Output (live finding — Apr 9 run)
+- SOL/USDT candidate #1: Survivor score 2.69 (+2.46 over baseline)
+- OOS Sharpe +3.96, 100% consistency (9/9 folds profitable), fragility 0.29, 47 trades/fold
+- Config: signal_threshold=0.3, tp_atr=3.0, sl_atr=1.5, max_hold=36h, trailing_stop_atr=0.5
+- Status: STRONG RECOMMEND — candidate for live execution in Trading Wing
+- Apr 10 run: completed on CI (3h01m), results in CI artifact only — not yet committed to repo
+
 ---
 
 ## 4. MVP Boundary
@@ -113,15 +120,30 @@ A judge must be able to verify these five things in under 3 minutes:
 4. Visible strategy adaptation or learning (heartbeat redirect or skill promotion)
 5. Observable treasury state on a dashboard or explorer
 
+### Current Coverage (as of Apr 11 audit)
+
+| Point | Status | Gap |
+|---|---|---|
+| 1. On-chain constraint rejected | PARTIAL | demo.sh shows Rust-side soulguard rejection. On-chain BelowThreshold rejection exists in devnet-demo.ts but requires live validator. |
+| 2. Autonomous operation | COVERED | rtp-demo binary runs full 8-step pipeline without human approval. |
+| 3. Persistent memory across cycles | MISSING | memory_promotion.rs exists with 23 tests but demo binary does not invoke it. No cross-cycle persistence shown. |
+| 4. Visible adaptation/learning | MISSING | heartbeat.rs has redirect triggers (26 tests) but demo binary doesn't exercise them. No redirect visible in output. |
+| 5. Observable treasury state | MISSING | No dashboard. demo.sh prints ASCII. No explorer link in output. |
+
+**Fix path for Points 3 & 4 (pure Rust, ~2h):** Extend demo.rs to run two orchestrator cycles with memory_promotion persistence between them. Trigger a heartbeat redirect in cycle 2 that references cycle 1 yield data. No frontend needed.
+
+**Fix path for Point 5 (~4-6h):** Single-page HTML dashboard reading a static JSON file dumped by the Rust demo binary + one Solana RPC call for treasury balance. See Task 5 spec in audit report.
+
 ---
 
 ## 6. Current Blocker
 
-**None.** The evaluator / objective function was the critical blocker and is now
-resolved. See `EVALUATOR.md` for the full specification.
+**Judge verification points 3, 4, and 5 have zero demo coverage.**
 
-**Next priority:** Implement `evaluator.rs` in the swarm runtime (see
-EVALUATOR.md implementation checklist).
+Priority order to resolve:
+1. **Tonight (~2h):** Extend demo.rs for two-cycle memory_promotion + heartbeat redirect — closes points 3 and 4
+2. **This weekend (~4-6h):** Build static HTML dashboard — closes point 5
+3. **Before May 4 (15min):** Register individually on Colosseum — hard deadline, blocks submission
 
 ---
 
@@ -129,28 +151,30 @@ EVALUATOR.md implementation checklist).
 
 | Decision | Status | Notes |
 |---|---|---|
-| Trust model for agent execution | OPEN | Multisig? Optimistic challenge? ZK? |
-| Evaluator / objective function | **RESOLVED** | `EVALUATOR.md` — Treasury Survival Index (TSI) |
-| Memory backend for hackathon | **RESOLVED** | `memory_promotion.rs` — file-based JSON, Prologue structure |
-| Demo UX | OPEN | Browser dashboard vs. recorded walkthrough |
+| Trust model for agent execution | OPEN | Multisig? Optimistic challenge? ZK? Not required for MVP demo. |
+| Demo UX | **DECISION REQUIRED** | Browser dashboard (~6h) vs recorded video (~2h). Dashboard covers more judge points. Video is faster. |
+| Invariant 7 (soulguard signature verification) | OPEN — hackathon acceptable | reload() takes &Path only, no sig param. Bypass path exists via filesystem write. Document as production TODO or implement ed25519 check. Demo path never calls reload so not demo-blocking. |
 
 ---
 
 ## 8. Session Status
 
-**Session 2026-04-09 deliverables: COMPLETE**
+**Session 2026-04-11 deliverables: AUDIT COMPLETE**
 
-1. `EVALUATOR.md` — spec drafted and accepted (§6 blocker resolved)
-2. `evaluator.rs` — TSI scoring, stagnation/terminal detection, degraded mode (29 tests)
-3. `heartbeat.rs` — CORAL-style triggers, priority chain, safety short-circuit (26 tests)
-4. `memory_promotion.rs` — four-tier compression ladder, redirect events, core (human-only) (23 tests)
-5. `orchestrator.rs` — daemon loop wiring evaluator + heartbeat + memory (14 tests)
+Audit findings (Apr 11 deep audit):
+1. Test count corrected: 238 → **205** (stale count from Apr 9 commit 57e6f7e; cargo fmt + clippy refactored config.rs and other modules)
+   - Per-file: evaluator(29), heartbeat(26), memory_promotion(23), orchestrator(14), audit(12), bridge(12), config(10), rollback(10), security(9), proposer(9), assessor(9), soulcontract_spec(9), knowledge(8), lifecycle(8), trading(7), futureproof(5), evolve/mod(3), router(2)
+   - 0 #[ignore] markers, no external test files outside workspace
+2. Invariant 7 STUB confirmed: soulguard.rs:107-115 reload() has no signature verification
+3. H-5 fix CONFIRMED: exceeds_rollback_threshold() correctly reads from spec via RwLock ✅
+4. CI status: swarm-ci.yml ✅, night_shift.yml ✅, node-build.yml ✅ (no-op — no frontend dir)
+5. Night shift pipeline: OPERATIONAL — real output in research/ subdirs, Apr 9 top candidate is SOL/USDT Survivor 2.69
+6. Dashboard: NOTHING EXISTS — zero frontend files in repo
+7. Demo coverage: 2/5 judge points covered (points 3, 4, 5 missing)
 
-**Total: 238 tests passing, 0 failures, 0 warnings.**
+**Invariant enforcement: 9/10. Invariant 7 is documented stub. All others enforced.**
 
-**The autonomous loop is now complete.** The orchestrator wires evaluator → heartbeat → memory promotion into a single dispatch loop with hooks, fetcher traits, graceful shutdown, and structured logging. `demo.sh` runs clean end-to-end across all three layers.
-
-**Next session:** Focus on demo visibility — dashboard, observable adaptation moment, or recorded walkthrough. The runtime is feature-complete for MVP.
+**Next session:** Extend demo.rs for two-cycle run (points 3 + 4), then build HTML dashboard (point 5).
 
 ---
 
@@ -188,5 +212,5 @@ Demo               = proof the institution persists without founder trust
 
 ---
 
-*Last updated: 2026-04-09 — orchestrator + autonomous loop complete. 238 tests, 0 failures, 0 warnings.*
+*Last updated: 2026-04-11 — deep audit complete. 205 tests (corrected from 238), 0 failures, 0 warnings. Judge points 3/4/5 uncovered — demo extension required.*
 *Update this file after each session that changes canonical decisions or resolves open decisions.*
