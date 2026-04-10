@@ -109,22 +109,16 @@ impl Assessor {
 
                 // Check consistency.
                 if m.consistency < 0.5 {
-                    bottlenecks.push(format!(
-                        "Low consistency: {:.1}%", m.consistency * 100.0
-                    ));
-                    recommendations.push(
-                        "Investigate failure modes and add retry logic".to_string(),
-                    );
+                    bottlenecks.push(format!("Low consistency: {:.1}%", m.consistency * 100.0));
+                    recommendations
+                        .push("Investigate failure modes and add retry logic".to_string());
                 }
 
                 // Check drawdown.
                 if m.max_drawdown > 0.2 {
-                    bottlenecks.push(format!(
-                        "High drawdown: {:.1}%", m.max_drawdown * 100.0
-                    ));
+                    bottlenecks.push(format!("High drawdown: {:.1}%", m.max_drawdown * 100.0));
                     recommendations.push(
-                        "Review risk parameters and consider reducing position sizing"
-                            .to_string(),
+                        "Review risk parameters and consider reducing position sizing".to_string(),
                     );
                 }
 
@@ -134,8 +128,7 @@ impl Assessor {
                     if yield_pct < 0.01 {
                         bottlenecks.push("Yield below 1% of reserves".to_string());
                         recommendations.push(
-                            "Consider strategy rebalancing or venue diversification"
-                                .to_string(),
+                            "Consider strategy rebalancing or venue diversification".to_string(),
                         );
                     }
                 }
@@ -147,7 +140,11 @@ impl Assessor {
                 if !self.metrics.contains_key(&wing_id) {
                     bottlenecks.push("Wing has not reported metrics".to_string());
                 }
-                (0.0, bottlenecks, vec!["Begin metric collection immediately".to_string()])
+                (
+                    0.0,
+                    bottlenecks,
+                    vec!["Begin metric collection immediately".to_string()],
+                )
             }
         };
 
@@ -287,7 +284,12 @@ mod tests {
         m.consistency = 0.3;
         assessor.record_metrics(m);
         let assessment = assessor.assess(WingId::Trading);
-        assert!(assessment.bottlenecks.iter().any(|b| b.contains("Low consistency")));
+        assert!(
+            assessment
+                .bottlenecks
+                .iter()
+                .any(|b| b.contains("Low consistency"))
+        );
     }
 
     #[test]
@@ -297,7 +299,12 @@ mod tests {
         m.max_drawdown = 0.25;
         assessor.record_metrics(m);
         let assessment = assessor.assess(WingId::Trading);
-        assert!(assessment.bottlenecks.iter().any(|b| b.contains("High drawdown")));
+        assert!(
+            assessment
+                .bottlenecks
+                .iter()
+                .any(|b| b.contains("High drawdown"))
+        );
     }
 
     #[test]

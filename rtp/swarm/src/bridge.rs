@@ -254,7 +254,11 @@ mod tests {
 
     /// Generate a unique temp path to avoid parallel test collisions.
     fn unique_tmp(label: &str) -> std::path::PathBuf {
-        std::env::temp_dir().join(format!("rtp_bridge_test_{}_{}", label, uuid::Uuid::new_v4()))
+        std::env::temp_dir().join(format!(
+            "rtp_bridge_test_{}_{}",
+            label,
+            uuid::Uuid::new_v4()
+        ))
     }
 
     #[test]
@@ -322,10 +326,7 @@ mod tests {
     fn real_binary_bridge_mode_integration() {
         // This test only runs if night_shift.bin exists at repo root.
         // It validates the full Python↔Rust round-trip.
-        let bin_path = format!(
-            "{}/../../../night_shift.bin",
-            env!("CARGO_MANIFEST_DIR")
-        );
+        let bin_path = format!("{}/../../../night_shift.bin", env!("CARGO_MANIFEST_DIR"));
         if !std::path::Path::new(&bin_path).exists() {
             eprintln!("Skipping: {} not found", bin_path);
             return;

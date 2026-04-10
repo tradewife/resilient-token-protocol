@@ -79,9 +79,14 @@ pub enum Priority {
 pub enum Payload {
     // ── Coordinator-level ──────────────────────────────────────────
     /// Coordinator acknowledges a message was received.
-    Ack { in_reply_to: MessageId },
+    Ack {
+        in_reply_to: MessageId,
+    },
     /// Coordinator reports an error routing or processing a message.
-    Error { reason: String, in_reply_to: Option<MessageId> },
+    Error {
+        reason: String,
+        in_reply_to: Option<MessageId>,
+    },
 
     // ── Proposal lifecycle ─────────────────────────────────────────
     /// A wing submits a proposal for audit before execution.
@@ -111,7 +116,9 @@ pub enum Payload {
         metrics: serde_json::Value,
     },
     /// Request a wing to shut down gracefully.
-    Shutdown { reason: String },
+    Shutdown {
+        reason: String,
+    },
 
     // ── Evolve Wing payloads ───────────────────────────────────────
     /// Evolve Wing proposes an architecture change.

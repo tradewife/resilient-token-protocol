@@ -12,7 +12,7 @@
 //!   7. Security Wing monitors for anomalies
 //!   8. Futureproof Wing checks deprecation status
 
-use rtp_swarm::demo::{run_demo_loop, print_demo_result};
+use rtp_swarm::demo::{print_demo_result, run_demo_loop};
 
 #[tokio::main]
 async fn main() {

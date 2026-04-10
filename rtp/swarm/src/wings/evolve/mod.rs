@@ -70,7 +70,9 @@ impl EvolveWing {
         );
 
         // Record baseline score on the proposal.
-        let _ = self.proposer.set_baseline_score(&proposal_id, baseline.score);
+        let _ = self
+            .proposer
+            .set_baseline_score(&proposal_id, baseline.score);
 
         // Return the proposal with baseline set.
         self.proposer.get(&proposal_id).unwrap()

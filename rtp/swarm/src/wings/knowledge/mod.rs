@@ -8,8 +8,8 @@
 use crate::types::{Message, Payload, WingId};
 use chrono::Utc;
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 /// A single knowledge entry.
 #[derive(Debug, Clone)]
@@ -54,12 +54,13 @@ impl KnowledgeWing {
                 drawdown,
             } => {
                 let mut store = self.store.lock().ok()?;
-                let entry = store.entry("yield_reports".to_string()).or_insert_with(|| {
-                    KnowledgeEntry {
-                        values: Vec::new(),
-                        last_updated: Utc::now(),
-                    }
-                });
+                let entry =
+                    store
+                        .entry("yield_reports".to_string())
+                        .or_insert_with(|| KnowledgeEntry {
+                            values: Vec::new(),
+                            last_updated: Utc::now(),
+                        });
                 entry.values.push(format!(
                     "yield={} sol={} dd={} at={}",
                     usdc_yield,
@@ -71,7 +72,9 @@ impl KnowledgeWing {
                 Some(Message::new(
                     WingId::Knowledge,
                     WingId::Coordinator,
-                    Payload::Ack { in_reply_to: msg.id },
+                    Payload::Ack {
+                        in_reply_to: msg.id,
+                    },
                 ))
             }
 
@@ -98,7 +101,9 @@ impl KnowledgeWing {
                 Some(Message::new(
                     WingId::Knowledge,
                     WingId::Coordinator,
-                    Payload::Ack { in_reply_to: msg.id },
+                    Payload::Ack {
+                        in_reply_to: msg.id,
+                    },
                 ))
             }
 
@@ -166,10 +171,12 @@ impl KnowledgeWing {
     /// Store a value under a key (for testing and programmatic access).
     pub fn put(&self, key: &str, value: &str) {
         if let Ok(mut store) = self.store.lock() {
-            let entry = store.entry(key.to_string()).or_insert_with(|| KnowledgeEntry {
-                values: Vec::new(),
-                last_updated: Utc::now(),
-            });
+            let entry = store
+                .entry(key.to_string())
+                .or_insert_with(|| KnowledgeEntry {
+                    values: Vec::new(),
+                    last_updated: Utc::now(),
+                });
             entry.values.push(value.to_string());
             entry.last_updated = Utc::now();
         }
@@ -347,7 +354,9 @@ mod tests {
         let msg = Message::new(
             WingId::Coordinator,
             WingId::Knowledge,
-            Payload::Shutdown { reason: "test".to_string() },
+            Payload::Shutdown {
+                reason: "test".to_string(),
+            },
         );
         let response = wing.handle_message(&msg).unwrap();
         match response.payload {

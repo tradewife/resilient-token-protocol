@@ -257,11 +257,7 @@ impl Evaluator {
     /// 2. Growth — distance above the runway floor (log-compressed).
     /// 3. Reliability — strategy robustness from bridge outputs.
     /// 4. TSI = growth × safety × reliability (zero-hardened).
-    pub fn evaluate(
-        &mut self,
-        state: &OnChainState,
-        bridge: Option<&BridgeMetrics>,
-    ) -> Evaluation {
+    pub fn evaluate(&mut self, state: &OnChainState, bridge: Option<&BridgeMetrics>) -> Evaluation {
         let now = Utc::now();
         let oracle_degraded = self.price_oracle.is_none();
 
@@ -292,9 +288,7 @@ impl Evaluator {
             // ── Step 3: Safety ──────────────────────────────────────
             // Drawdown from bridge if available, otherwise assume safe
             // (conservative: no penalty without evidence).
-            let drawdown = bridge
-                .map(|b| b.max_drawdown)
-                .unwrap_or(0.0);
+            let drawdown = bridge.map(|b| b.max_drawdown).unwrap_or(0.0);
             let safety = (1.0 - drawdown / MAX_DRAWDOWN).clamp(0.0, 1.0);
 
             // ── Step 4: Reliability ─────────────────────────────────
@@ -594,9 +588,7 @@ mod tests {
     #[test]
     fn evaluate_healthy() {
         // Provide oracle so score_degraded is false — no oracle = degraded.
-        let mut evaluator = Evaluator::with_config(
-            3, 2, 6, Some(PriceOracle { price_usdc: 1.0 }),
-        );
+        let mut evaluator = Evaluator::with_config(3, 2, 6, Some(PriceOracle { price_usdc: 1.0 }));
         let state = default_state(50_000);
         let bridge = good_bridge();
 
@@ -920,14 +912,16 @@ mod tests {
 
         // With oracle (price=2.0): vault=100k, runway=20k → growth = ln(5) ≈ 1.609
         // Same ratio → same growth factor. But NAV doubles.
-        let mut eval_oracle = Evaluator::with_config(3, 2, 6, Some(PriceOracle { price_usdc: 2.0 }));
+        let mut eval_oracle =
+            Evaluator::with_config(3, 2, 6, Some(PriceOracle { price_usdc: 2.0 }));
         let result_oracle = eval_oracle.evaluate(&state, Some(&good_bridge()));
 
         // Growth should be the same (same ratio).
         assert!((result_no.growth_factor - result_oracle.growth_factor).abs() < 0.001);
         // But NAV should be 2×.
         assert!(
-            (result_oracle.secondary.treasury_nav - 2.0 * result_no.secondary.treasury_nav).abs() < 1.0
+            (result_oracle.secondary.treasury_nav - 2.0 * result_no.secondary.treasury_nav).abs()
+                < 1.0
         );
     }
 
@@ -945,7 +939,10 @@ mod tests {
         }
 
         let health = evaluator.health_check();
-        assert!(!health.stagnant, "Should not be stagnant with improving states");
+        assert!(
+            !health.stagnant,
+            "Should not be stagnant with improving states"
+        );
         assert!(!health.terminal);
         assert!(!health.bridge_failed);
         assert_eq!(health.consecutive_zeros, 0);

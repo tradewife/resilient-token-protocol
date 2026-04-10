@@ -311,7 +311,8 @@ impl MemoryPromotion {
             HeartbeatType::Redirect => {
                 // Write redirect event immediately.
                 let event = self.write_redirect(signal);
-                self.project.push(ProjectMemoryOrRedirect::Redirect(event.clone()));
+                self.project
+                    .push(ProjectMemoryOrRedirect::Redirect(event.clone()));
                 Some(ProjectMemoryOrRedirect::Redirect(event))
             }
             HeartbeatType::PerIteration => {
@@ -348,11 +349,7 @@ impl MemoryPromotion {
 
     /// Write a working memory entry. Always called, every cycle.
     /// Returns true if written successfully.
-    fn write_working(
-        &mut self,
-        evaluation: &Evaluation,
-        signal: &HeartbeatSignal,
-    ) -> bool {
+    fn write_working(&mut self, evaluation: &Evaluation, signal: &HeartbeatSignal) -> bool {
         let entry = WorkingMemory {
             cycle_id: signal.cycle,
             timestamp: signal.timestamp,
@@ -405,7 +402,10 @@ impl MemoryPromotion {
         let max_cycle = eligible.iter().map(|w| w.cycle_id).max().unwrap_or(0);
 
         let avg_tsi = eligible.iter().map(|w| w.tsi).sum::<f64>() / eligible.len() as f64;
-        let best_tsi = eligible.iter().map(|w| w.tsi).fold(f64::NEG_INFINITY, f64::max);
+        let best_tsi = eligible
+            .iter()
+            .map(|w| w.tsi)
+            .fold(f64::NEG_INFINITY, f64::max);
         let worst_tsi = eligible.iter().map(|w| w.tsi).fold(f64::INFINITY, f64::min);
 
         // Find the dominant recommended action (most frequent).
@@ -417,11 +417,7 @@ impl MemoryPromotion {
             .and_then(|w| w.secondary_snapshot.strategy_name.clone());
 
         // Degraded cycle ratio for confidence calculation.
-        let degraded_count = self
-            .working
-            .iter()
-            .filter(|w| w.degraded)
-            .count();
+        let degraded_count = self.working.iter().filter(|w| w.degraded).count();
         let total_count = self.working.len().max(1);
         let degraded_ratio = degraded_count as f64 / total_count as f64;
 
@@ -493,7 +489,11 @@ impl MemoryPromotion {
                 ProjectMemoryOrRedirect::Consolidation(pm) => Some(pm),
                 _ => None,
             })
-            .max_by(|a, b| a.confidence.partial_cmp(&b.confidence).unwrap_or(std::cmp::Ordering::Equal));
+            .max_by(|a, b| {
+                a.confidence
+                    .partial_cmp(&b.confidence)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
 
         let (source_ids, strategy_pattern, project_confidence) = match best_project {
             Some(pm) => (
@@ -651,8 +651,7 @@ impl MemoryPromotion {
         fs::create_dir_all(&dir)?;
         for entry in &self.working {
             let path = dir.join(format!("cycle-{}.json", entry.cycle_id));
-            let json = serde_json::to_string_pretty(entry)
-                .unwrap_or_else(|_| "{}".to_string());
+            let json = serde_json::to_string_pretty(entry).unwrap_or_else(|_| "{}".to_string());
             Self::atomic_write(&path, &json)?;
         }
         Ok(())
@@ -667,8 +666,7 @@ impl MemoryPromotion {
                 ProjectMemoryOrRedirect::Redirect(re) => re.id.clone(),
             };
             let path = dir.join(format!("{}.json", filename));
-            let json = serde_json::to_string_pretty(entry)
-                .unwrap_or_else(|_| "{}".to_string());
+            let json = serde_json::to_string_pretty(entry).unwrap_or_else(|_| "{}".to_string());
             Self::atomic_write(&path, &json)?;
         }
         Ok(())
@@ -679,8 +677,7 @@ impl MemoryPromotion {
         fs::create_dir_all(&dir)?;
         for entry in &self.overview {
             let path = dir.join(format!("{}.json", entry.id));
-            let json = serde_json::to_string_pretty(entry)
-                .unwrap_or_else(|_| "{}".to_string());
+            let json = serde_json::to_string_pretty(entry).unwrap_or_else(|_| "{}".to_string());
             Self::atomic_write(&path, &json)?;
         }
         Ok(())
@@ -690,8 +687,7 @@ impl MemoryPromotion {
         let dir = self.config.memory_dir.join("core");
         fs::create_dir_all(&dir)?;
         let path = dir.join(format!("{}.json", core.id));
-        let json = serde_json::to_string_pretty(core)
-            .unwrap_or_else(|_| "{}".to_string());
+        let json = serde_json::to_string_pretty(core).unwrap_or_else(|_| "{}".to_string());
         Self::atomic_write(&path, &json)
     }
 
@@ -919,7 +915,10 @@ mod tests {
         mp.process(&eval, &signal);
 
         let w = &mp.working()[0];
-        assert_eq!(w.secondary_snapshot.strategy_name.as_deref(), Some("mr_rsi_bb"));
+        assert_eq!(
+            w.secondary_snapshot.strategy_name.as_deref(),
+            Some("mr_rsi_bb")
+        );
         assert!(w.secondary_snapshot.strategy_yield.is_some());
     }
 
@@ -931,7 +930,13 @@ mod tests {
 
         // Build up 5 cycles of eligible working memory.
         for i in 1..=5 {
-            run_cycle(&mut mp, i, 1.0 + i as f64 * 0.1, 0.1, HeartbeatType::PerIteration);
+            run_cycle(
+                &mut mp,
+                i,
+                1.0 + i as f64 * 0.1,
+                0.1,
+                HeartbeatType::PerIteration,
+            );
         }
         assert!(mp.project().is_empty());
 
@@ -947,7 +952,13 @@ mod tests {
         let mut mp = MemoryPromotion::new_in_memory(test_config());
 
         for i in 1..=4 {
-            run_cycle(&mut mp, i, 1.0 + i as f64 * 0.2, 0.2, HeartbeatType::PerIteration);
+            run_cycle(
+                &mut mp,
+                i,
+                1.0 + i as f64 * 0.2,
+                0.2,
+                HeartbeatType::PerIteration,
+            );
         }
         run_cycle(&mut mp, 5, 1.9, 0.1, HeartbeatType::Consolidation);
 
@@ -1315,7 +1326,10 @@ mod tests {
         // Negative deltas reset improvement counter.
         run_cycle(&mut mp, 5, 1.3, -0.1, HeartbeatType::PerIteration);
         let result = run_cycle(&mut mp, 6, 1.2, -0.1, HeartbeatType::Redirect);
-        assert!(matches!(result.project_created, Some(ProjectMemoryOrRedirect::Redirect(_))));
+        assert!(matches!(
+            result.project_created,
+            Some(ProjectMemoryOrRedirect::Redirect(_))
+        ));
         assert_eq!(mp.redirect_events().len(), 1);
 
         // Cycles 7-10: sustained improvement (4 cycles) → overview promoted.

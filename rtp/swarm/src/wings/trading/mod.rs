@@ -47,7 +47,9 @@ impl TradingWing {
                 Some(Message::new(
                     WingId::Trading,
                     WingId::Coordinator,
-                    Payload::Ack { in_reply_to: msg.id },
+                    Payload::Ack {
+                        in_reply_to: msg.id,
+                    },
                 ))
             }
 
@@ -63,7 +65,9 @@ impl TradingWing {
                 Some(Message::new(
                     WingId::Trading,
                     WingId::Coordinator,
-                    Payload::Ack { in_reply_to: msg.id },
+                    Payload::Ack {
+                        in_reply_to: msg.id,
+                    },
                 ))
             }
 
@@ -71,7 +75,11 @@ impl TradingWing {
                 // Read proposal config in a single lock scope (avoids TOCTOU).
                 let (symbol, config) = {
                     let state = self.state.lock().ok()?;
-                    let config = state.last_proposal.as_ref().cloned().unwrap_or(serde_json::json!({}));
+                    let config = state
+                        .last_proposal
+                        .as_ref()
+                        .cloned()
+                        .unwrap_or(serde_json::json!({}));
                     let symbol = config
                         .get("symbol")
                         .and_then(|v| v.as_str())
@@ -125,7 +133,9 @@ impl TradingWing {
                 Some(Message::new(
                     WingId::Trading,
                     WingId::Coordinator,
-                    Payload::Ack { in_reply_to: msg.id },
+                    Payload::Ack {
+                        in_reply_to: msg.id,
+                    },
                 ))
             }
 

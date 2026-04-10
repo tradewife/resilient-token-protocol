@@ -11,8 +11,7 @@ use crate::types::{Message, Payload, ProposalKind, RiskLevel, WingId};
 use serde::{Deserialize, Serialize};
 
 /// Consensus algorithm for tribunal decisions.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum ConsensusMode {
     /// Simple majority — most votes win.
     Majority,
@@ -22,7 +21,6 @@ pub enum ConsensusMode {
     #[default]
     Byzantine,
 }
-
 
 /// Vote from a tribunal agent.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -43,7 +41,7 @@ impl Vote {
 pub struct AgentReview {
     pub agent: TribunalAgent,
     pub vote: Vote,
-    pub score: f64,       // 0.0-1.0 confidence in this vote
+    pub score: f64, // 0.0-1.0 confidence in this vote
     pub findings: Vec<String>,
 }
 
@@ -69,7 +67,11 @@ impl TribunalAgent {
     }
 
     fn all() -> [TribunalAgent; 3] {
-        [TribunalAgent::Skeptic, TribunalAgent::UserProxy, TribunalAgent::Optimizer]
+        [
+            TribunalAgent::Skeptic,
+            TribunalAgent::UserProxy,
+            TribunalAgent::Optimizer,
+        ]
     }
 }
 
@@ -77,7 +79,7 @@ impl TribunalAgent {
 #[derive(Debug, Clone)]
 pub struct TribunalResult {
     pub approved: bool,
-    pub confidence: f64,      // 0.0-1.0
+    pub confidence: f64, // 0.0-1.0
     pub risk_level: RiskLevel,
     pub reviews: Vec<AgentReview>,
     pub consensus_mode: ConsensusMode,
@@ -96,7 +98,9 @@ impl AuditWing {
     }
 
     pub fn with_consensus(mode: ConsensusMode) -> Self {
-        Self { consensus_mode: mode }
+        Self {
+            consensus_mode: mode,
+        }
     }
 
     /// Run a full 3-agent tribunal review on a proposal message.
@@ -111,7 +115,11 @@ impl AuditWing {
                 proposal_id: msg.id,
                 approved: result.approved,
                 risk_level: result.risk_level,
-                findings: result.reviews.iter().flat_map(|r| r.findings.clone()).collect(),
+                findings: result
+                    .reviews
+                    .iter()
+                    .flat_map(|r| r.findings.clone())
+                    .collect(),
             },
         );
         (result, response)
@@ -121,7 +129,9 @@ impl AuditWing {
     /// Used when full tribunal is overkill (e.g. heartbeats, knowledge queries).
     pub fn stub_review(msg: &Message) -> Option<Message> {
         match &msg.payload {
-            Payload::Proposal { kind, confidence, .. } => {
+            Payload::Proposal {
+                kind, confidence, ..
+            } => {
                 let (approved, risk) = match kind {
                     ProposalKind::SoulcontractAmendment => (false, RiskLevel::Critical),
                     ProposalKind::RiskThresholdChange => (false, RiskLevel::High),
@@ -141,7 +151,11 @@ impl AuditWing {
                         proposal_id: msg.id,
                         approved,
                         risk_level: risk,
-                        findings: if approved { vec![] } else { vec![format!("{:?} not auto-approved", kind)] },
+                        findings: if approved {
+                            vec![]
+                        } else {
+                            vec![format!("{:?} not auto-approved", kind)]
+                        },
                     },
                 ))
             }
@@ -152,7 +166,10 @@ impl AuditWing {
                     proposal_id: msg.id,
                     approved: false,
                     risk_level: RiskLevel::High,
-                    findings: vec!["Evolve proposals require full tribunal review, not stub approval".to_string()],
+                    findings: vec![
+                        "Evolve proposals require full tribunal review, not stub approval"
+                            .to_string(),
+                    ],
                 },
             )),
             _ => None,
@@ -162,16 +179,26 @@ impl AuditWing {
     /// Conduct the 3-agent adversarial review.
     fn conduct_reviews(&self, msg: &Message) -> Vec<AgentReview> {
         let base_risk = self.assess_base_risk(msg);
-        TribunalAgent::all().iter().map(|agent| {
-            let (vote, score, findings) = self.agent_review(*agent, msg, base_risk);
-            AgentReview { agent: *agent, vote, score, findings }
-        }).collect()
+        TribunalAgent::all()
+            .iter()
+            .map(|agent| {
+                let (vote, score, findings) = self.agent_review(*agent, msg, base_risk);
+                AgentReview {
+                    agent: *agent,
+                    vote,
+                    score,
+                    findings,
+                }
+            })
+            .collect()
     }
 
     /// Base risk assessment before tribunal agents weigh in.
     fn assess_base_risk(&self, msg: &Message) -> RiskLevel {
         match &msg.payload {
-            Payload::Proposal { kind, confidence, .. } => {
+            Payload::Proposal {
+                kind, confidence, ..
+            } => {
                 if *confidence < 0.3 {
                     return RiskLevel::High;
                 }
@@ -243,7 +270,11 @@ impl AuditWing {
                 let reject_count = reviews.iter().filter(|r| r.vote == Vote::Reject).count();
                 let total = reviews.len();
                 let approved = approve_count > reject_count;
-                let confidence = if total > 0 { approve_count as f64 / total as f64 } else { 0.0 };
+                let confidence = if total > 0 {
+                    approve_count as f64 / total as f64
+                } else {
+                    0.0
+                };
                 (approved, confidence)
             }
             ConsensusMode::Weighted => {
@@ -254,12 +285,17 @@ impl AuditWing {
                     total_weight += w;
                     match r.vote {
                         Vote::Approve => approve_weight += w,
-                        Vote::Reject => {},
+                        Vote::Reject => {}
                         Vote::Abstain => total_weight -= w / 2,
                     }
                 }
-                let approved = total_weight > 0 && (approve_weight as f64 / total_weight as f64) > 0.5;
-                let confidence = if total_weight > 0 { approve_weight as f64 / total_weight as f64 } else { 0.0 };
+                let approved =
+                    total_weight > 0 && (approve_weight as f64 / total_weight as f64) > 0.5;
+                let confidence = if total_weight > 0 {
+                    approve_weight as f64 / total_weight as f64
+                } else {
+                    0.0
+                };
                 (approved, confidence)
             }
             ConsensusMode::Byzantine => {
@@ -267,7 +303,11 @@ impl AuditWing {
                 let approve_count = reviews.iter().filter(|r| r.vote == Vote::Approve).count();
                 let total = reviews.len();
                 let approved = total > 0 && (approve_count as f64 / total as f64) >= (2.0 / 3.0);
-                let confidence = if total > 0 { approve_count as f64 / total as f64 } else { 0.0 };
+                let confidence = if total > 0 {
+                    approve_count as f64 / total as f64
+                } else {
+                    0.0
+                };
                 (approved, confidence)
             }
         };
@@ -277,10 +317,18 @@ impl AuditWing {
             let has_critical = reviews.iter().any(|r| {
                 r.vote == Vote::Reject && r.findings.iter().any(|f| f.contains("Critical"))
             });
-            if has_critical { RiskLevel::Critical } else { RiskLevel::High }
+            if has_critical {
+                RiskLevel::Critical
+            } else {
+                RiskLevel::High
+            }
         } else {
             let reject_count = reviews.iter().filter(|r| r.vote == Vote::Reject).count();
-            if reject_count > 0 { RiskLevel::Medium } else { RiskLevel::Low }
+            if reject_count > 0 {
+                RiskLevel::Medium
+            } else {
+                RiskLevel::Low
+            }
         };
 
         TribunalResult {
@@ -427,7 +475,10 @@ mod tests {
         let audit = AuditWing::new();
         let msg = amendment_proposal();
         let reviews = audit.conduct_reviews(&msg);
-        let skeptic = reviews.iter().find(|r| r.agent == TribunalAgent::Skeptic).unwrap();
+        let skeptic = reviews
+            .iter()
+            .find(|r| r.agent == TribunalAgent::Skeptic)
+            .unwrap();
         assert_eq!(skeptic.vote, Vote::Reject);
     }
 

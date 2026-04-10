@@ -41,24 +41,25 @@ pub mod types;
 pub mod wings;
 
 // Re-exports for convenience.
-pub use coordinator::{Coordinator, ProcessingResult};
 pub use coordinator::lifecycle::HealthConfig as LifecycleHealthConfig;
 pub use coordinator::soulcontract_spec::{DriftReport, SoulcontractSpec};
-pub use evaluator::{Evaluator, Evaluation, HealthCheck, OnChainState, BridgeMetrics, compute_tsi};
-pub use heartbeat::{HeartbeatEngine, HeartbeatSignal, HeartbeatType, HeartbeatConfig, RecommendedAction};
+pub use coordinator::{Coordinator, ProcessingResult};
+pub use evaluator::{BridgeMetrics, Evaluation, Evaluator, HealthCheck, OnChainState, compute_tsi};
+pub use heartbeat::{
+    HeartbeatConfig, HeartbeatEngine, HeartbeatSignal, HeartbeatType, RecommendedAction,
+};
 pub use memory_promotion::{
-    MemoryPromotion, MemoryConfig, WorkingMemory, ProjectMemory, RedirectEvent,
-    RedirectTrigger, OverviewMemory, CoreMemory, PromotionResult,
+    CoreMemory, MemoryConfig, MemoryPromotion, OverviewMemory, ProjectMemory, PromotionResult,
+    RedirectEvent, RedirectTrigger, WorkingMemory,
 };
 pub use orchestrator::{
-    Orchestrator, OrchestratorConfig, OrchestratorStatus, CycleResult,
-    Hooks, TreasuryFetcher, BridgeFetcher,
-    MockTreasuryFetcher, MockBridgeFetcher,
+    BridgeFetcher, CycleResult, Hooks, MockBridgeFetcher, MockTreasuryFetcher, Orchestrator,
+    OrchestratorConfig, OrchestratorStatus, TreasuryFetcher,
 };
 pub use types::{
     AuditLogEntry, HealthStatus, Message, MessageId, Payload, Priority, ProposalKind, RiskLevel,
     TrackedChange, WingId,
 };
+pub use wings::evolve::EvolveWing;
 pub use wings::evolve::assessor::{Assessment, PerformanceMetrics};
 pub use wings::evolve::proposer::ChangeProposal;
-pub use wings::evolve::EvolveWing;

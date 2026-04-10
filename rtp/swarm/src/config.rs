@@ -8,8 +8,8 @@
 //! **Development**: If no key is set, configs are stored/loaded in plaintext.
 
 use aes_gcm::{
+    AeadCore, Aes256Gcm, Nonce,
     aead::{Aead, KeyInit, OsRng},
-    Aes256Gcm, AeadCore, Nonce,
 };
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
@@ -88,13 +88,19 @@ impl ConfigEncryption {
     pub fn new() -> Result<Self, ConfigError> {
         let cipher = Self::load_cipher()?;
         let configs_dir = Self::default_configs_dir();
-        Ok(Self { cipher, configs_dir })
+        Ok(Self {
+            cipher,
+            configs_dir,
+        })
     }
 
     /// Create with a custom configs directory (for testing).
     pub fn with_dir(dir: PathBuf) -> Result<Self, ConfigError> {
         let cipher = Self::load_cipher()?;
-        Ok(Self { cipher, configs_dir: dir })
+        Ok(Self {
+            cipher,
+            configs_dir: dir,
+        })
     }
 
     /// Create with a custom configs directory and an explicit key (for testing).
@@ -104,7 +110,10 @@ impl ConfigEncryption {
             let key = aes_gcm::Key::<Aes256Gcm>::from_slice(k);
             Aes256Gcm::new(key)
         });
-        Self { cipher, configs_dir: dir }
+        Self {
+            cipher,
+            configs_dir: dir,
+        }
     }
 
     /// Whether encryption is enabled.
@@ -165,9 +174,10 @@ impl ConfigEncryption {
 
         // Try to parse as encrypted config first.
         if let Ok(encrypted) = serde_json::from_slice::<EncryptedConfig>(&file_bytes)
-            && !encrypted.ciphertext_hex.is_empty() {
-                return self.decrypt_config(&encrypted);
-            }
+            && !encrypted.ciphertext_hex.is_empty()
+        {
+            return self.decrypt_config(&encrypted);
+        }
 
         // Fall back to plaintext parsing.
         let entry: ConfigEntry = serde_json::from_slice(&file_bytes)
@@ -356,7 +366,10 @@ mod tests {
         // Verify the file contains hex-encoded data (not plaintext).
         let raw = fs::read_to_string(dir.join("encrypted_strategy.json")).unwrap();
         assert!(raw.contains("ciphertext_hex"), "Expected encrypted output");
-        assert!(!raw.contains("secret_key_12345"), "Secret should not be in plaintext");
+        assert!(
+            !raw.contains("secret_key_12345"),
+            "Secret should not be in plaintext"
+        );
 
         // Load and verify (same key).
         let enc2 = ConfigEncryption::with_dir_and_key(dir.clone(), Some(&key));
@@ -396,8 +409,10 @@ mod tests {
         let dir = temp_dir();
         let enc = ConfigEncryption::with_dir_and_key(dir.clone(), None);
 
-        enc.save_config("list_a", &serde_json::json!({"a": 1})).unwrap();
-        enc.save_config("list_b", &serde_json::json!({"b": 2})).unwrap();
+        enc.save_config("list_a", &serde_json::json!({"a": 1}))
+            .unwrap();
+        enc.save_config("list_b", &serde_json::json!({"b": 2}))
+            .unwrap();
 
         let mut names = enc.list_configs();
         names.sort();
@@ -409,7 +424,8 @@ mod tests {
         let dir = temp_dir();
         let enc = ConfigEncryption::with_dir_and_key(dir.clone(), None);
 
-        enc.save_config("to_delete", &serde_json::json!({"x": 1})).unwrap();
+        enc.save_config("to_delete", &serde_json::json!({"x": 1}))
+            .unwrap();
         assert!(dir.join("to_delete.json").exists());
 
         enc.delete_config("to_delete").unwrap();

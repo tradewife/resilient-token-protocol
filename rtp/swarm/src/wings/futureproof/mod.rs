@@ -50,7 +50,9 @@ impl FutureproofWing {
             Payload::Shutdown { .. } => Some(Message::new(
                 WingId::Futureproof,
                 WingId::Coordinator,
-                Payload::Ack { in_reply_to: msg.id },
+                Payload::Ack {
+                    in_reply_to: msg.id,
+                },
             )),
 
             _ => Some(Message::new(

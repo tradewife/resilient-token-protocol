@@ -71,7 +71,10 @@ pub async fn run_demo_loop() -> DemoResult {
     steps.push(DemoStep {
         name: "register_wings".to_string(),
         passed: coordinator.lifecycle().active_count() == 6,
-        detail: format!("Registered {} wings", coordinator.lifecycle().active_count()),
+        detail: format!(
+            "Registered {} wings",
+            coordinator.lifecycle().active_count()
+        ),
     });
 
     // Step 2: Trading Wing proposes a strategy deployment.
@@ -159,7 +162,10 @@ pub async fn run_demo_loop() -> DemoResult {
     // Step 4: Audit Wing tribunal reviews the proposal.
     let audit_approved = if let Some(msg) = &audit_msg {
         let (_tribunal_result, response) = audit.review_proposal(msg);
-        matches!(response.payload, Payload::AuditResult { approved: true, .. })
+        matches!(
+            response.payload,
+            Payload::AuditResult { approved: true, .. }
+        )
     } else {
         false
     };
@@ -169,7 +175,11 @@ pub async fn run_demo_loop() -> DemoResult {
         passed: audit_approved,
         detail: format!(
             "Tribunal verdict: {}",
-            if audit_approved { "APPROVED" } else { "REJECTED" }
+            if audit_approved {
+                "APPROVED"
+            } else {
+                "REJECTED"
+            }
         ),
     });
 
@@ -284,10 +294,7 @@ pub async fn run_demo_loop() -> DemoResult {
                         steps.push(DemoStep {
                             name: "trading_executes".to_string(),
                             passed: true,
-                            detail: format!(
-                                "Bridge not available (expected in test): {}",
-                                reason
-                            ),
+                            detail: format!("Bridge not available (expected in test): {}", reason),
                         });
                         steps.push(DemoStep {
                             name: "knowledge_stores_yield".to_string(),
@@ -369,7 +376,10 @@ pub fn print_demo_result(result: &DemoResult) {
     println!("├─────────────────────────────────────────────────┤");
     let status = if result.success { "SUCCESS" } else { "FAILED" };
     println!("│ Result: {:40} │", status);
-    println!("│ Final yield: {:36} │", format!("{} USDC", result.final_yield));
+    println!(
+        "│ Final yield: {:36} │",
+        format!("{} USDC", result.final_yield)
+    );
     println!("└─────────────────────────────────────────────────┘");
 }
 

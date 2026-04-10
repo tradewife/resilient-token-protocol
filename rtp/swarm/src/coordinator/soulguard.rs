@@ -8,9 +8,7 @@
 //! truth, not hardcoded strings. Supports drift detection.
 
 use super::soulcontract_spec::{DriftReport, SoulcontractSpec};
-use crate::types::{
-    AuditLogEntry, Message, Payload, ProposalKind, WingId,
-};
+use crate::types::{AuditLogEntry, Message, Payload, ProposalKind, WingId};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
@@ -92,7 +90,10 @@ impl Soulguard {
 
         let spec = if spec_path.exists() {
             SoulcontractSpec::from_file(&spec_path).unwrap_or_else(|e| {
-                eprintln!("WARNING: Failed to parse soulcontract.md: {}. Using defaults.", e);
+                eprintln!(
+                    "WARNING: Failed to parse soulcontract.md: {}. Using defaults.",
+                    e
+                );
                 default_spec()
             })
         } else {
@@ -141,12 +142,8 @@ impl Soulguard {
 
         // Payload-specific checks.
         match &message.payload {
-            Payload::Proposal { kind, .. } => {
-                self.check_proposal(kind).await
-            }
-            Payload::EvolveProposal { .. } => {
-                self.check_evolve_proposal(&message.from).await
-            }
+            Payload::Proposal { kind, .. } => self.check_proposal(kind).await,
+            Payload::EvolveProposal { .. } => self.check_evolve_proposal(&message.from).await,
             Payload::RollbackRequest { .. } => {
                 SoulguardVerdict::Pass // Rollbacks are always safety mechanisms.
             }
@@ -218,7 +215,8 @@ impl Soulguard {
         if *from != WingId::Evolve {
             return SoulguardVerdict::Reject {
                 reason: format!(
-                    "Only the Evolve Wing can submit EvolveProposals. Got: {}", from
+                    "Only the Evolve Wing can submit EvolveProposals. Got: {}",
+                    from
                 ),
                 constraint: "evolve_wing_exclusive".to_string(),
             };
@@ -335,8 +333,9 @@ Auto-rollback if system performance degrades > 5% post-amendment
 | Sustenance | < $50k | Reinvest |
 | Ecosystem | $50k–$1M | LP |
 | Humanity | > $1M | Grants |
-"#
-    ).unwrap_or_else(|_| SoulcontractSpec {
+"#,
+    )
+    .unwrap_or_else(|_| SoulcontractSpec {
         immutable_constraints: vec![],
         evolvable_items: vec![],
         phases: vec![],
@@ -384,8 +383,9 @@ Auto-rollback if system performance degrades > 5% post-amendment
 | Sustenance | < $50k | Reinvest |
 | Ecosystem | $50k–$1M | LP |
 | Humanity | > $1M | Grants |
-"#
-        ).unwrap()
+"#,
+        )
+        .unwrap()
     }
 
     #[tokio::test]
@@ -411,7 +411,10 @@ Auto-rollback if system performance degrades > 5% post-amendment
             WingId::Evolve,
             Payload::Raw(serde_json::json!({})),
         );
-        assert!(matches!(sg.check(&msg).await, SoulguardVerdict::Reject { .. }));
+        assert!(matches!(
+            sg.check(&msg).await,
+            SoulguardVerdict::Reject { .. }
+        ));
     }
 
     #[tokio::test]
@@ -451,7 +454,9 @@ Auto-rollback if system performance degrades > 5% post-amendment
             },
         );
         let verdict = sg.check(&msg).await;
-        assert!(matches!(verdict, SoulguardVerdict::Reject { constraint, .. } if constraint.contains("risk_budget")));
+        assert!(
+            matches!(verdict, SoulguardVerdict::Reject { constraint, .. } if constraint.contains("risk_budget"))
+        );
     }
 
     #[tokio::test]
@@ -513,17 +518,27 @@ Auto-rollback if system performance degrades > 5% post-amendment
         let msg = make_message(
             WingId::Coordinator,
             WingId::Trading,
-            Payload::Shutdown { reason: "test".to_string() },
+            Payload::Shutdown {
+                reason: "test".to_string(),
+            },
         );
-        assert!(matches!(sg.check(&msg).await, SoulguardVerdict::Reject { .. }));
+        assert!(matches!(
+            sg.check(&msg).await,
+            SoulguardVerdict::Reject { .. }
+        ));
 
         let msg_critical = Message::new(
             WingId::Coordinator,
             WingId::Trading,
-            Payload::Shutdown { reason: "test".to_string() },
+            Payload::Shutdown {
+                reason: "test".to_string(),
+            },
         )
         .with_priority(Priority::Critical);
-        assert!(matches!(sg.check(&msg_critical).await, SoulguardVerdict::Pass));
+        assert!(matches!(
+            sg.check(&msg_critical).await,
+            SoulguardVerdict::Pass
+        ));
     }
 
     #[tokio::test]

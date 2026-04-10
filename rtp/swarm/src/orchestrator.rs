@@ -29,16 +29,14 @@
 //! scripted state sequences.
 
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use tracing::{error, info, warn};
 
-use crate::evaluator::{
-    BridgeMetrics, Evaluation, Evaluator, OnChainState, PriceOracle,
-};
+use crate::evaluator::{BridgeMetrics, Evaluation, Evaluator, OnChainState, PriceOracle};
 use crate::heartbeat::{HeartbeatEngine, HeartbeatSignal, HeartbeatType, RecommendedAction};
 use crate::memory_promotion::{MemoryConfig, MemoryPromotion};
 
@@ -281,9 +279,7 @@ impl Orchestrator {
     /// Create a new orchestrator with the given configuration and hooks.
     pub fn new(config: OrchestratorConfig, hooks: Hooks) -> Self {
         let evaluator = Evaluator::new(config.stagnation_threshold);
-        let heartbeat = HeartbeatEngine::with_consolidation_interval(
-            config.consolidation_interval,
-        );
+        let heartbeat = HeartbeatEngine::with_consolidation_interval(config.consolidation_interval);
         let memory_config = MemoryConfig {
             project_tsi_threshold: config.tsi_promotion_threshold,
             overview_improvement_cycles: config.improvement_window,
@@ -313,9 +309,7 @@ impl Orchestrator {
     /// Create for testing — no disk persistence, no sleep.
     pub fn new_for_test(config: OrchestratorConfig) -> Self {
         let evaluator = Evaluator::new(config.stagnation_threshold);
-        let heartbeat = HeartbeatEngine::with_consolidation_interval(
-            config.consolidation_interval,
-        );
+        let heartbeat = HeartbeatEngine::with_consolidation_interval(config.consolidation_interval);
         let memory_config = MemoryConfig {
             project_tsi_threshold: config.tsi_promotion_threshold,
             overview_improvement_cycles: config.improvement_window,
@@ -350,10 +344,7 @@ impl Orchestrator {
 
     /// Get the current status (safe to call from any thread).
     pub fn status(&self) -> OrchestratorStatus {
-        self.status
-            .lock()
-            .map(|s| s.clone())
-            .unwrap_or_default()
+        self.status.lock().map(|s| s.clone()).unwrap_or_default()
     }
 
     /// Get a reference to the memory promotion engine.
@@ -382,7 +373,9 @@ impl Orchestrator {
         if let Ok(guard) = self.oracle.lock()
             && let Some(ref oracle) = *guard
         {
-            self.evaluator.set_oracle(PriceOracle { price_usdc: oracle.price_usdc });
+            self.evaluator.set_oracle(PriceOracle {
+                price_usdc: oracle.price_usdc,
+            });
         }
 
         // d. Evaluate.
@@ -441,7 +434,10 @@ impl Orchestrator {
 
         for _ in 0..n {
             if self.shutdown.load(Ordering::Relaxed) {
-                info!("Shutdown requested, stopping after {} cycles", results.len());
+                info!(
+                    "Shutdown requested, stopping after {} cycles",
+                    results.len()
+                );
                 break;
             }
 
@@ -478,11 +474,7 @@ impl Orchestrator {
 
     /// Run indefinitely until shutdown, halt escalation, or error.
     /// Production entry point.
-    pub fn run(
-        &mut self,
-        treasury: &dyn TreasuryFetcher,
-        bridge: &dyn BridgeFetcher,
-    ) {
+    pub fn run(&mut self, treasury: &dyn TreasuryFetcher, bridge: &dyn BridgeFetcher) {
         {
             let mut status = self.status.lock().unwrap();
             status.is_running = true;
@@ -771,7 +763,11 @@ mod tests {
         assert!(!halts.is_empty(), "Expected halt results");
 
         // Should stop early due to max_consecutive_halts.
-        assert!(results.len() <= 6, "Should have stopped early, got {} cycles", results.len());
+        assert!(
+            results.len() <= 6,
+            "Should have stopped early, got {} cycles",
+            results.len()
+        );
     }
 
     // ── Halt counter resets on recovery ─────────────────────────────────
@@ -782,12 +778,8 @@ mod tests {
         let mut orch = Orchestrator::new_for_test(config);
 
         // 2 dead (TSI=0 → halt), then recovery (healthy → continue).
-        let states: Vec<OnChainState> = vec![
-            dead_state(),
-            dead_state(),
-            healthy_state(),
-            healthy_state(),
-        ];
+        let states: Vec<OnChainState> =
+            vec![dead_state(), dead_state(), healthy_state(), healthy_state()];
         let bridge_states: Vec<Option<BridgeMetrics>> = vec![
             None, // Dead cycle 1: no bridge.
             None, // Dead cycle 2: no bridge.
@@ -870,8 +862,14 @@ mod tests {
         assert!(!status.is_running);
         assert_eq!(status.cycles_run, 3);
         assert!(status.current_tsi > 0.0);
-        assert_eq!(status.last_heartbeat_type, Some(HeartbeatType::PerIteration));
-        assert_eq!(status.last_recommended_action, Some(RecommendedAction::Continue));
+        assert_eq!(
+            status.last_heartbeat_type,
+            Some(HeartbeatType::PerIteration)
+        );
+        assert_eq!(
+            status.last_recommended_action,
+            Some(RecommendedAction::Continue)
+        );
         assert_eq!(status.consecutive_halts, 0);
         assert!(status.last_cycle_at.is_some());
     }
@@ -911,7 +909,10 @@ mod tests {
 
         // Check memory has project entries.
         let project = orch.memory().project_consolidations();
-        assert!(!project.is_empty(), "Expected project memory after consolidation");
+        assert!(
+            !project.is_empty(),
+            "Expected project memory after consolidation"
+        );
     }
 
     // ── Degraded mode ────────────────────────────────────────────────────
@@ -1043,18 +1044,58 @@ mod tests {
         // Cycles 8-10: recovery → improving → continue
         let states: Vec<OnChainState> = vec![
             // 1-4: healthy/improving
-            OnChainState { vault_balance: 50_000, total_fees_withdrawn: 100_000, ..healthy_state() },
-            OnChainState { vault_balance: 55_000, total_fees_withdrawn: 110_000, ..healthy_state() },
-            OnChainState { vault_balance: 60_000, total_fees_withdrawn: 120_000, ..healthy_state() },
-            OnChainState { vault_balance: 65_000, total_fees_withdrawn: 130_000, ..healthy_state() },
+            OnChainState {
+                vault_balance: 50_000,
+                total_fees_withdrawn: 100_000,
+                ..healthy_state()
+            },
+            OnChainState {
+                vault_balance: 55_000,
+                total_fees_withdrawn: 110_000,
+                ..healthy_state()
+            },
+            OnChainState {
+                vault_balance: 60_000,
+                total_fees_withdrawn: 120_000,
+                ..healthy_state()
+            },
+            OnChainState {
+                vault_balance: 65_000,
+                total_fees_withdrawn: 130_000,
+                ..healthy_state()
+            },
             // 5-7: declining → stagnation
-            OnChainState { vault_balance: 60_000, total_fees_withdrawn: 130_000, ..healthy_state() },
-            OnChainState { vault_balance: 55_000, total_fees_withdrawn: 130_000, ..healthy_state() },
-            OnChainState { vault_balance: 50_000, total_fees_withdrawn: 130_000, ..healthy_state() },
+            OnChainState {
+                vault_balance: 60_000,
+                total_fees_withdrawn: 130_000,
+                ..healthy_state()
+            },
+            OnChainState {
+                vault_balance: 55_000,
+                total_fees_withdrawn: 130_000,
+                ..healthy_state()
+            },
+            OnChainState {
+                vault_balance: 50_000,
+                total_fees_withdrawn: 130_000,
+                ..healthy_state()
+            },
             // 8-10: recovery
-            OnChainState { vault_balance: 55_000, total_fees_withdrawn: 140_000, ..healthy_state() },
-            OnChainState { vault_balance: 60_000, total_fees_withdrawn: 150_000, ..healthy_state() },
-            OnChainState { vault_balance: 65_000, total_fees_withdrawn: 160_000, ..healthy_state() },
+            OnChainState {
+                vault_balance: 55_000,
+                total_fees_withdrawn: 140_000,
+                ..healthy_state()
+            },
+            OnChainState {
+                vault_balance: 60_000,
+                total_fees_withdrawn: 150_000,
+                ..healthy_state()
+            },
+            OnChainState {
+                vault_balance: 65_000,
+                total_fees_withdrawn: 160_000,
+                ..healthy_state()
+            },
         ];
 
         let treasury = MockTreasuryFetcher::new(states);
@@ -1073,7 +1114,10 @@ mod tests {
             .iter()
             .filter(|r| r.heartbeat_type == HeartbeatType::Redirect)
             .collect();
-        assert!(!redirects.is_empty(), "Expected redirect during declining phase");
+        assert!(
+            !redirects.is_empty(),
+            "Expected redirect during declining phase"
+        );
 
         // Cycles 8-10: recovery
         assert!(results[9].tsi > 0.0);

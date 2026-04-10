@@ -15,12 +15,11 @@
 use crate::types::{Message, MessageId, Payload, WingId};
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::{mpsc, RwLock};
+use tokio::sync::{RwLock, mpsc};
 use tokio::time::{Duration, sleep};
 
 /// Routing topology for the swarm.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[derive(Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Topology {
     /// Central Coordinator routes all messages (RTP default).
     #[default]
@@ -30,7 +29,6 @@ pub enum Topology {
     /// Coordinator delegates to sub-coordinators for wing groups.
     Hierarchical,
 }
-
 
 /// Fault tolerance configuration.
 #[derive(Debug, Clone)]
@@ -134,10 +132,18 @@ impl Router {
                     message: message.clone(),
                     proposed_at: chrono::Utc::now(),
                 };
-                self.pending_proposals.write().await.insert(proposal_id, pending);
+                self.pending_proposals
+                    .write()
+                    .await
+                    .insert(proposal_id, pending);
 
-                match self.deliver_with_retry(WingId::Audit, message.clone()).await {
-                    true => RoutingOutcome::AwaitingAudit { msg_id: proposal_id },
+                match self
+                    .deliver_with_retry(WingId::Audit, message.clone())
+                    .await
+                {
+                    true => RoutingOutcome::AwaitingAudit {
+                        msg_id: proposal_id,
+                    },
                     false => RoutingOutcome::Rejected {
                         msg_id: proposal_id,
                         reason: "Audit Wing not registered after retries".to_string(),
@@ -145,21 +151,35 @@ impl Router {
                 }
             }
 
-            Payload::AuditResult { proposal_id, approved, findings, .. } => {
+            Payload::AuditResult {
+                proposal_id,
+                approved,
+                findings,
+                ..
+            } => {
                 if *approved {
-                    if let Some(pending) = self.pending_proposals.write().await.remove(proposal_id) {
+                    if let Some(pending) = self.pending_proposals.write().await.remove(proposal_id)
+                    {
                         let proposer = pending.message.from;
                         let execute_permit = Message::new(
                             WingId::Coordinator,
                             proposer,
-                            Payload::ExecutePermit { proposal_id: *proposal_id },
+                            Payload::ExecutePermit {
+                                proposal_id: *proposal_id,
+                            },
                         )
                         .with_priority(crate::types::Priority::High);
 
-                        self.approved_proposals.write().await.insert(*proposal_id, pending.message);
+                        self.approved_proposals
+                            .write()
+                            .await
+                            .insert(*proposal_id, pending.message);
 
                         match self.deliver_with_retry(proposer, execute_permit).await {
-                            true => RoutingOutcome::Delivered { to: proposer, msg_id: *proposal_id },
+                            true => RoutingOutcome::Delivered {
+                                to: proposer,
+                                msg_id: *proposal_id,
+                            },
                             false => RoutingOutcome::Rejected {
                                 msg_id: *proposal_id,
                                 reason: format!(
@@ -189,10 +209,18 @@ impl Router {
                     message: message.clone(),
                     proposed_at: chrono::Utc::now(),
                 };
-                self.pending_proposals.write().await.insert(proposal_id, pending);
+                self.pending_proposals
+                    .write()
+                    .await
+                    .insert(proposal_id, pending);
 
-                match self.deliver_with_retry(WingId::Audit, message.clone()).await {
-                    true => RoutingOutcome::AwaitingAudit { msg_id: proposal_id },
+                match self
+                    .deliver_with_retry(WingId::Audit, message.clone())
+                    .await
+                {
+                    true => RoutingOutcome::AwaitingAudit {
+                        msg_id: proposal_id,
+                    },
                     false => RoutingOutcome::Rejected {
                         msg_id: proposal_id,
                         reason: "Audit Wing not registered for evolve proposal review".to_string(),
@@ -201,8 +229,14 @@ impl Router {
             }
 
             Payload::RollbackRequest { .. } => {
-                match self.deliver_with_retry(WingId::Evolve, message.clone()).await {
-                    true => RoutingOutcome::Delivered { to: WingId::Evolve, msg_id: message.id },
+                match self
+                    .deliver_with_retry(WingId::Evolve, message.clone())
+                    .await
+                {
+                    true => RoutingOutcome::Delivered {
+                        to: WingId::Evolve,
+                        msg_id: message.id,
+                    },
                     false => RoutingOutcome::Rejected {
                         msg_id: message.id,
                         reason: "Evolve Wing not registered after retries".to_string(),
@@ -212,13 +246,19 @@ impl Router {
 
             Payload::Shutdown { .. } => {
                 let count = self.broadcast(message.clone()).await;
-                RoutingOutcome::Broadcast { msg_id: message.id, count }
+                RoutingOutcome::Broadcast {
+                    msg_id: message.id,
+                    count,
+                }
             }
 
             _ => {
                 let target = message.to;
                 match self.deliver_with_retry(target, message.clone()).await {
-                    true => RoutingOutcome::Delivered { to: target, msg_id: message.id },
+                    true => RoutingOutcome::Delivered {
+                        to: target,
+                        msg_id: message.id,
+                    },
                     false => RoutingOutcome::Rejected {
                         msg_id: message.id,
                         reason: format!("Wing {} not registered after retries", target),
@@ -273,7 +313,10 @@ impl Router {
     }
 
     pub async fn is_pending(&self, proposal_id: &MessageId) -> bool {
-        self.pending_proposals.read().await.contains_key(proposal_id)
+        self.pending_proposals
+            .read()
+            .await
+            .contains_key(proposal_id)
     }
 
     pub async fn take_approved(&self, proposal_id: &MessageId) -> Option<Message> {
@@ -294,7 +337,9 @@ mod tests {
         let msg = Message::new(
             WingId::Coordinator,
             WingId::Trading,
-            Payload::Ack { in_reply_to: uuid::Uuid::new_v4() },
+            Payload::Ack {
+                in_reply_to: uuid::Uuid::new_v4(),
+            },
         );
         let outcome = router.route(msg.clone()).await;
         assert!(matches!(outcome, RoutingOutcome::Delivered { .. }));
@@ -308,7 +353,9 @@ mod tests {
         let msg = Message::new(
             WingId::Coordinator,
             WingId::Trading,
-            Payload::Ack { in_reply_to: uuid::Uuid::new_v4() },
+            Payload::Ack {
+                in_reply_to: uuid::Uuid::new_v4(),
+            },
         );
         let outcome = router.route(msg).await;
         assert!(matches!(outcome, RoutingOutcome::Rejected { .. }));
@@ -416,7 +463,9 @@ mod tests {
         let msg = Message::new(
             WingId::Coordinator,
             WingId::Trading,
-            Payload::Shutdown { reason: "test".to_string() },
+            Payload::Shutdown {
+                reason: "test".to_string(),
+            },
         )
         .with_priority(crate::types::Priority::Critical);
 

@@ -115,11 +115,7 @@ impl RollbackManager {
 
     /// Check a tracked change for performance degradation.
     /// If degradation exceeds threshold, queue a rollback.
-    pub fn evaluate(
-        &self,
-        change_id: uuid::Uuid,
-        current_score: f64,
-    ) -> Option<RollbackOperation> {
+    pub fn evaluate(&self, change_id: uuid::Uuid, current_score: f64) -> Option<RollbackOperation> {
         let change = self.tracked_changes.get(&change_id)?;
 
         if change.rolled_back {
@@ -218,7 +214,10 @@ impl RollbackManager {
 
     /// Get all tracked changes.
     pub fn tracked_changes(&self) -> Vec<TrackedChange> {
-        self.tracked_changes.iter().map(|r| r.value().clone()).collect()
+        self.tracked_changes
+            .iter()
+            .map(|r| r.value().clone())
+            .collect()
     }
 
     /// Get count of completed rollbacks.

@@ -78,10 +78,7 @@ impl LifecycleManager {
     }
 
     /// Spawn (register) a new wing with the swarm.
-    pub fn spawn(
-        &self,
-        wing_id: WingId,
-    ) -> Result<WingRegistration, String> {
+    pub fn spawn(&self, wing_id: WingId) -> Result<WingRegistration, String> {
         if self.wings.contains_key(&wing_id) {
             return Err(format!("Wing {} is already registered", wing_id));
         }
@@ -152,17 +149,11 @@ impl LifecycleManager {
                 HealthStatus::Offline
             } else if since_last >= self.health_config.unhealthy_after {
                 HealthStatus::Unhealthy {
-                    reason: format!(
-                        "No heartbeat for {} seconds",
-                        since_last.as_secs()
-                    ),
+                    reason: format!("No heartbeat for {} seconds", since_last.as_secs()),
                 }
             } else if since_last >= self.health_config.degraded_after {
                 HealthStatus::Degraded {
-                    reason: format!(
-                        "No heartbeat for {} seconds",
-                        since_last.as_secs()
-                    ),
+                    reason: format!("No heartbeat for {} seconds", since_last.as_secs()),
                 }
             } else {
                 HealthStatus::Healthy
@@ -192,9 +183,7 @@ impl LifecycleManager {
 
     /// Get registration info for a wing.
     pub fn get_wing(&self, wing_id: &WingId) -> Option<WingRegistration> {
-        self.wings
-            .get(wing_id)
-            .map(|w| w.registration.clone())
+        self.wings.get(wing_id).map(|w| w.registration.clone())
     }
 
     /// List all registered (non-retired) wings.
@@ -216,10 +205,7 @@ impl LifecycleManager {
 
     /// Check if a wing is active (registered and not retired).
     pub fn is_active(&self, wing_id: &WingId) -> bool {
-        self.wings
-            .get(wing_id)
-            .map(|w| !w.retired)
-            .unwrap_or(false)
+        self.wings.get(wing_id).map(|w| !w.retired).unwrap_or(false)
     }
 
     /// Count of active wings.
@@ -276,9 +262,14 @@ mod tests {
     #[test]
     fn heartbeat_on_unknown_wing_fails() {
         let lc = LifecycleManager::with_defaults();
-        assert!(lc
-            .heartbeat(WingId::Trading, HealthStatus::Healthy, serde_json::json!({}))
-            .is_err());
+        assert!(
+            lc.heartbeat(
+                WingId::Trading,
+                HealthStatus::Healthy,
+                serde_json::json!({})
+            )
+            .is_err()
+        );
     }
 
     #[test]

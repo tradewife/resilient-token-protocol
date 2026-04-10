@@ -151,19 +151,11 @@ impl Proposer {
         rationale: String,
         expected_impact: String,
     ) -> ChangeProposal {
-        let proposal = ChangeProposal::new(
-            target_wing,
-            description,
-            diff,
-            rationale,
-            expected_impact,
-        );
+        let proposal =
+            ChangeProposal::new(target_wing, description, diff, rationale, expected_impact);
         let id = proposal.id;
 
-        self.wing_proposals
-            .entry(target_wing)
-            .or_default()
-            .push(id);
+        self.wing_proposals.entry(target_wing).or_default().push(id);
 
         self.proposals.insert(id, proposal.clone());
         proposal
@@ -196,10 +188,7 @@ impl Proposer {
             rejection_reason: None,
         };
 
-        self.wing_proposals
-            .entry(target_wing)
-            .or_default()
-            .push(id);
+        self.wing_proposals.entry(target_wing).or_default().push(id);
 
         self.proposals.insert(id, proposal.clone());
         proposal
@@ -212,48 +201,33 @@ impl Proposer {
 
     /// Approve a proposal (called when Audit Wing approves).
     pub fn approve(&self, id: &uuid::Uuid) -> Result<(), String> {
-        let mut proposal = self
-            .proposals
-            .get_mut(id)
-            .ok_or("Proposal not found")?;
+        let mut proposal = self.proposals.get_mut(id).ok_or("Proposal not found")?;
         proposal.transition_to(ProposalStatus::Approved)
     }
 
     /// Reject a proposal (called when Audit Wing or soulguard rejects).
     pub fn reject(&self, id: &uuid::Uuid, reason: String) -> Result<(), String> {
-        let mut proposal = self
-            .proposals
-            .get_mut(id)
-            .ok_or("Proposal not found")?;
+        let mut proposal = self.proposals.get_mut(id).ok_or("Proposal not found")?;
         proposal.rejection_reason = Some(reason);
         proposal.transition_to(ProposalStatus::Rejected)
     }
 
     /// Mark a proposal as executed.
     pub fn mark_executed(&self, id: &uuid::Uuid) -> Result<(), String> {
-        let mut proposal = self
-            .proposals
-            .get_mut(id)
-            .ok_or("Proposal not found")?;
+        let mut proposal = self.proposals.get_mut(id).ok_or("Proposal not found")?;
         proposal.transition_to(ProposalStatus::Executed)
     }
 
     /// Record the baseline score before applying a change.
     pub fn set_baseline_score(&self, id: &uuid::Uuid, score: f64) -> Result<(), String> {
-        let mut proposal = self
-            .proposals
-            .get_mut(id)
-            .ok_or("Proposal not found")?;
+        let mut proposal = self.proposals.get_mut(id).ok_or("Proposal not found")?;
         proposal.baseline_score = Some(score);
         Ok(())
     }
 
     /// Record the post-change score.
     pub fn set_post_score(&self, id: &uuid::Uuid, score: f64) -> Result<(), String> {
-        let mut proposal = self
-            .proposals
-            .get_mut(id)
-            .ok_or("Proposal not found")?;
+        let mut proposal = self.proposals.get_mut(id).ok_or("Proposal not found")?;
         proposal.post_score = Some(score);
         Ok(())
     }
@@ -377,7 +351,10 @@ mod tests {
             .unwrap();
         let loaded = proposer.get(&proposal.id).unwrap();
         assert_eq!(loaded.status, ProposalStatus::Rejected);
-        assert_eq!(loaded.rejection_reason, Some("Insufficient justification".to_string()));
+        assert_eq!(
+            loaded.rejection_reason,
+            Some("Insufficient justification".to_string())
+        );
     }
 
     #[test]

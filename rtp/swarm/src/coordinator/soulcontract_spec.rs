@@ -106,24 +106,26 @@ impl SoulcontractSpec {
                 "Core Values" => {
                     // Parse "N. The protocol..." lines.
                     if let Some(rest) = trimmed.strip_prefix(|c: char| c.is_ascii_digit())
-                        && let Some(value) = rest.trim_start().strip_prefix(". ") {
-                            core_values.push(value.trim_end_matches('.').to_string());
-                        }
+                        && let Some(value) = rest.trim_start().strip_prefix(". ")
+                    {
+                        core_values.push(value.trim_end_matches('.').to_string());
+                    }
                 }
                 "What Cannot Evolve" => {
                     // Parse bullet lines like "- **PDA ownership** — ..."
                     if let Some(rest) = trimmed.strip_prefix("- **")
-                        && let Some((name, desc)) = rest.split_once("**") {
-                            let name = name.trim();
-                            let desc = desc.trim_start_matches(['-', '\u{2014}', '\u{2013}']);
-                            let desc = desc.trim();
-                            immutable_constraints.push(Constraint {
-                                name: name.to_lowercase().replace([' ', '-'], "_"),
-                                section: "What Cannot Evolve".to_string(),
-                                raw_text: format!("{}: {}", name, desc),
-                                requires_human_consent: true,
-                            });
-                        }
+                        && let Some((name, desc)) = rest.split_once("**")
+                    {
+                        let name = name.trim();
+                        let desc = desc.trim_start_matches(['-', '\u{2014}', '\u{2013}']);
+                        let desc = desc.trim();
+                        immutable_constraints.push(Constraint {
+                            name: name.to_lowercase().replace([' ', '-'], "_"),
+                            section: "What Cannot Evolve".to_string(),
+                            raw_text: format!("{}: {}", name, desc),
+                            requires_human_consent: true,
+                        });
+                    }
                 }
                 "What Can Evolve" => {
                     if let Some(item) = trimmed.strip_prefix("- ") {
@@ -132,7 +134,8 @@ impl SoulcontractSpec {
                 }
                 "Phase Evolution" => {
                     if in_table && trimmed.starts_with('|') {
-                        let cells: Vec<&str> = trimmed.split('|')
+                        let cells: Vec<&str> = trimmed
+                            .split('|')
                             .map(|c| c.trim())
                             .filter(|c| !c.is_empty() && !c.starts_with("---"))
                             .collect();
@@ -144,7 +147,8 @@ impl SoulcontractSpec {
                                 .unwrap_or(0.0);
                             phases.push(PhaseRule {
                                 name: cells[0].to_string(),
-                                threshold_usd: threshold * if cells[1].contains("k") { 1_000.0 } else { 1.0 },
+                                threshold_usd: threshold
+                                    * if cells[1].contains("k") { 1_000.0 } else { 1.0 },
                                 description: cells.get(2).unwrap_or(&"").to_string(),
                             });
                         }
@@ -304,7 +308,11 @@ Auto-rollback if system performance degrades > 5% post-amendment
         active.remove("pda_ownership");
         let report = spec.detect_drift(&active);
         assert!(!report.in_sync);
-        assert!(report.missing_from_active.contains(&"pda_ownership".to_string()));
+        assert!(
+            report
+                .missing_from_active
+                .contains(&"pda_ownership".to_string())
+        );
     }
 
     #[test]
@@ -314,7 +322,11 @@ Auto-rollback if system performance degrades > 5% post-amendment
         active.insert("made_up_constraint".to_string());
         let report = spec.detect_drift(&active);
         assert!(!report.in_sync);
-        assert!(report.extra_in_active.contains(&"made_up_constraint".to_string()));
+        assert!(
+            report
+                .extra_in_active
+                .contains(&"made_up_constraint".to_string())
+        );
     }
 
     #[test]

@@ -67,7 +67,9 @@ impl SecurityWing {
                 Some(Message::new(
                     WingId::Security,
                     WingId::Coordinator,
-                    Payload::Ack { in_reply_to: msg.id },
+                    Payload::Ack {
+                        in_reply_to: msg.id,
+                    },
                 ))
             }
 
@@ -102,7 +104,9 @@ impl SecurityWing {
                 Some(Message::new(
                     WingId::Security,
                     WingId::Coordinator,
-                    Payload::Ack { in_reply_to: msg.id },
+                    Payload::Ack {
+                        in_reply_to: msg.id,
+                    },
                 ))
             }
 
@@ -114,10 +118,12 @@ impl SecurityWing {
                     let limits = self.rate_limits.lock().ok()?;
                     limits
                         .iter()
-                        .map(|(w, e)| serde_json::json!({
-                            "wing": w.to_string(),
-                            "count": e.count,
-                        }))
+                        .map(|(w, e)| {
+                            serde_json::json!({
+                                "wing": w.to_string(),
+                                "count": e.count,
+                            })
+                        })
                         .collect::<Vec<_>>()
                 };
 
@@ -347,16 +353,17 @@ mod tests {
                 threat: "test".to_string(),
             },
         ));
-        let hb = wing.handle_message(&Message::new(
-            WingId::Coordinator,
-            WingId::Security,
-            Payload::Heartbeat {
-                wing: WingId::Security,
-                status: crate::types::HealthStatus::Healthy,
-                metrics: serde_json::json!({}),
-            },
-        ))
-        .unwrap();
+        let hb = wing
+            .handle_message(&Message::new(
+                WingId::Coordinator,
+                WingId::Security,
+                Payload::Heartbeat {
+                    wing: WingId::Security,
+                    status: crate::types::HealthStatus::Healthy,
+                    metrics: serde_json::json!({}),
+                },
+            ))
+            .unwrap();
         match hb.payload {
             Payload::Heartbeat { metrics, .. } => assert_eq!(metrics["alert_count"], 1),
             _ => panic!("Expected Heartbeat"),

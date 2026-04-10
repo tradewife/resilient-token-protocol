@@ -14,7 +14,7 @@ pub mod soulcontract_spec;
 pub mod soulguard;
 
 use crate::types::{Message, MessageId, WingId};
-use router::{RoutingOutcome, Router, Topology};
+use router::{Router, RoutingOutcome, Topology};
 use soulguard::Soulguard;
 use std::sync::Arc;
 use tokio::sync::mpsc;
@@ -89,7 +89,11 @@ impl Coordinator {
 
         // Stage 2: Route with fault tolerance.
         let outcome = self.router.route(message.clone()).await;
-        ProcessingResult::Routed { outcome, message_id: message.id, stage: 2 }
+        ProcessingResult::Routed {
+            outcome,
+            message_id: message.id,
+            stage: 2,
+        }
     }
 
     /// Send a message directly from the Coordinator to a wing.
@@ -246,7 +250,9 @@ mod integration_tests {
         let msg = Message::new(
             WingId::Coordinator,
             WingId::Trading,
-            Payload::Shutdown { reason: "test".to_string() },
+            Payload::Shutdown {
+                reason: "test".to_string(),
+            },
         )
         .with_priority(crate::types::Priority::Critical);
 

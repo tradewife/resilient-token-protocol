@@ -197,11 +197,7 @@ impl HeartbeatEngine {
     ///
     /// If TSI = 0 (runway breach, max drawdown, etc.), the signal will
     /// always carry `Redirect` or `Halt` — never `Continue`.
-    pub fn process(
-        &mut self,
-        evaluation: &Evaluation,
-        health: &HealthCheck,
-    ) -> HeartbeatSignal {
+    pub fn process(&mut self, evaluation: &Evaluation, health: &HealthCheck) -> HeartbeatSignal {
         self.cycle += 1;
 
         let current_tsi = evaluation.tsi;
@@ -284,8 +280,11 @@ impl HeartbeatEngine {
     /// Fires when `cycle % consolidation_interval == 0`, but NOT on the
     /// first cycle (cycle 1 should be PerIteration to establish baseline).
     fn is_consolidation_cycle(&self) -> bool {
-        self.cycle > 1 && self.config.consolidation_interval > 0
-            && self.cycle.is_multiple_of(self.config.consolidation_interval)
+        self.cycle > 1
+            && self.config.consolidation_interval > 0
+            && self
+                .cycle
+                .is_multiple_of(self.config.consolidation_interval)
     }
 }
 
@@ -296,9 +295,7 @@ impl HeartbeatEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::evaluator::{
-        Evaluation, HealthCheck, ProtocolPhase, SecondaryMetrics,
-    };
+    use crate::evaluator::{Evaluation, HealthCheck, ProtocolPhase, SecondaryMetrics};
 
     // ── Helpers ─────────────────────────────────────────────────────────
 
