@@ -4,14 +4,62 @@ This file provides guidance to Claude Code when working with this repository.
 
 ## Project Overview
 
-**RTP (Resilient Token Protocol)** — a Solana-native, self-funding treasury governed by a modular Rust swarm. Any token project adopts RTP — their trading fees route to the swarm, which autonomously researches, validates, and executes yield strategies — returning yield back to the project and its holders. Six specialized wings autonomously generate yield, defend against threats, evolve the protocol's own architecture, audit for compliance, accumulate knowledge, and monitor existential risks — all funded by their own yield.
+**RTP (Resilient Token Protocol)** — a Solana-native, self-funding treasury governed by a modular Rust swarm. Any token project adopts RTP — their trading fees route to the swarm, which autonomously researches, validates, and executes yield strategies — returning yield back to the project and its holders. The swarm executes validated strategies as **perpetuals trades on Hyperliquid**, signed via **Phantom Connect** (agentic wallet). Yield (USDC) flows back to the Solana treasury PDA on devnet.
 
-**Hackathon**: Solana Frontier (Colosseum × Canteen), $300k prizes, deadline May 11, 2026.
+**Hackathon**: SWARMs / Canteen × Colosseum, deadline May 11, 2026.
 **License**: MIT
 
-This repo has two layers:
+---
+
+## Execution Venue — Critical Path
+
+The **#1 unimplemented gap** is the Hyperliquid perps execution path. Everything else is built. This is what ships next.
+
+```
+Night Shift (Python, DONE)
+  └── validated strategy: SOL/USDT Survivor 2.69, signal_threshold=0.3, tp_atr=3.0, sl_atr=1.5
+        │
+        ▼ bridge.rs (DONE)
+Trading Wing (Rust, PARTIAL — in-memory mock only)
+  └── ExecutePermit payload → needs reqwest + Hyperliquid order struct
+        │
+        ▼ Hyperliquid REST API (NOT IMPLEMENTED)
+           POST https://api.hyperliquid.xyz/exchange
+           Signed via Phantom Connect agentic wallet
+        │
+        ▼ fill confirmed → USDC yield → Treasury PDA (NOT IMPLEMENTED)
+        │
+        ▼ check_redistribute on-chain (DONE on devnet)
+```
+
+### Hyperliquid Integration Resources
+| Resource | URL |
+|----------|-----|
+| Hyperliquid API docs | https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api |
+| Hyperliquid Python SDK | https://github.com/hyperliquid-dex/hyperliquid-python-sdk |
+| Hyperliquid Rust SDK | https://github.com/hyperliquid-dex/hyperliquid-rust-sdk |
+| Testnet endpoint | https://api.hyperliquid-testnet.xyz/exchange |
+| Phantom Connect docs | https://docs.phantom.app/phantom-connect/introduction |
+| CASH stablecoin docs | https://docs.phantom.app/phantom-connect/cash |
+
+### What to build in Trading Wing (`rtp/swarm/src/wings/trading/mod.rs`)
+1. Add `reqwest` + `serde_json` to `rtp/swarm/Cargo.toml`
+2. Define `HyperliquidOrder` struct (asset, isBuy, limitPx, sz, orderType)
+3. In `handle_execute_permit()`: construct order from `TradingConfig` payload, POST to HL testnet
+4. Parse fill response → emit `YieldReport` with realized PnL
+5. CPI transfer: yield USDC → treasury PDA via `transfer_checked`
+6. Phantom signing: use Phantom Connect agentic wallet API for order signing (see docs above)
+
+---
+
+## Repo Layout
+
+This repo has three layers:
 1. **Proven Python fractal-swarm** (shipping) — backtesting, optimization, paper trading
-2. **Rust swarm + Solana treasury** (in development) — 6-wing architecture, Coordinator, soulcontract
+2. **Rust swarm + Solana treasury** (built, 205 tests) — 6-wing architecture, Coordinator, soulcontract
+3. **Hyperliquid execution** (critical gap) — Trading Wing → HL testnet → yield → treasury PDA
+
+---
 
 ## Quick Setup
 
@@ -38,58 +86,43 @@ cd rtp/swarm && cargo build
 cd rtp/programs/rtp-treasury && anchor build
 ```
 
+---
+
 ## Commands
 
 ### Python (Yield Brain)
 
 ```bash
-# Night shift — main optimization pipeline
 python -m research.orchestration.night_shift
 python -m research.orchestration.night_shift --skip-fetch
 python -m research.orchestration.night_shift --symbols SOL/USDT
-
-# Paper trading — live market validation
 python -m research.live.paper_trader
-
-# Validation — bridge fast sim → full sim
 python -m research.validation.validate_night_shift --production
 python -m research.validation.validate_night_shift --symbol SOL/USDT --top 3
-
-# Self-correction — calibration + discrepancy detection
 python -m research.optimization.evaluator_calibration --samples 20
-python -m research.optimization.evaluator_calibration --fast-only
 python -m research.validation.discrepancy_detector
-
-# Data
-python -m research.data.download_ohlcv             # fetch from Binance (no API key needed)
+python -m research.data.download_ohlcv
 ```
 
 ### Rust (Swarm Runtime)
 
 ```bash
-# Build swarm
 cd rtp/swarm && cargo build --release
-
-# Test individual wings
+cd rtp/swarm && cargo test
 cd rtp/swarm && cargo test --lib trading::tests
 cd rtp/swarm && cargo test --lib audit::tests
-
-# Integration tests
 cd rtp/swarm && cargo test --test coordinator_integration
 ```
 
 ### Solana (Treasury Program)
 
 ```bash
-# Build Anchor program
 cd rtp/programs/rtp-treasury && anchor build
-
-# Run on devnet
 cd rtp/programs/rtp-treasury && anchor test --provider.cluster devnet
-
-# Deploy
 cd rtp/programs/rtp-treasury && anchor deploy --provider.cluster devnet
 ```
+
+---
 
 ## Architecture
 
@@ -104,56 +137,13 @@ cd rtp/programs/rtp-treasury && anchor deploy --provider.cluster devnet
 │                    SWARM RUNTIME (Rust)                          │
 │  Coordinator → message bus → 6 wings (trading, security,        │
 │  evolve, knowledge, audit, futureproof)                          │
+│  Trading Wing → Hyperliquid perps → USDC yield → treasury PDA   │
+│  Signed via Phantom Connect agentic wallet                       │
 ├─────────────────────────────────────────────────────────────────┤
-│                    RESEARCH LAYER (Python)                        │
+│                    RESEARCH LAYER (Python)                       │
 │  Night Shift: 30K configs → WFA → Darwinian → full-sim validate │
 │  Paper Trader: live Binance → state persistence → degradation   │
 └─────────────────────────────────────────────────────────────────┘
-```
-
-### Data Flow (Yield Brain)
-
-```
-Binance → download_ohlcv.py → data/ohlcv/{SYMBOL}_1h.parquet
-                                   ↓
-              per_symbol_optimizer (compute_indicators, simulate_trades, _compute_score)
-              ┌────────────────┴────────────────┐
-              │                                 │
-         night_shift (grid search)         paper_trader (live)
-         fast sim (~30K combos)            real-time Binance
-              │                                 │
-              ▼                                 ▼
-    ┌─────────────────┐                 data/paper_trading/
-    │ validate_       │                   state.json
-    │ night_shift.py  │
-    │ (full sim bridge)│
-    └────────┬────────┘
-             │
-             ▼
-    FutureBlindSimulator (fees + slippage)
-             │
-             ▼
-    data/night_results/YYYY-MM-DD/report.md
-```
-
-### Swarm Message Flow
-
-```
-Trading Wing          Coordinator           Audit Wing
-     │                    │                     │
-     │  Proposal:         │  Audit Request:     │
-     │  {deploy_config,   │  {check: proposal,  │
-     │   params,          │   against:soul}     │
-     │   confidence:0.9}  │ ───────────────────►│
-     │ ─────────────────►│                     │
-     │                    │  Audit Response:    │
-     │                    │  {approved: true,   │
-     │                    │   risk: LOW}        │
-     │                    │◄───────────────────│
-     │  Execute:          │                     │
-     │  {config_applied,  │                     │
-     │   monitor: 24h}    │                     │
-     │◄───────────────────│                     │
 ```
 
 ### Key Files
@@ -169,26 +159,25 @@ Trading Wing          Coordinator           Audit Wing
 | `research/simulation/run_backtest_r2.py` | Production `MultiTFStrategy` class + `timeframe_signal()` helper |
 | `research/optimization/evaluator_calibration.py` | Compares fast vs full sim on random configs |
 | `research/validation/discrepancy_detector.py` | Post-night-shift check, flags fast/full sim divergences |
-| `research/orchestration/night_config.json` | Night shift config (symbols, folds, experiments, thresholds) |
 | `research/simulation/future_blind_simulator.py` | `FutureBlindSimulator`: 0.1% fees, 10bps slippage, max 20% position |
-| `research/simulation/data_window.py` | `DataWindow` class feeding data to full simulator |
 
 #### Rust (Swarm Runtime)
 
 | File | Purpose |
 |------|---------|
 | `rtp/swarm/src/types.rs` | Message, Payload, WingId, Priority — all swarm types |
+| `rtp/swarm/src/bridge.rs` | Python ↔ Rust typed subprocess interface |
+| `rtp/swarm/src/demo.rs` | End-to-end demo loop (8-step pipeline) |
 | `rtp/swarm/src/coordinator/mod.rs` | Multi-stage quality gate (soulguard → router → audit) |
-| `rtp/swarm/src/coordinator/router.rs` | Typed message routing with retry + proposal→audit flow |
 | `rtp/swarm/src/coordinator/soulguard.rs` | Enforce soulcontract on every message |
-| `rtp/swarm/src/coordinator/soulcontract_spec.rs` | Parse soulcontract.md → structured constraints + drift detection |
+| `rtp/swarm/src/coordinator/soulcontract_spec.rs` | Parse SOULCONTRACT.md → structured constraints + drift detection |
 | `rtp/swarm/src/coordinator/lifecycle.rs` | Wing spawn, health-check, retire |
-| `rtp/swarm/src/wings/trading/mod.rs` | Trading Wing with bridge-backed `ExecutePermit` handling and in-memory proposal state |
-| `rtp/swarm/src/wings/security/mod.rs` | Security Wing with alert tracking, proposal rate limiting, and suspicious-proposal detection |
+| `rtp/swarm/src/wings/trading/mod.rs` | **Trading Wing — ExecutePermit handler. Needs Hyperliquid REST wiring.** |
+| `rtp/swarm/src/wings/security/mod.rs` | Threat detection, rate-limiting, suspicious-proposal detection |
 | `rtp/swarm/src/wings/evolve/` | Assessor, proposer, rollback (complete, tested) |
-| `rtp/swarm/src/wings/knowledge/mod.rs` | Knowledge Wing with in-memory store and cross-wing query support |
+| `rtp/swarm/src/wings/knowledge/mod.rs` | In-memory knowledge graph, cross-wing queries |
 | `rtp/swarm/src/wings/audit/mod.rs` | 3-agent tribunal (Skeptic/UserProxy/Optimizer), Byzantine consensus |
-| `rtp/swarm/src/wings/futureproof/mod.rs` | Futureproof Wing with deprecation monitoring heartbeat + shutdown ack |
+| `rtp/swarm/src/wings/futureproof/mod.rs` | Deprecation monitoring, heartbeat |
 
 #### Solana (Treasury Program)
 
@@ -200,12 +189,15 @@ Trading Wing          Coordinator           Audit Wing
 
 | File | Purpose |
 |------|---------|
-| `soulcontract.md` | Constitutional governance layer — invariants, what can/cannot evolve |
-| `BUILD_PLAN.md` | Full 10-part build plan v2.2 (hackathon timeline, links) |
-| `BUILD_PLAN_v3.md` | Post-audit remediation plan (active schedule) |
-| `docs/SECURITY_AUDIT_2026-04-07.md` | Full security audit — 18 findings with fixes |
-| `third-party-disclosure.md` | MIT framework + sponsor attributions |
+| `SOULCONTRACT.md` | Constitutional governance — invariants, execution constraints, key links |
+| `SESSION-CONTEXT.md` | Compressed project memory — paste into every fresh session |
+| `BUILD_PLAN_v3.md` | Post-audit schedule (active) |
+| `docs/RESOURCES.md` | All hackathon links, SDK links, sponsor links |
+| `docs/SECURITY_AUDIT_2026-04-07.md` | Full security audit — 18 findings |
+| `docs/CODEREVIEW.md` | Code review protocol |
 | `docs/demo-flow.md` | 3-minute hackathon demo script |
+
+---
 
 ## Key Invariants (enforced on-chain)
 
@@ -213,29 +205,32 @@ Trading Wing          Coordinator           Audit Wing
 2. **SPL TransferFeeConfig immutable from mint** — fees cannot be revoked
 3. **CPI-only transfers** — atomic, verifiable
 4. **Agent proposes, human approves irreversible actions**
-5. **No SOL liquidation** — USDC-only yield flows
+5. **No SOL liquidation** — USDC-only yield flows; Hyperliquid positions are USDC-margined
 6. **Phase transitions irreversible** — Sustenance → Ecosystem → Humanity
-7. **soulcontract amendments require human signature + 24h monitoring**
+7. **Soulcontract amendments require human signature + 24h monitoring**
 8. **Auto-rollback if performance degrades > 5% post-amendment**
 9. **Self-hydration only if sustenance bucket > 90-day runway**
-10. **Research code remains reviewable while collaboration is active** — black-boxing is deferred
+10. **Research code remains reviewable while collaboration is active**
 
-## Black-Box / Open-Source Split
+---
 
-**Open (MIT, judges see full source)**:
-- Swarm architecture (Coordinator, wings, message bus)
-- Treasury program (Anchor)
-- soulcontract.md
-- Demo flow + disclosure
+## Sponsored Hackathon Resources
 
-**Deferred while repo is private and collaborators need source access**:
-- PyInstaller packaging for `night_shift`
-- Any encryption/obfuscation of strategy configs
-- Competitive-moat hardening of research internals
+| Sponsor | Use in RTP | Link |
+|---------|-----------|------|
+| Phantom Connect | **Agentic wallet signing for Hyperliquid orders** | https://docs.phantom.app/phantom-connect/introduction |
+| CASH stablecoin | **Treasury yield settlement currency** | https://docs.phantom.app/phantom-connect/cash |
+| Squads Multisig | Treasury PDA security (production path) | https://docs.squads.so |
+| Swig | Programmable smart wallets for wing message bus | https://docs.swig.fi |
+| MoonPay Agents | Agent money movement infrastructure | https://www.moonpay.com/developers/agents |
+| Solana MCP | AI dev assistant for Anchor | https://github.com/solana-developers/solana-mcp |
+| Arcium | Encrypted computation (stretch) | https://docs.arcium.com |
+
+---
 
 ## Critical: Fast Sim Calibration
 
-The fast simulator (`per_symbol_optimizer`) MUST match the full simulator exactly. Three invariants discovered the hard way:
+The fast simulator (`per_symbol_optimizer`) MUST match the full simulator exactly. Three invariants:
 
 1. **ATR formula**: `std(returns, 20h) × price` — NOT True Range
 2. **MR entry condition**: `rsi < 35 and daily_trend == bullish` — NOT `bull_count >= min_alignment`
@@ -243,36 +238,7 @@ The fast simulator (`per_symbol_optimizer`) MUST match the full simulator exactl
 
 If you change anything in `_compute_score()` or `simulate_trades()`, run `evaluator_calibration.py` to verify directional agreement.
 
-## Night Shift Pipeline Phases
-
-1. **Phase 1: Data** — load cached parquet (Binance geo-blocked on GitHub, data in repo)
-2. **Phase 2: WFA Folds** — expanding-window, non-overlapping, 9 folds × 36-day test windows
-3. **Phase 2b: Production Baseline** — evaluate current config as reference
-4. **Phase 3: Coarse Grid** — ~30K parameter combinations per symbol
-5. **Phase 3b: Fine Refinement** — top 100 per symbol on all folds
-6. **Phase 4: Darwinian Evolution** — 5 generations, mutate best candidates
-7. **Phase 4b: BB Mean Reversion** — separate strategy grid search
-8. **Phase 4c: Custom Experiments** — configurable param sweeps from `night_config.json`
-9. **Phase 5: Regime Analysis** — ADX, volatility percentile, correlations
-10. **Phase 6: Morning Report** — markdown + JSON report with top candidates
-11. **Phase 7: Auto-Validation** — top 3 through full FutureBlindSimulator
-12. **Phase 8: Discrepancy Detection** — compare fast/full sim, flag divergences
-
-## Self-Correction Architecture
-
-Three independent modules (no LLM needed):
-
-1. **`evaluator_calibration.py`** — N random configs, measures sign agreement and PnL correlation
-2. **`discrepancy_detector.py`** — tracks consecutive flags per symbol, skips Darwinian after 2 bad nights
-3. **Phase 8 in `night_shift.py`** — calls discrepancy detector automatically
-
-## Validation Pipeline
-
-1. **Night shift fast sim** — coarse grid (~30K combos) → fine refinement → Darwinian
-2. **Three-layer overfitting detection** — IS-OOS gap, OOS consistency, parameter fragility
-3. **Full-sim validation** — top candidates through FutureBlindSimulator (fees + slippage)
-4. **Discrepancy detection** — compare fast/full sim rankings, flag divergent symbols
-5. **Paper trading** — live market validation with real Binance data
+---
 
 ## Yield Brain Results
 
@@ -283,93 +249,37 @@ Three independent modules (no LLM needed):
 | ETH/USDT | +48.1% | — | 78% | 155 |
 | BTC/USDT | +17.5% | — | 67% | 153 |
 
-Active symbols: BTC/USDT, ETH/USDT, SOL/USDT, BNB/USDT. XRP was dropped (net negative across all WFA folds).
+Active symbols: BTC/USDT, ETH/USDT, SOL/USDT, BNB/USDT. XRP dropped (net negative).
 
-## Fee Flow
+**Top live candidate (Apr 9 Night Shift):**
+SOL/USDT Survivor 2.69 — signal_threshold=0.3, tp_atr=3.0, sl_atr=1.5, max_hold=36h, trailing_stop_atr=0.5
+This is the config the Trading Wing targets on Hyperliquid.
 
-Any Solana token project adopts RTP via TransferFeeConfig. Their trading fees route to the Treasury PDA.
-
-```
-Token project adopts RTP
-  │
-  ├── Enable TransferFeeConfig on mint (immutable)
-  │       └── Every trade → fee → Treasury PDA
-  │
-  ├── pump.fun (most common)
-  │       └── 0.05% creator fee (SOL) → Treasury PDA
-  │
-  └── Any Solana token
-          └── Custom fee % set at mint → Treasury PDA
-```
-
-Redistribution at threshold: 70% holders / 20% project dev / 10% ecosystem.
-
-## Phased Evolution
-
-| Phase | Threshold | Behavior |
-|-------|-----------|----------|
-| **1: Sustenance** | < $50k | Self-hydrate, reinvest all yield |
-| **2: Ecosystem** | $50k–$1M | Auto-provide LP to top RTP-adopting tokens |
-| **3: Humanity** | > $1M | USDC grants to Solana public-goods projects |
-
-Phase transitions are **irreversible** on-chain.
-
-## cldcde Skills (installed)
-
-27 relevant skills mapped to RTP wings (see BUILD_PLAN.md Part 4 for full mapping):
-
-- **Tier 1 (Critical)**: swarm-orchestration, hive-mind-advanced, spec-lock, red-team-tribunal, compound-engineering, verification-quality
-- **Tier 2 (High)**: agentdb-memory-patterns, agentdb-advanced, reasoningbank-agentdb, agentdb-learning, sparc-methodology, ultra-planner, debt-sentinel, swarm-advanced, stream-chain, fpef-analyzer
-- **Tier 3 (Medium)**: hooks-automation, performance-analysis, github-workflow-automation, github-release-management, ae-ltd-skill-builder, flow-nexus-swarm, mcp-universal-manager
-- **Tier 4 (Low)**: prologue, ae-proof-agent, agentic-jujutsu, skill-builder, multi-platform-architect
-
-Installed at `~/.claude/skills/` and `~/.freecode/plugins/`.
-
-## Sponsored Hackathon Resources
-
-| Sponsor | Use | Link |
-|---------|-----|------|
-| Phantom Connect | Agentic wallet + CASH stablecoin | https://docs.phantom.app/phantom-connect/introduction |
-| Squads Multisig | Treasury PDA security | https://docs.squads.so |
-| Swig | Programmable smart wallets | https://docs.swig.fi |
-| MoonPay Agents | Agent money movement | https://www.moonpay.com/developers/agents |
-| Solana MCP | AI dev assistant for Anchor | https://github.com/solana-developers/solana-mcp |
-| Arcium | Encrypted computation (stretch) | https://docs.arcium.com |
-
-Not using: World Coin (toxic sentiment).
-
-## Design Decisions
-
-- **Median OOS Sharpe** (not mean) — prevents single-fold outliers from dominating
-- **Per-fold Sharpe winsorized at ±100** — prevents tiny-sample Sharpe from going to ±8000+
-- **Fragility is a penalty, not rejection** — `survivor *= 1/(1+fragility)`
-- **Survivor Score**: `avg_oos_sharpe × consistency × (1-overfitting) × dd_factor × trade_factor × fragility_penalty`
-- **Wings never modify each other directly** — all cross-wing communication via Coordinator
-- **Python ↔ Rust interface** is typed JSON — any wing can propose, any wing can act
-- **Paper trader has no Redis dependency** for runtime (only full sim validation path needs it)
-- **Virtual environment**: `.venv/` with Python 3.13.3, ccxt 4.5.46, pandas 3.0.2
+---
 
 ## CI/CD
 
-- **Night shift**: GitHub Actions cron at 14:00 UTC (midnight AEST)
-- **Binance is geo-blocked on GitHub runners** — OHLCV data in `data/ohlcv/`, `fetch_fresh_data` defaults to `false`
-- **Data refresh**: run `download_ohlcv.py` locally, commit updated parquets, push before midnight
-- **Workflow**: `.github/workflows/night_shift.yml` (300 min timeout, Python 3.12)
-- **Dependencies in CI**: `pandas numpy ccxt pyarrow redis`
+- **Night shift**: GitHub Actions cron at 14:00 UTC (`night_shift.yml`, 300 min timeout)
+- **Swarm CI**: `swarm-ci.yml` — cargo build + test + clippy + fmt + anchor build
+- **Python tests**: `python-tests.yml` — module imports + CLI help + bridge-mode schema
+- **Binance geo-blocked on GitHub runners** — OHLCV data in `data/ohlcv/`, fetch defaults to `false`
+
+---
 
 ## GitHub
 
-- **This repo**: `git@github.com:tradewife/resilient-token-protocol.git` (SSH)
+- **This repo**: `git@github.com:tradewife/resilient-token-protocol.git`
 - **Source repo**: `git@github.com:tradewife/fractal-swarm.git` (Python fractal-swarm origin)
-- **Research repo**: `git@github.com:tradewife/rtp-skills-research.git` (pre-hackathon research)
-- **PAT stored**: `~/.config/gh/config.yml` (for `workflow_dispatch` triggers)
+- **Research repo**: `git@github.com:tradewife/rtp-skills-research.git`
 
-## Repo Structure
+---
 
-This repo (`resilient-token-protocol`) contains:
-- **Tracked (open-source)**: `rtp/swarm/`, `rtp/programs/`, governance docs, CI workflows
-- **Gitignored (local dev)**: `data/`, virtualenvs, build artifacts, secrets
+## Design Decisions
 
-The Python fractal-swarm source lives in this directory for development but is gitignored.
-It ships as a compiled binary in the hackathon submission. The original source
-and data live in `fractal-swarm` (tradewife/fractal-swarm.git).
+- **Hyperliquid for execution**: highest-liquidity perps DEX, REST API, USDC-margined, no KYC
+- **Phantom for signing**: sponsored, agentic wallet flow, CASH stablecoin settlement
+- **Median OOS Sharpe** (not mean) — prevents single-fold outliers dominating
+- **Per-fold Sharpe winsorized at ±100** — prevents tiny-sample extremes
+- **Fragility is a penalty, not rejection** — `survivor *= 1/(1+fragility)`
+- **Wings never modify each other directly** — all cross-wing communication via Coordinator
+- **Python ↔ Rust interface is typed JSON** — any wing can propose, any wing can act
