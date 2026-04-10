@@ -285,7 +285,7 @@ impl HeartbeatEngine {
     /// first cycle (cycle 1 should be PerIteration to establish baseline).
     fn is_consolidation_cycle(&self) -> bool {
         self.cycle > 1 && self.config.consolidation_interval > 0
-            && self.cycle % self.config.consolidation_interval == 0
+            && self.cycle.is_multiple_of(self.config.consolidation_interval)
     }
 }
 

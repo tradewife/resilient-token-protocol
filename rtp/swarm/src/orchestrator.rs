@@ -43,6 +43,13 @@ use crate::heartbeat::{HeartbeatEngine, HeartbeatSignal, HeartbeatType, Recommen
 use crate::memory_promotion::{MemoryConfig, MemoryPromotion};
 
 // ---------------------------------------------------------------------------
+// Type aliases
+// ---------------------------------------------------------------------------
+
+/// Hook called after every orchestrator cycle completes.
+type CycleHook = Box<dyn Fn(&HeartbeatSignal, &Evaluation) + Send + Sync>;
+
+// ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
@@ -152,7 +159,7 @@ pub struct Hooks {
     /// Called on terminal state — human escalation required.
     pub on_halt: Box<dyn Fn(&HeartbeatSignal) + Send + Sync>,
     /// Called after every cycle completes.
-    pub on_cycle_complete: Box<dyn Fn(&HeartbeatSignal, &Evaluation) + Send + Sync>,
+    pub on_cycle_complete: CycleHook,
 }
 
 impl Default for Hooks {
@@ -372,10 +379,10 @@ impl Orchestrator {
         let bridge_metrics = bridge.fetch()?;
 
         // c. Update oracle if set.
-        if let Ok(guard) = self.oracle.lock() {
-            if let Some(ref oracle) = *guard {
-                self.evaluator.set_oracle(PriceOracle { price_usdc: oracle.price_usdc });
-            }
+        if let Ok(guard) = self.oracle.lock()
+            && let Some(ref oracle) = *guard
+        {
+            self.evaluator.set_oracle(PriceOracle { price_usdc: oracle.price_usdc });
         }
 
         // d. Evaluate.

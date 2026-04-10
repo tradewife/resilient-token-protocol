@@ -72,7 +72,10 @@ jobs:
 
       - name: Anchor build
         working-directory: rtp/programs/rtp-treasury
-        run: anchor build
+        run: |
+          # CI uses ephemeral keypair — devnet keypair managed separately.
+          anchor keys sync
+          anchor build
 
   test-summary:
     needs: [swarm-build-and-test, anchor-build]
