@@ -146,10 +146,18 @@ pub enum Payload {
         strategy: String,
         params: serde_json::Value,
     },
+    /// Strategy assessment from the Trading Wing.
+    ///
+    /// `usdc_yield` is a **projected** annual yield from walk-forward analysis
+    /// (OOS PnL), not a realized return. The bridge evaluates strategies on
+    /// historical data and returns the out-of-sample performance estimate.
+    /// `source` indicates the assessment origin (e.g. "wfa_backtest").
     YieldReport {
         usdc_yield: f64,
         sol_reserves: f64,
         drawdown: f64,
+        #[serde(default)]
+        source: Option<String>,
     },
 
     // ── Security Wing payloads ─────────────────────────────────────

@@ -380,6 +380,7 @@ mod tests {
                 usdc_yield: 100.0,
                 sol_reserves: 0.0,
                 drawdown: 0.0,
+                source: None,
             },
         );
         let response = wing.handle_message(&msg).unwrap();

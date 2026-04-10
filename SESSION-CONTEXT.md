@@ -153,7 +153,7 @@ Priority order to resolve:
 |---|---|---|
 | Trust model for agent execution | OPEN | Multisig? Optimistic challenge? ZK? Not required for MVP demo. |
 | Demo UX | **DECISION REQUIRED** | Browser dashboard (~6h) vs recorded video (~2h). Dashboard covers more judge points. Video is faster. |
-| Invariant 7 (soulguard signature verification) | OPEN — hackathon acceptable | reload() takes &Path only, no sig param. Bypass path exists via filesystem write. Document as production TODO or implement ed25519 check. Demo path never calls reload so not demo-blocking. |
+| Invariant 7 (soulguard reload sig) | **CLOSED (documented)** | Production TODO: ed25519 on reload(). Comment added to soulguard.rs. Demo path unaffected. |
 
 ---
 

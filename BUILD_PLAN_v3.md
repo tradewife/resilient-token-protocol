@@ -371,7 +371,7 @@ WEEK 6 (May 5-11): SUBMISSION
   | 4 | Agent proposes, human approves | ✅   | H-1 + C-1: FIXED — authority + thresholds |
   | 5 | No SOL liquidation           | ✅     | —           |
   | 6 | Phase transitions irreversible | ✅    | —           |
-  | 7 | Soulcontract amend = human sig | ⚠️    | Week 5: reload signature check |
+  | 7 | Soulcontract amend = human sig | 📝 TODO | Production: ed25519 sig verification on reload(). Demo path unaffected. |
   | 8 | Auto-rollback >5% degradation | ✅     | H-5: FIXED — read from spec |
   | 9 | Self-hydration >90-day runway | ✅     | —           |
   | 10| Strategies black-boxed       | DEFERRED | repo kept private for collaboration |

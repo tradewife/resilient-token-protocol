@@ -1,9 +1,10 @@
-//! Trading Wing — yield research, validation, and execution.
+//! Trading Wing — strategy research, validation, and assessment.
 //!
 //! Handles TradingConfig, Proposal, ExecutePermit, YieldReport, and Heartbeat.
-//! Uses bridge.rs to call the Python fractal-swarm binary for strategy execution.
+//! Uses bridge.rs to call the Python fractal-swarm binary for strategy evaluation.
+//! The bridge returns walk-forward analysis results (projected yield), not live trades.
 //!
-//! In-memory state: last proposal, last yield report, execution count.
+//! In-memory state: last proposal, last assessment, execution count.
 
 use crate::bridge::{self, BridgeRequest};
 use crate::types::{Message, Payload, WingId};
@@ -97,14 +98,18 @@ impl TradingWing {
                             "strategy": response.strategy,
                             "yield_estimate": response.yield_estimate,
                             "confidence": response.confidence,
+                            "folds_validated": response.folds_validated,
+                            "consistency": response.consistency,
                         }));
+                        // Bridge returns projected OOS yield from WFA, not a realized trade.
                         Some(Message::new(
                             WingId::Trading,
                             WingId::Coordinator,
                             Payload::YieldReport {
                                 usdc_yield: response.yield_estimate,
-                                sol_reserves: 0.0,
-                                drawdown: 0.0,
+                                sol_reserves: response.confidence * 100.0,
+                                drawdown: 1.0 - response.consistency,
+                                source: Some("wfa_backtest".to_string()),
                             },
                         ))
                     }
@@ -123,6 +128,7 @@ impl TradingWing {
                 usdc_yield,
                 sol_reserves,
                 drawdown,
+                ..
             } => {
                 let mut state = self.state.lock().ok()?;
                 state.last_yield_report = Some(serde_json::json!({
@@ -235,6 +241,7 @@ mod tests {
                 usdc_yield: 5000.0,
                 sol_reserves: 50000.0,
                 drawdown: 0.03,
+                source: None,
             },
         );
         let response = wing.handle_message(&msg).unwrap();

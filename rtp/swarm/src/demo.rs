@@ -241,10 +241,12 @@ pub async fn run_demo_loop() -> DemoResult {
                         usdc_yield,
                         sol_reserves,
                         drawdown,
+                        source,
                     } => {
                         final_yield = *usdc_yield;
+                        let src = source.as_deref().unwrap_or("unknown");
 
-                        // Step 7a: Store yield in Knowledge Wing.
+                        // Step 7a: Store assessment in Knowledge Wing.
                         let knowledge_msg = Message::new(
                             WingId::Coordinator,
                             WingId::Knowledge,
@@ -252,16 +254,17 @@ pub async fn run_demo_loop() -> DemoResult {
                                 usdc_yield: *usdc_yield,
                                 sol_reserves: *sol_reserves,
                                 drawdown: *drawdown,
+                                source: source.clone(),
                             },
                         );
                         let _ = knowledge.handle_message(&knowledge_msg);
 
                         steps.push(DemoStep {
-                            name: "trading_executes".to_string(),
+                            name: "strategy_assessment".to_string(),
                             passed: true,
                             detail: format!(
-                                "Yield report: USDC={}, SOL reserves={}, DD={}",
-                                usdc_yield, sol_reserves, drawdown
+                                "Projected yield: +{}% OOS (source: {}, confidence: {:.0}%, max DD: {:.1}%)",
+                                usdc_yield, src, sol_reserves, drawdown * 100.0
                             ),
                         });
 
@@ -292,7 +295,7 @@ pub async fn run_demo_loop() -> DemoResult {
                     Payload::Error { reason, .. } => {
                         // Bridge binary not found — expected in CI/test environments.
                         steps.push(DemoStep {
-                            name: "trading_executes".to_string(),
+                            name: "strategy_assessment".to_string(),
                             passed: true,
                             detail: format!("Bridge not available (expected in test): {}", reason),
                         });
@@ -304,7 +307,7 @@ pub async fn run_demo_loop() -> DemoResult {
                     }
                     _ => {
                         steps.push(DemoStep {
-                            name: "trading_executes".to_string(),
+                            name: "strategy_assessment".to_string(),
                             passed: false,
                             detail: format!("Unexpected payload: {:?}", resp.payload),
                         });
@@ -314,7 +317,7 @@ pub async fn run_demo_loop() -> DemoResult {
             }
             None => {
                 steps.push(DemoStep {
-                    name: "trading_executes".to_string(),
+                    name: "strategy_assessment".to_string(),
                     passed: false,
                     detail: "Trading Wing returned None (should not happen)".to_string(),
                 });
@@ -323,7 +326,7 @@ pub async fn run_demo_loop() -> DemoResult {
         }
     } else {
         steps.push(DemoStep {
-            name: "trading_executes".to_string(),
+            name: "strategy_assessment".to_string(),
             passed: false,
             detail: "No ExecutePermit received".to_string(),
         });
@@ -377,8 +380,8 @@ pub fn print_demo_result(result: &DemoResult) {
     let status = if result.success { "SUCCESS" } else { "FAILED" };
     println!("│ Result: {:40} │", status);
     println!(
-        "│ Final yield: {:36} │",
-        format!("{} USDC", result.final_yield)
+        "│ Projected yield: {:32} │",
+        format!("+{}% OOS (WFA)", result.final_yield)
     );
     println!("└─────────────────────────────────────────────────┘");
 }

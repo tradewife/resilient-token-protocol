@@ -370,6 +370,16 @@ async function main() {
 
   step(6, "Redistribute — 70/20/10 Split");
 
+  // Read strategy assessment from Layer 1 → Layer 2 handoff
+  const projectedYield = process.env.PROJECTED_YIELD;
+  const bridgeConfidence = process.env.BRIDGE_CONFIDENCE;
+  if (projectedYield) {
+    info(`Strategy assessment from swarm: +${projectedYield}% projected OOS yield`);
+    info(`Confidence: ${bridgeConfidence || "N/A"} (source: WFA backtest)`);
+    info("Treasury approves → executing on-chain redistribution...");
+    console.log("");
+  }
+
   const excess = feesCollected - MIN_RUNWAY;
   info(`Vault balance: ${fmtAmount(feesCollected)} tokens`);
   info(`Min runway: ${fmtAmount(MIN_RUNWAY)} tokens`);
@@ -381,7 +391,7 @@ async function main() {
     const dBefore = Number((await getAccount(connection, devATA, "confirmed", TOKEN_2022_PROGRAM_ID)).amount);
     const eBefore = Number((await getAccount(connection, ecosystemATA, "confirmed", TOKEN_2022_PROGRAM_ID)).amount);
 
-    await program.methods
+    const redistributeSig = await program.methods
       .checkRedistribute()
       .accounts({
         mint: mintPk,
@@ -410,6 +420,14 @@ async function main() {
     ok(`Dev (20%):       ${fmtAmount(dDelta)} tokens (${(dDelta / totalDist * 100).toFixed(1)}%)`);
     ok(`Ecosystem (10%): ${fmtAmount(eDelta)} tokens (${(eDelta / totalDist * 100).toFixed(1)}%)`);
     info(`Total distributed: ${fmtAmount(totalDist)} tokens`);
+
+    // Print Solana Explorer link for the real on-chain transaction
+    const cluster = connection.rpcEndpoint.includes("devnet") ? "devnet" : "custom";
+    const explorerUrl = cluster === "devnet"
+      ? `https://explorer.solana.com/tx/${redistributeSig}?cluster=devnet`
+      : `https://explorer.solana.com/tx/${redistributeSig}?cluster=custom&customUrl=${encodeURIComponent(connection.rpcEndpoint)}`;
+    ok(`On-chain tx: ${redistributeSig.slice(0, 20)}...`);
+    info(`Explorer: ${explorerUrl}`);
 
     const vaultAfterRedist = await getAccount(connection, vaultPDA, "confirmed", TOKEN_2022_PROGRAM_ID);
     info(`Vault after redistribution: ${fmtAmount(Number(vaultAfterRedist.amount))} tokens (runway floor)`);

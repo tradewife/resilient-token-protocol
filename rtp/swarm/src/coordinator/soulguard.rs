@@ -104,6 +104,15 @@ impl Soulguard {
     }
 
     /// Reload the spec from disk (e.g. after a human-signed amendment).
+    //
+    // PRODUCTION TODO (Invariant 7):
+    // reload() currently accepts any well-formed SoulcontractSpec from disk without
+    // verifying a human signature. In production, this function should accept a
+    // detached ed25519 signature over the spec file bytes and verify it against a
+    // trusted authority pubkey stored at initialization. Until then, filesystem
+    // write access is a sufficient (though not cryptographic) access control.
+    // See: BUILD_PLAN_v3.md Invariant 7, docs/SECURITY_AUDIT_2026-04-07.md
+    // Demo path: reload() is never called during demo execution — not demo-blocking.
     pub async fn reload(&self, path: &std::path::Path) -> Result<(), String> {
         let spec = SoulcontractSpec::from_file(path)?;
         let threshold = spec.rollback_threshold;

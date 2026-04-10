@@ -338,6 +338,7 @@ mod integration_tests {
                 usdc_yield: 5000.0,
                 sol_reserves: 50000.0,
                 drawdown: 0.03,
+                source: None,
             },
         );
         let resp = knowledge.handle_message(&yield_msg);
