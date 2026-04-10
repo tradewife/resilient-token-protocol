@@ -8,7 +8,7 @@
 
 **Project:** Resilient Token Protocol (RTP)
 **Hackathon:** SWARMs / Canteen — April 6 – May 11, 2026
-**Stack:** Solana (Anchor), Python agents, Arweave/Filecoin persistence
+**Stack:** Solana (Anchor), Rust swarm runtime, Python research agents
 
 **Core thesis:**
 Transform "don't rug" from a social promise into a cryptographically enforced, autonomously operated on-chain system.
@@ -17,18 +17,73 @@ Transform "don't rug" from a social promise into a cryptographically enforced, a
 RTP is a memory-persistent, self-coordinating, self-improving agent system whose actions are bounded by a Solana program so that token longevity is enforced by code, not trust.
 
 **Functional description:**
-- A token allocates a portion of fees/emissions into an on-chain treasury.
-- A Solana Anchor program enforces hard constraints: price floor, treasury limits, permitted actions, distribution rules.
-- An off-chain agent swarm observes protocol state and executes treasury operations only inside those constraints.
-- The swarm is not stateless — it accumulates memory, distills strategy knowledge, and improves over repeated market cycles.
+- A token allocates a portion of fees/emissions into an on-chain treasury (Solana Anchor program).
+- The Anchor program enforces hard constraints: price floor, treasury limits, permitted actions, distribution rules.
+- An off-chain Rust swarm observes protocol state and executes treasury operations only inside those constraints.
+- The Python research layer (Night Shift) runs 30K configs/night, 9-fold WFA, Darwinian evolution — validated strategies are handed to the Rust Trading Wing via bridge.rs.
+- The Trading Wing executes validated strategies as **perpetuals trades on Hyperliquid**, signed and submitted via **Phantom wallet integration**.
+- Yield (USDC) flows back to the Solana treasury PDA. The redistribution split (70/20/10) is enforced on-chain.
+- The swarm accumulates memory, distills strategy knowledge, and improves over repeated market cycles.
 - Core claim: agent operations are bounded by on-chain invariants, fully auditable, and designed for token survival over time.
 
 **Product story (never change this regardless of architecture depth):**
-> A token launches with RTP. Part of its economics flow into a program-enforced treasury. An autonomous agent swarm manages that treasury forever under hard on-chain constraints. The agents remember prior cycles, improve strategy over time, and cannot rug because the program forbids it.
+> A token launches with RTP. Part of its economics flow into a program-enforced treasury. An autonomous agent swarm manages that treasury forever under hard on-chain constraints — executing perps strategies on Hyperliquid via Phantom, returning yield to holders. The agents remember prior cycles, improve strategy over time, and cannot rug because the program forbids it.
 
 ---
 
-## 2. Architecture — Accepted Decisions
+## 2. Execution Venue — The Hyperliquid + Phantom Path
+
+This is the **critical trajectory** for the demo and for judging. All build work converges here.
+
+### Why Hyperliquid
+- Highest-liquidity perps DEX with a documented REST + WebSocket API
+- No KYC for programmatic access; supports USDC-margined perpetuals
+- API: https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api
+- Python SDK: https://github.com/hyperliquid-dex/hyperliquid-python-sdk
+- Rust SDK (community): https://github.com/hyperliquid-dex/hyperliquid-rust-sdk
+
+### Why Phantom
+- Sponsored hackathon resource: https://docs.phantom.app/phantom-connect/introduction
+- Phantom Connect enables agentic wallet flows — the swarm signs Hyperliquid orders via Phantom
+- CASH stablecoin (sponsored) is the settlement currency for treasury yield flows
+- The demo shows: Phantom wallet connected → Trading Wing submits order → Hyperliquid fills → USDC yield → treasury PDA
+
+### Execution Flow (target state for demo)
+```
+Night Shift (Python)
+  └── validated strategy config (SOL/USDT Survivor 2.69)
+        │
+        ▼ bridge.rs (JSON)
+Trading Wing (Rust)
+  └── ExecutePermit payload
+        │
+        ▼ Hyperliquid REST API
+           POST /exchange  (place_order)
+           signed via Phantom Connect (agentic wallet)
+        │
+        ▼ fill confirmed
+           USDC yield → Treasury PDA (Solana)
+        │
+        ▼ check_redistribute (on-chain)
+           70% holders / 20% project dev / 10% ecosystem
+```
+
+### Current State of Execution Path
+| Step | Status | Gap |
+|------|--------|-----|
+| Strategy validated (SOL/USDT Survivor 2.69) | ✅ DONE | — |
+| bridge.rs wires Python → Rust | ✅ DONE | — |
+| Trading Wing handles ExecutePermit | ✅ DONE | In-memory mock only |
+| Hyperliquid API call in Trading Wing | ❌ MISSING | Need `reqwest` + HL order struct |
+| Phantom signing of HL order | ❌ MISSING | Phantom Connect agentic flow |
+| USDC yield → treasury PDA | ❌ MISSING | CPI transfer after fill confirmed |
+| devnet end-to-end | ❌ MISSING | Entire HL→PDA path untested |
+
+**This is the single critical path. Everything else is scaffolding.**
+
+---
+
+## 3. Architecture — Accepted Decisions
 
 These are not proposals. They are decisions made. Do not relitigate them unless a concrete technical blocker requires it.
 
@@ -37,32 +92,34 @@ These are not proposals. They are decisions made. Do not relitigate them unless 
 - This is Ring 1 (immutable, human-defined). Agents cannot override it.
 - Demo must show at least one constraint being enforced visibly.
 
-### Layer 2 — Orchestration Daemon (Symphony-style)
-- Long-running process that polls on-chain events and dispatches tasks
+### Layer 2 — Orchestration Daemon
+- Long-running Rust process that polls on-chain events and dispatches tasks
 - Manages task lifecycle: retry, stall detection, reconciliation
-- Replaces Symphony's Linear integration with a Solana event source
-- Think: scheduler + watchdog, not the agent itself
-
-### Layer 3 — Swarm Coordination (CORAL-style)
-- Shared persistent memory hub (attempts, notes, skills folders)
-- Asynchronous multi-agent execution in isolated contexts
 - Heartbeat triggers: reflection (per-iteration), consolidation (periodic), redirection (stagnation)
-- Sequential protocol: agents hand off completed outputs, not intentions
-- No pre-assigned rigid roles — agents self-select contribution based on context
 
-### Layer 4 — Memory Layer (Prologue-style)
-- Durable memory across cycles using compression ladder: working → project → overview → core
-- Visibility tiers: private → inspectable → shared → canonical
-- First-principles execution discipline (FPEF): no hope-based language, no solution before analysis
-- Post-session insight extraction: git-diff or tx-log → insight → memory store
+### Layer 3 — Swarm Coordination
+- Shared persistent memory hub
+- Asynchronous multi-wing execution via Coordinator message bus
+- Sequential protocol: wings hand off completed outputs, not intentions
+- All cross-wing communication typed and signed via soulguard
+
+### Layer 4 — Memory Layer
+- Durable memory across cycles: working → project → overview → core compression ladder
+- memory_promotion.rs: 23 tests, built — not yet wired into demo binary
+
+### Execution Venue (decided)
+- **Perps:** Hyperliquid (REST API, USDC-margined)
+- **Signing:** Phantom Connect (agentic wallet, sponsored)
+- **Settlement:** CASH stablecoin (sponsored) for treasury yield flows
+- **On-chain:** Solana devnet treasury PDA receives yield via CPI transfer
 
 ---
 
-## 3. Research Takeaways (Compressed)
+## 4. Research Takeaways (Compressed)
 
 Do not re-read the papers. Use only these extracted design consequences.
 
-### From CORAL (arxiv 2604.01658)
+### From CORAL (arxiv 2604.01658) — https://arxiv.org/pdf/2604.01658
 - Use shared persistent memory, not stateless agents — knowledge reuse is the primary driver of improvement
 - Use heartbeat triggers for reflection (per-iteration), consolidation (periodic), redirection (stagnation)
 - Multi-agent co-evolution outperforms running multiple independent agents with same compute
@@ -73,44 +130,36 @@ Do not re-read the papers. Use only these extracted design consequences.
 - Hybrid Sequential protocol (fixed order + self-selected roles) outperformed centralized by +14%, fully autonomous by +44%
 - Agents receiving completed outputs of predecessors outperform agents receiving intentions, history, or a coordinator's plan
 - Do not pre-assign rigid roles — roles are emergent computational functions, not org chart positions
-- Scaling agents beyond what's needed yields no quality gain (p=0.61 at 64→256 agents) at high cost
-- Model capability matters more than agent count — invest in model quality, not quantity
-- Self-organization requires a capability threshold: weak models need more structure, not less
+- Scaling agents beyond what's needed yields no quality gain at high cost
 
-### From Prologue (github.com/aegntic/prologue)
-- MemoryMatrix gives durable file-based persistence with atomic writes — zero-dependency (only Zod)
-- Compression ladder: working (scratchpad) → project (task context) → overview (cross-cycle) → core (durable truths)
-- FPEF 4-phase enforcement prevents agents jumping to solutions: Find → Prove → Evidence → Fix
-- Orchestrator runs post-session pipeline: git diff → insight extraction → automatic memory storage
-- MCP server available — Claude Code compatible via stdio transport
-- Python bridge available for optional Graphiti knowledge graph + embedding support
+### From karpathy/autoresearch — https://github.com/karpathy/autoresearch
+- The Modify/Verify/Keep loop is the core primitive: generate candidate → verify against objective → keep if better
+- RTP's Night Shift implements this loop over strategy configs (30K candidates → WFA → Darwinian)
+- Apply same loop to the Hyperliquid execution layer: propose order → simulate → submit if passes soulguard
 
-### Night Shift Research Output (live finding — Apr 9 run)
+### Night Shift Research Output (live — Apr 9 run)
 - SOL/USDT candidate #1: Survivor score 2.69 (+2.46 over baseline)
 - OOS Sharpe +3.96, 100% consistency (9/9 folds profitable), fragility 0.29, 47 trades/fold
 - Config: signal_threshold=0.3, tp_atr=3.0, sl_atr=1.5, max_hold=36h, trailing_stop_atr=0.5
-- Status: STRONG RECOMMEND — candidate for live execution in Trading Wing
-- Apr 10 run: completed on CI (3h01m), results in CI artifact only — not yet committed to repo
+- Status: STRONG RECOMMEND — this is the strategy the Trading Wing executes on Hyperliquid
 
 ---
 
-## 4. MVP Boundary
-
-The MVP is not "fully autonomous open-ended financial AGI."
+## 5. MVP Boundary
 
 The MVP **is**:
-- One constrained Anchor treasury program
-- One autonomous orchestration loop
-- One bounded swarm coordination mechanism
-- One persistent memory layer (working→project compression minimum)
-- One or two treasury actions (e.g. buyback, LP defense)
-- One observable adaptation moment (agent referencing prior cycle memory)
+- One constrained Anchor treasury program (done)
+- One autonomous orchestration loop (done)
+- One bounded swarm coordination mechanism (done)
+- One persistent memory layer (built, needs demo wiring)
+- **One live Hyperliquid perps trade signed via Phantom** (critical gap)
+- Observable treasury state on devnet explorer or dashboard
 
 Anything beyond this is stretch. Label stretch goals explicitly.
 
 ---
 
-## 5. Demo Requirements
+## 6. Demo Requirements
 
 A judge must be able to verify these five things in under 3 minutes:
 
@@ -130,55 +179,70 @@ A judge must be able to verify these five things in under 3 minutes:
 | 4. Visible adaptation/learning | MISSING | heartbeat.rs has redirect triggers (26 tests) but demo binary doesn't exercise them. No redirect visible in output. |
 | 5. Observable treasury state | MISSING | No dashboard. demo.sh prints ASCII. No explorer link in output. |
 
-**Fix path for Points 3 & 4 (pure Rust, ~2h):** Extend demo.rs to run two orchestrator cycles with memory_promotion persistence between them. Trigger a heartbeat redirect in cycle 2 that references cycle 1 yield data. No frontend needed.
+**Fix path for Points 3 & 4 (pure Rust, ~2h):** Extend demo.rs to run two orchestrator cycles with memory_promotion persistence between them. Trigger a heartbeat redirect in cycle 2 that references cycle 1 yield data.
 
-**Fix path for Point 5 (~4-6h):** Single-page HTML dashboard reading a static JSON file dumped by the Rust demo binary + one Solana RPC call for treasury balance. See Task 5 spec in audit report.
+**Fix path for Point 5 (~4-6h):** Single-page HTML dashboard reading a static JSON file dumped by demo binary + one Solana RPC call for treasury balance. Devnet explorer link for the treasury PDA printed by demo binary satisfies this at minimum.
 
----
-
-## 6. Current Blocker
-
-**Judge verification points 3, 4, and 5 have zero demo coverage.**
-
-Priority order to resolve:
-1. **Tonight (~2h):** Extend demo.rs for two-cycle memory_promotion + heartbeat redirect — closes points 3 and 4
-2. **This weekend (~4-6h):** Build static HTML dashboard — closes point 5
-3. **Before May 4 (15min):** Register individually on Colosseum — hard deadline, blocks submission
+**Fix path for Hyperliquid execution (~1-2 days):** Wire `reqwest` in Trading Wing → POST to Hyperliquid testnet → sign via Phantom Connect agentic flow → receive fill → CPI transfer to treasury PDA.
 
 ---
 
-## 7. Open Decisions (Do Not Resolve Speculatively)
+## 7. Open Decisions
 
 | Decision | Status | Notes |
 |---|---|---|
 | Trust model for agent execution | OPEN | Multisig? Optimistic challenge? ZK? Not required for MVP demo. |
 | Demo UX | **DECISION REQUIRED** | Browser dashboard (~6h) vs recorded video (~2h). Dashboard covers more judge points. Video is faster. |
-| Invariant 7 (soulguard reload sig) | **CLOSED (documented)** | Production TODO: ed25519 on reload(). Comment added to soulguard.rs. Demo path unaffected. |
+| Invariant 7 (soulguard reload sig) | CLOSED (documented) | Production TODO: ed25519 on reload(). Comment in soulguard.rs. Demo path unaffected. |
+| Hyperliquid testnet vs mainnet for demo | **DECISION REQUIRED** | Testnet is safer, mainnet is more impressive. Testnet recommended for hackathon. |
 
 ---
 
 ## 8. Session Status
 
-**Session 2026-04-11 deliverables: AUDIT COMPLETE**
+**Session 2026-04-11 — repo cleanup + scheduled prompt suite created**
 
-Audit findings (Apr 11 deep audit):
-1. Test count corrected: 238 → **205** (stale count from Apr 9 commit 57e6f7e; cargo fmt + clippy refactored config.rs and other modules)
-   - Per-file: evaluator(29), heartbeat(26), memory_promotion(23), orchestrator(14), audit(12), bridge(12), config(10), rollback(10), security(9), proposer(9), assessor(9), soulcontract_spec(9), knowledge(8), lifecycle(8), trading(7), futureproof(5), evolve/mod(3), router(2)
-   - 0 #[ignore] markers, no external test files outside workspace
-2. Invariant 7 STUB confirmed: soulguard.rs:107-115 reload() has no signature verification
-3. H-5 fix CONFIRMED: exceeds_rollback_threshold() correctly reads from spec via RwLock ✅
-4. CI status: swarm-ci.yml ✅, night_shift.yml ✅, node-build.yml ✅ (no-op — no frontend dir)
-5. Night shift pipeline: OPERATIONAL — real output in research/ subdirs, Apr 9 top candidate is SOL/USDT Survivor 2.69
-6. Dashboard: NOTHING EXISTS — zero frontend files in repo
-7. Demo coverage: 2/5 judge points covered (points 3, 4, 5 missing)
+State as of Apr 11:
+- 205 tests (29 evaluator, 26 heartbeat, 23 memory_promotion, 14 orchestrator, 12 audit, 12 bridge, 10 config, 10 rollback, 9 security, 9 proposer, 9 assessor, 9 soulcontract_spec, 8 knowledge, 8 lifecycle, 7 trading, 5 futureproof, 3 evolve/mod, 2 router)
+- 0 failures, 0 warnings
+- Invariant enforcement: 9/10 (Invariant 7 documented stub)
+- Repo cleaned: stale root docs deleted, docs/ reorganised, RESOURCES.md created
+- **Hyperliquid perps via Phantom**: execution path defined (Section 2), implementation NOT started
+- Judge points 3/4/5: still missing demo coverage
 
-**Invariant enforcement: 9/10. Invariant 7 is documented stub. All others enforced.**
-
-**Next session:** Extend demo.rs for two-cycle run (points 3 + 4), then build HTML dashboard (point 5).
+**Priority order for next session:**
+1. Wire Hyperliquid REST call in Trading Wing (`reqwest` + order struct + HL testnet)
+2. Phantom Connect agentic signing of HL order
+3. Extend demo.rs for two-cycle run (closes judge points 3 + 4)
+4. HTML dashboard (closes judge point 5)
+5. Register individually on Colosseum before May 4
 
 ---
 
-## 9. Response Style
+## 9. Key Links (always include these — LLMs go stale without them)
+
+| Resource | URL |
+|----------|-----|
+| This repo | https://github.com/tradewife/resilient-token-protocol |
+| Hyperliquid API docs | https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api |
+| Hyperliquid Python SDK | https://github.com/hyperliquid-dex/hyperliquid-python-sdk |
+| Hyperliquid Rust SDK | https://github.com/hyperliquid-dex/hyperliquid-rust-sdk |
+| Phantom Connect docs | https://docs.phantom.app/phantom-connect/introduction |
+| CASH stablecoin | https://docs.phantom.app/phantom-connect/cash |
+| Squads Multisig | https://docs.squads.so |
+| Swig smart wallets | https://docs.swig.fi |
+| MoonPay Agents | https://www.moonpay.com/developers/agents |
+| Solana MCP | https://github.com/solana-developers/solana-mcp |
+| Anchor docs | https://www.anchor-lang.com/docs |
+| Solana devnet RPC | https://api.devnet.solana.com |
+| Colosseum hackathon | https://arena.colosseum.org |
+| CORAL paper | https://arxiv.org/pdf/2604.01658 |
+| karpathy/autoresearch | https://github.com/karpathy/autoresearch |
+| Arcium (stretch) | https://docs.arcium.com |
+
+---
+
+## 10. Response Style
 
 For any significant proposal, return:
 - **(a) What's strong**
@@ -187,7 +251,7 @@ For any significant proposal, return:
 
 For any architecture decision, evaluate against:
 - Hackathon feasibility
-- Demoability
+- Demoability on judging day
 - Novelty
 - Trust model clarity
 
@@ -198,7 +262,7 @@ For any new subsystem, state:
 
 ---
 
-## 10. Mental Model
+## 11. Mental Model
 
 ```
 Anchor program     = constitution        (immutable, Ring 1)
@@ -207,10 +271,12 @@ Agent swarm        = bounded civil service (executes within law)
 Memory layer       = institutional memory (learns across cycles)
 Evaluator          = survival objective   (defines success)
 Heartbeat          = rhythm & triggers    (CORAL-style coordination)
+Hyperliquid        = execution venue      (where yield is generated)
+Phantom            = signing layer        (agentic wallet, sponsored)
 Demo               = proof the institution persists without founder trust
 ```
 
 ---
 
-*Last updated: 2026-04-11 — deep audit complete. 205 tests (corrected from 238), 0 failures, 0 warnings. Judge points 3/4/5 uncovered — demo extension required.*
+*Last updated: 2026-04-11 — repo cleaned, Hyperliquid+Phantom trajectory formalised in Section 2. 205 tests, 0 failures. Judge points 3/4/5 uncovered. Hyperliquid execution path not yet implemented.*
 *Update this file after each session that changes canonical decisions or resolves open decisions.*
