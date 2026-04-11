@@ -298,11 +298,21 @@ async function main() {
   const sourceATA = getAssociatedTokenAddressSync(mintPk, sourceWallet.publicKey, false, TOKEN_2022_PROGRAM_ID);
   const feeRecipientATA = getAssociatedTokenAddressSync(mintPk, feeRecipientWallet.publicKey, false, TOKEN_2022_PROGRAM_ID);
 
-  // Airdrop SOL to wallets for tx fees
+  // Fund sub-wallets from payer (devnet faucet often 429-rate-limited)
   for (const w of [holdersWallet, devWallet, ecosystemWallet, sourceWallet, feeRecipientWallet]) {
-    await connection.requestAirdrop(w.publicKey, 0.5 * LAMPORTS_PER_SOL).then(sig =>
-      connection.confirmTransaction(sig, "confirmed")
-    ).catch(() => {}); // May fail on localnet if funded already
+    // Try airdrop first
+    const airdropOk = await connection.requestAirdrop(w.publicKey, 0.5 * LAMPORTS_PER_SOL).then(sig =>
+      connection.confirmTransaction(sig, "confirmed").then(() => true)
+    ).catch(() => false);
+    if (!airdropOk) {
+      // Fallback: transfer SOL from payer
+      const transferIx = SystemProgram.transfer({
+        fromPubkey: payer.publicKey,
+        toPubkey: w.publicKey,
+        lamports: 0.05 * LAMPORTS_PER_SOL,
+      });
+      await sendAndConfirmTransaction(connection, new Transaction().add(transferIx), [payer], { commitment: "confirmed" });
+    }
   }
 
   // Create all ATAs

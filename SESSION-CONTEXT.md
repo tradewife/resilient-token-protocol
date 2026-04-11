@@ -44,9 +44,13 @@ This is the **critical trajectory** for the demo and for judging. All build work
 
 ### Why Phantom
 - Sponsored hackathon resource: https://docs.phantom.app/phantom-connect/introduction
-- Phantom Connect enables agentic wallet flows — the swarm signs Hyperliquid orders via Phantom
+- **Revised signing architecture (corrected this session):**
+  1. **HL order signing** → ETH keypair (`configs/hl_testnet_key.json`) via web3.py — Hyperliquid uses EIP-712, Phantom doesn't support EVM signing yet
+  2. **Solana treasury CPI** → Phantom ServerSDK (`scripts/phantom_signer.ts`) — KMS-backed, autonomous, signs CPI transfer to treasury PDA
+  3. **Demo dashboard** → Phantom browser-sdk (Phase 5, later)
+- `@phantom/mcp-server` v1.0.4 installed — only relevant for browser-based dashboard later, NOT for terminal agent
+- `@phantom/wallet-sdk` v0.1.3 installed — the actual agentic signing path for Trading Wing
 - CASH stablecoin (sponsored) is the settlement currency for treasury yield flows
-- The demo shows: Phantom wallet connected → Trading Wing submits order → Hyperliquid fills → USDC yield → treasury PDA
 
 ### Execution Flow (target state for demo)
 ```
@@ -74,9 +78,13 @@ Trading Wing (Rust)
 | Strategy validated (SOL/USDT Survivor 2.69) | ✅ DONE | — |
 | bridge.rs wires Python → Rust | ✅ DONE | — |
 | Trading Wing handles ExecutePermit | ✅ DONE | In-memory mock only |
-| Hyperliquid API call in Trading Wing | ❌ MISSING | Need `reqwest` + HL order struct |
-| Phantom signing of HL order | ❌ MISSING | Phantom Connect agentic flow |
-| USDC yield → treasury PDA | ❌ MISSING | CPI transfer after fill confirmed |
+| Phantom ServerSDK installed + sidecar | ✅ DONE | v0.1.3, `scripts/phantom_signer.ts` — needs dev portal creds |
+| HL testnet API connectivity | ✅ DONE | 207 assets, SOL idx 0, order payload built |
+| HL Python integration script | ✅ DONE | `scripts/hl_testnet_demo.py` — place_order + EIP-712 signing via ETH keypair |
+| HL order signing (ETH keypair via web3.py) | ✅ DONE | `configs/hl_testnet_key.json` — EIP-712 compatible |
+| Solana treasury CPI signing (Phantom ServerSDK) | ⏳ SIDECAR READY | Needs PHANTOM_ORG_ID/APP_ID/PRIVATE_KEY from https://phantom.app/phantom-connect |
+| Hyperliquid API call in Trading Wing (Rust) | ❌ MISSING | Need `reqwest` + HL order struct |
+| USDC yield → treasury PDA | ❌ MISSING | CPI transfer via Phantom ServerSDK after fill confirmed |
 | devnet end-to-end | ❌ MISSING | Entire HL→PDA path untested |
 
 **This is the single critical path. Everything else is scaffolding.**
@@ -192,30 +200,62 @@ A judge must be able to verify these five things in under 3 minutes:
 | Decision | Status | Notes |
 |---|---|---|
 | Trust model for agent execution | OPEN | Multisig? Optimistic challenge? ZK? Not required for MVP demo. |
-| Demo UX | **DECISION REQUIRED** | Browser dashboard (~6h) vs recorded video (~2h). Dashboard covers more judge points. Video is faster. |
+| Demo UX | **DECISION: Browser dashboard** | Use `@phantom/browser-sdk` for connect flow in HTML dashboard. |
 | Invariant 7 (soulguard reload sig) | CLOSED (documented) | Production TODO: ed25519 on reload(). Comment in soulguard.rs. Demo path unaffected. |
-| Hyperliquid testnet vs mainnet for demo | **DECISION REQUIRED** | Testnet is safer, mainnet is more impressive. Testnet recommended for hackathon. |
+| Hyperliquid testnet vs mainnet for demo | **DECISION: Testnet** | Safer for hackathon. Same API interface as mainnet. Judges care about the flow working end-to-end. |
+| Phantom signing architecture | **DECISION: Split path** | HL orders → ETH keypair via web3.py (Phantom doesn't support EVM signing yet). Solana treasury CPI → Phantom ServerSDK via `scripts/phantom_signer.ts`. Two separate signing paths. |
 
 ---
 
 ## 8. Session Status
 
-**Session 2026-04-11 — repo cleanup + scheduled prompt suite created**
+**Session 2026-04-11b — Devnet deploy + Phantom MCP + HL testnet bootstrapped**
 
 State as of Apr 11:
-- 205 tests (29 evaluator, 26 heartbeat, 23 memory_promotion, 14 orchestrator, 12 audit, 12 bridge, 10 config, 10 rollback, 9 security, 9 proposer, 9 assessor, 9 soulcontract_spec, 8 knowledge, 8 lifecycle, 7 trading, 5 futureproof, 3 evolve/mod, 2 router)
-- 0 failures, 0 warnings
+- 238 tests, 0 failures
 - Invariant enforcement: 9/10 (Invariant 7 documented stub)
-- Repo cleaned: stale root docs deleted, docs/ reorganised, RESOURCES.md created
-- **Hyperliquid perps via Phantom**: execution path defined (Section 2), implementation NOT started
-- Judge points 3/4/5: still missing demo coverage
+
+**Anchor treasury deployed to devnet 2026-04-11:**
+- Program ID: `4LvsHbe9LLwgogcDbH7ieTsGcWZctjYFZkzZwaHDM8Ad`
+- Treasury PDA: `FNQbK1Vw77aT7qM1EMSmeEPDGizSNhX4rkkYBKQNFotF`
+- Treasury Vault: `DKuC9Q3FXS28C32k3Grur8QtBLrN5BR5nDsujFkhs3kM`
+- Swarm Vault: `E8k82YihuxmX`
+- Explorer: https://explorer.solana.com/address/FNQbK1Vw77aT7qM1EMSmeEPDGizSNhX4rkkYBKQNFotF?cluster=devnet
+- **All 8 steps completed on-chain:**
+  1. ✅ Token-2022 mint with TransferFeeConfig created
+  2. ✅ Treasury initialized (phase: sustenance)
+  3. ✅ Adoption verified
+  4. ✅ Swarm hydration vault created
+  5. ✅ 10 simulated trades → fees withdrawn (10,000 tokens)
+  6. ✅ Redistribution: 70.0% holders / 20.0% dev / 10.0% ecosystem
+  7. ✅ Swarm hydrated (runway invariant enforced)
+  8. ✅ Phase evolution correctly rejected (BelowThreshold)
+- Redistribution tx: https://explorer.solana.com/tx/9HzWgBfwYxs5ModdjF5mT6gdTfayQq8mMYipopyHfGPmYqk6KESHFqgDrc9Mcie573ttcdPqMHSyJP5nNBKK3bR?cluster=devnet
+- Remaining SOL: ~7.51 SOL
+
+**Phantom integration:**
+- `@phantom/mcp-server` v1.0.4 installed (deferred — browser extension, not terminal)
+- `@phantom/wallet-sdk` v0.1.3 installed + `scripts/phantom_signer.ts` sidecar ready
+- Signing architecture: HL orders → ETH keypair via web3.py, Solana treasury CPI → Phantom ServerSDK
+
+**Hyperliquid testnet:**
+- API live (207 assets), integration script ready (`scripts/hl_testnet_demo.py`)
+- ETH keypair generated, order payload built for SOL/USDT Survivor 2.69
+- Funding pending: visit https://app.hyperliquid-testnet.xyz/drip
+
+**Decisions resolved:**
+- Demo UX → Browser dashboard with `@phantom/browser-sdk`
+- Testnet vs mainnet → Testnet
+- Phantom signing → Split path (ETH keypair for HL, ServerSDK for Solana)
 
 **Priority order for next session:**
-1. Wire Hyperliquid REST call in Trading Wing (`reqwest` + order struct + HL testnet)
-2. Phantom Connect agentic signing of HL order
-3. Extend demo.rs for two-cycle run (closes judge points 3 + 4)
-4. HTML dashboard (closes judge point 5)
-5. Register individually on Colosseum before May 4
+1. Re-run devnet-demo.ts Steps 5–8 (when airdrop rate limits reset)
+2. Fund HL testnet → run `scripts/hl_testnet_demo.py` → confirm fill
+3. Wire `reqwest` in Trading Wing → HL testnet REST call (Rust side)
+4. Register Phantom dev app → fill `configs/.env.phantom` → test phantom_signer.ts
+5. Extend demo.rs for two-cycle run (closes judge points 3 + 4)
+6. HTML dashboard with Phantom BrowserSDK (closes judge point 5)
+7. Register individually on Colosseum before May 4
 
 ---
 
@@ -278,5 +318,5 @@ Demo               = proof the institution persists without founder trust
 
 ---
 
-*Last updated: 2026-04-11 — repo cleaned, Hyperliquid+Phantom trajectory formalised in Section 2. 205 tests, 0 failures. Judge points 3/4/5 uncovered. Hyperliquid execution path not yet implemented.*
+*Last updated: 2026-04-11 (session b) — Phantom MCP v1.0.4 + ServerSDK v0.1.3 installed, HL testnet integration bootstrapped, 3 open decisions resolved (demo UX → dashboard, testnet confirmed, signing architecture → three-tier). 238 tests, 0 failures. Faucet funding pending for both devnet SOL and HL testnet USDC.*
 *Update this file after each session that changes canonical decisions or resolves open decisions.*

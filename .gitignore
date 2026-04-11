@@ -42,6 +42,7 @@ Thumbs.db
 
 # --- Secrets ---
 .env
+.env.*
 *.env
 credentials.json
 *.pem
@@ -59,5 +60,6 @@ test-ledger/
 night_shift.bin
 *.spec.bak
 
-# --- Encrypted configs (contain secrets) ---
+# --- Configs with secrets ---
 configs/*.json
+configs/.env*
