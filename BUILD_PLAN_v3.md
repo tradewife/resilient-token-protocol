@@ -58,8 +58,18 @@ CONTEXT:
   [x] demo.rs — 8-step end-to-end demo loop
   [x] devnet-demo.ts — on-chain flow (initialize → fees → redistribute → evolve_phase)
   [x] CI: swarm-ci.yml + python-tests.yml + night_shift.yml
-  [x] 205 tests passing, 0 warnings
+  [x] 238 tests passing, 0 warnings, 0 warnings
   [x] Night shift pipeline operational — top candidate: SOL/USDT Survivor 2.69
+  [x] Treasury deployed to devnet — Program 4LvsHbe9LLwgogcDbH7ieTsGcWZctjYFZkzZwaHDM8Ad
+  [x] Treasury PDA initialized — FNQbK1Vw77aT7qM1EMSmeEPDGizSNhX4rkkYBKQNFotF
+  [x] 8/8 on-chain steps complete (mint, init, adopt, vault, fees, redistribute, hydrate, evolve rejected)
+  [x] @phantom/server-sdk v2.0.0 installed — scripts/phantom_signer.ts sidecar ready
+  [x] Phantom Portal app "RTP Trading Wing" registered — creds in configs/.env.phantom
+  [x] Embedded agent wallet created (KMS-backed, sovereign identity)
+  [x] HL testnet API connected (207 assets) + scripts/hl_testnet_demo.py ready
+  [x] HL testnet funded (drip complete)
+  [x] ETH keypair generated — configs/hl_testnet_key.json
+  [x] Signing architecture decided: Phantom ServerSDK for Solana CPI, ETH keypair for HL EIP-712
 
   INVARIANT ENFORCEMENT: 9/10
   - Invariant 7 (soulguard reload sig) = documented stub, production TODO
@@ -77,7 +87,7 @@ CONTEXT:
   | 2. Autonomous operation | COVERED | rtp-demo binary runs 8-step pipeline |
   | 3. Persistent memory across cycles | MISSING | memory_promotion.rs built (23 tests) but not in demo binary |
   | 4. Visible adaptation/learning | MISSING | heartbeat.rs built (26 tests) but not in demo binary |
-  | 5. Observable treasury state | MISSING | No dashboard, no explorer link in output |
+  | 5. Observable treasury state | COVERED (min) | Explorer link live. Dashboard (full) deferred to Phase 5. |
 
 ================================================================================
   AUDIT FINDINGS — ALL CRITICAL/HIGH FIXED
@@ -108,12 +118,21 @@ WEEKS 2-4 (Apr 8 – Apr 25): COMPLETE
   [x] All 6 wings built and functional
   [x] bridge.rs + demo.rs working end-to-end
   [x] devnet-demo.ts: full on-chain flow demoable
-  [x] 205 tests, 0 failures, 0 warnings
+  [x] 238 tests, 0 failures, 0 warnings
   [x] Repo cleaned: stale docs deleted, docs/ reorganised, RESOURCES.md created
   [x] Docs aligned: SESSION-CONTEXT, SOULCONTRACT, CLAUDE.md, BUILD_PLAN_v3, README
 
 WEEK 5 (Apr 28 – May 2): HYPERLIQUID EXECUTION + DEMO POINTS 3/4/5
 ─────────────────────────────────────────────────────────────────────
+
+  SETUP COMPLETE (Apr 11):
+  [x] Phantom Portal app registered, creds in configs/.env.phantom
+  [x] Phantom ServerSDK v2.0.0 installed, phantom_signer.ts created
+  [x] Embedded agent wallet created for Trading Wing
+  [x] HL testnet funded, scripts/hl_testnet_demo.py ready
+  [x] ETH keypair generated for HL EIP-712 signing
+  [x] Treasury deployed to devnet, 8/8 on-chain steps complete
+  [x] Explorer link live — judge point 5 covered at minimum
 
   Priority 1: Hyperliquid execution in Trading Wing (Days 1-3)
   ──────────────────────────────────────────────
@@ -218,7 +237,7 @@ WEEK 6 (May 5‑8): POLISH + SUBMISSION
   | Risk | Probability | Impact | Mitigation |
   |------|-------------|--------|------------|
   | Hyperliquid testnet API changes | LOW | HIGH | Pin SDK version; test early in Week 5 |
-  | Phantom agentic signing complexity | MEDIUM | HIGH | Prototype signing flow Day 1 Week 5; fall back to raw keypair if blocked |
+  | Phantom agentic signing complexity | LOW | MEDIUM | ServerSDK v2.0.0 installed, Portal registered, wallet created. Solana CPI path clear. HL uses ETH keypair directly. |
   | demo points 3/4 not demoable | MEDIUM | HIGH | Pure Rust work; 2h estimate is conservative |
   | No dashboard by judging day | MEDIUM | MEDIUM | Explorer URL is minimum viable; covers point 5 |
   | Colosseum registration missed | LOW | CRITICAL | Hard deadline May 4 — calendar it now |

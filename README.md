@@ -76,6 +76,19 @@ This is not a backtest screenshot. These are out-of-sample walk-forward results 
 
 See [docs/demo-flow.md](docs/demo-flow.md) for the 3-minute hackathon demo script.
 
+## Live on Devnet
+
+Treasury program deployed and operational on Solana devnet (Apr 11 2026).
+
+| Item | Value |
+|------|-------|
+| Program ID | `4LvsHbe9LLwgogcDbH7ieTsGcWZctjYFZkzZwaHDM8Ad` |
+| Treasury PDA | `FNQbK1Vw77aT7qM1EMSmeEPDGizSNhX4rkkYBKQNFotF` |
+| Explorer | [View on Solana Explorer](https://explorer.solana.com/address/FNQbK1Vw77aT7qM1EMSmeEPDGizSNhX4rkkYBKQNFotF?cluster=devnet) |
+| Redistribution tx | [View transaction](https://explorer.solana.com/tx/9HzWgBfwYxs5ModdjF5mT6gdTfayQq8mMYipopyHfGPmYqk6KESHFqgDrc9Mcie573ttcdPqMHSyJP5nNBKK3bR?cluster=devnet) |
+
+8/8 on-chain steps completed including live redistribution (70/20/10 split).
+
 ## Architecture
 
 ```
@@ -137,7 +150,7 @@ The only wing that touches capital. Responsible for generating yield.
 | Full-sim validation (fees, slippage, 429 trades validated) | Python | **Shipping** |
 | Self-correction (fast sim vs full sim calibration) | Python | **Shipping** |
 | Paper trading (live Binance, ADX filter, state persistence) | Python | **Shipping** |
-| Live execution on Hyperliquid + Jupiter | Rust | Planned |
+| Live execution on Hyperliquid (testnet) | Rust | In progress — HL integration script ready, Rust wiring missing |
 | Degradation detection + auto-recalibration trigger | Rust | Planned |
 | Strategy lifecycle (hypothesis → validate → deploy → retire) | Both | Planned |
 
@@ -384,7 +397,7 @@ The Trading Wing's research layer is shipping today. Everything else is scaffold
 | Treasury Program (Anchor: deposit, distribute, hydrate, evolve) | — | Solana | **Built** (audit remediated) |
 | soulcontract.md (constitutional governance layer) | — | Governance | **Defined** |
 | Python ↔ Rust Bridge (typed JSON, bridge-mode subprocess) | Trading | Both | **Built** |
-| Coordinator (soulguard + router + lifecycle) | — | Rust | **Built** (146 tests) |
+| Coordinator (soulguard + router + lifecycle) | — | Rust | **Built** (238 tests) |
 | Evolve Wing (assessor + proposer + rollback) | Evolve | Rust | **Built** |
 | Audit Wing (3-agent tribunal, Byzantine consensus) | Audit | Rust | **Built** |
 | Trading Wing (bridge-backed execution, in-memory state) | Trading | Rust | **Built** |
@@ -470,7 +483,7 @@ Treasury program audit-remediated. All 6 wings built. Coordinator with full qual
 - ✅ Treasury program on devnet (Anchor 1.0, audit remediated)
 - ✅ Python ↔ Rust typed bridge (`rtp/swarm/src/bridge.rs`)
 - ✅ End-to-end demo loop (`rtp/swarm/src/demo.rs`, 8-step pipeline)
-- ✅ 146 tests passing, 0 warnings
+- ✅ 238 tests passing, 0 warnings
 
 ### Phase 2: End-to-End Integration + Full Loop
 
@@ -518,7 +531,7 @@ python -m research.optimization.evaluator_calibration --samples 20
 | **Functionality** | ? | Working demo with real transactions | Live: adopt→fees→swarm→yield→redistribute on devnet |
 | **Potential Impact** | ? | Project with lasting real-world value | Any Solana token can adopt — unruggable yield standard |
 | **Novelty** | ? | Novel approach, original architecture | Six-wing modular swarm + token adoption model |
-| **UX** | ? | Great demo experience | Phantom Connect + CASH wallet flows, 3-min demo |
+| **UX** | ? | Great demo experience | Phantom ServerSDK (agentic Solana wallet) + CASH flows, devnet treasury live, 3-min demo |
 | **Open-source** | ? | Clean, well-documented repo | Full swarm arch + treasury program (MIT), clean repo history |
 | **Business Plan** | ? | Viable business model | Adoption fees → self-funding swarm → yield back to holders |
 

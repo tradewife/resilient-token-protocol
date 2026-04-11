@@ -48,7 +48,9 @@ Trading Wing (Rust, PARTIAL — in-memory mock only)
 3. In `handle_execute_permit()`: construct order from `TradingConfig` payload, POST to HL testnet
 4. Parse fill response → emit `YieldReport` with realized PnL
 5. CPI transfer: yield USDC → treasury PDA via `transfer_checked`
-6. Phantom signing: use Phantom Connect agentic wallet API for order signing (see docs above)
+6. Phantom signing: use `@phantom/server-sdk` v2.0.0 for Solana CPI transfer back to treasury PDA (see `scripts/phantom_signer.ts`)
+
+   Note: Phantom signing covers the Solana CPI transfer back to treasury PDA. HL order signing uses ETH keypair directly (`configs/hl_testnet_key.json` + `web3.py`). This is intentional — Solana hackathon scope. EVM expansion is post-hackathon.
 
 ---
 
@@ -56,7 +58,7 @@ Trading Wing (Rust, PARTIAL — in-memory mock only)
 
 This repo has three layers:
 1. **Proven Python fractal-swarm** (shipping) — backtesting, optimization, paper trading
-2. **Rust swarm + Solana treasury** (built, 205 tests) — 6-wing architecture, Coordinator, soulcontract
+2. **Rust swarm + Solana treasury** (built, 238 tests) — 6-wing architecture, Coordinator, soulcontract
 3. **Hyperliquid execution** (critical gap) — Trading Wing → HL testnet → yield → treasury PDA
 
 ---
@@ -218,7 +220,7 @@ cd rtp/programs/rtp-treasury && anchor deploy --provider.cluster devnet
 
 | Sponsor | Use in RTP | Link |
 |---------|-----------|------|
-| Phantom Connect | **Agentic wallet signing for Hyperliquid orders** | https://docs.phantom.app/phantom-connect/introduction |
+| Phantom Connect | **Solana CPI signing via ServerSDK v2.0.0**. Portal app "RTP Trading Wing" registered. Embedded wallet (KMS-backed). | https://docs.phantom.app/phantom-connect/introduction |
 | CASH stablecoin | **Treasury yield settlement currency** | https://docs.phantom.app/phantom-connect/cash |
 | Squads Multisig | Treasury PDA security (production path) | https://docs.squads.so |
 | Swig | Programmable smart wallets for wing message bus | https://docs.swig.fi |
