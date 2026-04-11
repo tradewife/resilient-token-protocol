@@ -1,23 +1,42 @@
 /**
  * RTP Trading Wing — Phantom ServerSDK Sidecar
  *
- * Signs Solana treasury CPI transfers via Phantom Connect (KMS-backed).
- * Called by the Rust Trading Wing after Hyperliquid fills are confirmed.
+ * Creates and signs via Phantom's embedded wallet for the Trading Wing.
+ * This is NOT a personal wallet — it's a developer-app-owned identity:
+ *
+ *   Phantom Portal registration (https://phantom.app/portal):
+ *     → PHANTOM_ORG_ID     = developer organization
+ *     → PHANTOM_APP_ID     = this app ("RTP Trading Wing")
+ *     → PHANTOM_PRIVATE_KEY = service credential for KMS requests
+ *
+ *   sdk.createWallet({ userId: "rtp-trading-wing-executor" })
+ *     → embedded wallet owned by the RTP app
+ *     → keys in Phantom's TEE/HSM, never on this machine
+ *     → sovereign on-chain identity for the agent
+ *     → no human holds the keys
+ *
+ * Narrative: "Who controls the treasury?"
+ *   → No one. The embedded wallet is controlled by program constraints,
+ *     not by the developer's personal keys. "Don't rug" enforced at
+ *     the key custody level, not just code.
  *
  * Signing architecture:
  *   HL order signing  → ETH keypair (configs/hl_testnet_key.json) via web3.py
- *   Solana treasury   → THIS FILE — Phantom ServerSDK
+ *                       (Phantom EVM support coming soon — uses direct keypair for now)
+ *   Solana treasury   → THIS FILE — Phantom ServerSDK (KMS-backed, autonomous)
  *   Demo dashboard    → Phantom browser-sdk (Phase 5)
  *
+ * Chain support: Solana ✅ now | Ethereum/Base/Polygon/Sui ⏳ coming soon
+ *
  * Prerequisites:
- *   1. Register dev app at https://phantom.app/phantom-connect
+ *   1. Register dev app at https://phantom.app/portal
  *   2. Fill configs/.env.phantom with PHANTOM_ORG_ID, PHANTOM_APP_ID, PHANTOM_PRIVATE_KEY
- *   3. npm install -g @phantom/wallet-sdk typescript ts-node dotenv
+ *   3. npm install @phantom/wallet-sdk dotenv
  *
  * Usage:
- *   ts-node scripts/phantom_signer.ts sign <base64-tx>
- *   ts-node scripts/phantom_signer.ts create-wallet
- *   ts-node scripts/phantom_signer.ts status
+ *   ts-node --project scripts/tsconfig.json scripts/phantom_signer.ts status
+ *   ts-node --project scripts/tsconfig.json scripts/phantom_signer.ts create-wallet
+ *   ts-node --project scripts/tsconfig.json scripts/phantom_signer.ts sign <base64-tx>
  */
 
 import { ServerSDK } from "@phantom/wallet-sdk";

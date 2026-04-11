@@ -44,12 +44,20 @@ This is the **critical trajectory** for the demo and for judging. All build work
 
 ### Why Phantom
 - Sponsored hackathon resource: https://docs.phantom.app/phantom-connect/introduction
+- **Phantom Portal is a developer app registration — NOT personal wallet auth.** Equivalent to creating a Firebase project or Stripe account.
+  - Register at https://phantom.app/portal → create app "RTP Trading Wing"
+  - Yields: `PHANTOM_ORG_ID`, `PHANTOM_APP_ID`, `PHANTOM_PRIVATE_KEY` (service credential)
+  - `sdk.createWallet({ userId: "rtp-trading-wing-executor" })` creates an EMBEDDED wallet owned by the RTP app
+  - Keys stored in Phantom's TEE/HSM — never on this machine — no human holds them
+  - This is the agent's sovereign on-chain identity. Completely separate from any personal Phantom wallet.
+  - **"Who controls the treasury?" → No one. The embedded wallet is controlled by program constraints, not developer personal keys.**
 - **Revised signing architecture (corrected this session):**
-  1. **HL order signing** → ETH keypair (`configs/hl_testnet_key.json`) via web3.py — Hyperliquid uses EIP-712, Phantom doesn't support EVM signing yet
-  2. **Solana treasury CPI** → Phantom ServerSDK (`scripts/phantom_signer.ts`) — KMS-backed, autonomous, signs CPI transfer to treasury PDA
+  1. **HL order signing** → ETH keypair (`configs/hl_testnet_key.json`) via web3.py — Hyperliquid uses EIP-712, Phantom EVM support not yet available
+  2. **Solana treasury CPI** → Phantom ServerSDK (`scripts/phantom_signer.ts`) — KMS-backed, autonomous, no human per tx, cryptographically auditable
   3. **Demo dashboard** → Phantom browser-sdk (Phase 5, later)
 - `@phantom/mcp-server` v1.0.4 installed — only relevant for browser-based dashboard later, NOT for terminal agent
 - `@phantom/wallet-sdk` v0.1.3 installed — the actual agentic signing path for Trading Wing
+- Chain support: Solana ✅ (Mainnet/Devnet/Testnet), Ethereum/Base/Polygon/Sui ⏳ (coming soon)
 - CASH stablecoin (sponsored) is the settlement currency for treasury yield flows
 
 ### Execution Flow (target state for demo)
