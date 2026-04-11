@@ -306,6 +306,30 @@ impl Orchestrator {
         Self::new(OrchestratorConfig::default(), Hooks::default())
     }
 
+    /// Create for demo — disk persistence enabled, no sleep.
+    pub fn new_for_demo(config: OrchestratorConfig) -> Self {
+        let evaluator = Evaluator::new(config.stagnation_threshold);
+        let heartbeat = HeartbeatEngine::with_consolidation_interval(config.consolidation_interval);
+        let memory_config = MemoryConfig {
+            project_tsi_threshold: config.tsi_promotion_threshold,
+            overview_improvement_cycles: config.improvement_window,
+            working_cap: 100,
+            memory_dir: config.memory_base_path.clone(),
+        };
+        let memory = MemoryPromotion::new(memory_config, true); // persist=true
+
+        Self {
+            config,
+            evaluator,
+            heartbeat,
+            memory,
+            hooks: Hooks::default(),
+            status: std::sync::Mutex::new(OrchestratorStatus::default()),
+            oracle: std::sync::Mutex::new(None),
+            shutdown: Arc::new(AtomicBool::new(false)),
+        }
+    }
+
     /// Create for testing — no disk persistence, no sleep.
     pub fn new_for_test(config: OrchestratorConfig) -> Self {
         let evaluator = Evaluator::new(config.stagnation_threshold);

@@ -470,7 +470,7 @@ pub async fn run_two_cycle_demo() -> TwoCycleDemoResult {
         max_consecutive_halts: 3,
     };
 
-    let mut orch = Orchestrator::new_for_test(config);
+    let mut orch = Orchestrator::new_for_demo(config);
     orch.set_oracle(PriceOracle { price_usdc: 1.0 });
 
     // Healthy, improving states → populate memory + trigger consolidation.
@@ -610,6 +610,13 @@ pub fn print_two_cycle_demo(result: &TwoCycleDemoResult) {
             "[MEMORY] cycle 1 persisted: yield=0.175 USDC, sharpe=3.96 ({} working, {} project)",
             result.memory_working_count, result.memory_project_count
         );
+        let mem_path = "/tmp/rtp-demo-memory/project";
+        println!("[MEMORY] files written to: {}", mem_path);
+        if let Ok(entries) = std::fs::read_dir(mem_path) {
+            for entry in entries.flatten() {
+                println!("[MEMORY]   {}", entry.file_name().to_string_lossy());
+            }
+        }
     } else {
         println!("[MEMORY] cycle 1: no memory persisted (unexpected)");
     }
