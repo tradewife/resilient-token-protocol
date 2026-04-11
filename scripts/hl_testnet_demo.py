@@ -1,11 +1,26 @@
 #!/usr/bin/env python3
-"""RTP Trading Wing → Hyperliquid Testnet Integration
+"""DEPRECATED — DO NOT USE FOR SIGNING.
+
+This script uses EIP-191 personal sign over JSON, which is WRONG for the
+current Hyperliquid API. The API requires EIP-712 typed data signing with
+msgpack-serialized actions (matching the official Python SDK's flow).
+
+The correct signing implementation lives in:
+  rtp/swarm/src/wings/trading/mod.rs  →  sign_l1_action()
+
+This file is kept only as a reference for the action payload structure.
+For actual order placement, use the Rust Trading Wing or the official
+hyperliquid-python-sdk.
+
+Original docstring below:
+---
+RTP Trading Wing → Hyperliquid Testnet Integration
 Validated strategy: SOL/USDT Survivor 2.69 (OOS Sharpe +3.96, 100% consistency)
 
 Prerequisites:
   pip install eth-account web3 requests
   Fund at: https://app.hyperliquid-testnet.xyz/drip
-"""
+---"""
 import json, requests, time, os, sys
 from eth_account import Account
 from eth_account.messages import encode_defunct

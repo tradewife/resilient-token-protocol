@@ -58,7 +58,7 @@ CONTEXT:
   [x] demo.rs — 8-step end-to-end demo loop
   [x] devnet-demo.ts — on-chain flow (initialize → fees → redistribute → evolve_phase)
   [x] CI: swarm-ci.yml + python-tests.yml + night_shift.yml
-  [x] 238 tests passing, 0 warnings, 0 warnings
+  [x] 264 tests passing, 0 warnings, 0 clippy warnings
   [x] Night shift pipeline operational — top candidate: SOL/USDT Survivor 2.69
   [x] Treasury deployed to devnet — Program 4LvsHbe9LLwgogcDbH7ieTsGcWZctjYFZkzZwaHDM8Ad
   [x] Treasury PDA initialized — FNQbK1Vw77aT7qM1EMSmeEPDGizSNhX4rkkYBKQNFotF
@@ -66,7 +66,7 @@ CONTEXT:
   [x] @phantom/server-sdk v2.0.0 installed — scripts/phantom_signer.ts sidecar ready
   [x] Phantom Portal app "RTP Trading Wing" registered — creds in configs/.env.phantom
   [x] Embedded agent wallet created (KMS-backed, sovereign identity)
-  [x] HL testnet API connected (207 assets) + scripts/hl_testnet_demo.py ready
+  [x] HL testnet API connected (207 assets) + scripts/hl_testnet_demo.py DEPRECATED (EIP-191 wrong)
   [x] HL testnet funded (drip complete)
   [x] ETH keypair generated — configs/hl_testnet_key.json
   [x] Signing architecture decided: Phantom ServerSDK for Solana CPI, ETH keypair for HL EIP-712
@@ -129,7 +129,7 @@ WEEK 5 (Apr 28 – May 2): HYPERLIQUID EXECUTION + DEMO POINTS 3/4/5
   [x] Phantom Portal app registered, creds in configs/.env.phantom
   [x] Phantom ServerSDK v2.0.0 installed, phantom_signer.ts created
   [x] Embedded agent wallet created for Trading Wing
-  [x] HL testnet funded, scripts/hl_testnet_demo.py ready
+  [x] HL testnet funded, scripts/hl_testnet_demo.py DEPRECATED (EIP-191 wrong, Rust EIP-712 is reference)
   [x] ETH keypair generated for HL EIP-712 signing
   [x] Treasury deployed to devnet, 8/8 on-chain steps complete
   [x] Explorer link live — judge point 5 covered at minimum

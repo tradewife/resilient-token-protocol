@@ -1,14 +1,571 @@
-//! Trading Wing — strategy research, validation, and assessment.
+//! Trading Wing — strategy research, validation, assessment, and execution.
 //!
 //! Handles TradingConfig, Proposal, ExecutePermit, YieldReport, and Heartbeat.
 //! Uses bridge.rs to call the Python fractal-swarm binary for strategy evaluation.
 //! The bridge returns walk-forward analysis results (projected yield), not live trades.
 //!
+//! ## Hyperliquid Integration
+//!
+//! When `execution_venue: "hyperliquid"` is set in the proposal config, the
+//! Trading Wing places real orders on Hyperliquid testnet via REST API, signed
+//! with the ETH keypair at `configs/hl_testnet_key.json` using EIP-191.
+//!
 //! In-memory state: last proposal, last assessment, execution count.
 
 use crate::bridge::{self, BridgeRequest};
 use crate::types::{Message, Payload, WingId};
+use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
+
+// ═══════════════════════════════════════════════════════════════════════
+//  Hyperliquid Integration
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Hyperliquid testnet exchange endpoint.
+const HL_TESTNET_URL: &str = "https://api.hyperliquid-testnet.xyz";
+
+/// Key file path relative to repo root.
+const HL_KEY_PATH: &str = "configs/hl_testnet_key.json";
+
+/// ECDSA signature components for Hyperliquid EIP-191 signing.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HlSignature {
+    pub r: String,
+    pub s: String,
+    pub v: u64,
+}
+
+/// Key file structure for the HL testnet ETH keypair.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HlKeyFile {
+    pub address: String,
+    pub private_key: String,
+    pub network: String,
+}
+
+/// Yield report data emitted after a confirmed Hyperliquid fill.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct YieldReportData {
+    pub symbol: String,
+    pub side: String,
+    pub fill_price: String,
+    pub size: String,
+    /// Entry price from the opening fill. Stored for PnL calculation on close.
+    pub entry_price: Option<String>,
+    /// Realized PnL in USDC. `None` means the position is still open (no PnL
+    /// realized yet). `Some(value)` means the position was closed and this is
+    /// the actual realized profit/loss.
+    /// For opening fills: `(fill_price - entry_price) * size` is meaningless
+    /// because entry_price == fill_price, so PnL = None.
+    /// For closing fills: `(exit_price - entry_price) * size` for longs,
+    /// `(entry_price - exit_price) * size` for shorts.
+    pub realized_pnl_usdc: Option<f64>,
+    pub timestamp: String,
+}
+
+/// Load the ETH keypair from the key file.
+///
+/// Searches relative to `CARGO_MANIFEST_DIR` (rtp/swarm/) then the current
+/// working directory.
+pub fn load_hl_key() -> Result<HlKeyFile, String> {
+    // Try relative to CARGO_MANIFEST_DIR (rtp/swarm/)
+    let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".to_string());
+    let path = std::path::Path::new(&manifest)
+        .join("../../")
+        .join(HL_KEY_PATH);
+
+    if path.exists() {
+        let content = std::fs::read_to_string(&path)
+            .map_err(|e| format!("Failed to read key file: {}", e))?;
+        return serde_json::from_str(&content)
+            .map_err(|e| format!("Failed to parse key file: {}", e));
+    }
+
+    // Try current directory
+    let alt = std::path::Path::new(HL_KEY_PATH);
+    if alt.exists() {
+        let content = std::fs::read_to_string(alt)
+            .map_err(|e| format!("Failed to read key file: {}", e))?;
+        return serde_json::from_str(&content)
+            .map_err(|e| format!("Failed to parse key file: {}", e));
+    }
+
+    Err(format!(
+        "HL key file not found (searched {} and {})",
+        path.display(),
+        HL_KEY_PATH
+    ))
+}
+
+/// Compute a keccak256 hash, returning a fixed 32-byte array.
+fn keccak256(data: &[u8]) -> [u8; 32] {
+    use sha3::Digest;
+    let mut hasher = sha3::Keccak256::new();
+    hasher.update(data);
+    let result = hasher.finalize();
+    let mut out = [0u8; 32];
+    out.copy_from_slice(&result);
+    out
+}
+
+/// Left-pad a slice to 32 bytes.
+fn pad_left32(data: &[u8]) -> [u8; 32] {
+    let mut out = [0u8; 32];
+    let start = 32 - data.len().min(32);
+    out[start..].copy_from_slice(&data[..data.len().min(32)]);
+    out
+}
+
+/// Compute the EIP-712 domain separator for Hyperliquid Exchange.
+///
+/// Domain: { name: "Exchange", version: "1", chainId: 1337,
+///           verifyingContract: "0x0000...0000" }
+fn hl_domain_separator() -> [u8; 32] {
+    // typeHash("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)")
+    let domain_type_hash = keccak256(
+        b"EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)",
+    );
+
+    let mut data = Vec::with_capacity(5 * 32);
+    data.extend_from_slice(&domain_type_hash);
+    data.extend_from_slice(&keccak256(b"Exchange")); // name (string → keccak256)
+    data.extend_from_slice(&keccak256(b"1")); // version (string → keccak256)
+    data.extend_from_slice(&pad_left32(&1337u64.to_be_bytes())); // chainId (uint256)
+    data.extend_from_slice(&[0u8; 32]); // verifyingContract (address → zero-padded)
+
+    keccak256(&data)
+}
+
+/// Compute the EIP-712 Agent struct hash for a given action hash.
+///
+/// Agent type: { string source, bytes32 connectionId }
+/// Testnet uses source = "b", mainnet uses source = "a".
+fn hl_agent_hash(action_hash: &[u8; 32], is_mainnet: bool) -> [u8; 32] {
+    // typeHash("Agent(string source,bytes32 connectionId)")
+    let agent_type_hash = keccak256(b"Agent(string source,bytes32 connectionId)");
+
+    let source = if is_mainnet { "a" } else { "b" };
+
+    let mut data = Vec::with_capacity(3 * 32);
+    data.extend_from_slice(&agent_type_hash);
+    data.extend_from_slice(&keccak256(source.as_bytes())); // source (string → keccak256)
+    data.extend_from_slice(action_hash); // connectionId (bytes32 → raw)
+
+    keccak256(&data)
+}
+
+/// Compute the action hash: keccak256(msgpack(action) + nonce_8bytes + vault_flag).
+///
+/// The msgpack bytes MUST use the same key ordering as the Hyperliquid Python SDK.
+/// HL's server verifies the signature by re-msgpacking the received action using
+/// the key order from the JSON payload. The Python SDK uses insertion-order keys,
+/// so we must match that exact order:
+///   outer: "type", "orders", "grouping"
+///   inner: "a", "b", "p", "s", "r", "t"
+fn hl_action_hash(
+    action: &serde_json::Value,
+    nonce: u64,
+) -> Result<[u8; 32], String> {
+    // Extract fields from the action Value.
+    let orders = action["orders"]
+        .as_array()
+        .ok_or("Missing orders in action")?;
+
+    // Build msgpack bytes manually with Python SDK key ordering.
+    let mut buf = Vec::with_capacity(128);
+
+    // Outer map: 3 entries in Python SDK order: type, orders, grouping
+    rmp::encode::write_map_len(&mut buf, 3).unwrap();
+
+    // "type" → "order"
+    rmp::encode::write_str(&mut buf, "type").unwrap();
+    rmp::encode::write_str(
+        &mut buf,
+        action["type"].as_str().unwrap_or("order"),
+    )
+    .unwrap();
+
+    // "orders" → [order, ...]
+    rmp::encode::write_str(&mut buf, "orders").unwrap();
+    rmp::encode::write_array_len(&mut buf, orders.len() as u32).unwrap();
+
+    for order in orders {
+        // Inner order map: keys in Python SDK order: a, b, p, s, r, t
+        rmp::encode::write_map_len(&mut buf, 6).unwrap();
+
+        // "a" → asset index
+        rmp::encode::write_str(&mut buf, "a").unwrap();
+        rmp::encode::write_sint(
+            &mut buf,
+            order["a"].as_i64().unwrap_or(0),
+        )
+        .unwrap();
+
+        // "b" → is_buy
+        rmp::encode::write_str(&mut buf, "b").unwrap();
+        rmp::encode::write_bool(&mut buf, order["b"].as_bool().unwrap_or(true))
+            .unwrap();
+
+        // "p" → price
+        rmp::encode::write_str(&mut buf, "p").unwrap();
+        rmp::encode::write_str(
+            &mut buf,
+            order["p"].as_str().unwrap_or("0"),
+        )
+        .unwrap();
+
+        // "s" → size
+        rmp::encode::write_str(&mut buf, "s").unwrap();
+        rmp::encode::write_str(
+            &mut buf,
+            order["s"].as_str().unwrap_or("0"),
+        )
+        .unwrap();
+
+        // "r" → reduce_only
+        rmp::encode::write_str(&mut buf, "r").unwrap();
+        rmp::encode::write_bool(
+            &mut buf,
+            order["r"].as_bool().unwrap_or(false),
+        )
+        .unwrap();
+
+        // "t" → {"limit": {"tif": ...}}
+        rmp::encode::write_str(&mut buf, "t").unwrap();
+        let tif = order["t"]["limit"]["tif"]
+            .as_str()
+            .unwrap_or("Ioc");
+        rmp::encode::write_map_len(&mut buf, 1).unwrap();
+        rmp::encode::write_str(&mut buf, "limit").unwrap();
+        rmp::encode::write_map_len(&mut buf, 1).unwrap();
+        rmp::encode::write_str(&mut buf, "tif").unwrap();
+        rmp::encode::write_str(&mut buf, tif).unwrap();
+    }
+
+    // "grouping" → "na"
+    rmp::encode::write_str(&mut buf, "grouping").unwrap();
+    rmp::encode::write_str(
+        &mut buf,
+        action["grouping"].as_str().unwrap_or("na"),
+    )
+    .unwrap();
+
+    // Append nonce (8 bytes big-endian) + vault flag (0x00).
+    buf.extend_from_slice(&nonce.to_be_bytes());
+    buf.push(0x00);
+
+    Ok(keccak256(&buf))
+}
+
+/// Sign a Hyperliquid action using EIP-712 typed data signing.
+///
+/// This matches the official Hyperliquid Python SDK signing flow:
+///   1. action_hash = keccak256(msgpack(action) + nonce_8B + vault_flag)
+///   2. phantom_agent = {source: "b", connectionId: action_hash}
+///   3. EIP-712 domain: {name: "Exchange", version: "1", chainId: 1337, ...}
+///   4. EIP-712 Agent type: {string source, bytes32 connectionId}
+///   5. typedDataHash = keccak256("\\x19\\x01" + domainSeparator + agentHash)
+///   6. ECDSA sign → (r, s, v)
+pub fn sign_l1_action(
+    action: &serde_json::Value,
+    nonce: u64,
+    private_key_hex: &str,
+    is_mainnet: bool,
+) -> Result<HlSignature, String> {
+    // Step 1: action hash via msgpack + nonce + vault flag.
+    let action_hash = hl_action_hash(action, nonce)?;
+
+    // Step 2: phantom agent struct hash.
+    let agent_hash = hl_agent_hash(&action_hash, is_mainnet);
+
+    // Step 3: EIP-712 typed data hash.
+    let domain_separator = hl_domain_separator();
+    let mut typed_data = Vec::with_capacity(2 + 32 + 32);
+    typed_data.extend_from_slice(b"\x19\x01");
+    typed_data.extend_from_slice(&domain_separator);
+    typed_data.extend_from_slice(&agent_hash);
+    let sign_hash = keccak256(&typed_data);
+
+    // Step 4: ECDSA recoverable signature.
+    let secp = secp256k1::Secp256k1::new();
+    let pk_hex = private_key_hex
+        .strip_prefix("0x")
+        .unwrap_or(private_key_hex);
+    let pk_bytes =
+        hex::decode(pk_hex).map_err(|e| format!("Failed to decode private key hex: {}", e))?;
+    let secret_key = secp256k1::SecretKey::from_slice(&pk_bytes)
+        .map_err(|e| format!("Invalid private key: {}", e))?;
+    let message = secp256k1::Message::from_digest(sign_hash);
+    let sig = secp.sign_ecdsa_recoverable(&message, &secret_key);
+    let (recovery_id, compact) = sig.serialize_compact();
+
+    Ok(HlSignature {
+        r: format!("0x{}", hex::encode(&compact[0..32])),
+        s: format!("0x{}", hex::encode(&compact[32..64])),
+        v: (recovery_id.to_i32() + 27) as u64,
+    })
+}
+
+/// Legacy EIP-191 personal sign (used by demo script, NOT the official SDK).
+/// Kept for backwards compatibility but **not** used for real HL orders.
+pub fn sign_action(
+    action: &serde_json::Value,
+    private_key_hex: &str,
+) -> Result<HlSignature, String> {
+    sign_l1_action(action, 0, private_key_hex, false)
+}
+
+/// Build the Hyperliquid order action as a `serde_json::Value`.
+///
+/// Uses single-letter keys (`a`, `b`, `p`, `s`, `r`, `t`) to match the
+/// Hyperliquid exchange API spec exactly.
+pub fn build_order_action(
+    asset_index: i64,
+    is_buy: bool,
+    size: &str,
+    price: &str,
+    tif: &str,
+) -> serde_json::Value {
+    serde_json::json!({
+        "type": "order",
+        "orders": [{
+            "a": asset_index,
+            "b": is_buy,
+            "p": price,
+            "s": size,
+            "r": false,
+            "t": {"limit": {"tif": tif}}
+        }],
+        "grouping": "na"
+    })
+}
+
+/// Get the SOL perpetual asset index from Hyperliquid metadata.
+pub fn get_sol_index() -> Result<i64, String> {
+    let client = reqwest::blocking::Client::new();
+    let resp = client
+        .post(format!("{}/info", HL_TESTNET_URL))
+        .json(&serde_json::json!({"type": "metaAndAssetCtxs"}))
+        .send()
+        .map_err(|e| format!("HL info request failed: {}", e))?;
+
+    let data: serde_json::Value = resp
+        .json()
+        .map_err(|e| format!("HL info parse error: {}", e))?;
+
+    let universe = data[0]["universe"]
+        .as_array()
+        .ok_or("Missing universe in HL metadata")?;
+
+    for (i, asset) in universe.iter().enumerate() {
+        if asset["name"].as_str() == Some("SOL") {
+            return Ok(i as i64);
+        }
+    }
+
+    Ok(0) // SOL is typically index 0
+}
+
+/// Place an order on Hyperliquid testnet.
+///
+/// Returns the raw JSON response from the exchange endpoint.
+/// Uses IOC (Immediate-Or-Cancel) by default for market-style fills.
+pub fn place_hl_order(
+    asset_index: i64,
+    is_buy: bool,
+    size: &str,
+    price: &str,
+    tif: &str,
+    private_key_hex: &str,
+) -> Result<serde_json::Value, String> {
+    let action = build_order_action(asset_index, is_buy, size, price, tif);
+
+    let nonce = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(|e| format!("Time error: {}", e))?
+        .as_millis() as u64;
+
+    let signature = sign_l1_action(&action, nonce, private_key_hex, false)?; // testnet
+
+    let payload = serde_json::json!({
+        "action": action,
+        "nonce": nonce,
+        "signature": signature
+    });
+
+    let client = reqwest::blocking::Client::new();
+    let resp = client
+        .post(format!("{}/exchange", HL_TESTNET_URL))
+        .header("Content-Type", "application/json")
+        .json(&payload)
+        .send()
+        .map_err(|e| format!("HL exchange request failed: {}", e))?;
+
+    let status = resp.status();
+    let body: serde_json::Value = resp
+        .json()
+        .map_err(|e| format!("HL exchange parse error (HTTP {}): {}", status, e))?;
+
+    Ok(body)
+}
+
+/// Parse the Hyperliquid fill response into a [`YieldReportData`].
+///
+/// For opening fills (no prior position), `realized_pnl_usdc` is `None` because
+/// no PnL has been realized yet — the entry price IS the fill price.
+/// For closing fills (reducing/closing a position), the PnL is calculated as:
+///   - Long:  `(exit_fill_price - entry_price) * filled_size`
+///   - Short: `(entry_price - exit_fill_price) * filled_size`
+fn parse_fill_response(
+    response: &serde_json::Value,
+    symbol: &str,
+    is_buy: bool,
+    requested_size: &str,
+    entry_price: Option<&str>,
+) -> Result<YieldReportData, String> {
+    let status = response["status"].as_str().unwrap_or("unknown");
+
+    if status != "ok" {
+        return Err(format!(
+            "HL order rejected: {}",
+            serde_json::to_string_pretty(response).unwrap_or_default()
+        ));
+    }
+
+    // Navigate to statuses array.
+    let statuses = response["response"]["data"]["statuses"]
+        .as_array()
+        .ok_or("Missing statuses in HL response")?;
+
+    if statuses.is_empty() {
+        return Err("Empty statuses array in HL response".to_string());
+    }
+
+    let fill = &statuses[0];
+
+    // Check for error in fill.
+    if let Some(err) = fill["error"].as_str() {
+        return Err(format!("HL fill error: {}", err));
+    }
+
+    // Extract fill details. IOC orders that fill immediately have
+    // {"filled": {"total_sz": "...", "avg_px": "...", "type": "..."}}
+    let filled_obj = &fill["filled"];
+    let fill_price = filled_obj
+        .get("avg_px")
+        .and_then(|v| v.as_str())
+        .unwrap_or("0");
+    let filled_size = filled_obj
+        .get("total_sz")
+        .and_then(|v| v.as_str())
+        .unwrap_or(requested_size);
+
+    // Calculate realized PnL if we have an entry price (closing fill).
+    let realized_pnl = match entry_price {
+        Some(ep) => {
+            let entry: f64 = ep.parse().map_err(|e| format!("Bad entry_price: {}", e))?;
+            let exit: f64 = fill_price.parse().map_err(|e| format!("Bad fill_price: {}", e))?;
+            let sz: f64 = filled_size.parse().map_err(|e| format!("Bad size: {}", e))?;
+            if is_buy {
+                // Closing a short: PnL = (entry - exit) * size
+                Some((entry - exit) * sz)
+            } else {
+                // Closing a long: PnL = (exit - entry) * size
+                Some((exit - entry) * sz)
+            }
+        }
+        None => {
+            // Opening fill — no PnL realized yet. Store fill price as entry.
+            None
+        }
+    };
+
+    Ok(YieldReportData {
+        symbol: symbol.to_string(),
+        side: if is_buy {
+            "BUY".to_string()
+        } else {
+            "SELL".to_string()
+        },
+        fill_price: fill_price.to_string(),
+        size: filled_size.to_string(),
+        entry_price: entry_price.map(|s| s.to_string()).or_else(|| {
+            // For opening fills, the fill price IS the entry price.
+            if fill_price != "0" {
+                Some(fill_price.to_string())
+            } else {
+                None
+            }
+        }),
+        realized_pnl_usdc: realized_pnl,
+        timestamp: chrono::Utc::now().to_rfc3339(),
+    })
+}
+
+/// Execute a SOL order on Hyperliquid testnet using the configured key.
+///
+/// This is the primary entry point for the Trading Wing's Hyperliquid
+/// execution path. It loads the key, resolves the SOL asset index, places
+/// the order, and returns both the raw response and a parsed yield report.
+pub fn execute_hl_sol_order(
+    is_buy: bool,
+    size: &str,
+    entry_price: Option<&str>,
+) -> Result<(serde_json::Value, YieldReportData), String> {
+    let key = load_hl_key()?;
+    let sol_idx = get_sol_index()?;
+
+    println!(
+        "[TRADING WING] Placing SOL {} {} @ market on HL testnet",
+        if is_buy { "BUY" } else { "SELL" },
+        size
+    );
+
+    let response = place_hl_order(sol_idx, is_buy, size, "0", "Ioc", &key.private_key)?;
+
+    let report = parse_fill_response(&response, "SOL/USDT", is_buy, size, entry_price)?;
+
+    println!("[TRADING WING] fill confirmed: {:?}", report);
+
+    Ok((response, report))
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  Position Tracking
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Tracks an open position in the Trading Wing's in-memory state.
+///
+/// Created when an opening fill is confirmed. Consumed when the position
+/// is closed, at which point realized PnL is calculated:
+///   - Long close:  `(fill_price - entry_price) * size`
+///   - Short close: `(entry_price - fill_price) * size`
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PositionState {
+    pub symbol: String,
+    pub side: String,
+    pub entry_price: f64,
+    pub size: f64,
+    pub opened_at: String,
+}
+
+impl PositionState {
+    /// Calculate realized PnL when closing this position.
+    ///
+    /// `close_price` is the fill price of the closing order.
+    /// `close_size` is the size being closed (may be partial).
+    pub fn realized_pnl(&self, close_price: f64, close_size: f64) -> f64 {
+        match self.side.as_str() {
+            "BUY" => (close_price - self.entry_price) * close_size,
+            "SELL" => (self.entry_price - close_price) * close_size,
+            _ => 0.0,
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  Trading Wing
+// ═══════════════════════════════════════════════════════════════════════
 
 /// In-memory state for the Trading Wing.
 #[derive(Debug)]
@@ -16,6 +573,9 @@ struct TradingState {
     last_proposal: Option<serde_json::Value>,
     last_yield_report: Option<serde_json::Value>,
     execution_count: u64,
+    /// Open positions keyed by symbol. Only one position per symbol is
+    /// tracked at a time (simplified model matching the HL perps flow).
+    open_positions: std::collections::HashMap<String, PositionState>,
 }
 
 /// The Trading Wing — yield generation and execution.
@@ -30,6 +590,7 @@ impl TradingWing {
                 last_proposal: None,
                 last_yield_report: None,
                 execution_count: 0,
+                open_positions: std::collections::HashMap::new(),
             }),
         }
     }
@@ -89,6 +650,73 @@ impl TradingWing {
                     (symbol, config)
                 };
 
+                // ── Hyperliquid execution path ────────────────────────
+                // When the proposal sets execution_venue: "hyperliquid",
+                // place a real order on HL testnet instead of using the
+                // bridge fallback.
+                let use_hl = config
+                    .get("execution_venue")
+                    .and_then(|v| v.as_str())
+                    == Some("hyperliquid");
+
+                if use_hl {
+                    let is_buy = config
+                        .get("is_buy")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(true);
+                    let size = config
+                        .get("size")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("0.01");
+
+                    // Check for existing position to calculate closing PnL.
+                    let entry_price_str = self
+                        .get_entry_price(&symbol)
+                        .map(|ep| ep.to_string());
+
+                    match execute_hl_sol_order(
+                        is_buy,
+                        size,
+                        entry_price_str.as_deref(),
+                    ) {
+                        Ok((_response, report)) => {
+                            // Update position tracking.
+                            let fill_price: f64 =
+                                report.fill_price.parse().unwrap_or(0.0);
+                            let fill_size: f64 =
+                                report.size.parse().unwrap_or(0.0);
+                            let _tracked_pnl =
+                                self.process_fill(&symbol, is_buy, fill_price, fill_size);
+
+                            let mut state = self.state.lock().ok()?;
+                            state.execution_count += 1;
+                            state.last_yield_report =
+                                Some(serde_json::to_value(&report).unwrap_or_default());
+                            return Some(Message::new(
+                                WingId::Trading,
+                                WingId::Coordinator,
+                                Payload::YieldReport {
+                                    usdc_yield: report.fill_price.parse().unwrap_or(0.0),
+                                    sol_reserves: report.size.parse().unwrap_or(0.0),
+                                    drawdown: report.realized_pnl_usdc.unwrap_or(0.0),
+                                    source: Some("hl_testnet_fill".to_string()),
+                                },
+                            ));
+                        }
+                        Err(e) => {
+                            return Some(Message::new(
+                                WingId::Trading,
+                                WingId::Coordinator,
+                                Payload::Error {
+                                    reason: format!("HL execution failed: {}", e),
+                                    in_reply_to: Some(*proposal_id),
+                                },
+                            ));
+                        }
+                    }
+                }
+
+                // ── Bridge fallback path ──────────────────────────────
                 let request = BridgeRequest::new(&symbol, config);
                 match bridge::call_bridge(&request) {
                     Ok(response) => {
@@ -185,6 +813,62 @@ impl TradingWing {
             .lock()
             .map(|s| s.last_proposal.is_some())
             .unwrap_or(false)
+    }
+
+    /// Process a fill response and update position state.
+    ///
+    /// - If no open position exists for this symbol → opening fill:
+    ///   stores the new `PositionState`, returns `realized_pnl_usdc = None`.
+    /// - If an open position exists → closing fill:
+    ///   calculates realized PnL, removes the position, returns `Some(pnl)`.
+    pub fn process_fill(
+        &self,
+        symbol: &str,
+        is_buy: bool,
+        fill_price: f64,
+        fill_size: f64,
+    ) -> Option<f64> {
+        let mut state = self.state.lock().ok()?;
+        let key = symbol.to_string();
+
+        if let Some(existing) = state.open_positions.remove(&key) {
+            // Closing fill — calculate PnL.
+            let pnl = existing.realized_pnl(fill_price, fill_size);
+            Some(pnl)
+        } else {
+            // Opening fill — store position.
+            state.open_positions.insert(
+                key,
+                PositionState {
+                    symbol: symbol.to_string(),
+                    side: if is_buy {
+                        "BUY".to_string()
+                    } else {
+                        "SELL".to_string()
+                    },
+                    entry_price: fill_price,
+                    size: fill_size,
+                    opened_at: chrono::Utc::now().to_rfc3339(),
+                },
+            );
+            None
+        }
+    }
+
+    /// Check if there is an open position for a given symbol.
+    pub fn has_open_position(&self, symbol: &str) -> bool {
+        self.state
+            .lock()
+            .map(|s| s.open_positions.contains_key(symbol))
+            .unwrap_or(false)
+    }
+
+    /// Get the entry price of an open position, if one exists.
+    pub fn get_entry_price(&self, symbol: &str) -> Option<f64> {
+        self.state
+            .lock()
+            .ok()
+            .and_then(|s| s.open_positions.get(symbol).map(|p| p.entry_price))
     }
 }
 
@@ -345,5 +1029,601 @@ mod tests {
         );
         wing.handle_message(&permit);
         assert_eq!(wing.execution_count(), 0);
+    }
+
+    // ── Hyperliquid unit tests ────────────────────────────────────────
+
+    #[test]
+    fn hl_key_file_roundtrip() {
+        let key = HlKeyFile {
+            address: "0xABC".to_string(),
+            private_key: "0x123".to_string(),
+            network: "hyperliquid-testnet".to_string(),
+        };
+        let json = serde_json::to_string(&key).unwrap();
+        let parsed: HlKeyFile = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.address, "0xABC");
+        assert_eq!(parsed.private_key, "0x123");
+        assert_eq!(parsed.network, "hyperliquid-testnet");
+    }
+
+    #[test]
+    fn hl_signature_roundtrip() {
+        let sig = HlSignature {
+            r: "0xaaa".to_string(),
+            s: "0xbbb".to_string(),
+            v: 27,
+        };
+        let json = serde_json::to_string(&sig).unwrap();
+        let parsed: HlSignature = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.r, "0xaaa");
+        assert_eq!(parsed.s, "0xbbb");
+        assert_eq!(parsed.v, 27);
+    }
+
+    #[test]
+    fn build_order_action_produces_valid_structure() {
+        let action = build_order_action(0, true, "0.01", "0", "Ioc");
+        let json_str = serde_json::to_string(&action).unwrap();
+
+        // Verify all required fields are present.
+        assert!(json_str.contains("\"type\":\"order\""));
+        assert!(json_str.contains("\"grouping\":\"na\""));
+        assert!(json_str.contains("\"orders\""));
+        assert!(json_str.contains("\"a\":0"));
+        assert!(json_str.contains("\"b\":true"));
+        assert!(json_str.contains("\"s\":\"0.01\""));
+        assert!(json_str.contains("\"tif\":\"Ioc\""));
+    }
+
+    /// Verify that the private key in the key file derives the expected ETH address.
+    /// If this fails, the signing will recover to a wrong address on HL.
+    #[test]
+    fn hl_private_key_derives_expected_address() {
+        let key = match load_hl_key() {
+            Ok(k) => k,
+            Err(_) => return, // skip if no key file
+        };
+        let pk_hex = key.private_key.strip_prefix("0x").unwrap_or(&key.private_key);
+        let pk_bytes = hex::decode(pk_hex).expect("private key hex valid");
+        let secret_key = secp256k1::SecretKey::from_slice(&pk_bytes).expect("valid secp256k1 key");
+        let secp = secp256k1::Secp256k1::new();
+        let public_key = secp256k1::PublicKey::from_secret_key(&secp, &secret_key);
+        // Ethereum address = last 20 bytes of keccak256(uncompressed pubkey without 0x04 prefix)
+        let serialized = public_key.serialize_uncompressed();
+        let hash = keccak256(&serialized[1..65]); // skip 0x04 prefix
+        let derived_addr = format!("0x{}", hex::encode(&hash[12..32]));
+        println!("[TEST] Key file address:  {}", key.address);
+        println!("[TEST] Derived address:   {}", derived_addr);
+        assert_eq!(
+            derived_addr.to_lowercase(),
+            key.address.to_lowercase(),
+            "Private key does NOT derive the expected address — signing will fail!"
+        );
+    }
+
+    /// Verify that the action JSON serializes correctly (content, not ordering).
+    /// The JSON is sent in the HTTP payload — key order doesn't affect HL.
+    /// The msgpack key order (for signing) is tested separately.
+    #[test]
+    fn action_json_contains_all_required_fields() {
+        let action = build_order_action(0, true, "0.01", "0", "Ioc");
+        let json_str = serde_json::to_string(&action).unwrap();
+        // Round-trip through JSON to verify valid structure.
+        let parsed: serde_json::Value = serde_json::from_str(&json_str).unwrap();
+        assert_eq!(parsed["type"], "order");
+        assert_eq!(parsed["grouping"], "na");
+        assert_eq!(parsed["orders"][0]["a"], 0);
+        assert_eq!(parsed["orders"][0]["b"], true);
+        assert_eq!(parsed["orders"][0]["s"], "0.01");
+    }
+
+    #[test]
+    fn debug_msgpack_bytes() {
+        let action = build_order_action(0, true, "0.01", "0", "Ioc");
+        let hash_result = hl_action_hash(&action, 1744380000000);
+        let action_hash = hash_result.unwrap();
+
+        // Expected Python insertion-order msgpack hex
+        let expected_msgpack = "83a474797065a56f72646572a66f72646572739186a16100a162c3a170a130a173a4302e3031a172c2a17481a56c696d697481a3746966a3496f63a867726f7570696e67a26e61";
+        // Expected Python action_hash for nonce=1744380000000
+        let expected_hash = "4aeaba018ccfaa20cd746642f6300a94a84e8452365c192d7c89000cb88c292a";
+
+        println!("[TEST] Rust action_hash: {}", hex::encode(&action_hash));
+        println!("[TEST] Expected hash:    {}", expected_hash);
+        println!("[TEST] Expected msgpack: {}", expected_msgpack);
+
+        assert_eq!(hex::encode(&action_hash), expected_hash,
+            "Action hash must match Python SDK insertion-order output");
+    }
+
+    #[test]
+    fn sign_l1_action_produces_valid_hex_signature() {
+        // Use a well-known test private key (not real funds).
+        let test_pk = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
+        let action = build_order_action(0, true, "0.01", "0", "Ioc");
+
+        let sig = sign_l1_action(&action, 1000, test_pk, false).expect("signing should succeed");
+
+        // r and s should be hex strings with 0x prefix, each 66 chars (0x + 64 hex digits).
+        assert!(sig.r.starts_with("0x"));
+        assert!(sig.s.starts_with("0x"));
+        assert_eq!(sig.r.len(), 66);
+        assert_eq!(sig.s.len(), 66);
+        // v should be 27 or 28 (Ethereum convention).
+        assert!(sig.v == 27 || sig.v == 28);
+    }
+
+    /// Cross-validate Rust signing against Python reference output.
+    /// Python SDK's EIP-712 signing with nonce=1744380000000 produced:
+    ///   r: 0x5129d8eeb3ff6e86997d2a993090ebc43d72521f077630780994ac3f653c5095
+    ///   s: 0x731853cdcceb1bb069af8d494f216d8a17ec2a99177a46b9bc33adbc2038406
+    ///     (note: Python to_hex strips leading zero; Rust preserves → 0x0731853c...)
+    ///   v: 27
+    #[test]
+    fn sign_action_matches_python_reference() {
+        let key = match load_hl_key() {
+            Ok(k) => k,
+            Err(_) => return, // skip if no key file
+        };
+        let action = build_order_action(0, true, "0.01", "0", "Ioc");
+        let nonce: u64 = 1744380000000;
+        let sig = sign_l1_action(&action, nonce, &key.private_key, false)
+            .expect("signing succeeds");
+
+        println!("[TEST] Rust r: {}", sig.r);
+        println!("[TEST] Rust s: {}", sig.s);
+        println!("[TEST] Rust v: {}", sig.v);
+
+        // Compare r directly (no leading-zero issue).
+        assert_eq!(sig.r, "0x5129d8eeb3ff6e86997d2a993090ebc43d72521f077630780994ac3f653c5095",
+            "r must match Python EIP-712 reference");
+
+        // Compare s as bytes (Python to_hex strips leading zero, Rust preserves it).
+        let rust_s_bytes = hex::decode(sig.s.strip_prefix("0x").unwrap()).unwrap();
+        let py_s_bytes = hex::decode("0731853cdcceb1bb069af8d494f216d8a17ec2a99177a46b9bc33adbc2038406").unwrap();
+        assert_eq!(rust_s_bytes, py_s_bytes,
+            "s must match Python EIP-712 reference");
+
+        assert_eq!(sig.v, 27, "v must match Python EIP-712 reference");
+    }
+
+    #[test]
+    fn sign_l1_action_deterministic_for_same_input() {
+        let test_pk = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
+        let action = build_order_action(0, true, "0.01", "0", "Ioc");
+
+        let sig1 = sign_l1_action(&action, 1000, test_pk, false).unwrap();
+        let sig2 = sign_l1_action(&action, 1000, test_pk, false).unwrap();
+
+        // ECDSA with RFC 6979 deterministic k produces the same signature.
+        assert_eq!(sig1.r, sig2.r);
+        assert_eq!(sig1.s, sig2.s);
+        assert_eq!(sig1.v, sig2.v);
+    }
+
+    #[test]
+    fn sign_l1_action_rejects_invalid_private_key() {
+        let action = build_order_action(0, true, "0.01", "0", "Ioc");
+        let result = sign_l1_action(&action, 1000, "not_valid_hex", false);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn yield_report_data_roundtrip() {
+        let report = YieldReportData {
+            symbol: "SOL/USDT".to_string(),
+            side: "BUY".to_string(),
+            fill_price: "150.5".to_string(),
+            size: "0.01".to_string(),
+            entry_price: Some("150.5".to_string()),
+            realized_pnl_usdc: None, // Opening fill — no PnL yet.
+            timestamp: "2026-04-11T12:00:00Z".to_string(),
+        };
+        let json = serde_json::to_string(&report).unwrap();
+        let parsed: YieldReportData = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.symbol, "SOL/USDT");
+        assert_eq!(parsed.side, "BUY");
+        assert_eq!(parsed.fill_price, "150.5");
+        assert!(parsed.realized_pnl_usdc.is_none());
+        assert_eq!(parsed.entry_price.as_deref(), Some("150.5"));
+    }
+
+    #[test]
+    fn yield_report_data_closing_fill_with_pnl() {
+        let report = YieldReportData {
+            symbol: "SOL/USDT".to_string(),
+            side: "SELL".to_string(),
+            fill_price: "160.0".to_string(),
+            size: "0.01".to_string(),
+            entry_price: Some("150.0".to_string()),
+            realized_pnl_usdc: Some(0.10), // (160 - 150) * 0.01 = 0.10 USDC
+            timestamp: "2026-04-11T12:00:00Z".to_string(),
+        };
+        let json = serde_json::to_string(&report).unwrap();
+        let parsed: YieldReportData = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.side, "SELL");
+        assert!(parsed.realized_pnl_usdc.is_some());
+        assert!((parsed.realized_pnl_usdc.unwrap() - 0.10).abs() < 0.001);
+    }
+
+    #[test]
+    fn parse_fill_response_ok_status() {
+        let response = serde_json::json!({
+            "status": "ok",
+            "response": {
+                "type": "order",
+                "data": {
+                    "statuses": [{
+                        "filled": {
+                            "total_sz": "0.01",
+                            "avg_px": "150.5",
+                            "type": "market"
+                        }
+                    }]
+                }
+            }
+        });
+
+        let report = parse_fill_response(&response, "SOL/USDT", true, "0.01", None).unwrap();
+        assert_eq!(report.symbol, "SOL/USDT");
+        assert_eq!(report.side, "BUY");
+        assert_eq!(report.fill_price, "150.5");
+        assert_eq!(report.size, "0.01");
+        assert!(report.realized_pnl_usdc.is_none(), "opening fill has no realized PnL");
+        assert_eq!(report.entry_price.as_deref(), Some("150.5"), "entry_price set from fill_price");
+    }
+
+    #[test]
+    fn parse_fill_response_closing_with_pnl() {
+        let response = serde_json::json!({
+            "status": "ok",
+            "response": {
+                "type": "order",
+                "data": {
+                    "statuses": [{
+                        "filled": {"total_sz": "0.01", "avg_px": "160.0"}
+                    }]
+                }
+            }
+        });
+        // Closing a long: SELL at 160, entered at 150 → PnL = (160-150)*0.01 = 0.10
+        let report = parse_fill_response(&response, "SOL/USDT", false, "0.01", Some("150.0")).unwrap();
+        assert_eq!(report.side, "SELL");
+        assert!(report.realized_pnl_usdc.is_some());
+        let pnl = report.realized_pnl_usdc.unwrap();
+        assert!((pnl - 0.10).abs() < 0.001, "PnL should be 0.10, got {}", pnl);
+    }
+
+    #[test]
+    fn parse_fill_response_closing_short_with_pnl() {
+        let response = serde_json::json!({
+            "status": "ok",
+            "response": {
+                "type": "order",
+                "data": {
+                    "statuses": [{
+                        "filled": {"total_sz": "0.01", "avg_px": "140.0"}
+                    }]
+                }
+            }
+        });
+        // Closing a short: BUY at 140, entered at 150 → PnL = (150-140)*0.01 = 0.10
+        let report = parse_fill_response(&response, "SOL/USDT", true, "0.01", Some("150.0")).unwrap();
+        assert_eq!(report.side, "BUY");
+        let pnl = report.realized_pnl_usdc.unwrap();
+        assert!((pnl - 0.10).abs() < 0.001, "short PnL should be 0.10, got {}", pnl);
+    }
+
+    #[test]
+    fn parse_fill_response_rejects_error_status() {
+        let response = serde_json::json!({
+            "status": "err",
+            "response": "Insufficient margin"
+        });
+        let result = parse_fill_response(&response, "SOL/USDT", true, "0.01", None);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("rejected"));
+    }
+
+    #[test]
+    fn parse_fill_response_handles_fill_error() {
+        let response = serde_json::json!({
+            "status": "ok",
+            "response": {
+                "type": "order",
+                "data": {
+                    "statuses": [{
+                        "error": "Insufficient margin"
+                    }]
+                }
+            }
+        });
+        let result = parse_fill_response(&response, "SOL/USDT", true, "0.01", None);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Insufficient margin"));
+    }
+
+    #[test]
+    fn load_hl_key_returns_err_when_missing() {
+        // The key file should NOT exist at the test's cwd.
+        let result = load_hl_key();
+        // This test passes whether the file exists or not — if it does exist,
+        // loading should succeed; if not, it should return a clear error.
+        if let Err(e) = result {
+            assert!(e.contains("not found"), "unexpected error: {}", e);
+        }
+    }
+
+    // ── Integration: Hyperliquid testnet live order ────────────────────
+    // Places a real 0.01 SOL order on HL testnet. Requires:
+    //   1. configs/hl_testnet_key.json present
+    //   2. Testnet account funded (https://app.hyperliquid-testnet.xyz/drip)
+    //   3. Network access to api.hyperliquid-testnet.xyz
+    //
+    // The test verifies signing correctness by checking that HL recovers
+    // the correct ETH address from the signature. If the account is
+    // unfunded, the test still passes (it logs the "does not exist" error
+    // but validates the recovered address matches our key).
+
+    #[test]
+    fn test_hl_testnet_order() {
+        let key = match load_hl_key() {
+            Ok(k) => k,
+            Err(e) => {
+                eprintln!("SKIP test_hl_testnet_order: {}", e);
+                return;
+            }
+        };
+
+        let sol_idx = match get_sol_index() {
+            Ok(idx) => idx,
+            Err(e) => {
+                eprintln!("SKIP test_hl_testnet_order (API unreachable): {}", e);
+                return;
+            }
+        };
+
+        println!("[TEST] Using wallet: {}", key.address);
+        println!("[TEST] SOL asset index: {}", sol_idx);
+
+        // Place a minimal long order with IOC (immediate-or-cancel).
+        let result = place_hl_order(sol_idx, true, "0.01", "0", "Ioc", &key.private_key);
+
+        match result {
+            Ok(response) => {
+                let pretty =
+                    serde_json::to_string_pretty(&response).unwrap_or_default();
+                println!("[TEST] HL testnet raw response:\n{}", pretty);
+
+                let status = response["status"].as_str().unwrap_or("unknown");
+
+                if status == "ok" {
+                    // Parse into YieldReportData.
+                    let report =
+                        parse_fill_response(&response, "SOL/USDT", true, "0.01", None)
+                            .expect("Fill response should parse");
+                    println!("[TEST] YieldReport: {:?}", report);
+
+                    assert_eq!(report.symbol, "SOL/USDT");
+                    assert_eq!(report.side, "BUY");
+                    let price: f64 = report
+                        .fill_price
+                        .parse()
+                        .expect("fill_price should be numeric");
+                    assert!(price > 0.0, "fill_price should be positive");
+                } else {
+                    // Order rejected — but verify HL recovered the CORRECT address.
+                    // This proves EIP-712 signing is working even if the account
+                    // is unfunded.
+                    let resp_str = pretty.to_lowercase();
+                    let our_addr = key.address.to_lowercase();
+                    let addr_recovered = resp_str.contains(&our_addr);
+
+                    if addr_recovered {
+                        println!(
+                            "[TEST] Signing CORRECT — HL recovered our address {} (account needs funding at https://app.hyperliquid-testnet.xyz/drip)",
+                            key.address
+                        );
+                    } else {
+                        panic!(
+                            "Signing FAILED — HL recovered a WRONG address. \
+                             Expected {} in response: {}",
+                            key.address, pretty
+                        );
+                    }
+                }
+            }
+            Err(e) => {
+                panic!("HL testnet request failed: {}", e);
+            }
+        }
+    }
+
+    // ── Mock fill tests (no network required) ───────────────────────────
+
+    /// Mock fill response for testing without HL testnet connectivity.
+    /// Simulates a successful IOC fill on SOL/USDT.
+    fn mock_fill_response(fill_price: &str, fill_size: &str) -> serde_json::Value {
+        serde_json::json!({
+            "status": "ok",
+            "response": {
+                "type": "order",
+                "data": {
+                    "statuses": [{
+                        "filled": {
+                            "total_sz": fill_size,
+                            "avg_px": fill_price,
+                            "type": "market"
+                        }
+                    }]
+                }
+            }
+        })
+    }
+
+    #[test]
+    fn mock_fill_opening_then_closing() {
+        // ── Opening fill (no prior position) ───────────────────────────
+        let open_resp = mock_fill_response("142.50", "0.01");
+        let open_report = parse_fill_response(
+            &open_resp,
+            "SOL/USDT",
+            true,   // is_buy = opening a long
+            "0.01",
+            None,   // no entry_price → opening fill
+        )
+        .expect("opening fill should parse");
+
+        println!("[MOCK FILL] Opening report: {:?}", open_report);
+
+        // Opening fill: no realized PnL yet.
+        assert!(
+            open_report.realized_pnl_usdc.is_none(),
+            "opening fill must have realized_pnl_usdc = None, got {:?}",
+            open_report.realized_pnl_usdc
+        );
+        // Entry price stored from fill price.
+        assert_eq!(
+            open_report.entry_price.as_deref(),
+            Some("142.50"),
+            "entry_price must equal fill_price for opening fill"
+        );
+        assert_eq!(open_report.side, "BUY");
+        assert_eq!(open_report.fill_price, "142.50");
+        assert_eq!(open_report.size, "0.01");
+
+        // ── Closing fill (prior position exists) ──────────────────────
+        // Close the long at $160.00 → PnL = (160 - 142.50) * 0.01 = 0.175 USDC
+        let close_resp = mock_fill_response("160.00", "0.01");
+        let close_report = parse_fill_response(
+            &close_resp,
+            "SOL/USDT",
+            false,          // is_buy = false → SELL → closing the long
+            "0.01",
+            Some("142.50"), // entry_price from the opening fill
+        )
+        .expect("closing fill should parse");
+
+        println!("[MOCK FILL] Closing report: {:?}", close_report);
+
+        // Closing fill: realized PnL must be non-zero and correct.
+        let pnl = close_report
+            .realized_pnl_usdc
+            .expect("closing fill must have realized PnL");
+        let expected_pnl = (160.0 - 142.50) * 0.01; // 0.175
+        assert!(
+            (pnl - expected_pnl).abs() < 0.0001,
+            "closing PnL should be {}, got {}",
+            expected_pnl,
+            pnl
+        );
+        assert_eq!(close_report.side, "SELL");
+        assert_eq!(close_report.fill_price, "160.00");
+    }
+
+    #[test]
+    fn mock_fill_short_close_with_loss() {
+        // Open a short at $150.00, close at $165.00 → loss.
+        // Short PnL = (entry - exit) * size = (150 - 165) * 0.01 = -0.15
+        let close_resp = mock_fill_response("165.00", "0.01");
+        let close_report = parse_fill_response(
+            &close_resp,
+            "SOL/USDT",
+            true,           // BUY → closing the short
+            "0.01",
+            Some("150.00"), // entry_price from opening short
+        )
+        .expect("closing fill should parse");
+
+        let pnl = close_report.realized_pnl_usdc.unwrap();
+        let expected = (150.0 - 165.0) * 0.01; // -0.15
+        assert!(
+            (pnl - expected).abs() < 0.0001,
+            "short loss should be {}, got {}",
+            expected,
+            pnl
+        );
+    }
+
+    // ── Position tracking tests ─────────────────────────────────────────
+
+    #[test]
+    fn process_fill_opens_position_on_first_fill() {
+        let wing = TradingWing::new();
+
+        // Opening fill — no prior position.
+        let pnl = wing.process_fill("SOL/USDT", true, 142.50, 0.01);
+
+        assert!(pnl.is_none(), "opening fill returns None PnL");
+        assert!(wing.has_open_position("SOL/USDT"));
+        assert_eq!(wing.get_entry_price("SOL/USDT"), Some(142.50));
+    }
+
+    #[test]
+    fn process_fill_closes_position_and_returns_pnl() {
+        let wing = TradingWing::new();
+
+        // Open a long at 142.50.
+        wing.process_fill("SOL/USDT", true, 142.50, 0.01);
+
+        // Close the long at 160.00.
+        let pnl = wing.process_fill("SOL/USDT", false, 160.00, 0.01);
+
+        let expected = (160.0 - 142.50) * 0.01; // 0.175
+        assert!(
+            (pnl.unwrap() - expected).abs() < 0.0001,
+            "closing PnL should be {}",
+            expected
+        );
+        assert!(
+            !wing.has_open_position("SOL/USDT"),
+            "position removed after close"
+        );
+    }
+
+    #[test]
+    fn process_fill_short_position_tracking() {
+        let wing = TradingWing::new();
+
+        // Open a short at 150.00 (SELL).
+        wing.process_fill("SOL/USDT", false, 150.00, 0.01);
+        assert!(wing.has_open_position("SOL/USDT"));
+
+        // Close the short at 140.00 (BUY) → profit.
+        let pnl = wing.process_fill("SOL/USDT", true, 140.00, 0.01);
+        let expected = (150.0 - 140.0) * 0.01; // 0.10
+        assert!(
+            (pnl.unwrap() - expected).abs() < 0.0001,
+            "short profit should be {}",
+            expected
+        );
+    }
+
+    #[test]
+    fn process_fill_multiple_symbols() {
+        let wing = TradingWing::new();
+
+        // Open SOL position.
+        wing.process_fill("SOL/USDT", true, 100.0, 0.01);
+        // Open ETH position.
+        wing.process_fill("ETH/USDT", true, 3000.0, 0.1);
+
+        assert!(wing.has_open_position("SOL/USDT"));
+        assert!(wing.has_open_position("ETH/USDT"));
+
+        // Close SOL — ETH remains open.
+        let pnl = wing.process_fill("SOL/USDT", false, 110.0, 0.01);
+        let expected = (110.0 - 100.0) * 0.01; // 0.10
+        assert!((pnl.unwrap() - expected).abs() < 0.0001);
+        assert!(!wing.has_open_position("SOL/USDT"));
+        assert!(wing.has_open_position("ETH/USDT"));
+    }
+
+    #[test]
+    fn get_entry_price_returns_none_for_unknown_symbol() {
+        let wing = TradingWing::new();
+        assert!(!wing.has_open_position("BTC/USDT"));
+        assert_eq!(wing.get_entry_price("BTC/USDT"), None);
     }
 }

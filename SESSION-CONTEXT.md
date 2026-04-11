@@ -96,8 +96,10 @@ Trading Wing (Rust)
 | HL Python integration script (fallback) | ✅ DONE | `scripts/hl_testnet_demo.py` — EIP-712 via web3.py (fallback) |
 | Phantom Portal app registered | ✅ DONE | Creds in `configs/.env.phantom` (gitignored) |
 | Unified signing via Phantom | ✅ DONE | `scripts/phantom_signer.ts` — sign-sol, sign-evm, sign-message |
-| HL testnet funded | ✅ DONE | Drip complete, integration script ready |
-| Hyperliquid API call in Trading Wing (Rust) | ❌ MISSING | Need `reqwest` + HL order struct |
+| HL testnet funded | ⚠️ PARTIAL | Account exists but $0 balance — drip requires mainnet balance |
+| Hyperliquid API call in Trading Wing (Rust) | ✅ DONE | EIP-712 + msgpack signing, `sign_l1_action`, HL recovers correct address. Mock fills tested. |
+| YieldReport PnL calculation | ✅ DONE | Opening: `realized_pnl_usdc = None`. Closing: real PnL computed from entry/exit. |
+| PositionState tracking | ✅ DONE | In-memory HashMap, `process_fill()` opens/closes positions, wired into `handle_execute_permit` HL path. |
 | USDC yield → treasury PDA | ❌ MISSING | CPI transfer via Phantom ServerSDK after fill confirmed |
 | devnet end-to-end | ❌ MISSING | Entire HL→PDA path untested |
 
@@ -225,11 +227,44 @@ A judge must be able to verify these five things in under 3 minutes:
 
 ## 8. Session Status
 
-**Session 2026-04-11b — Devnet deploy + Phantom MCP + HL testnet bootstrapped**
+**Session 2026-04-11d — PnL tracking + mock fills + position state**
 
 State as of Apr 11:
-- 238 tests, 0 failures
+- **264 tests, 0 failures, 0 clippy warnings**
 - Invariant enforcement: 9/10 (Invariant 7 documented stub)
+
+**Hyperliquid Trading Wing integration (completed):**
+- EIP-712 typed data signing ported to Rust (matching official Python SDK)
+- Manual msgpack serialization with Python SDK key ordering
+- `sign_l1_action()`: keccak256(msgpack(action) + nonce + vault_flag) → phantom agent → EIP-712 domain → ECDSA sign
+- `place_hl_order()`: builds order, signs, POSTs to HL testnet exchange endpoint
+- `execute_hl_sol_order()`: end-to-end entry point, accepts entry_price for closing PnL
+- `handle_execute_permit()`: routes to HL when `execution_venue: "hyperliquid"` in proposal, wired with position tracking
+- HL testnet confirms correct address recovery (account needs drip/refund for actual fills)
+- Dependencies added: `reqwest` (rustls-tls), `sha3`, `secp256k1`, `rmp`, `rmp-serde`
+
+**YieldReport PnL calculation** — ✅ DONE
+- `parse_fill_response()` calculates realized PnL when entry_price provided
+- Opening fill: `realized_pnl_usdc = None`, `entry_price = fill_price`
+- Closing fill: Long `(exit - entry) * size`, Short `(entry - exit) * size`
+- Mock fill test verified: Open@142.50 → Close@160.00 → PnL = $0.175 USDC
+
+**PositionState tracking** — ✅ DONE
+- `PositionState { symbol, side, entry_price, size, opened_at }` in TradingState
+- `process_fill()`: opens position on first fill, closes + returns PnL on second fill
+- `has_open_position()`, `get_entry_price()` for querying state
+- `handle_execute_permit` HL path: checks existing position → passes entry_price → updates position after fill
+- Tests: open/close long, open/close short, multiple symbols, loss scenarios
+
+**Mock fill testing** — ✅ DONE
+- `mock_fill_response()` helper constructs realistic HL fill JSON
+- `mock_fill_opening_then_closing()`: full open→close cycle with PnL verification
+- `mock_fill_short_close_with_loss()`: verifies negative PnL on losing short
+- No network required — exercises full parse path without HL connectivity
+
+**hl_testnet_demo.py** — ✅ DEPRECATED
+- Header clearly states EIP-191 is wrong, points to Rust EIP-712 implementation
+- Kept as historical reference for action payload structure
 
 **Anchor treasury deployed to devnet 2026-04-11:**
 - Program ID: `4LvsHbe9LLwgogcDbH7ieTsGcWZctjYFZkzZwaHDM8Ad`
@@ -262,10 +297,11 @@ State as of Apr 11:
 | Item | Status |
 |------|--------|
 | API connectivity | ✅ Live — 207 perp assets, SOL idx 0 |
-| Integration script | ✅ `scripts/hl_testnet_demo.py` ready |
+| Integration script | ✅ `scripts/hl_testnet_demo.py` — DEPRECATED (EIP-191 wrong; Rust EIP-712 is reference) |
 | ETH keypair for EIP-712 | ✅ `configs/hl_testnet_key.json` |
 | Order payload built | ✅ SOL/USDT Survivor 2.69 |
-| Testnet funded | ✅ Drip complete |
+| Mock fill testing | ✅ No network required, exercises full parse + PnL path |
+| Testnet funded | ⚠️ Account exists but $0 balance — drip requires mainnet balance |
 
 **Decisions resolved:**
 - Demo UX → Browser dashboard with `@phantom/browser-sdk`
@@ -273,8 +309,8 @@ State as of Apr 11:
 - Phantom signing → Solana-focused (ServerSDK for CPI, ETH keypair for HL)
 
 **Priority order for next session:**
-1. Wire `reqwest` in Trading Wing → HL testnet REST call (Rust side)
-2. Run `scripts/hl_testnet_demo.py` → confirm HL testnet fill
+1. USDC yield → treasury PDA via CPI transfer (Phantom ServerSDK for Solana signing) — ❌ MISSING
+2. Drip/refund HL testnet account → confirm actual fill with `cargo test trading -- --nocapture`
 3. Extend demo.rs for two-cycle run (closes judge points 3 + 4)
 4. HTML dashboard with Phantom BrowserSDK (enhances judge point 5)
 5. Register individually on Colosseum before May 4
@@ -340,5 +376,5 @@ Demo               = proof the institution persists without founder trust
 
 ---
 
-*Last updated: 2026-04-11 (session c) — treasury live on devnet (8/8 on-chain steps), Phantom ServerSDK v2.0.0 + Portal registered, HL testnet funded, 238 tests 0 failures. Critical gap: Rust Trading Wing → HL REST call → fill → CPI transfer.*
+*Last updated: 2026-04-11 (session d) — PnL tracking + mock fills + position state complete. 264 tests 0 failures. YieldReport now emits correct realized_pnl_usdc (None for open, float for close). Critical gap: USDC yield → treasury PDA CPI transfer.*
 *Update this file after each session that changes canonical decisions or resolves open decisions.*
