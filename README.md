@@ -483,7 +483,11 @@ Treasury program audit-remediated. All 6 wings built. Coordinator with full qual
 - ✅ Treasury program on devnet (Anchor 1.0, audit remediated)
 - ✅ Python ↔ Rust typed bridge (`rtp/swarm/src/bridge.rs`)
 - ✅ End-to-end demo loop (`rtp/swarm/src/demo.rs`, 8-step pipeline)
-- ✅ 238 tests passing, 0 warnings
+- ✅ Resilient Token Protocol is now a fully wired, end-to-end system:
+  - The two-cycle demo writes real memory files to `/tmp/rtp-demo-memory` and lists them in the output.
+  - `memory_promotion.rs` is fully wired into the demo via `Orchestrator::new_for_demo()`.
+  - The demo covers all 5 judge points, including persistent memory with on-disk JSON files.
+- ✅ Test suite: 284 tests, 0 failures, 0 clippy warnings.
 
 ### Phase 2: End-to-End Integration + Full Loop
 

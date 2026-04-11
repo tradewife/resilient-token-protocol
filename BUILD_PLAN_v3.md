@@ -58,7 +58,7 @@ CONTEXT:
   [x] demo.rs — 8-step end-to-end demo loop
   [x] devnet-demo.ts — on-chain flow (initialize → fees → redistribute → evolve_phase)
   [x] CI: swarm-ci.yml + python-tests.yml + night_shift.yml
-  [x] 264 tests passing, 0 warnings, 0 clippy warnings
+  [x] 264 tests passing, 0 warnings, 0 clippy warnings (now 284, still 0 failures)
   [x] Night shift pipeline operational — top candidate: SOL/USDT Survivor 2.69
   [x] Treasury deployed to devnet — Program 4LvsHbe9LLwgogcDbH7ieTsGcWZctjYFZkzZwaHDM8Ad
   [x] Treasury PDA initialized — FNQbK1Vw77aT7qM1EMSmeEPDGizSNhX4rkkYBKQNFotF
@@ -85,8 +85,8 @@ CONTEXT:
   |-------|--------|-----|
   | 1. On-chain constraint rejected | ✅ COVERED | `simulate_below_threshold_withdrawal()` visible in demo output |
   | 2. Autonomous operation | ✅ COVERED | rtp-demo binary runs 8-step pipeline |
-  | 3. Persistent memory across cycles | ✅ COVERED | Two-cycle demo: 5 working + 1 project memory. Cycle 2 references cycle 1 yield data. |
-  | 4. Visible adaptation/learning | ✅ COVERED | Heartbeat redirect triggered in cycle 2 on declining TSI. Escalation to Evolve Wing visible. |
+  | 3. Persistent memory across cycles | ✅ COVERED — two-cycle demo now writes real memory files to disk (`/tmp/rtp-demo-memory/*/*.json`) and lists them in the output; judge can open the files and verify prior cycle data | — |
+  | 4. Visible adaptation/learning | ✅ COVERED | `print_two_cycle_demo()` now shows: real memory persistence (`[MEMORY] files written to: /tmp/rtp-demo-memory/project`), project and redirect `.json` files listed, LLM proposer output and Evolve Wing mutations fed into the demo loop |
   | 5. Observable treasury state | ✅ COVERED (min) | Explorer link live. Dashboard (full) deferred to Phase 5. |
 
 ================================================================================
@@ -118,7 +118,7 @@ WEEKS 2-4 (Apr 8 – Apr 25): COMPLETE
   [x] All 6 wings built and functional
   [x] bridge.rs + demo.rs working end-to-end
   [x] devnet-demo.ts: full on-chain flow demoable
-  [x] 238 tests, 0 failures, 0 warnings
+  [x] 238 tests, 0 failures, 0 warnings (now 284, still 0 failures)
   [x] Repo cleaned: stale docs deleted, docs/ reorganised, RESOURCES.md created
   [x] Docs aligned: SESSION-CONTEXT, SOULCONTRACT, CLAUDE.md, BUILD_PLAN_v3, README
 
@@ -167,6 +167,11 @@ WEEK 5 (Apr 28 – May 2): HYPERLIQUID EXECUTION + DEMO POINTS 3/4/5
   [x] Trigger heartbeat redirect in cycle 2 (simulate stagnation → redirect)
   [x] Verify printed output shows: "[MEMORY] referencing cycle 1: ..."
                                    "[HEARTBEAT] redirect triggered: ..."
+  [x] Wire `memory_promotion.rs` into demo binary with disk persistence
+      - Added `Orchestrator::new_for_demo()` with `persist=true`
+      - `run_two_cycle_demo()` now uses `new_for_demo()`
+      - Demo output lists real memory files at `/tmp/rtp-demo-memory/project`
+      - 284 tests, 0 failures, 0 clippy warnings
   This closes judge points 3 and 4 with ~2h of Rust work.
 
   Priority 3: Demo point 5 — observable treasury state (Days 4-5)
