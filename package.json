@@ -13,6 +13,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@phantom/server-sdk": "^2.0.0",
     "@phantom/wallet-sdk": "^0.1.3",
     "dotenv": "^17.4.1"
   }

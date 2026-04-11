@@ -47,17 +47,19 @@ This is the **critical trajectory** for the demo and for judging. All build work
 - **Phantom Portal is a developer app registration — NOT personal wallet auth.** Equivalent to creating a Firebase project or Stripe account.
   - Register at https://phantom.app/portal → create app "RTP Trading Wing"
   - Yields: `PHANTOM_ORG_ID`, `PHANTOM_APP_ID`, `PHANTOM_PRIVATE_KEY` (service credential)
-  - `sdk.createWallet({ userId: "rtp-trading-wing-executor" })` creates an EMBEDDED wallet owned by the RTP app
+  - `sdk.createWallet("rtp-trading-wing-executor")` creates an EMBEDDED wallet owned by the RTP app
   - Keys stored in Phantom's TEE/HSM — never on this machine — no human holds them
   - This is the agent's sovereign on-chain identity. Completely separate from any personal Phantom wallet.
   - **"Who controls the treasury?" → No one. The embedded wallet is controlled by program constraints, not developer personal keys.**
-- **Revised signing architecture (corrected this session):**
-  1. **HL order signing** → ETH keypair (`configs/hl_testnet_key.json`) via web3.py — Hyperliquid uses EIP-712, Phantom EVM support not yet available
-  2. **Solana treasury CPI** → Phantom ServerSDK (`scripts/phantom_signer.ts`) — KMS-backed, autonomous, no human per tx, cryptographically auditable
+- **UNIFIED signing architecture (all chains through Phantom ServerSDK):**
+  1. **Hyperliquid orders** → `sdk.signMessage()` / `sdk.signTransaction()` via `NetworkId.ETHEREUM_MAINNET` — EIP-712 signing through KMS
+  2. **Solana treasury CPI** → `sdk.signAndSendTransaction()` via `NetworkId.SOLANA_DEVNET` — KMS-backed, autonomous, no human per tx
   3. **Demo dashboard** → Phantom browser-sdk (Phase 5, later)
-- `@phantom/mcp-server` v1.0.4 installed — only relevant for browser-based dashboard later, NOT for terminal agent
-- `@phantom/wallet-sdk` v0.1.3 installed — the actual agentic signing path for Trading Wing
-- Chain support: Solana ✅ (Mainnet/Devnet/Testnet), Ethereum/Base/Polygon/Sui ⏳ (coming soon)
+- `@phantom/server-sdk` v2.0.0 — the unified agentic signing path (published 2026-04-10)
+- `@phantom/mcp-server` v1.0.4 — only relevant for browser-based dashboard later
+- **Chain support (confirmed from NetworkId enum):**
+  Solana ✅ | Ethereum ✅ | Base ✅ | Polygon ✅ | Arbitrum ✅ | Bitcoin ✅ | Sui ✅ | Monad ✅
+- `configs/hl_testnet_key.json` (ETH keypair via web3.py) remains as fallback — Phantom ServerSDK is the primary path once Portal app is registered
 - CASH stablecoin (sponsored) is the settlement currency for treasury yield flows
 
 ### Execution Flow (target state for demo)
@@ -86,11 +88,13 @@ Trading Wing (Rust)
 | Strategy validated (SOL/USDT Survivor 2.69) | ✅ DONE | — |
 | bridge.rs wires Python → Rust | ✅ DONE | — |
 | Trading Wing handles ExecutePermit | ✅ DONE | In-memory mock only |
-| Phantom ServerSDK installed + sidecar | ✅ DONE | v0.1.3, `scripts/phantom_signer.ts` — needs dev portal creds |
+| Treasury deployed to devnet (8/8 steps) | ✅ DONE | Program `4LvsHb...`, PDA `FNQbK1...` |
+| Phantom ServerSDK v2.0.0 installed + sidecar | ✅ DONE | `@phantom/server-sdk` v2.0.0, unified signing for all chains |
 | HL testnet API connectivity | ✅ DONE | 207 assets, SOL idx 0, order payload built |
-| HL Python integration script | ✅ DONE | `scripts/hl_testnet_demo.py` — place_order + EIP-712 signing via ETH keypair |
-| HL order signing (ETH keypair via web3.py) | ✅ DONE | `configs/hl_testnet_key.json` — EIP-712 compatible |
-| Solana treasury CPI signing (Phantom ServerSDK) | ⏳ SIDECAR READY | Needs PHANTOM_ORG_ID/APP_ID/PRIVATE_KEY from https://phantom.app/phantom-connect |
+| HL Python integration script (fallback) | ✅ DONE | `scripts/hl_testnet_demo.py` — EIP-712 via web3.py (fallback) |
+| Phantom Portal app registration | ⏳ MANUAL | Visit https://phantom.app/portal → get ORG_ID, APP_ID, PRIVATE_KEY |
+| Unified signing via Phantom (primary path) | ⏳ SIDECAR READY | `scripts/phantom_signer.ts` — sign-sol, sign-evm, sign-message |
+| HL testnet funding | ⏳ MANUAL | Visit https://app.hyperliquid-testnet.xyz/drip |
 | Hyperliquid API call in Trading Wing (Rust) | ❌ MISSING | Need `reqwest` + HL order struct |
 | USDC yield → treasury PDA | ❌ MISSING | CPI transfer via Phantom ServerSDK after fill confirmed |
 | devnet end-to-end | ❌ MISSING | Entire HL→PDA path untested |
@@ -211,7 +215,7 @@ A judge must be able to verify these five things in under 3 minutes:
 | Demo UX | **DECISION: Browser dashboard** | Use `@phantom/browser-sdk` for connect flow in HTML dashboard. |
 | Invariant 7 (soulguard reload sig) | CLOSED (documented) | Production TODO: ed25519 on reload(). Comment in soulguard.rs. Demo path unaffected. |
 | Hyperliquid testnet vs mainnet for demo | **DECISION: Testnet** | Safer for hackathon. Same API interface as mainnet. Judges care about the flow working end-to-end. |
-| Phantom signing architecture | **DECISION: Split path** | HL orders → ETH keypair via web3.py (Phantom doesn't support EVM signing yet). Solana treasury CPI → Phantom ServerSDK via `scripts/phantom_signer.ts`. Two separate signing paths. |
+| Phantom signing architecture | **DECISION: Unified via ServerSDK** | All signing through `@phantom/server-sdk` v2.0.0. HL orders → `signMessage()` on `ETHEREUM_MAINNET`. Solana CPI → `signAndSendTransaction()` on `SOLANA_DEVNET`. Single KMS-backed identity for the agent. `configs/hl_testnet_key.json` remains as fallback. |
 
 ---
 
