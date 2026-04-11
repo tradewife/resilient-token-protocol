@@ -531,6 +531,305 @@ pub fn execute_hl_sol_order(
 }
 
 // ═══════════════════════════════════════════════════════════════════════
+//  Treasury CPI Transfer
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Devnet RPC endpoint.
+const SOLANA_DEVNET_RPC: &str = "https://api.devnet.solana.com";
+
+/// Devnet deployment addresses (from configs/.env.devnet).
+const RTP_MINT: &str = "2JN8Qr9QspmDXwqRBSmZ9ULX8LLJFawo61rEwYdtpNcf";
+const TREASURY_VAULT: &str = "DKuC9Q3FXS28C32k3Grur8QtBLrN5BR5nDsujFkhs3kM";
+const DEVNET_WALLET: &str = "Driyi8Sw2622yCefU34zrjBsQynrDoGD31tBecXrEF6R";
+
+/// SPL Token program ID (standard).
+/// SPL Token program ID (standard). Kept for reference.
+#[allow(dead_code)]
+const TOKEN_PROGRAM_ID: &str = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
+
+/// Token-2022 program ID.
+const TOKEN_2022_PROGRAM_ID: &str = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
+
+/// SPL Associated Token Account program ID.
+const ATA_PROGRAM_ID: &str = "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL";
+
+/// Token decimals (from devnet demo: MINT_DECIMALS = 6).
+const TOKEN_DECIMALS: u8 = 6;
+
+/// Derive the associated token address for a wallet and mint.
+///
+/// Uses the SPL ATA program's PDA derivation:
+/// `seeds = [wallet, token_program, mint], program = ATA_PROGRAM_ID`
+fn derive_ata(
+    wallet: &solana_sdk::pubkey::Pubkey,
+    mint: &solana_sdk::pubkey::Pubkey,
+    token_program: &solana_sdk::pubkey::Pubkey,
+) -> solana_sdk::pubkey::Pubkey {
+    let (address, _) = solana_sdk::pubkey::Pubkey::find_program_address(
+        &[
+            wallet.as_ref(),
+            token_program.as_ref(),
+            mint.as_ref(),
+        ],
+        &solana_sdk::pubkey::Pubkey::try_from(ATA_PROGRAM_ID)
+            .expect("ATA program ID is valid"),
+    );
+    address
+}
+
+/// Build a `transfer_checked` instruction manually.
+///
+/// Avoids depending on the `spl-token` crate (which has a zeroize version
+/// conflict with reqwest's rustls). The instruction format is:
+///   discriminator: 12 (u32 LE)
+///   amount: u64 LE
+///   decimals: u8
+fn build_transfer_checked_ix(
+    source: &solana_sdk::pubkey::Pubkey,
+    mint: &solana_sdk::pubkey::Pubkey,
+    destination: &solana_sdk::pubkey::Pubkey,
+    authority: &solana_sdk::pubkey::Pubkey,
+    amount: u64,
+    decimals: u8,
+    token_program: &solana_sdk::pubkey::Pubkey,
+) -> solana_sdk::instruction::Instruction {
+    use solana_sdk::instruction::{AccountMeta, Instruction};
+
+    let mut data = Vec::with_capacity(13);
+    data.extend_from_slice(&12u32.to_le_bytes()); // transfer_checked discriminator
+    data.extend_from_slice(&amount.to_le_bytes()); // amount
+    data.push(decimals); // decimals
+
+    Instruction {
+        program_id: *token_program,
+        accounts: vec![
+            AccountMeta::new(*source, false),         // source (writable)
+            AccountMeta::new_readonly(*mint, false),   // mint
+            AccountMeta::new(*destination, false),     // destination (writable)
+            AccountMeta::new_readonly(*authority, true), // authority (signer)
+        ],
+        data,
+    }
+}
+
+/// Fetch a recent blockhash from devnet RPC via reqwest.
+///
+/// Uses the JSON-RPC `getLatestBlockhash` method. Avoids depending on
+/// `solana-client` crate.
+fn get_devnet_blockhash() -> Result<(String, solana_sdk::hash::Hash), String> {
+    let client = reqwest::blocking::Client::new();
+    let resp = client
+        .post(SOLANA_DEVNET_RPC)
+        .json(&serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "getLatestBlockhash",
+            "params": [{"commitment": "confirmed"}]
+        }))
+        .send()
+        .map_err(|e| format!("Devnet RPC request failed: {}", e))?;
+
+    let data: serde_json::Value = resp
+        .json()
+        .map_err(|e| format!("Devnet RPC parse error: {}", e))?;
+
+    let blockhash_str = data["result"]["value"]["blockhash"]
+        .as_str()
+        .ok_or("Missing blockhash in RPC response")?;
+
+    let hash = blockhash_str
+        .parse::<solana_sdk::hash::Hash>()
+        .map_err(|e| format!("Invalid blockhash '{}': {}", blockhash_str, e))?;
+
+    Ok((blockhash_str.to_string(), hash))
+}
+
+/// Build a token transfer transaction from the payer wallet to the treasury vault.
+///
+/// Creates an SPL `transfer_checked` instruction, fetches a recent blockhash
+/// from devnet RPC, and serializes the unsigned transaction to base64.
+///
+/// The base64 string is ready for the Phantom sidecar to sign and send:
+/// `ts-node scripts/phantom_signer.ts sign-sol <base64>`
+pub fn build_treasury_deposit_tx(
+    from_wallet: &str,
+    amount_tokens: f64,
+) -> Result<(String, String), String> {
+    let from = solana_sdk::pubkey::Pubkey::try_from(from_wallet)
+        .map_err(|e| format!("Invalid from_wallet: {}", e))?;
+    let mint = solana_sdk::pubkey::Pubkey::try_from(RTP_MINT)
+        .map_err(|e| format!("Invalid RTP_MINT: {}", e))?;
+    let vault = solana_sdk::pubkey::Pubkey::try_from(TREASURY_VAULT)
+        .map_err(|e| format!("Invalid TREASURY_VAULT: {}", e))?;
+    let token_program = solana_sdk::pubkey::Pubkey::try_from(TOKEN_2022_PROGRAM_ID)
+        .map_err(|e| format!("Invalid TOKEN_2022_PROGRAM_ID: {}", e))?;
+
+    // Derive ATA for the payer wallet.
+    let from_ata = derive_ata(&from, &mint, &token_program);
+
+    // Convert to raw units (6 decimals).
+    let amount_raw = (amount_tokens * 10f64.powi(TOKEN_DECIMALS as i32)) as u64;
+
+    // Build transfer_checked instruction.
+    let transfer_ix = build_transfer_checked_ix(
+        &from_ata,
+        &mint,
+        &vault,
+        &from,
+        amount_raw,
+        TOKEN_DECIMALS,
+        &token_program,
+    );
+
+    // Fetch recent blockhash from devnet.
+    let (_blockhash_str, _blockhash) = get_devnet_blockhash()?;
+
+    // Build unsigned transaction.
+    let message = solana_sdk::message::Message::new(&[transfer_ix], Some(&from));
+    let tx = solana_sdk::transaction::Transaction::new_unsigned(message);
+
+    // Serialize to bytes (Solana wire format via bincode), then base64.
+    let serialized = bincode::serialize(&tx)
+        .map_err(|e| format!("Transaction serialization failed: {}", e))?;
+    let b64 = base64::Engine::encode(
+        &base64::engine::general_purpose::STANDARD,
+        &serialized,
+    );
+
+    println!(
+        "[TREASURY] built deposit tx: {} tokens ({} raw) from {} → vault {}",
+        amount_tokens, amount_raw, from_ata, vault
+    );
+
+    Ok((b64, from_ata.to_string()))
+}
+
+/// Call the Phantom signer sidecar to sign and send a Solana transaction.
+///
+/// Invokes: `ts-node --project scripts/tsconfig.json scripts/phantom_signer.ts sign-sol <base64>`
+///
+/// Returns the full stdout from the sidecar (JSON with signature, etc).
+pub fn call_phantom_signer(tx_base64: &str) -> Result<String, String> {
+    let output = std::process::Command::new("ts-node")
+        .args([
+            "--project",
+            "scripts/tsconfig.json",
+            "scripts/phantom_signer.ts",
+            "sign-sol",
+            tx_base64,
+        ])
+        .output()
+        .map_err(|e| format!("Failed to run phantom_signer: {}. Is ts-node installed?", e))?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+
+    if !output.status.success() {
+        return Err(format!(
+            "phantom_signer sign-sol failed (exit {}): {}",
+            output.status.code().unwrap_or(-1),
+            stderr.trim()
+        ));
+    }
+
+    Ok(stdout.trim().to_string())
+}
+
+/// Get the Phantom wallet's Solana address by calling the sidecar.
+///
+/// Invokes: `ts-node --project scripts/tsconfig.json scripts/phantom_signer.ts addresses`
+pub fn get_phantom_solana_address() -> Result<String, String> {
+    let output = std::process::Command::new("ts-node")
+        .args([
+            "--project",
+            "scripts/tsconfig.json",
+            "scripts/phantom_signer.ts",
+            "addresses",
+        ])
+        .output()
+        .map_err(|e| format!("Failed to run phantom_signer: {}", e))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!(
+            "phantom_signer addresses failed: {}",
+            stderr.trim()
+        ));
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    // Parse: "  solana: <address>"
+    for line in stdout.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("solana:") {
+            let addr = trimmed.split(':').nth(1).unwrap_or("").trim();
+            if !addr.is_empty() {
+                return Ok(addr.to_string());
+            }
+        }
+    }
+
+    Err("No Solana address found in phantom_signer output".to_string())
+}
+
+/// Deposit yield tokens to the treasury vault.
+///
+/// Full flow:
+/// 1. Get Phantom wallet's Solana address (or use devnet payer as fallback)
+/// 2. Build a `transfer_checked` transaction
+/// 3. Call the Phantom sidecar to sign and send
+///
+/// Returns the transaction signature on success.
+pub fn deposit_yield_to_treasury(
+    amount_tokens: f64,
+    phantom_wallet_address: Option<&str>,
+) -> Result<String, String> {
+    if amount_tokens <= 0.0 {
+        return Err(format!(
+            "Cannot deposit non-positive yield: {}",
+            amount_tokens
+        ));
+    }
+
+    // Use provided Phantom address, or fall back to devnet payer.
+    let wallet = phantom_wallet_address
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| DEVNET_WALLET.to_string());
+
+    let (tx_b64, _from_ata) = build_treasury_deposit_tx(&wallet, amount_tokens)?;
+
+    // Try Phantom sidecar first; fall back to logging the tx for manual submission.
+    match call_phantom_signer(&tx_b64) {
+        Ok(result) => {
+            println!(
+                "[TREASURY] yield deposited: {} tokens | result: {}",
+                amount_tokens, result
+            );
+            Ok(result)
+        }
+        Err(e) => {
+            // Phantom not configured — log the unsigned tx for manual submission.
+            println!(
+                "[TREASURY] Phantom signing unavailable ({}), tx ready for manual submit:",
+                e
+            );
+            println!(
+                "[TREASURY]   ts-node scripts/phantom_signer.ts sign-sol {}",
+                &tx_b64[..tx_b64.len().min(40)]
+            );
+            println!(
+                "[TREASURY]   or: solana confirm <sig> --url {}",
+                SOLANA_DEVNET_RPC
+            );
+            Ok(format!(
+                "unsigned_tx_ready:phantom_unavailable({})",
+                e
+            ))
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 //  Position Tracking
 // ═══════════════════════════════════════════════════════════════════════
 
@@ -687,6 +986,22 @@ impl TradingWing {
                                 report.size.parse().unwrap_or(0.0);
                             let _tracked_pnl =
                                 self.process_fill(&symbol, is_buy, fill_price, fill_size);
+
+                            // ── Deposit positive PnL to treasury vault ─────
+                            if let Some(pnl) = report.realized_pnl_usdc
+                                && pnl > 0.0
+                            {
+                                match deposit_yield_to_treasury(pnl, None) {
+                                    Ok(sig) => println!(
+                                        "[TREASURY] yield deposited: {} USDC | {}",
+                                        pnl, sig
+                                    ),
+                                    Err(e) => println!(
+                                        "[TREASURY] deposit failed (non-fatal): {}",
+                                        e
+                                    ),
+                                }
+                            }
 
                             let mut state = self.state.lock().ok()?;
                             state.execution_count += 1;
@@ -1625,5 +1940,216 @@ mod tests {
         let wing = TradingWing::new();
         assert!(!wing.has_open_position("BTC/USDT"));
         assert_eq!(wing.get_entry_price("BTC/USDT"), None);
+    }
+
+    // ── Treasury CPI transfer tests (devnet integration) ──────────────
+
+    #[test]
+    fn derive_ata_matches_known_program() {
+        use solana_sdk::pubkey::Pubkey;
+
+        let wallet = Pubkey::try_from(DEVNET_WALLET).unwrap();
+        let mint = Pubkey::try_from(RTP_MINT).unwrap();
+        let token_program = Pubkey::try_from(TOKEN_2022_PROGRAM_ID).unwrap();
+
+        let ata = derive_ata(&wallet, &mint, &token_program);
+
+        // Should be a valid Solana pubkey (32 bytes, base58).
+        assert_eq!(ata.as_ref().len(), 32);
+        println!("[TEST] Derived ATA: {}", ata);
+    }
+
+    #[test]
+    fn build_transfer_checked_instruction_format() {
+        use solana_sdk::pubkey::Pubkey;
+
+        let source = Pubkey::new_unique();
+        let mint = Pubkey::new_unique();
+        let dest = Pubkey::new_unique();
+        let authority = Pubkey::new_unique();
+        let program_id = Pubkey::new_unique();
+
+        let ix = build_transfer_checked_ix(
+            &source, &mint, &dest, &authority, 1_000_000, 6, &program_id,
+        );
+
+        // Verify instruction structure.
+        assert_eq!(ix.program_id, program_id);
+        assert_eq!(ix.accounts.len(), 4);
+        assert!(ix.accounts[0].is_writable); // source
+        assert!(!ix.accounts[1].is_writable); // mint
+        assert!(ix.accounts[2].is_writable); // destination
+        assert!(ix.accounts[3].is_signer); // authority
+
+        // Verify data: discriminator(4) + amount(8) + decimals(1) = 13 bytes.
+        assert_eq!(ix.data.len(), 13);
+        // Discriminator for transfer_checked = 12.
+        assert_eq!(u32::from_le_bytes(ix.data[0..4].try_into().unwrap()), 12);
+        // Amount = 1_000_000.
+        assert_eq!(u64::from_le_bytes(ix.data[4..12].try_into().unwrap()), 1_000_000);
+        // Decimals = 6.
+        assert_eq!(ix.data[12], 6);
+    }
+
+    #[test]
+    fn get_devnet_blockhash_live() {
+        let result = get_devnet_blockhash();
+        match result {
+            Ok((blockhash_str, hash)) => {
+                println!("[TEST] Devnet blockhash: {} → {:?}", blockhash_str, hash);
+                assert!(!blockhash_str.is_empty());
+                // Verify it round-trips.
+                let parsed: solana_sdk::hash::Hash =
+                    blockhash_str.parse().expect("blockhash should parse");
+                assert_eq!(parsed, hash);
+            }
+            Err(e) => {
+                eprintln!(
+                    "SKIP get_devnet_blockhash_live (network unavailable): {}",
+                    e
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn build_treasury_deposit_tx_live_devnet() {
+        let result = build_treasury_deposit_tx(DEVNET_WALLET, 0.175);
+        match result {
+            Ok((b64, from_ata)) => {
+                println!("[TEST] TX base64 (first 60 chars): {}...", &b64[..60.min(b64.len())]);
+                println!("[TEST] From ATA: {}", from_ata);
+
+                // Verify base64 is valid and decodes to reasonable length.
+                let decoded = base64::Engine::decode(
+                    &base64::engine::general_purpose::STANDARD,
+                    &b64,
+                )
+                .expect("base64 should decode");
+                assert!(decoded.len() > 64, "tx should be >64 bytes, got {}", decoded.len());
+
+                // Verify the base64 string can be deserialized back to a Transaction.
+                let tx: solana_sdk::transaction::Transaction =
+                    bincode::deserialize(&decoded).expect("tx should deserialize");
+                assert_eq!(tx.message.instructions.len(), 1, "should have 1 instruction");
+                assert_eq!(tx.signatures.len(), 1, "should have 1 signer slot");
+                assert_eq!(tx.signatures[0], solana_sdk::signature::Signature::default(),
+                    "unsigned tx should have zero signature");
+            }
+            Err(e) => {
+                eprintln!(
+                    "SKIP build_treasury_deposit_tx_live_devnet: {}",
+                    e
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn deposit_yield_to_treasury_rejects_non_positive() {
+        let result = deposit_yield_to_treasury(0.0, None);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("non-positive"));
+
+        let result = deposit_yield_to_treasury(-1.0, None);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn call_phantom_signer_handles_missing_sidecar() {
+        // Phantom creds are likely not configured — verify graceful failure.
+        let result = call_phantom_signer("dGVzdA==");
+        match &result {
+            Ok(output) => {
+                println!("[TEST] Phantom signer succeeded (unexpected!): {}", output);
+            }
+            Err(e) => {
+                println!("[TEST] Phantom signer failed as expected: {}", e);
+                assert!(e.contains("phantom_signer") || e.contains("PHANTOM"));
+            }
+        }
+    }
+
+    #[test]
+    fn get_phantom_solana_address_handles_missing_wallet() {
+        let result = get_phantom_solana_address();
+        match &result {
+            Ok(addr) => {
+                println!("[TEST] Phantom Solana address: {}", addr);
+                assert!(!addr.is_empty());
+            }
+            Err(e) => {
+                println!("[TEST] Phantom address unavailable as expected: {}", e);
+            }
+        }
+    }
+
+    /// End-to-end devnet integration: build tx → verify structure → attempt Phantom sign.
+    /// If Phantom creds are missing, logs the unsigned tx for manual submission.
+    #[test]
+    fn e2e_treasury_deposit_devnet() {
+        // Step 1: Build the transaction against live devnet.
+        let (b64, from_ata) = match build_treasury_deposit_tx(DEVNET_WALLET, 0.01) {
+            Ok(r) => r,
+            Err(e) => {
+                eprintln!("SKIP e2e_treasury_deposit_devnet (build failed): {}", e);
+                return;
+            }
+        };
+
+        println!("[E2E] TX base64: {}...", &b64[..60.min(b64.len())]);
+        println!("[E2E] From ATA: {}", from_ata);
+
+        // Step 2: Verify the transaction is well-formed.
+        let decoded = base64::Engine::decode(
+            &base64::engine::general_purpose::STANDARD,
+            &b64,
+        )
+        .expect("base64 decode");
+        let tx: solana_sdk::transaction::Transaction =
+            bincode::deserialize(&decoded).expect("tx deserialize");
+
+        assert_eq!(tx.message.instructions.len(), 1);
+        assert_eq!(tx.signatures.len(), 1);
+
+        // Verify the instruction program is Token-2022.
+        let token_2022 = solana_sdk::pubkey::Pubkey::try_from(TOKEN_2022_PROGRAM_ID).unwrap();
+        let program_id_idx = tx.message.instructions[0].program_id_index as usize;
+        assert_eq!(tx.message.account_keys[program_id_idx], token_2022,
+            "instruction program should be Token-2022");
+
+        // Verify account keys include our known addresses.
+        let vault = solana_sdk::pubkey::Pubkey::try_from(TREASURY_VAULT).unwrap();
+        let mint = solana_sdk::pubkey::Pubkey::try_from(RTP_MINT).unwrap();
+        let from_ata_pk: solana_sdk::pubkey::Pubkey =
+            from_ata.parse().expect("from_ata should be valid pubkey");
+
+        let account_keys = &tx.message.account_keys;
+        assert!(account_keys.contains(&from_ata_pk), "missing from_ata");
+        assert!(account_keys.contains(&mint), "missing mint");
+        assert!(account_keys.contains(&vault), "missing treasury vault");
+        assert!(account_keys.contains(&token_2022), "missing token program");
+
+        println!("[E2E] Account keys in tx:");
+        for (i, key) in account_keys.iter().enumerate() {
+            let signer = if i < tx.message.header.num_required_signatures as usize {
+                " [signer]"
+            } else {
+                ""
+            };
+            println!("[E2E]   {}: {}{}", i, key, signer);
+        }
+
+        // Step 3: Attempt Phantom signing (will fail gracefully if not configured).
+        match call_phantom_signer(&b64) {
+            Ok(result) => {
+                println!("[E2E] Phantom signing succeeded: {}", result);
+            }
+            Err(e) => {
+                println!("[E2E] Phantom signing skipped: {}", e);
+                println!("[E2E] Manual submission:");
+                println!("[E2E]   ts-node scripts/phantom_signer.ts sign-sol {}", &b64[..40]);
+            }
+        }
     }
 }

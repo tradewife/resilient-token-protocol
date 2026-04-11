@@ -19,6 +19,9 @@ sha3 = "0.10"
 secp256k1 = { version = "0.29", features = ["recovery"] }
 rmp-serde = "1"
 rmp = "0.8"
+solana-sdk = "2"
+bincode = "1"
+base64 = "0.22"
 
 [dev-dependencies]
 tokio-test = "0.4"

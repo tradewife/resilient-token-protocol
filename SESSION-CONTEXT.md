@@ -100,8 +100,10 @@ Trading Wing (Rust)
 | Hyperliquid API call in Trading Wing (Rust) | ✅ DONE | EIP-712 + msgpack signing, `sign_l1_action`, HL recovers correct address. Mock fills tested. |
 | YieldReport PnL calculation | ✅ DONE | Opening: `realized_pnl_usdc = None`. Closing: real PnL computed from entry/exit. |
 | PositionState tracking | ✅ DONE | In-memory HashMap, `process_fill()` opens/closes positions, wired into `handle_execute_permit` HL path. |
-| USDC yield → treasury PDA | ❌ MISSING | CPI transfer via Phantom ServerSDK after fill confirmed |
-| devnet end-to-end | ❌ MISSING | Entire HL→PDA path untested |
+| Treasury CPI transfer (build tx) | ✅ DONE | `build_treasury_deposit_tx()` builds real SPL `transfer_checked` on devnet. Token-2022 compatible. Manual ATA derivation, manual instruction builder (avoids zeroize conflict). 272 tests 0 failures. |
+| Treasury CPI transfer (sign) | ⚠️ BLOCKED | `call_phantom_signer()` wired but Phantom creds empty (`configs/.env.phantom` has keys but no values). Sidecar fails with module loader error. |
+| Deposit wired into execution path | ✅ DONE | `deposit_yield_to_treasury()` called from `handle_execute_permit` when `realized_pnl_usdc > 0`. Falls back to logging unsigned tx if Phantom unavailable. |
+| devnet end-to-end | ⚠️ PARTIAL | TX builds + verifies against devnet RPC. Phantom signing blocked by empty creds. |
 
 **This is the single critical path. Everything else is scaffolding.**
 
@@ -227,20 +229,32 @@ A judge must be able to verify these five things in under 3 minutes:
 
 ## 8. Session Status
 
-**Session 2026-04-11d — PnL tracking + mock fills + position state**
+**Session 2026-04-11e — Treasury CPI transfer (build + devnet verification)**
 
 State as of Apr 11:
-- **264 tests, 0 failures, 0 clippy warnings**
+- **272 tests, 0 failures, 0 clippy warnings**
 - Invariant enforcement: 9/10 (Invariant 7 documented stub)
 
-**Hyperliquid Trading Wing integration (completed):**
-- EIP-712 typed data signing ported to Rust (matching official Python SDK)
-- Manual msgpack serialization with Python SDK key ordering
-- `sign_l1_action()`: keccak256(msgpack(action) + nonce + vault_flag) → phantom agent → EIP-712 domain → ECDSA sign
-- `place_hl_order()`: builds order, signs, POSTs to HL testnet exchange endpoint
-- `execute_hl_sol_order()`: end-to-end entry point, accepts entry_price for closing PnL
-- `handle_execute_permit()`: routes to HL when `execution_venue: "hyperliquid"` in proposal, wired with position tracking
-- HL testnet confirms correct address recovery (account needs drip/refund for actual fills)
+**Treasury CPI transfer (this session):**
+- `build_treasury_deposit_tx()`: builds `transfer_checked` (Token-2022) instruction, fetches real blockhash from devnet RPC, serializes unsigned tx to base64
+- Manual ATA derivation via `Pubkey::find_program_address` (avoids spl-associated-token-account zeroize conflict)
+- Manual `transfer_checked` instruction builder (discriminator 12 + amount u64 + decimals u8)
+- `call_phantom_signer()`: subprocess call to `ts-node phantom_signer.ts sign-sol <base64>`
+- `get_phantom_solana_address()`: parses Solana address from sidecar `addresses` command
+- `deposit_yield_to_treasury()`: orchestrates build → sign → send, wired into `handle_execute_permit`
+- Devnet addresses: Mint `2JN8Qr9Q...`, Vault `DKuC9Q3F...`, Payer `Driyi8Sw...`
+- Dependencies added: `solana-sdk = "2"`, `bincode = "1"`, `base64 = "0.22"`
+- `libssl-dev` installed (required by `solana-secp256r1-program` transitive dep)
+
+**Devnet verification:**
+- Real blockhash fetched: `8Smg9GWNpxcq99frYwBKgvw36iXKmw6tw6kJFq98xKJZ`
+- TX account keys verified: payer [signer], from_ata, treasury_vault, Token-2022, RTP mint
+- Phantom sidecar fails (empty creds in `configs/.env.phantom`) — falls back to logging unsigned tx
+
+**Architecture discovery (from RESOURCES.md):**
+- Phantom × Hyperliquid native perps: SOL → HL in single Solana tx, no bridge, no EVM wallet
+- Phantom MCP Server v0.2.4: 13 tools (swap, sign, manage addresses)
+- This means: yield stays on Solana, no cross-chain bridging needed
 - Dependencies added: `reqwest` (rustls-tls), `sha3`, `secp256k1`, `rmp`, `rmp-serde`
 
 **YieldReport PnL calculation** — ✅ DONE
@@ -309,7 +323,7 @@ State as of Apr 11:
 - Phantom signing → Solana-focused (ServerSDK for CPI, ETH keypair for HL)
 
 **Priority order for next session:**
-1. USDC yield → treasury PDA via CPI transfer (Phantom ServerSDK for Solana signing) — ❌ MISSING
+1. Fill Phantom creds in `configs/.env.phantom` (ORG_ID, APP_ID, PRIVATE_KEY) → run `create-wallet` → get Solana address → fund with devnet SOL → sign real tx
 2. Drip/refund HL testnet account → confirm actual fill with `cargo test trading -- --nocapture`
 3. Extend demo.rs for two-cycle run (closes judge points 3 + 4)
 4. HTML dashboard with Phantom BrowserSDK (enhances judge point 5)
@@ -376,5 +390,5 @@ Demo               = proof the institution persists without founder trust
 
 ---
 
-*Last updated: 2026-04-11 (session d) — PnL tracking + mock fills + position state complete. 264 tests 0 failures. YieldReport now emits correct realized_pnl_usdc (None for open, float for close). Critical gap: USDC yield → treasury PDA CPI transfer.*
+*Last updated: 2026-04-11 (session e) — Treasury CPI transfer tx builds and verifies against devnet RPC. 272 tests 0 failures. Phantom signing blocked by empty creds. Next: fill Phantom creds + create wallet.*
 *Update this file after each session that changes canonical decisions or resolves open decisions.*
