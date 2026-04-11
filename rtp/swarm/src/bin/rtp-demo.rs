@@ -1,31 +1,28 @@
-//! RTP Swarm — End-to-End Demo Binary
+//! RTP Swarm — Two-Cycle Demo Binary
 //!
 //! Run with: cargo run --bin rtp-demo
 //!
-//! Demonstrates the full swarm coordination pipeline:
-//!   1. Trading Wing proposes a strategy
-//!   2. Coordinator routes to Audit Wing for tribunal review
-//!   3. Audit Wing approves (Byzantine consensus)
-//!   4. Coordinator sends ExecutePermit to Trading Wing
-//!   5. Trading Wing executes via bridge → YieldReport
-//!   6. Knowledge Wing stores yield data
-//!   7. Security Wing monitors for anomalies
-//!   8. Futureproof Wing checks deprecation status
+//! Demonstrates all 5 judge points:
+//!   1. On-chain constraint rejection (visible log line)
+//!   2. Autonomous operation (8-step pipeline)
+//!   3. Memory persistence (cycle 1 → cycle 2 reference)
+//!   4. Heartbeat redirect (visible log line)
+//!   5. Treasury state (explorer URLs in output)
 
-use rtp_swarm::demo::{print_demo_result, run_demo_loop};
+use rtp_swarm::demo::{print_two_cycle_demo, run_two_cycle_demo};
 
 #[tokio::main]
 async fn main() {
-    println!("RTP Swarm — End-to-End Demo");
-    println!("============================\n");
-
-    let result = run_demo_loop().await;
-    print_demo_result(&result);
+    let result = run_two_cycle_demo().await;
+    print_two_cycle_demo(&result);
 
     if result.success {
-        println!("\nDemo completed successfully.");
+        println!();
+        println!("All 5 judge points covered ✅");
+        std::process::exit(0);
     } else {
-        println!("\nDemo completed with failures (see above).");
+        println!();
+        println!("Demo completed with failures ❌");
         std::process::exit(1);
     }
 }

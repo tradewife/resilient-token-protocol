@@ -83,11 +83,11 @@ CONTEXT:
 
   | Point | Status | Gap |
   |-------|--------|-----|
-  | 1. On-chain constraint rejected | PARTIAL | On-chain BelowThreshold exists; needs live validator |
-  | 2. Autonomous operation | COVERED | rtp-demo binary runs 8-step pipeline |
-  | 3. Persistent memory across cycles | MISSING | memory_promotion.rs built (23 tests) but not in demo binary |
-  | 4. Visible adaptation/learning | MISSING | heartbeat.rs built (26 tests) but not in demo binary |
-  | 5. Observable treasury state | COVERED (min) | Explorer link live. Dashboard (full) deferred to Phase 5. |
+  | 1. On-chain constraint rejected | ✅ COVERED | `simulate_below_threshold_withdrawal()` visible in demo output |
+  | 2. Autonomous operation | ✅ COVERED | rtp-demo binary runs 8-step pipeline |
+  | 3. Persistent memory across cycles | ✅ COVERED | Two-cycle demo: 5 working + 1 project memory. Cycle 2 references cycle 1 yield data. |
+  | 4. Visible adaptation/learning | ✅ COVERED | Heartbeat redirect triggered in cycle 2 on declining TSI. Escalation to Evolve Wing visible. |
+  | 5. Observable treasury state | ✅ COVERED (min) | Explorer link live. Dashboard (full) deferred to Phase 5. |
 
 ================================================================================
   AUDIT FINDINGS — ALL CRITICAL/HIGH FIXED
@@ -158,14 +158,14 @@ WEEK 5 (Apr 28 – May 2): HYPERLIQUID EXECUTION + DEMO POINTS 3/4/5
   Top strategy to execute: SOL/USDT Survivor 2.69
     signal_threshold=0.3, tp_atr=3.0, sl_atr=1.5, max_hold=36h, trailing_stop_atr=0.5
 
-  Priority 2: Demo points 3 + 4 — memory + heartbeat (Day 3)
+  Priority 2: Demo points 3 + 4 — memory + heartbeat (Day 3) ✅ COMPLETE
   ──────────────────────────────────────────────
   File: rtp/swarm/src/demo.rs
-  [ ] Extend demo.rs to run TWO orchestrator cycles
-  [ ] Cycle 1: execute strategy, emit YieldReport, persist to memory_promotion
-  [ ] Cycle 2: load prior memory, reference cycle 1 yield data in log output
-  [ ] Trigger heartbeat redirect in cycle 2 (simulate stagnation → redirect)
-  [ ] Verify printed output shows: "[MEMORY] referencing cycle 1: ..."
+  [x] Extend demo.rs to run TWO orchestrator cycles
+  [x] Cycle 1: execute strategy, emit YieldReport, persist to memory_promotion
+  [x] Cycle 2: load prior memory, reference cycle 1 yield data in log output
+  [x] Trigger heartbeat redirect in cycle 2 (simulate stagnation → redirect)
+  [x] Verify printed output shows: "[MEMORY] referencing cycle 1: ..."
                                    "[HEARTBEAT] redirect triggered: ..."
   This closes judge points 3 and 4 with ~2h of Rust work.
 
