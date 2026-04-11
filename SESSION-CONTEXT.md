@@ -54,8 +54,9 @@ This is the **critical trajectory** for the demo and for judging. All build work
 - **Signing architecture (Solana-focused):**
   | Path | Method | Status |
   |------|--------|--------|
-  | Hyperliquid order signing | ETH keypair (`configs/hl_testnet_key.json`) via `web3.py` EIP-712 | ✅ READY |
-  | Solana treasury CPI | `@phantom/server-sdk` v2.0.0 via `scripts/phantom_signer.ts` | ✅ READY (creds in `.env.phantom`) |
+  | Hyperliquid order signing | ETH keypair (`configs/hl_testnet_key.json`) via EIP-712 | ✅ READY |
+  | Solana treasury CPI | `@phantom/server-sdk` v2.0.0 via `scripts/phantom_signer.ts` | ✅ INSTALLED (production path, creds deferred) |
+  | Solana treasury CPI (demo) | Local devnet keypair via `sign_and_send_local()` | ✅ WORKING |
   | Demo dashboard signing | `@phantom/browser-sdk` (Phase 5) | 🔌 Deferred |
 
   > **Scope:** This is a Solana hackathon. Phantom signing covers the Solana CPI path. ETH keypair handles HL EIP-712 directly. Multi-chain Phantom expansion is post-hackathon scope.
@@ -100,10 +101,10 @@ Trading Wing (Rust)
 | Hyperliquid API call in Trading Wing (Rust) | ✅ DONE | EIP-712 + msgpack signing, `sign_l1_action`, HL recovers correct address. Mock fills tested. |
 | YieldReport PnL calculation | ✅ DONE | Opening: `realized_pnl_usdc = None`. Closing: real PnL computed from entry/exit. |
 | PositionState tracking | ✅ DONE | In-memory HashMap, `process_fill()` opens/closes positions, wired into `handle_execute_permit` HL path. |
-| Treasury CPI transfer (build tx) | ✅ DONE | `build_treasury_deposit_tx()` builds real SPL `transfer_checked` on devnet. Token-2022 compatible. Manual ATA derivation, manual instruction builder (avoids zeroize conflict). 272 tests 0 failures. |
-| Treasury CPI transfer (sign) | ⚠️ BLOCKED | `call_phantom_signer()` wired but Phantom creds empty (`configs/.env.phantom` has keys but no values). Sidecar fails with module loader error. |
-| Deposit wired into execution path | ✅ DONE | `deposit_yield_to_treasury()` called from `handle_execute_permit` when `realized_pnl_usdc > 0`. Falls back to logging unsigned tx if Phantom unavailable. |
-| devnet end-to-end | ⚠️ PARTIAL | TX builds + verifies against devnet RPC. Phantom signing blocked by empty creds. |
+| Treasury CPI transfer (build tx) | ✅ DONE | `build_treasury_deposit_tx()` builds real SPL `transfer_checked` on devnet. Token-2022 compatible. Manual ATA derivation, manual instruction builder (avoids zeroize conflict). |
+| Treasury CPI transfer (sign) | ✅ DONE | Path C: `sign_and_send_local()` signs with devnet keypair (`~/.config/solana/id.json`), submits via JSON-RPC. Signing cascade: Phantom KMS → local keypair → manual fallback. 274 tests 0 failures. |
+| Deposit wired into execution path | ✅ DONE | `deposit_yield_to_treasury()` called from `handle_execute_permit` when `realized_pnl_usdc > 0`. Full signing cascade operational. |
+| devnet end-to-end | ✅ DONE | TX builds + signs + submits to devnet. Signature confirmed on-chain: `45DrjL8q...` |
 
 **This is the single critical path. Everything else is scaffolding.**
 
@@ -221,21 +222,30 @@ A judge must be able to verify these five things in under 3 minutes:
 | Demo UX | **DECISION: Browser dashboard** | Use `@phantom/browser-sdk` for connect flow in HTML dashboard. |
 | Invariant 7 (soulguard reload sig) | CLOSED (documented) | Production TODO: ed25519 on reload(). Comment in soulguard.rs. Demo path unaffected. |
 | Hyperliquid testnet vs mainnet for demo | **DECISION: Testnet** | Safer for hackathon. Same API interface as mainnet. Judges care about the flow working end-to-end. |
-| Phantom signing architecture | **DECISION: Solana-focused** | ServerSDK for Solana CPI. ETH keypair for HL EIP-712. Other chains post-hackathon. |
-| Phantom Portal registration | DONE | App "RTP Trading Wing" registered. Creds in `configs/.env.phantom`. |
+| Phantom signing architecture | **DECISION: Path C for demo** | Phantom KMS for production. Local devnet keypair for demo. Signing cascade: Phantom → local → manual. |
+| Phantom Portal registration | DONE | App "RTP Trading Wing" registered. Creds in `configs/.env.phantom` (values empty — deferred). |
 | Phantom signing scope | DECISION: Solana-focused | ServerSDK for Solana CPI. ETH keypair for HL. Other chains post-hackathon. |
 
 ---
 
 ## 8. Session Status
 
-**Session 2026-04-11e — Treasury CPI transfer (build + devnet verification)**
+**Session 2026-04-11f — Agentic Treasury Signing (Path C implemented)**
 
 State as of Apr 11:
-- **272 tests, 0 failures, 0 clippy warnings**
+- **274 tests, 0 failures, 0 clippy warnings**
 - Invariant enforcement: 9/10 (Invariant 7 documented stub)
 
-**Treasury CPI transfer (this session):**
+**Treasury CPI transfer signing (this session — Path C):**
+- Path A blocked: Phantom Portal creds empty, `phantom_signer.ts` has TS compilation error (`Property 'name' does not exist on type 'CreateWalletResult'`)
+- Path C implemented: `sign_and_send_local()` reads `~/.config/solana/id.json` → signs tx → submits via JSON-RPC
+- `load_devnet_keypair()`: loads keypair, verifies pubkey matches `DEVNET_WALLET`
+- Signing cascade in `deposit_yield_to_treasury()`: Phantom KMS (production) → local keypair (demo) → manual fallback
+- ATA for payer created on devnet: `2Mr35Drmhjrq4xkXoAe2D8QYQV8JhQyQpqcsUpDSWGVB`
+- Devnet signature confirmed: `45DrjL8qhP7cpYZyabPa2a8DLfUoJTj55RTcLJWf4x7ThNBT7CBHZRSQszmaTtU4yD3xsFFqAWimTCgMVu1CPk4m`
+- Explorer: https://explorer.solana.com/tx/45DrjL8qhP7cpYZyabPa2a8DLfUoJTj55RTcLJWf4x7ThNBT7CBHZRSQszmaTtU4yD3xsFFqAWimTCgMVu1CPk4m?cluster=devnet
+- RESOURCES.md corrected: Phantom × HL is "UI feature only, not a programmatic API"
+- Demo narrative: "In production, the agent wallet is Phantom KMS-backed. For this demo, we use a devnet keypair to show the same flow."
 - `build_treasury_deposit_tx()`: builds `transfer_checked` (Token-2022) instruction, fetches real blockhash from devnet RPC, serializes unsigned tx to base64
 - Manual ATA derivation via `Pubkey::find_program_address` (avoids spl-associated-token-account zeroize conflict)
 - Manual `transfer_checked` instruction builder (discriminator 12 + amount u64 + decimals u8)
@@ -302,10 +312,11 @@ State as of Apr 11:
 | Component | Status |
 |-----------|--------|
 | `@phantom/server-sdk` v2.0.0 | ✅ Installed |
-| `scripts/phantom_signer.ts` | ✅ Created |
+| `scripts/phantom_signer.ts` | ✅ Created (TS compilation error on `CreateWalletResult.name` — needs fix when creds available) |
 | `@phantom/mcp-server` v1.0.4 | ✅ Installed (deferred — dashboard phase only) |
-| Phantom Portal app registered | ✅ Done — creds in `configs/.env.phantom` (gitignored) |
-| Embedded agent wallet created | ✅ Done — KMS-backed, sovereign identity for Trading Wing |
+| Phantom Portal app registered | ✅ Done — creds in `configs/.env.phantom` (gitignored, values empty) |
+| Local devnet signing (Path C) | ✅ Working — `sign_and_send_local()` signs with `~/.config/solana/id.json` |
+| Devnet signature confirmed | ✅ `45DrjL8q...` on-chain |
 
 **Hyperliquid testnet:**
 | Item | Status |
@@ -323,10 +334,10 @@ State as of Apr 11:
 - Phantom signing → Solana-focused (ServerSDK for CPI, ETH keypair for HL)
 
 **Priority order for next session:**
-1. Fill Phantom creds in `configs/.env.phantom` (ORG_ID, APP_ID, PRIVATE_KEY) → run `create-wallet` → get Solana address → fund with devnet SOL → sign real tx
-2. Drip/refund HL testnet account → confirm actual fill with `cargo test trading -- --nocapture`
-3. Extend demo.rs for two-cycle run (closes judge points 3 + 4)
-4. HTML dashboard with Phantom BrowserSDK (enhances judge point 5)
+1. Extend demo.rs for two-cycle run (closes judge points 3 + 4 — memory persistence and adaptation)
+2. HTML dashboard with devnet explorer integration (enhances judge point 5)
+3. Fund HL testnet account → confirm actual fill with `cargo test trading -- --nocapture`
+4. Fill Phantom creds in `configs/.env.phantom` (ORG_ID, APP_ID, PRIVATE_KEY) → fix TS error → upgrade to KMS signing
 5. Register individually on Colosseum before May 4
 
 ---
@@ -390,5 +401,5 @@ Demo               = proof the institution persists without founder trust
 
 ---
 
-*Last updated: 2026-04-11 (session e) — Treasury CPI transfer tx builds and verifies against devnet RPC. 272 tests 0 failures. Phantom signing blocked by empty creds. Next: fill Phantom creds + create wallet.*
+*Last updated: 2026-04-11 (session f) — Treasury CPI signing implemented (Path C: local devnet keypair). 274 tests 0 failures. Signing cascade: Phantom KMS → local keypair → manual fallback. Devnet signature confirmed. RESOURCES.md corrected.*
 *Update this file after each session that changes canonical decisions or resolves open decisions.*

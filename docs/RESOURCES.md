@@ -39,11 +39,16 @@ Extracted from BUILD_PLAN v2.2. Keep this file updated as new tools are integrat
 - CASH stablecoin: https://phantom.app/cash
 - **Phantom MCP Server** (v0.2.4, 13 tools — swap, sign, manage addresses): https://help.phantom.com/hc/en-us/articles/49235725504147
 - MCP changelog: https://docs.phantom.com/updates
-- **Phantom × Hyperliquid native perps** (SOL → HL in single Solana tx, no bridge, no EVM): https://unchainedcrypto.com/phantom-wallet-launches-direct-perpetual-trading-with-hyperliquid/
+- **Phantom × Hyperliquid native perps** (UI feature only — NOT a programmatic API):
+  https://unchainedcrypto.com/phantom-wallet-launches-direct-perpetual-trading-with-hyperliquid/
 
-> **RTP integration note:** Phantom MCP is the primary agentic wallet interface for the swarm's
-> treasury and trading operations. Hyperliquid perps are accessed via Phantom's native integration —
-> no Arbitrum bridge or EVM wallet required. This replaces the previous "not in scope" decision.
+> **RTP integration note (corrected Apr 11):** Phantom × HL native perps is a wallet UI feature,
+> not a programmatic API. RTP's Hyperliquid execution uses an ETH keypair + EIP-712 signing
+> directly in `trading/mod.rs` — this is the correct and final architecture for HL order placement.
+> Phantom's role in RTP is Solana treasury signing (CPI transfer), not HL trading.
+> `@phantom/server-sdk` is installed for production KMS signing; for the devnet demo, a local
+> keypair signs the treasury deposit tx. The signing cascade: Phantom KMS (production) →
+> local devnet keypair (demo) → manual submission (fallback).
 
 ### Squads Multisig
 - Docs: https://docs.squads.so
@@ -125,8 +130,9 @@ Extracted from BUILD_PLAN v2.2. Keep this file updated as new tools are integrat
 
 | Tool | Reason |
 |---|---|
-| ~~Hyperliquid live execution~~ | **REVERSED 2026-04-11** — Phantom's native HL integration (single Solana tx, no bridge) makes this viable for demo. See Phantom × Hyperliquid link above. |
-| Hyperliquid via Arbitrum bridge | Not needed — Phantom routes SOL → HL directly on Solana. No EVM wallet required. |
+| Phantom × HL native perps for execution | UI feature only, not a programmatic API. HL execution uses ETH keypair + EIP-712 in `trading/mod.rs` directly. |
+| Hyperliquid via Arbitrum bridge | Not needed — HL testnet API is accessed directly via REST. No bridge or EVM wallet needed for programmatic orders. |
+| Phantom MCP for treasury signing | Deferred. `@phantom/server-sdk` is the production KMS path. Demo uses local devnet keypair for signing. |
 | World Coin | Toxic sentiment — skip entirely |
 | Privy | Not yet available |
 | Coinbase | Not yet available |
