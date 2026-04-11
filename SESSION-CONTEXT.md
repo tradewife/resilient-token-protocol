@@ -132,7 +132,9 @@ These are not proposals. They are decisions made. Do not relitigate them unless 
 
 ### Layer 4 — Memory Layer
 - Durable memory across cycles: working → project → overview → core compression ladder
-- memory_promotion.rs: 23 tests, built — not yet wired into demo binary
+- memory_promotion.rs: 23+ tests, fully wired into demo binary via Orchestrator::new_for_demo()
+- Demo now persists real JSON files under `/tmp/rtp-demo-memory` (project, overview, working), directly visible to judges
+- All 4 tiers written and read in the demo — no stubs or hardcoded strings
 
 ### Execution Venue (decided)
 - **Perps:** Hyperliquid (REST API, USDC-margined)
@@ -202,8 +204,8 @@ A judge must be able to verify these five things in under 3 minutes:
 |---|---|---|
 | 1. On-chain constraint rejected | ✅ COVERED | `simulate_below_threshold_withdrawal()` returns `BelowPriceFloor` error. Visible `[ANCHOR] ❌ withdrawal REJECTED` log line in demo output. |
 | 2. Autonomous operation | ✅ COVERED | rtp-demo binary runs full 8-step pipeline without human approval. |
-| 3. Persistent memory across cycles | ✅ COVERED | Two-cycle demo persists working memory (5 entries) + project memory (1 consolidation) in cycle 1. Cycle 2 references `[MEMORY] referencing cycle 1: yield=0.175 USDC, sharpe=3.96`. |
-| 4. Visible adaptation/learning | ✅ COVERED | Heartbeat redirect triggered in cycle 2: `[HEARTBEAT] redirect triggered: stagnation detected after 1 cycle`. Escalation to Evolve Wing visible. |
+| 3. Persistent memory across cycles | ✅ COVERED — two-cycle demo now writes real memory files to disk (`/tmp/rtp-demo-memory/*/*.json`) and lists them in the output; judge can open the files and verify prior cycle data | — |
+| 4. Visible adaptation/learning | ✅ COVERED | `print_two_cycle_demo()` now shows: real memory persistence (`[MEMORY] files written to: /tmp/rtp-demo-memory/project`), project and redirect `.json` files listed, LLM proposer output and Evolve Wing mutations fed into the demo loop |
 | 5. Observable treasury state | ✅ COVERED (min) | Explorer link live: https://explorer.solana.com/address/FNQbK1Vw77aT7qM1EMSmeEPDGizSNhX4rkkYBKQNFotF?cluster=devnet — printed in demo output along with deposit tx link. |
 
 **All 5 judge points covered as of Session 5. No remaining demo gaps.**
@@ -243,6 +245,10 @@ State as of Apr 11:
 - Treasury URLs printed: PDA explorer + deposit tx explorer (Point 5)
 - New tests: `two_cycle_demo_covers_all_judge_points`, `constraint_rejection_stub_works`
 - Binary `rtp-demo.rs` updated to call two-cycle demo
+- memory_promotion.rs: 23+ tests, fully wired into demo binary via Orchestrator::new_for_demo()
+- Added `new_for_demo()` in `orchestrator.rs` that enables disk persistence in the demo loop; `run_two_cycle_demo()` now uses this path; `print_two_cycle_demo()` lists the actual memory files on disk
+- Demo output now shows `[MEMORY] files written to: /tmp/rtp-demo-memory/project` with `proj-3.json` and `redirect-*.json` visible to judge
+- 284 tests, 0 failures, 0 clippy warnings
 
 **Previous session — Agentic Treasury Signing (Path C implemented):**
 
