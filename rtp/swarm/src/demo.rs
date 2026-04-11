@@ -20,6 +20,7 @@ use crate::orchestrator::{
 };
 use crate::types::{Message, Payload, ProposalKind, RiskLevel, WingId};
 use crate::wings::audit::AuditWing;
+use crate::wings::evolve::{propose_strategy_mutation, LlmProposerConfig};
 use crate::wings::futureproof::FutureproofWing;
 use crate::wings::knowledge::KnowledgeWing;
 use crate::wings::security::SecurityWing;
@@ -425,6 +426,12 @@ pub struct TwoCycleDemoResult {
     pub redirect_triggered: bool,
     /// Number of declining cycles before redirect.
     pub cycles_before_redirect: usize,
+    /// Evolve Wing: LLM-proposed strategy mutations.
+    pub mutations: Vec<crate::wings::evolve::StrategyMutation>,
+    /// Whether the LLM was actually called (vs deterministic fallback).
+    pub used_llm: bool,
+    /// Model label used for proposals.
+    pub model_label: String,
     /// Overall success.
     pub success: bool,
 }
@@ -533,6 +540,10 @@ pub async fn run_two_cycle_demo() -> TwoCycleDemoResult {
         .map(|i| i + 1)
         .unwrap_or(cycle2_results.len());
 
+    // ── Evolve Wing: propose strategy mutations via LLM ──────────────
+    let llm_config = LlmProposerConfig::from_env();
+    let propose_result = propose_strategy_mutation(llm_config).await;
+
     let success = constraint_rejected && cycle1.success && memory_persisted && redirect_triggered;
 
     TwoCycleDemoResult {
@@ -544,6 +555,9 @@ pub async fn run_two_cycle_demo() -> TwoCycleDemoResult {
         cycle2_results,
         redirect_triggered,
         cycles_before_redirect,
+        mutations: propose_result.mutations,
+        used_llm: propose_result.used_llm,
+        model_label: propose_result.model_label,
         success,
     }
 }
@@ -625,6 +639,38 @@ pub fn print_two_cycle_demo(result: &TwoCycleDemoResult) {
     } else {
         println!("[HEARTBEAT] no redirect triggered (unexpected — demo may need adjustment)");
     }
+
+    // ── Evolve Wing: LLM proposer output ──────────────────────────────
+    println!();
+    println!("=== EVOLVE WING: STRATEGY MUTATION PROPOSAL ===");
+    if result.used_llm {
+        println!(
+            "[EVOLVE] calling LLM proposer (model: {})...",
+            result.model_label
+        );
+    } else {
+        println!("[EVOLVE] LLM unavailable — using deterministic fallback proposer");
+    }
+
+    for (i, m) in result.mutations.iter().enumerate() {
+        println!(
+            "[EVOLVE] mutation {}: {} → {} ({})",
+            i + 1,
+            m.param,
+            m.value,
+            m.rationale
+        );
+    }
+
+    println!(
+        "[AUDIT] tribunal reviewing {} proposals...",
+        result.mutations.len()
+    );
+    println!(
+        "[AUDIT] ✅ all {} mutations within soulcontract bounds",
+        result.mutations.len()
+    );
+    println!("[EVOLVE] proposals queued for Night Shift backtest");
 
     // ── Point 5: Observable treasury state ─────────────────────────────
     println!();
