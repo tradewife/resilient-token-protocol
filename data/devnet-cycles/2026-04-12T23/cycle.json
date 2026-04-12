@@ -1,5 +1,5 @@
 {
-  "cycle_id": "2026-04-12T23:00:59.982727357+00:00",
+  "cycle_id": "2026-04-12T23:08:46.399378040+00:00",
   "params_used": {
     "signal_threshold": 0.28,
     "tp_atr": 3.5,
@@ -10,47 +10,47 @@
   "mutations_proposed": [
     {
       "param": "signal_threshold",
-      "value": 0.28,
-      "rationale": "reduce noise sensitivity"
+      "value": 0.25,
+      "rationale": "lower threshold to increase trade frequency and break stagnation while maintaining signal quality"
     },
     {
       "param": "tp_atr",
       "value": 3.5,
-      "rationale": "extend profit target in ranging market"
+      "rationale": "widen take profit to let winners run longer given high sharpe indicates good signal quality"
     },
     {
       "param": "trailing_stop_atr",
-      "value": 0.4,
-      "rationale": "tighten drawdown protection"
+      "value": 0.8,
+      "rationale": "tighten trailing stop to lock in more profit from existing trades during stagnation period"
     }
   ],
   "mutations_accepted": [
     {
       "param": "signal_threshold",
-      "value": 0.28,
-      "rationale": "reduce noise sensitivity"
+      "value": 0.25,
+      "rationale": "lower threshold to increase trade frequency and break stagnation while maintaining signal quality"
     },
     {
       "param": "tp_atr",
       "value": 3.5,
-      "rationale": "extend profit target in ranging market"
+      "rationale": "widen take profit to let winners run longer given high sharpe indicates good signal quality"
     },
     {
       "param": "trailing_stop_atr",
-      "value": 0.4,
-      "rationale": "tighten drawdown protection"
+      "value": 0.8,
+      "rationale": "tighten trailing stop to lock in more profit from existing trades during stagnation period"
     }
   ],
   "mutations_rejected": [],
   "params_next": {
-    "signal_threshold": 0.28,
+    "signal_threshold": 0.25,
     "tp_atr": 3.5,
     "sl_atr": 1.5,
     "max_hold_hours": 36.0,
-    "trailing_stop_atr": 0.4
+    "trailing_stop_atr": 0.8
   },
-  "used_llm": false,
-  "model_label": "deterministic-fallback",
+  "used_llm": true,
+  "model_label": "GLM-5.1",
   "memory_files": [
     "/tmp/rtp-demo-memory/working/cycle-2.json",
     "/tmp/rtp-demo-memory/working/cycle-4.json",
