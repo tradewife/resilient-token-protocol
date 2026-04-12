@@ -487,7 +487,7 @@ Treasury program audit-remediated. All 6 wings built. Coordinator with full qual
   - The two-cycle demo writes real memory files to `/tmp/rtp-demo-memory` and lists them in the output.
   - `memory_promotion.rs` is fully wired into the demo via `Orchestrator::new_for_demo()`.
   - The demo covers all 5 judge points, including persistent memory with on-disk JSON files.
-- ✅ Test suite: 284 tests, 0 failures, 0 clippy warnings.
+- ✅ Test suite: 298 tests, 0 failures, 0 clippy warnings.
 
 ### Phase 2: End-to-End Integration + Full Loop
 

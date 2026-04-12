@@ -58,7 +58,7 @@ Trading Wing (Rust, PARTIAL — in-memory mock only)
 
 This repo has three layers:
 1. **Proven Python fractal-swarm** (shipping) — backtesting, optimization, paper trading
-2. **Rust swarm + Solana treasury** (built, 238 tests) — 6-wing architecture, Coordinator, soulcontract
+2. **Rust swarm + Solana treasury** (built, 298 tests) — 6-wing architecture, Coordinator, soulcontract
 3. **Hyperliquid execution** (critical gap) — Trading Wing → HL testnet → yield → treasury PDA
 
 ---

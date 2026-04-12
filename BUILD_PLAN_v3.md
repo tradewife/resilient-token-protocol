@@ -171,7 +171,7 @@ WEEK 5 (Apr 28 – May 2): HYPERLIQUID EXECUTION + DEMO POINTS 3/4/5
       - Added `Orchestrator::new_for_demo()` with `persist=true`
       - `run_two_cycle_demo()` now uses `new_for_demo()`
       - Demo output lists real memory files at `/tmp/rtp-demo-memory/project`
-      - 284 tests, 0 failures, 0 clippy warnings
+      - 298 tests, 0 failures, 0 clippy warnings
   This closes judge points 3 and 4 with ~2h of Rust work.
 
   Priority 3: Demo point 5 — observable treasury state (Days 4-5)

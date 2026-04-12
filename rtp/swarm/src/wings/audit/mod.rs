@@ -508,7 +508,11 @@ mod tests {
         let msg = strategy_proposal(0.6);
         let response = AuditWing::stub_review(&msg).unwrap();
         match response.payload {
-            Payload::AuditResult { approved, risk_level, .. } => {
+            Payload::AuditResult {
+                approved,
+                risk_level,
+                ..
+            } => {
                 assert!(!approved, "confidence 0.6 should be rejected");
                 assert_eq!(risk_level, RiskLevel::Medium);
             }

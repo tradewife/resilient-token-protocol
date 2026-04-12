@@ -140,9 +140,7 @@ pub fn validate_mutation_bounds(mutation: &StrategyMutation) -> Result<(), Strin
 /// Validate all mutations, filtering out-of-bounds ones.
 ///
 /// Returns only mutations that pass the bounds check. Logs rejections.
-pub fn validate_all_mutations(
-    mutations: Vec<StrategyMutation>,
-) -> Vec<StrategyMutation> {
+pub fn validate_all_mutations(mutations: Vec<StrategyMutation>) -> Vec<StrategyMutation> {
     mutations
         .into_iter()
         .filter(|m| match validate_mutation_bounds(m) {
@@ -310,9 +308,7 @@ pub async fn propose_strategy_mutation(config: Option<LlmProposerConfig>) -> Pro
             }
         }
         None => {
-            tracing::info!(
-                "[EVOLVE] LLM unavailable — using deterministic fallback proposer"
-            );
+            tracing::info!("[EVOLVE] LLM unavailable — using deterministic fallback proposer");
             ProposeResult {
                 mutations: deterministic_fallback_mutations(),
                 used_llm: false,
@@ -565,7 +561,8 @@ mod tests {
 
     #[test]
     fn parse_mutation_response_markdown_wrapped() {
-        let wrapped = "```json\n[{\"param\": \"tp_atr\", \"value\": 3.5, \"rationale\": \"test\"}]\n```";
+        let wrapped =
+            "```json\n[{\"param\": \"tp_atr\", \"value\": 3.5, \"rationale\": \"test\"}]\n```";
         let mutations = parse_mutation_response(wrapped).unwrap();
         assert_eq!(mutations.len(), 1);
         assert_eq!(mutations[0].param, "tp_atr");

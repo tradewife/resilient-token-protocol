@@ -91,7 +91,9 @@ async function createWallet(): Promise<void> {
   const result = await sdk.createWallet("rtp-trading-wing-executor");
   console.log("Trading Wing embedded wallet created:");
   console.log(`  walletId: ${result.walletId}`);
-  console.log(`  name:     ${result.name}`);
+  for (const addr of result.addresses) {
+    console.log(`  ${addr.addressType}: ${addr.address}`);
+  }
   console.log("\nSave walletId to configs/.env.phantom as PHANTOM_WALLET_ID");
   console.log("Then run 'addresses' to see chain-specific addresses.");
 }

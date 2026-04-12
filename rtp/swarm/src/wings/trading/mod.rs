@@ -85,8 +85,8 @@ pub fn load_hl_key() -> Result<HlKeyFile, String> {
     // Try current directory
     let alt = std::path::Path::new(HL_KEY_PATH);
     if alt.exists() {
-        let content = std::fs::read_to_string(alt)
-            .map_err(|e| format!("Failed to read key file: {}", e))?;
+        let content =
+            std::fs::read_to_string(alt).map_err(|e| format!("Failed to read key file: {}", e))?;
         return serde_json::from_str(&content)
             .map_err(|e| format!("Failed to parse key file: {}", e));
     }
@@ -163,10 +163,7 @@ fn hl_agent_hash(action_hash: &[u8; 32], is_mainnet: bool) -> [u8; 32] {
 /// so we must match that exact order:
 ///   outer: "type", "orders", "grouping"
 ///   inner: "a", "b", "p", "s", "r", "t"
-fn hl_action_hash(
-    action: &serde_json::Value,
-    nonce: u64,
-) -> Result<[u8; 32], String> {
+fn hl_action_hash(action: &serde_json::Value, nonce: u64) -> Result<[u8; 32], String> {
     // Extract fields from the action Value.
     let orders = action["orders"]
         .as_array()
@@ -180,11 +177,7 @@ fn hl_action_hash(
 
     // "type" → "order"
     rmp::encode::write_str(&mut buf, "type").unwrap();
-    rmp::encode::write_str(
-        &mut buf,
-        action["type"].as_str().unwrap_or("order"),
-    )
-    .unwrap();
+    rmp::encode::write_str(&mut buf, action["type"].as_str().unwrap_or("order")).unwrap();
 
     // "orders" → [order, ...]
     rmp::encode::write_str(&mut buf, "orders").unwrap();
@@ -196,46 +189,27 @@ fn hl_action_hash(
 
         // "a" → asset index
         rmp::encode::write_str(&mut buf, "a").unwrap();
-        rmp::encode::write_sint(
-            &mut buf,
-            order["a"].as_i64().unwrap_or(0),
-        )
-        .unwrap();
+        rmp::encode::write_sint(&mut buf, order["a"].as_i64().unwrap_or(0)).unwrap();
 
         // "b" → is_buy
         rmp::encode::write_str(&mut buf, "b").unwrap();
-        rmp::encode::write_bool(&mut buf, order["b"].as_bool().unwrap_or(true))
-            .unwrap();
+        rmp::encode::write_bool(&mut buf, order["b"].as_bool().unwrap_or(true)).unwrap();
 
         // "p" → price
         rmp::encode::write_str(&mut buf, "p").unwrap();
-        rmp::encode::write_str(
-            &mut buf,
-            order["p"].as_str().unwrap_or("0"),
-        )
-        .unwrap();
+        rmp::encode::write_str(&mut buf, order["p"].as_str().unwrap_or("0")).unwrap();
 
         // "s" → size
         rmp::encode::write_str(&mut buf, "s").unwrap();
-        rmp::encode::write_str(
-            &mut buf,
-            order["s"].as_str().unwrap_or("0"),
-        )
-        .unwrap();
+        rmp::encode::write_str(&mut buf, order["s"].as_str().unwrap_or("0")).unwrap();
 
         // "r" → reduce_only
         rmp::encode::write_str(&mut buf, "r").unwrap();
-        rmp::encode::write_bool(
-            &mut buf,
-            order["r"].as_bool().unwrap_or(false),
-        )
-        .unwrap();
+        rmp::encode::write_bool(&mut buf, order["r"].as_bool().unwrap_or(false)).unwrap();
 
         // "t" → {"limit": {"tif": ...}}
         rmp::encode::write_str(&mut buf, "t").unwrap();
-        let tif = order["t"]["limit"]["tif"]
-            .as_str()
-            .unwrap_or("Ioc");
+        let tif = order["t"]["limit"]["tif"].as_str().unwrap_or("Ioc");
         rmp::encode::write_map_len(&mut buf, 1).unwrap();
         rmp::encode::write_str(&mut buf, "limit").unwrap();
         rmp::encode::write_map_len(&mut buf, 1).unwrap();
@@ -245,11 +219,7 @@ fn hl_action_hash(
 
     // "grouping" → "na"
     rmp::encode::write_str(&mut buf, "grouping").unwrap();
-    rmp::encode::write_str(
-        &mut buf,
-        action["grouping"].as_str().unwrap_or("na"),
-    )
-    .unwrap();
+    rmp::encode::write_str(&mut buf, action["grouping"].as_str().unwrap_or("na")).unwrap();
 
     // Append nonce (8 bytes big-endian) + vault flag (0x00).
     buf.extend_from_slice(&nonce.to_be_bytes());
@@ -501,8 +471,12 @@ fn parse_fill_response(
     let realized_pnl = match entry_price {
         Some(ep) => {
             let entry: f64 = ep.parse().map_err(|e| format!("Bad entry_price: {}", e))?;
-            let exit: f64 = fill_price.parse().map_err(|e| format!("Bad fill_price: {}", e))?;
-            let sz: f64 = filled_size.parse().map_err(|e| format!("Bad size: {}", e))?;
+            let exit: f64 = fill_price
+                .parse()
+                .map_err(|e| format!("Bad fill_price: {}", e))?;
+            let sz: f64 = filled_size
+                .parse()
+                .map_err(|e| format!("Bad size: {}", e))?;
             if is_buy {
                 // Closing a short: PnL = (entry - exit) * size
                 Some((entry - exit) * sz)
@@ -554,11 +528,7 @@ const MAX_POSITION_FRACTION: f64 = 0.20;
 /// description of the violation. In production, `vault_balance` would be
 /// fetched from an RPC call to the treasury PDA. For the demo, it uses a
 /// configurable value.
-pub fn soulguard_trade_check(
-    size: &str,
-    price: &str,
-    vault_balance: f64,
-) -> Result<(), String> {
+pub fn soulguard_trade_check(size: &str, price: &str, vault_balance: f64) -> Result<(), String> {
     let sz: f64 = size
         .parse()
         .map_err(|e| format!("invalid size '{}': {}", size, e))?;
@@ -668,13 +638,8 @@ fn derive_ata(
     token_program: &solana_sdk::pubkey::Pubkey,
 ) -> solana_sdk::pubkey::Pubkey {
     let (address, _) = solana_sdk::pubkey::Pubkey::find_program_address(
-        &[
-            wallet.as_ref(),
-            token_program.as_ref(),
-            mint.as_ref(),
-        ],
-        &solana_sdk::pubkey::Pubkey::try_from(ATA_PROGRAM_ID)
-            .expect("ATA program ID is valid"),
+        &[wallet.as_ref(), token_program.as_ref(), mint.as_ref()],
+        &solana_sdk::pubkey::Pubkey::try_from(ATA_PROGRAM_ID).expect("ATA program ID is valid"),
     );
     address
 }
@@ -705,9 +670,9 @@ fn build_transfer_checked_ix(
     Instruction {
         program_id: *token_program,
         accounts: vec![
-            AccountMeta::new(*source, false),         // source (writable)
-            AccountMeta::new_readonly(*mint, false),   // mint
-            AccountMeta::new(*destination, false),     // destination (writable)
+            AccountMeta::new(*source, false),            // source (writable)
+            AccountMeta::new_readonly(*mint, false),     // mint
+            AccountMeta::new(*destination, false),       // destination (writable)
             AccountMeta::new_readonly(*authority, true), // authority (signer)
         ],
         data,
@@ -791,12 +756,9 @@ pub fn build_treasury_deposit_tx(
     let tx = solana_sdk::transaction::Transaction::new_unsigned(message);
 
     // Serialize to bytes (Solana wire format via bincode), then base64.
-    let serialized = bincode::serialize(&tx)
-        .map_err(|e| format!("Transaction serialization failed: {}", e))?;
-    let b64 = base64::Engine::encode(
-        &base64::engine::general_purpose::STANDARD,
-        &serialized,
-    );
+    let serialized =
+        bincode::serialize(&tx).map_err(|e| format!("Transaction serialization failed: {}", e))?;
+    let b64 = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &serialized);
 
     println!(
         "[TREASURY] built deposit tx: {} tokens ({} raw) from {} → vault {}",
@@ -916,13 +878,10 @@ pub fn sign_and_send_local(tx_base64: &str) -> Result<String, String> {
     );
 
     // Decode the unsigned transaction.
-    let tx_bytes = base64::Engine::decode(
-        &base64::engine::general_purpose::STANDARD,
-        tx_base64,
-    )
-    .map_err(|e| format!("Failed to decode tx base64: {}", e))?;
-    let mut tx: solana_sdk::transaction::Transaction = bincode::deserialize(&tx_bytes)
-        .map_err(|e| format!("Failed to deserialize tx: {}", e))?;
+    let tx_bytes = base64::Engine::decode(&base64::engine::general_purpose::STANDARD, tx_base64)
+        .map_err(|e| format!("Failed to decode tx base64: {}", e))?;
+    let mut tx: solana_sdk::transaction::Transaction =
+        bincode::deserialize(&tx_bytes).map_err(|e| format!("Failed to deserialize tx: {}", e))?;
 
     // Sign the transaction.
     let blockhash = tx.message.recent_blockhash;
@@ -936,18 +895,13 @@ pub fn sign_and_send_local(tx_base64: &str) -> Result<String, String> {
         );
     }
 
-    println!(
-        "[TREASURY] tx signed: sig={}",
-        tx.signatures[0]
-    );
+    println!("[TREASURY] tx signed: sig={}", tx.signatures[0]);
 
     // Serialize the signed transaction.
-    let signed_bytes = bincode::serialize(&tx)
-        .map_err(|e| format!("Failed to serialize signed tx: {}", e))?;
-    let signed_b64 = base64::Engine::encode(
-        &base64::engine::general_purpose::STANDARD,
-        &signed_bytes,
-    );
+    let signed_bytes =
+        bincode::serialize(&tx).map_err(|e| format!("Failed to serialize signed tx: {}", e))?;
+    let signed_b64 =
+        base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &signed_bytes);
 
     // Submit via JSON-RPC to devnet.
     let client = reqwest::blocking::Client::new();
@@ -969,9 +923,7 @@ pub fn sign_and_send_local(tx_base64: &str) -> Result<String, String> {
         .send()
         .map_err(|e| format!("RPC send failed: {}", e))?;
 
-    let data: serde_json::Value = resp
-        .json()
-        .map_err(|e| format!("RPC parse error: {}", e))?;
+    let data: serde_json::Value = resp.json().map_err(|e| format!("RPC parse error: {}", e))?;
 
     if let Some(error) = data.get("error") {
         let err_msg = error["message"].as_str().unwrap_or("unknown");
@@ -1044,10 +996,7 @@ pub fn deposit_yield_to_treasury(
                 "[TREASURY]   base64: {}...",
                 &tx_b64[..tx_b64.len().min(60)]
             );
-            Ok(format!(
-                "unsigned_tx_ready:signing_unavailable({})",
-                e
-            ))
+            Ok(format!("unsigned_tx_ready:signing_unavailable({})", e))
         }
     }
 }
@@ -1176,10 +1125,8 @@ impl TradingWing {
                 // When the proposal sets execution_venue: "hyperliquid",
                 // place a real order on HL testnet instead of using the
                 // bridge fallback.
-                let use_hl = config
-                    .get("execution_venue")
-                    .and_then(|v| v.as_str())
-                    == Some("hyperliquid");
+                let use_hl =
+                    config.get("execution_venue").and_then(|v| v.as_str()) == Some("hyperliquid");
 
                 if use_hl {
                     let is_buy = config
@@ -1196,7 +1143,9 @@ impl TradingWing {
                     // position invariant before placing it on HL.
                     let mid_price = get_sol_mid_price().unwrap_or(0.0);
                     let vault_balance = get_hl_account_value().unwrap_or(0.0);
-                    if let Err(e) = soulguard_trade_check(size, &format!("{:.2}", mid_price), vault_balance) {
+                    if let Err(e) =
+                        soulguard_trade_check(size, &format!("{:.2}", mid_price), vault_balance)
+                    {
                         println!("{}", e);
                         return Some(Message::new(
                             WingId::Trading,
@@ -1209,21 +1158,13 @@ impl TradingWing {
                     }
 
                     // Check for existing position to calculate closing PnL.
-                    let entry_price_str = self
-                        .get_entry_price(&symbol)
-                        .map(|ep| ep.to_string());
+                    let entry_price_str = self.get_entry_price(&symbol).map(|ep| ep.to_string());
 
-                    match execute_hl_sol_order(
-                        is_buy,
-                        size,
-                        entry_price_str.as_deref(),
-                    ) {
+                    match execute_hl_sol_order(is_buy, size, entry_price_str.as_deref()) {
                         Ok((_response, report)) => {
                             // Update position tracking.
-                            let fill_price: f64 =
-                                report.fill_price.parse().unwrap_or(0.0);
-                            let fill_size: f64 =
-                                report.size.parse().unwrap_or(0.0);
+                            let fill_price: f64 = report.fill_price.parse().unwrap_or(0.0);
+                            let fill_size: f64 = report.size.parse().unwrap_or(0.0);
                             let _tracked_pnl =
                                 self.process_fill(&symbol, is_buy, fill_price, fill_size);
 
@@ -1236,10 +1177,9 @@ impl TradingWing {
                                         "[TREASURY] yield deposited: {} USDC | {}",
                                         pnl, sig
                                     ),
-                                    Err(e) => println!(
-                                        "[TREASURY] deposit failed (non-fatal): {}",
-                                        e
-                                    ),
+                                    Err(e) => {
+                                        println!("[TREASURY] deposit failed (non-fatal): {}", e)
+                                    }
                                 }
                             }
 
@@ -1639,7 +1579,10 @@ mod tests {
             Ok(k) => k,
             Err(_) => return, // skip if no key file
         };
-        let pk_hex = key.private_key.strip_prefix("0x").unwrap_or(&key.private_key);
+        let pk_hex = key
+            .private_key
+            .strip_prefix("0x")
+            .unwrap_or(&key.private_key);
         let pk_bytes = hex::decode(pk_hex).expect("private key hex valid");
         let secret_key = secp256k1::SecretKey::from_slice(&pk_bytes).expect("valid secp256k1 key");
         let secp = secp256k1::Secp256k1::new();
@@ -1688,8 +1631,11 @@ mod tests {
         println!("[TEST] Expected hash:    {}", expected_hash);
         println!("[TEST] Expected msgpack: {}", expected_msgpack);
 
-        assert_eq!(hex::encode(&action_hash), expected_hash,
-            "Action hash must match Python SDK insertion-order output");
+        assert_eq!(
+            hex::encode(&action_hash),
+            expected_hash,
+            "Action hash must match Python SDK insertion-order output"
+        );
     }
 
     #[test]
@@ -1723,22 +1669,28 @@ mod tests {
         };
         let action = build_order_action(0, true, "0.01", "0", "Ioc");
         let nonce: u64 = 1744380000000;
-        let sig = sign_l1_action(&action, nonce, &key.private_key, false)
-            .expect("signing succeeds");
+        let sig =
+            sign_l1_action(&action, nonce, &key.private_key, false).expect("signing succeeds");
 
         println!("[TEST] Rust r: {}", sig.r);
         println!("[TEST] Rust s: {}", sig.s);
         println!("[TEST] Rust v: {}", sig.v);
 
         // Compare r directly (no leading-zero issue).
-        assert_eq!(sig.r, "0x5129d8eeb3ff6e86997d2a993090ebc43d72521f077630780994ac3f653c5095",
-            "r must match Python EIP-712 reference");
+        assert_eq!(
+            sig.r, "0x5129d8eeb3ff6e86997d2a993090ebc43d72521f077630780994ac3f653c5095",
+            "r must match Python EIP-712 reference"
+        );
 
         // Compare s as bytes (Python to_hex strips leading zero, Rust preserves it).
         let rust_s_bytes = hex::decode(sig.s.strip_prefix("0x").unwrap()).unwrap();
-        let py_s_bytes = hex::decode("0731853cdcceb1bb069af8d494f216d8a17ec2a99177a46b9bc33adbc2038406").unwrap();
-        assert_eq!(rust_s_bytes, py_s_bytes,
-            "s must match Python EIP-712 reference");
+        let py_s_bytes =
+            hex::decode("0731853cdcceb1bb069af8d494f216d8a17ec2a99177a46b9bc33adbc2038406")
+                .unwrap();
+        assert_eq!(
+            rust_s_bytes, py_s_bytes,
+            "s must match Python EIP-712 reference"
+        );
 
         assert_eq!(sig.v, 27, "v must match Python EIP-712 reference");
     }
@@ -1825,8 +1777,15 @@ mod tests {
         assert_eq!(report.side, "BUY");
         assert_eq!(report.fill_price, "150.5");
         assert_eq!(report.size, "0.01");
-        assert!(report.realized_pnl_usdc.is_none(), "opening fill has no realized PnL");
-        assert_eq!(report.entry_price.as_deref(), Some("150.5"), "entry_price set from fill_price");
+        assert!(
+            report.realized_pnl_usdc.is_none(),
+            "opening fill has no realized PnL"
+        );
+        assert_eq!(
+            report.entry_price.as_deref(),
+            Some("150.5"),
+            "entry_price set from fill_price"
+        );
     }
 
     #[test]
@@ -1843,11 +1802,16 @@ mod tests {
             }
         });
         // Closing a long: SELL at 160, entered at 150 → PnL = (160-150)*0.01 = 0.10
-        let report = parse_fill_response(&response, "SOL/USDT", false, "0.01", Some("150.0")).unwrap();
+        let report =
+            parse_fill_response(&response, "SOL/USDT", false, "0.01", Some("150.0")).unwrap();
         assert_eq!(report.side, "SELL");
         assert!(report.realized_pnl_usdc.is_some());
         let pnl = report.realized_pnl_usdc.unwrap();
-        assert!((pnl - 0.10).abs() < 0.001, "PnL should be 0.10, got {}", pnl);
+        assert!(
+            (pnl - 0.10).abs() < 0.001,
+            "PnL should be 0.10, got {}",
+            pnl
+        );
     }
 
     #[test]
@@ -1864,10 +1828,15 @@ mod tests {
             }
         });
         // Closing a short: BUY at 140, entered at 150 → PnL = (150-140)*0.01 = 0.10
-        let report = parse_fill_response(&response, "SOL/USDT", true, "0.01", Some("150.0")).unwrap();
+        let report =
+            parse_fill_response(&response, "SOL/USDT", true, "0.01", Some("150.0")).unwrap();
         assert_eq!(report.side, "BUY");
         let pnl = report.realized_pnl_usdc.unwrap();
-        assert!((pnl - 0.10).abs() < 0.001, "short PnL should be 0.10, got {}", pnl);
+        assert!(
+            (pnl - 0.10).abs() < 0.001,
+            "short PnL should be 0.10, got {}",
+            pnl
+        );
     }
 
     #[test]
@@ -1962,8 +1931,18 @@ mod tests {
         let order_size = "0.12";
 
         // ── STEP 1: BUY (open long) ──────────────────────────────────
-        println!("[TEST] === STEP 1: BUY {} SOL @ {} (IOC) ===", order_size, price_str);
-        let buy_result = place_hl_order(sol_idx, true, order_size, &price_str, "Ioc", &key.private_key);
+        println!(
+            "[TEST] === STEP 1: BUY {} SOL @ {} (IOC) ===",
+            order_size, price_str
+        );
+        let buy_result = place_hl_order(
+            sol_idx,
+            true,
+            order_size,
+            &price_str,
+            "Ioc",
+            &key.private_key,
+        );
 
         let buy_response = match buy_result {
             Ok(r) => r,
@@ -2016,14 +1995,27 @@ mod tests {
             .parse()
             .expect("buy fill_price should be numeric");
         assert!(buy_price > 0.0, "buy fill_price should be positive");
-        assert!(buy_report.realized_pnl_usdc.is_none(), "opening fill has no PnL");
+        assert!(
+            buy_report.realized_pnl_usdc.is_none(),
+            "opening fill has no PnL"
+        );
 
         // ── STEP 2: SELL (close long) ────────────────────────────────
         let sell_price = mid_price * 0.95; // Below mid for immediate fill
         let sell_price_str = format!("{:.2}", sell_price);
 
-        println!("\n[TEST] === STEP 2: SELL {} SOL @ {} (IOC, reduceOnly) ===", order_size, sell_price_str);
-        let sell_result = place_hl_order(sol_idx, false, order_size, &sell_price_str, "Ioc", &key.private_key);
+        println!(
+            "\n[TEST] === STEP 2: SELL {} SOL @ {} (IOC, reduceOnly) ===",
+            order_size, sell_price_str
+        );
+        let sell_result = place_hl_order(
+            sol_idx,
+            false,
+            order_size,
+            &sell_price_str,
+            "Ioc",
+            &key.private_key,
+        );
 
         let sell_response = match sell_result {
             Ok(r) => r,
@@ -2040,9 +2032,13 @@ mod tests {
 
         // Parse the SELL fill (closing fill with entry_price)
         let sell_report = parse_fill_response(
-            &sell_response, "SOL/USDT", false, order_size,
+            &sell_response,
+            "SOL/USDT",
+            false,
+            order_size,
             Some(&buy_report.fill_price),
-        ).expect("SELL fill response should parse");
+        )
+        .expect("SELL fill response should parse");
         println!("[TEST] SELL fill: {:?}", sell_report);
 
         assert_eq!(sell_report.side, "SELL");
@@ -2050,10 +2046,16 @@ mod tests {
             .fill_price
             .parse()
             .expect("sell fill_price should be numeric");
-        assert!(sell_price_actual > 0.0, "sell fill_price should be positive");
+        assert!(
+            sell_price_actual > 0.0,
+            "sell fill_price should be positive"
+        );
 
         // PnL should be computed (closing a long)
-        assert!(sell_report.realized_pnl_usdc.is_some(), "closing fill should have PnL");
+        assert!(
+            sell_report.realized_pnl_usdc.is_some(),
+            "closing fill should have PnL"
+        );
         let pnl = sell_report.realized_pnl_usdc.unwrap();
         println!("\n[TEST] ═══════════════════════════════════════");
         println!("[TEST]   ROUND-TRIP COMPLETE");
@@ -2091,11 +2093,8 @@ mod tests {
         // ── Opening fill (no prior position) ───────────────────────────
         let open_resp = mock_fill_response("142.50", "0.01");
         let open_report = parse_fill_response(
-            &open_resp,
-            "SOL/USDT",
-            true,   // is_buy = opening a long
-            "0.01",
-            None,   // no entry_price → opening fill
+            &open_resp, "SOL/USDT", true, // is_buy = opening a long
+            "0.01", None, // no entry_price → opening fill
         )
         .expect("opening fill should parse");
 
@@ -2123,7 +2122,7 @@ mod tests {
         let close_report = parse_fill_response(
             &close_resp,
             "SOL/USDT",
-            false,          // is_buy = false → SELL → closing the long
+            false, // is_buy = false → SELL → closing the long
             "0.01",
             Some("142.50"), // entry_price from the opening fill
         )
@@ -2154,7 +2153,7 @@ mod tests {
         let close_report = parse_fill_response(
             &close_resp,
             "SOL/USDT",
-            true,           // BUY → closing the short
+            true, // BUY → closing the short
             "0.01",
             Some("150.00"), // entry_price from opening short
         )
@@ -2278,9 +2277,8 @@ mod tests {
         let authority = Pubkey::new_unique();
         let program_id = Pubkey::new_unique();
 
-        let ix = build_transfer_checked_ix(
-            &source, &mint, &dest, &authority, 1_000_000, 6, &program_id,
-        );
+        let ix =
+            build_transfer_checked_ix(&source, &mint, &dest, &authority, 1_000_000, 6, &program_id);
 
         // Verify instruction structure.
         assert_eq!(ix.program_id, program_id);
@@ -2295,7 +2293,10 @@ mod tests {
         // Discriminator for transfer_checked = 12.
         assert_eq!(u32::from_le_bytes(ix.data[0..4].try_into().unwrap()), 12);
         // Amount = 1_000_000.
-        assert_eq!(u64::from_le_bytes(ix.data[4..12].try_into().unwrap()), 1_000_000);
+        assert_eq!(
+            u64::from_le_bytes(ix.data[4..12].try_into().unwrap()),
+            1_000_000
+        );
         // Decimals = 6.
         assert_eq!(ix.data[12], 6);
     }
@@ -2326,30 +2327,39 @@ mod tests {
         let result = build_treasury_deposit_tx(DEVNET_WALLET, 0.175);
         match result {
             Ok((b64, from_ata)) => {
-                println!("[TEST] TX base64 (first 60 chars): {}...", &b64[..60.min(b64.len())]);
+                println!(
+                    "[TEST] TX base64 (first 60 chars): {}...",
+                    &b64[..60.min(b64.len())]
+                );
                 println!("[TEST] From ATA: {}", from_ata);
 
                 // Verify base64 is valid and decodes to reasonable length.
-                let decoded = base64::Engine::decode(
-                    &base64::engine::general_purpose::STANDARD,
-                    &b64,
-                )
-                .expect("base64 should decode");
-                assert!(decoded.len() > 64, "tx should be >64 bytes, got {}", decoded.len());
+                let decoded =
+                    base64::Engine::decode(&base64::engine::general_purpose::STANDARD, &b64)
+                        .expect("base64 should decode");
+                assert!(
+                    decoded.len() > 64,
+                    "tx should be >64 bytes, got {}",
+                    decoded.len()
+                );
 
                 // Verify the base64 string can be deserialized back to a Transaction.
                 let tx: solana_sdk::transaction::Transaction =
                     bincode::deserialize(&decoded).expect("tx should deserialize");
-                assert_eq!(tx.message.instructions.len(), 1, "should have 1 instruction");
+                assert_eq!(
+                    tx.message.instructions.len(),
+                    1,
+                    "should have 1 instruction"
+                );
                 assert_eq!(tx.signatures.len(), 1, "should have 1 signer slot");
-                assert_eq!(tx.signatures[0], solana_sdk::signature::Signature::default(),
-                    "unsigned tx should have zero signature");
+                assert_eq!(
+                    tx.signatures[0],
+                    solana_sdk::signature::Signature::default(),
+                    "unsigned tx should have zero signature"
+                );
             }
             Err(e) => {
-                eprintln!(
-                    "SKIP build_treasury_deposit_tx_live_devnet: {}",
-                    e
-                );
+                eprintln!("SKIP build_treasury_deposit_tx_live_devnet: {}", e);
             }
         }
     }
@@ -2379,7 +2389,11 @@ mod tests {
         let result = soulguard_trade_check("0.3", "85.0", 90.0);
         assert!(result.is_err());
         let err = result.unwrap_err();
-        assert!(err.contains("exceeds 20% cap"), "should mention cap: {}", err);
+        assert!(
+            err.contains("exceeds 20% cap"),
+            "should mention cap: {}",
+            err
+        );
     }
 
     #[test]
@@ -2459,7 +2473,10 @@ mod tests {
 
         // Should match the DEVNET_WALLET constant.
         let expected = solana_sdk::pubkey::Pubkey::try_from(DEVNET_WALLET).unwrap();
-        assert_eq!(pubkey, expected, "keypair pubkey should match DEVNET_WALLET");
+        assert_eq!(
+            pubkey, expected,
+            "keypair pubkey should match DEVNET_WALLET"
+        );
     }
 
     #[test]
@@ -2478,7 +2495,11 @@ mod tests {
                 println!("[TEST] Local signing succeeded: sig={}", sig);
                 // Signature should be a valid base58 string (~88 chars).
                 assert!(!sig.is_empty());
-                assert!(sig.len() > 80, "signature should be >80 chars, got {}", sig.len());
+                assert!(
+                    sig.len() > 80,
+                    "signature should be >80 chars, got {}",
+                    sig.len()
+                );
                 println!(
                     "[TEST] Explorer: https://explorer.solana.com/tx/{}?cluster=devnet",
                     sig
@@ -2511,11 +2532,8 @@ mod tests {
         println!("[E2E] From ATA: {}", from_ata);
 
         // Step 2: Verify the transaction is well-formed.
-        let decoded = base64::Engine::decode(
-            &base64::engine::general_purpose::STANDARD,
-            &b64,
-        )
-        .expect("base64 decode");
+        let decoded = base64::Engine::decode(&base64::engine::general_purpose::STANDARD, &b64)
+            .expect("base64 decode");
         let tx: solana_sdk::transaction::Transaction =
             bincode::deserialize(&decoded).expect("tx deserialize");
 
@@ -2525,8 +2543,10 @@ mod tests {
         // Verify the instruction program is Token-2022.
         let token_2022 = solana_sdk::pubkey::Pubkey::try_from(TOKEN_2022_PROGRAM_ID).unwrap();
         let program_id_idx = tx.message.instructions[0].program_id_index as usize;
-        assert_eq!(tx.message.account_keys[program_id_idx], token_2022,
-            "instruction program should be Token-2022");
+        assert_eq!(
+            tx.message.account_keys[program_id_idx], token_2022,
+            "instruction program should be Token-2022"
+        );
 
         // Verify account keys include our known addresses.
         let vault = solana_sdk::pubkey::Pubkey::try_from(TREASURY_VAULT).unwrap();

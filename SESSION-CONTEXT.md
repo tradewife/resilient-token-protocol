@@ -166,11 +166,14 @@ Do not re-read the papers. Use only these extracted design consequences.
 - RTP's Night Shift implements this loop over strategy configs (30K candidates → WFA → Darwinian)
 - Apply same loop to the Hyperliquid execution layer: propose order → simulate → submit if passes soulguard
 
-### Night Shift Research Output (live — Apr 9 run)
+### Night Shift Research Output (live — Apr 12 run, confirmed)
 - SOL/USDT candidate #1: Survivor score 2.69 (+2.46 over baseline)
 - OOS Sharpe +3.96, 100% consistency (9/9 folds profitable), fragility 0.29, 47 trades/fold
 - Config: signal_threshold=0.3, tp_atr=3.0, sl_atr=1.5, max_hold=36h, trailing_stop_atr=0.5
 - Status: STRONG RECOMMEND — this is the strategy the Trading Wing executes on Hyperliquid
+- Apr 12 night shift (9,888s, 9 folds) CONFIRMED same recommendation — strategy is stable.
+- SOL/USDT ADX trend: FALLING (40.6) — monitor for regime transition. Strategy valid while TREND holds.
+- BTC overfitting warning: configs with tp_atr=6.0, sl_atr=3.0 flagged overfitting_score=0.57 > threshold.
 
 ---
 
@@ -433,5 +436,5 @@ Demo               = proof the institution persists without founder trust
 
 ---
 
-*Last updated: 2026-04-11 (session g) — Two-cycle demo implemented. All 5 judge points covered. 276 tests 0 failures. Memory persistence + heartbeat redirect wired into demo binary. Build complete — next session is rehearsal + submission.*
+*Last updated: 2026-04-12 (session h — audit close-out) — 298 tests, 0 failures, 0 clippy warnings. All 7 audit gaps closed. HL round-trip verified. Demo-readiness ~9/10. Build complete — next session is rehearsal + submission.*
 *Update this file after each session that changes canonical decisions or resolves open decisions.*

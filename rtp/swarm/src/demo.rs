@@ -20,7 +20,7 @@ use crate::orchestrator::{
 };
 use crate::types::{Message, Payload, ProposalKind, RiskLevel, WingId};
 use crate::wings::audit::AuditWing;
-use crate::wings::evolve::{propose_strategy_mutation, LlmProposerConfig};
+use crate::wings::evolve::{LlmProposerConfig, propose_strategy_mutation};
 use crate::wings::futureproof::FutureproofWing;
 use crate::wings::knowledge::KnowledgeWing;
 use crate::wings::security::SecurityWing;
@@ -621,7 +621,9 @@ pub fn print_two_cycle_demo(result: &TwoCycleDemoResult) {
         println!("[ANCHOR]    treasury vault: 10,000 tokens < 50B cap (Sustenance→Ecosystem)");
         println!("[ANCHOR]    constraint enforced by deployed program 4LvsHb... on devnet");
         println!("[ANCHOR]    redistribution tx (70/20/10 split enforced):");
-        println!("[ANCHOR]    https://explorer.solana.com/tx/9HzWgBfwYxs5ModdjF5mT6gdTfayQq8mMYipopyHfGPmYqk6KESHFqgDrc9Mcie573ttcdPqMHSyJP5nNBKK3bR?cluster=devnet");
+        println!(
+            "[ANCHOR]    https://explorer.solana.com/tx/9HzWgBfwYxs5ModdjF5mT6gdTfayQq8mMYipopyHfGPmYqk6KESHFqgDrc9Mcie573ttcdPqMHSyJP5nNBKK3bR?cluster=devnet"
+        );
     } else {
         println!("[ANCHOR] ✅ phase evolution permitted (unexpected)");
     }
@@ -743,12 +745,10 @@ pub fn print_two_cycle_demo(result: &TwoCycleDemoResult) {
 
     // Live HL testnet vault balance (spawn a thread to avoid
     // reqwest::blocking panic inside tokio runtime during tests).
-    let balance_result = std::thread::spawn(|| {
-        crate::wings::trading::get_hl_account_value()
-    })
-    .join()
-    .ok()
-    .and_then(|r| r.ok());
+    let balance_result = std::thread::spawn(|| crate::wings::trading::get_hl_account_value())
+        .join()
+        .ok()
+        .and_then(|r| r.ok());
 
     if let Some(balance) = balance_result {
         println!("[TREASURY] HL testnet vault: {:.2} USDC", balance);
@@ -881,9 +881,7 @@ mod tests {
         let result = simulate_below_threshold_withdrawal();
         assert!(result.is_err());
         assert!(
-            result
-                .unwrap_err()
-                .contains("BelowThreshold"),
+            result.unwrap_err().contains("BelowThreshold"),
             "Error should mention BelowThreshold"
         );
     }
