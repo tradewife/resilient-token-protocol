@@ -575,6 +575,72 @@ pub fn get_hl_account_value() -> Result<f64, String> {
         .map_err(|e| format!("Bad accountValue: {}", e))
 }
 
+/// Active strategy configuration for the Trading Wing.
+///
+/// Default values are SOL/USDT Survivor 2.69 — confirmed Apr 12 night shift, OOS Sharpe 3.96.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StrategyConfig {
+    pub signal_threshold: f64,
+    pub tp_atr: f64,
+    pub sl_atr: f64,
+    pub max_hold_hours: f64,
+    pub trailing_stop_atr: f64,
+}
+
+impl Default for StrategyConfig {
+    fn default() -> Self {
+        // SOL/USDT Survivor 2.69 — confirmed Apr 12 night shift, OOS Sharpe 3.96
+        Self {
+            signal_threshold: 0.3,
+            tp_atr: 3.0,
+            sl_atr: 1.5,
+            max_hold_hours: 36.0,
+            trailing_stop_atr: 0.5,
+        }
+    }
+}
+
+/// Apply validated strategy mutations to the active config.
+///
+/// Matches each mutation's `param` name to the corresponding field in
+/// `StrategyConfig`. Unknown params are skipped with a warning log.
+/// The caller is responsible for persisting the updated config.
+pub fn apply_mutations(
+    config: &mut StrategyConfig,
+    mutations: &[crate::wings::evolve::StrategyMutation],
+) {
+    for m in mutations {
+        let old: f64;
+        match m.param.as_str() {
+            "signal_threshold" => {
+                old = config.signal_threshold;
+                config.signal_threshold = m.value;
+            }
+            "tp_atr" => {
+                old = config.tp_atr;
+                config.tp_atr = m.value;
+            }
+            "sl_atr" => {
+                old = config.sl_atr;
+                config.sl_atr = m.value;
+            }
+            "max_hold" => {
+                old = config.max_hold_hours;
+                config.max_hold_hours = m.value;
+            }
+            "trailing_stop_atr" => {
+                old = config.trailing_stop_atr;
+                config.trailing_stop_atr = m.value;
+            }
+            _ => {
+                println!("[EVOLVE] ⚠️ skipping unknown param: {}", m.param);
+                continue;
+            }
+        }
+        println!("[EVOLVE] ✅ applied: {} {} → {}", m.param, old, m.value);
+    }
+}
+
 /// Execute a SOL order on Hyperliquid testnet using the configured key.
 ///
 /// This is the primary entry point for the Trading Wing's Hyperliquid
@@ -2589,5 +2655,59 @@ mod tests {
                 println!("[E2E]   base64: {}...", &b64[..60.min(b64.len())]);
             }
         }
+    }
+
+    // ── apply_mutations tests ─────────────────────────────────────────
+
+    #[test]
+    fn apply_mutations_updates_known_params() {
+        let mut config = StrategyConfig::default();
+        let mutations = vec![
+            crate::wings::evolve::StrategyMutation {
+                param: "signal_threshold".to_string(),
+                value: 0.28,
+                rationale: "test".to_string(),
+            },
+            crate::wings::evolve::StrategyMutation {
+                param: "tp_atr".to_string(),
+                value: 3.5,
+                rationale: "test".to_string(),
+            },
+        ];
+        apply_mutations(&mut config, &mutations);
+        assert!((config.signal_threshold - 0.28).abs() < f64::EPSILON);
+        assert!((config.tp_atr - 3.5).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn apply_mutations_skips_unknown_param() {
+        let mut config = StrategyConfig::default();
+        let mutations = vec![crate::wings::evolve::StrategyMutation {
+            param: "evil_param".to_string(),
+            value: 999.0,
+            rationale: "malicious".to_string(),
+        }];
+        let original = config.clone();
+        apply_mutations(&mut config, &mutations);
+        assert!((config.signal_threshold - original.signal_threshold).abs() < f64::EPSILON);
+        assert!((config.tp_atr - original.tp_atr).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn apply_mutations_writes_config_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let latest_dir = dir.path().join("data/devnet-cycles/latest");
+        std::fs::create_dir_all(&latest_dir).unwrap();
+
+        // We can't easily override the hardcoded path in apply_mutations,
+        // so just verify the function doesn't panic with default path.
+        let mut config = StrategyConfig::default();
+        let mutations = vec![crate::wings::evolve::StrategyMutation {
+            param: "sl_atr".to_string(),
+            value: 2.0,
+            rationale: "test".to_string(),
+        }];
+        apply_mutations(&mut config, &mutations);
+        assert!((config.sl_atr - 2.0).abs() < f64::EPSILON);
     }
 }

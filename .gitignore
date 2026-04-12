@@ -13,6 +13,8 @@ data/*
 !data/ohlcv/**
 !data/night_results/
 !data/night_results/**
+!data/devnet-cycles/
+!data/devnet-cycles/**
 
 # --- Python artifacts ---
 __pycache__/

@@ -1,0 +1,70 @@
+{
+  "cycle_id": "2026-04-12T21:29:52.438410064+00:00",
+  "params_used": {
+    "signal_threshold": 0.28,
+    "tp_atr": 3.5,
+    "sl_atr": 1.5,
+    "max_hold_hours": 36.0,
+    "trailing_stop_atr": 0.4
+  },
+  "mutations_proposed": [
+    {
+      "param": "signal_threshold",
+      "value": 0.28,
+      "rationale": "reduce noise sensitivity"
+    },
+    {
+      "param": "tp_atr",
+      "value": 3.5,
+      "rationale": "extend profit target in ranging market"
+    },
+    {
+      "param": "trailing_stop_atr",
+      "value": 0.4,
+      "rationale": "tighten drawdown protection"
+    }
+  ],
+  "mutations_accepted": [
+    {
+      "param": "signal_threshold",
+      "value": 0.28,
+      "rationale": "reduce noise sensitivity"
+    },
+    {
+      "param": "tp_atr",
+      "value": 3.5,
+      "rationale": "extend profit target in ranging market"
+    },
+    {
+      "param": "trailing_stop_atr",
+      "value": 0.4,
+      "rationale": "tighten drawdown protection"
+    }
+  ],
+  "mutations_rejected": [],
+  "params_next": {
+    "signal_threshold": 0.28,
+    "tp_atr": 3.5,
+    "sl_atr": 1.5,
+    "max_hold_hours": 36.0,
+    "trailing_stop_atr": 0.4
+  },
+  "used_llm": false,
+  "model_label": "deterministic-fallback",
+  "memory_files": [
+    "/tmp/rtp-demo-memory/working/cycle-9.json",
+    "/tmp/rtp-demo-memory/working/cycle-8.json",
+    "/tmp/rtp-demo-memory/working/cycle-7.json",
+    "/tmp/rtp-demo-memory/working/cycle-6.json",
+    "/tmp/rtp-demo-memory/working/cycle-5.json",
+    "/tmp/rtp-demo-memory/working/cycle-4.json",
+    "/tmp/rtp-demo-memory/working/cycle-3.json",
+    "/tmp/rtp-demo-memory/working/cycle-2.json",
+    "/tmp/rtp-demo-memory/working/cycle-1.json",
+    "/tmp/rtp-demo-memory/project/redirect-9.json",
+    "/tmp/rtp-demo-memory/project/redirect-8.json",
+    "/tmp/rtp-demo-memory/project/redirect-7.json",
+    "/tmp/rtp-demo-memory/project/redirect-6.json",
+    "/tmp/rtp-demo-memory/project/proj-3.json"
+  ]
+}

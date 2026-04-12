@@ -26,3 +26,11 @@ base64 = "0.22"
 [dev-dependencies]
 tokio-test = "0.4"
 tempfile = "3"
+
+[[bin]]
+name = "rtp-demo"
+path = "src/bin/rtp-demo.rs"
+
+[[bin]]
+name = "rtp-daemon"
+path = "src/bin/rtp-daemon.rs"
