@@ -12,7 +12,7 @@ A Solana-native, self-funding treasury governed by a modular Rust swarm. Any tok
           │            │       │       │           │            │
      ┌────▼────┐ ┌────▼───┐ ┌▼─────┐ ┌▼────────┐ ┌▼────────┐ ┌▼────────┐
      │TRADING  │ │SECURITY│ │EVOLVE│ │KNOWLEDGE │ │AUDIT    │ │FUTURE   │
-     │WING     │ │WING    │ │WING  │ │WING      │ │WING     │ │PROOF    │
+     │WING     │ │WING    │ │WING  │ │WING      │ │AUDIT    │ │PROOF    │
      │         │ │        │      │ │          │ │         │ │WING     │
      │Yield    │ │Threat  │ │Self- │ │Realtime  │ │Intent   │ │Quantum  │
      │gen +    │ │detect  │ │modify │ │knowledge │ │complian.│ │future-  │
@@ -282,13 +282,36 @@ Yield (USDC)
 
 At $10k reserves generating 20-50% annual yield, ops cost is ~$100-200/mo. The system runs forever on its own yield.
 
+## Treasury Capital Model
+
+The treasury holds two distinct asset buckets. Creator fees arrive as SOL — the protocol never sells them.
+
+```
+┌─────────────────────────────────────────────────────┐
+│  TREASURY PDA                                       │
+│                                                     │
+│  SOL bucket    ── creator fees ── hold & appreciate │
+│                                   (never liquidated)│
+│                                   future: collateral│
+│                                   → borrow USDC     │
+│                                                     │
+│  USDC bucket   ── VC / prize grant ── trading cap   │
+│                   grows from HL yield               │
+│                   self-sustaining at scale          │
+└─────────────────────────────────────────────────────┘
+```
+
+**SOL bucket**: held as appreciating reserve. Never sold. Long-term path: deposited as collateral into a Solana lending protocol (via Phantom-native collateral integration, currently in early conversation with Phantom) — USDC borrowed against it funds the trading wing autonomously, with no external capital required.
+
+**USDC bucket**: seeded by VC grant or hackathon prize capital. Not distributed — held as operating reserve and grows from Hyperliquid yield. VC capital is received via MoonPay Agents and deposited directly into the treasury PDA. As yield compounds, external seed capital is no longer required.
+
 ## soulcontract.md
 
 A constitutional governance layer that sits above all agent loops. Agents propose, humans approve.
 
 **What can evolve**: strategy parameters, risk thresholds, execution venue weights, redistribution splits, strategy portfolio composition.
 
-**What cannot evolve**: core values, human-sovereign control, self-modification of the contract without human approval, any action that increases max risk budget without consent.
+**What cannot evolve**: core values, human-sovereign control, self-modification of the contract without human approval, any action that increases max risk budget without consent, SOL liquidation policy.
 
 **Amendment protocol**: propose as diff → human signs commit → 24h monitoring window → auto-rollback if performance degrades > 5%.
 
@@ -310,16 +333,19 @@ Any Solana token project can adopt RTP by enabling `TransferFeeConfig` on their 
 Token project adopts RTP
   │
   ├── Enable TransferFeeConfig on mint (immutable)
-  │       └── Every trade → fee → Treasury PDA
+  │       └── Every trade → fee (SOL) → Treasury PDA → SOL bucket
   │
   ├── pump.fun (most common)
   │       └── 0.25% PumpSwap fee → 0.05% creator fee (SOL) → Treasury PDA
   │
   └── Any Solana token
           └── Custom fee % set at mint → routes to Treasury PDA
+
+SOL held as reserve. Trading wing funded by USDC bucket (VC/yield).
+Future: SOL collateral → borrow USDC → fully autonomous capital loop.
 ```
 
-**Why projects adopt**: Their fees don't just sit in a wallet — the swarm puts them to work. Yield flows back to the project and its holders automatically. No trust required.
+**Why projects adopt**: Their fees don't just sit in a wallet — the swarm puts them to work. Yield flows back to the project and its holders automatically. No trust required. The community's SOL is never sold.
 
 **Rug-proof by design**: SPL TransferFeeConfig is immutable once minted. PDA owns treasury (no private key). All transfers via CPI (atomic, verifiable). Mint authority renounced post-launch.
 
@@ -330,16 +356,21 @@ Token project adopts RTP
                      │ TOKEN PROJECT TRADING FEES  │
                      │ (pump.fun, or any token)    │
                      └──────────┬─────────────────┘
-                                │ TransferFeeConfig (immutable)
+                                │ TransferFeeConfig (immutable, SOL)
                                 ▼
                      ┌──────────▼─────────────────┐
                      │     SOLANA TREASURY PDA     │
                      │                             │
-                     │  ┌─ Sustenance PDA (ops)   │
-                     │  ├─ Ecosystem Fund (SOL)    │
-                     │  └─ Redistribution (USDC)   │
+                     │  SOL bucket (reserve)       │
+                     │  ├─ Never sold              │
+                     │  └─ Future: collateral →    │
+                     │       borrow USDC           │
+                     │                             │
+                     │  USDC bucket (trading cap)  │
+                     │  ├─ Seeded by VC / prize $  │
+                     │  └─ Grows from HL yield     │
                      └──────────┬─────────────────┘
-                                │
+                                │ USDC
                   reserves > threshold?
                      /          \
                    NO            YES
@@ -367,8 +398,8 @@ Token project adopts RTP
      ┌──────────▼─────────┐          │
      │  EXECUTION         │          │
      │  ├─ Hyperliquid    │          │
-     │  ├─ Jupiter swaps  │          │
-     └─ └─ Solana lending │          │
+     │  ├─ Phantom sign   │          │
+     └─ └─ USDC yield     │          │
      └──────────┬─────────┘          │
                 │                    │
                 └──► USDC yield ────►┘
@@ -381,6 +412,7 @@ Token project adopts RTP
 - **Not dependent on LLMs** — core loop is deterministic Python; LLMs optional for hypothesis generation
 - **Not just a trading bot** — it's a token standard that any Solana project can adopt
 - **Not requiring venture infrastructure** — runs on a single machine, no database, no Kubernetes
+- **Not liquidating community SOL** — creator fee SOL is held as reserve, never sold to fund operations
 
 ## What We Already Have (Proven)
 
@@ -393,11 +425,12 @@ The Trading Wing's research layer is shipping today. Everything else is scaffold
 | Paper Trader (live Binance, ADX filter, state persistence) | Trading | Python | **Shipping** |
 | Self-Correction (fast sim vs full sim calibration) | Trading | Python | **Shipping** |
 | CI Pipeline (nightly cron, auto-commit, 300min timeout) | Trading | Infra | **Shipping** |
+| Devnet Loop (6h cron, LLM mutations, config chaining) | Evolve | Infra | **Shipping** |
 | SOL Optimized Config (+118.3% PnL, 78% consistency, 429 trades) | Trading | Python | **Shipping** |
 | Treasury Program (Anchor: deposit, distribute, hydrate, evolve) | — | Solana | **Built** (audit remediated) |
 | soulcontract.md (constitutional governance layer) | — | Governance | **Defined** |
 | Python ↔ Rust Bridge (typed JSON, bridge-mode subprocess) | Trading | Both | **Built** |
-| Coordinator (soulguard + router + lifecycle) | — | Rust | **Built** (238 tests) |
+| Coordinator (soulguard + router + lifecycle) | — | Rust | **Built** (301 tests) |
 | Evolve Wing (assessor + proposer + rollback) | Evolve | Rust | **Built** |
 | Audit Wing (3-agent tribunal, Byzantine consensus) | Audit | Rust | **Built** |
 | Trading Wing (bridge-backed execution, in-memory state) | Trading | Rust | **Built** |
@@ -427,13 +460,16 @@ rtp/
 │   │       ├── trading/mod.rs      # Bridge-backed execution, in-memory state
 │   │       ├── security/mod.rs     # Threat detection, rate-limiting, alerts
 │   │       ├── evolve/
-│   │       │   ├── mod.rs          # Darwinian loop orchestration
+│   │       │   ├── mod.rs          # Darwinian loop orchestration + LLM proposer
 │   │       │   ├── assessor.rs     # Treasury-native performance scoring
 │   │       │   ├── proposer.rs     # SPARC-inspired proposal lifecycle
 │   │       │   └── rollback.rs     # Auto-revert on >5% degradation
 │   │       ├── knowledge/mod.rs    # In-memory knowledge graph, cross-wing queries
 │   │       ├── audit/mod.rs        # 3-agent tribunal (Byzantine consensus)
 │   │       └── futureproof/mod.rs  # Deprecation monitoring, heartbeat
+│   └── src/bin/
+│       ├── demo.rs                 # One-shot demo binary (5 judge points)
+│       └── daemon.rs               # Autonomous devnet loop (6h CI cron)
 │
 ├── programs/                        # Solana (Anchor)
 │   └── rtp-treasury/              # Deposit, distribute, hydrate, evolve
@@ -447,12 +483,14 @@ rtp/
 │   ├── night_results/
 │   ├── paper_trading/
 │   ├── calibration/
-│   └── discrepancies/
+│   ├── discrepancies/
+│   └── devnet-cycles/              # Autonomous cycle output (auditable trail)
 │
 └── .github/workflows/
     ├── night_shift.yml             # Nightly research pipeline
     ├── swarm-ci.yml                # Rust build + test + clippy + anchor build
-    └── python-tests.yml            # Python lint + smoke tests
+    ├── python-tests.yml            # Python lint + smoke tests
+    └── devnet-loop.yml             # 6h autonomous devnet cycle
 ```
 
 ## Development Phases
@@ -471,7 +509,7 @@ The Python fractal-swarm — already running, already profitable, already autono
 
 ### Phase 1: Treasury + Coordinator + All Wings (Current)
 
-Treasury program audit-remediated. All 6 wings built. Coordinator with full quality gate pipeline. Bridge connecting Python research to Rust execution.
+Treasury program audit-remediated. All 6 wings built. Coordinator with full quality gate pipeline. Bridge connecting Python research to Rust execution. Autonomous devnet loop running.
 
 - ✅ Coordinator + typed message bus + soulguard + spec-based drift detection
 - ✅ Evolve Wing (assessor + proposer + rollback with 5% degradation threshold)
@@ -483,20 +521,17 @@ Treasury program audit-remediated. All 6 wings built. Coordinator with full qual
 - ✅ Treasury program on devnet (Anchor 1.0, audit remediated)
 - ✅ Python ↔ Rust typed bridge (`rtp/swarm/src/bridge.rs`)
 - ✅ End-to-end demo loop (`rtp/swarm/src/demo.rs`, 8-step pipeline)
-- ✅ Resilient Token Protocol is now a fully wired, end-to-end system:
-  - The two-cycle demo writes real memory files to `/tmp/rtp-demo-memory` and lists them in the output.
-  - `memory_promotion.rs` is fully wired into the demo via `Orchestrator::new_for_demo()`.
-  - The demo covers all 5 judge points, including persistent memory with on-disk JSON files.
-- ✅ Test suite: 298 tests, 0 failures, 0 clippy warnings.
+- ✅ Autonomous devnet loop (`rtp-daemon` binary, 6h CI cron, LLM mutations)
+- ✅ Test suite: 301 tests, 0 failures, 0 clippy warnings.
 
 ### Phase 2: End-to-End Integration + Full Loop
 
 Wire remaining wings and complete the end-to-end demo flow.
 
+- Sentinel dashboard deployed to GitHub Pages (live URL for judges)
+- Phantom SDK "Fund Treasury" button (SOL → USDC swap via Jupiter routing)
 - Knowledge Wing hardening beyond in-memory store
 - Security Wing hardening beyond in-memory alert/rate-limit logic
-- Trading Wing executor against real deployment targets
-- Full loop: Python proposes → Audit tribunal → Coordinator routes → execute on Solana
 
 ### Phase 3: Polish + Submission
 
@@ -504,7 +539,7 @@ Demo rehearsal, video, hardening, Colosseum submission by May 11.
 
 ### Phase 4: Eternal Autonomy
 
-All wings operational. Human role reduced to soulcontract amendments. The swarm runs, improves, defends, and evolves — funded by its own yield.
+All wings operational. Human role reduced to soulcontract amendments. The swarm runs, improves, defends, and evolves — funded by its own yield. SOL collateral loop operational via Phantom-native integration.
 
 ## Quick Start
 
@@ -524,6 +559,12 @@ python -m research.validation.validate_night_shift --production
 
 # Check system calibration
 python -m research.optimization.evaluator_calibration --samples 20
+
+# Run one-shot demo (5 judge points)
+cargo run --bin rtp-demo
+
+# Run autonomous devnet cycle (6h CI cron)
+cargo run --bin rtp-daemon
 ```
 
 ## Hackathon
@@ -559,7 +600,7 @@ python -m research.optimization.evaluator_calibration --samples 20
 | CASH | Sponsored | Stablecoin for treasury transactions |
 | Squads Multisig | Sponsored | Treasury PDA security + multisig authority |
 | Swig | Sponsored | Programmable smart wallets for wing message bus |
-| MoonPay Agents | Sponsored | Agent money movement infrastructure |
+| MoonPay Agents | Sponsored | VC capital on-ramp → treasury USDC deposit |
 
 ## License
 
