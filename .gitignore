@@ -63,3 +63,12 @@ night_shift.bin
 # --- Configs with secrets ---
 configs/*.json
 configs/.env*
+
+# --- Log files ---
+*.log
+
+# --- Video ---
+video/
+
+# --- Skills lock ---
+skills-lock.json
