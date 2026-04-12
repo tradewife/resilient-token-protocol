@@ -745,7 +745,7 @@ pub fn print_two_cycle_demo(result: &TwoCycleDemoResult) {
 
     // Live HL testnet vault balance (spawn a thread to avoid
     // reqwest::blocking panic inside tokio runtime during tests).
-    let balance_result = std::thread::spawn(|| crate::wings::trading::get_hl_account_value())
+    let balance_result = std::thread::spawn(crate::wings::trading::get_hl_account_value)
         .join()
         .ok()
         .and_then(|r| r.ok());
