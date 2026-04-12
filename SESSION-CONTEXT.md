@@ -97,8 +97,8 @@ Trading Wing (Rust)
 | HL Python integration script (fallback) | ✅ DONE | `scripts/hl_testnet_demo.py` — EIP-712 via web3.py (fallback) |
 | Phantom Portal app registered | ✅ DONE | Creds in `configs/.env.phantom` (gitignored) |
 | Unified signing via Phantom | ✅ DONE | `scripts/phantom_signer.ts` — sign-sol, sign-evm, sign-message |
-| HL testnet funded | ⚠️ PARTIAL | Account exists but $0 balance — drip requires mainnet balance |
-| Hyperliquid API call in Trading Wing (Rust) | ✅ DONE | EIP-712 + msgpack signing, `sign_l1_action`, HL recovers correct address. Mock fills tested. |
+| HL testnet funded | ✅ DONE | ~89.9 USDC in perps clearinghouse. Faucet deposited 100 USDC to spot; transferred 90 to perps via usdClassTransfer. |
+| Hyperliquid API call in Trading Wing (Rust) | ✅ DONE | EIP-712 + msgpack signing. Full round-trip verified: BUY 0.12 SOL → fill → SELL → fill → PnL (-$0.004). `serde_json preserve_order` fix was the key. |
 | YieldReport PnL calculation | ✅ DONE | Opening: `realized_pnl_usdc = None`. Closing: real PnL computed from entry/exit. |
 | PositionState tracking | ✅ DONE | In-memory HashMap, `process_fill()` opens/closes positions, wired into `handle_execute_permit` HL path. |
 | Treasury CPI transfer (build tx) | ✅ DONE | `build_treasury_deposit_tx()` builds real SPL `transfer_checked` on devnet. Token-2022 compatible. Manual ATA derivation, manual instruction builder (avoids zeroize conflict). |
@@ -228,27 +228,36 @@ A judge must be able to verify these five things in under 3 minutes:
 
 ## 8. Session Status
 
-**Session 2026-04-11g — Two-Cycle Demo (All 5 Judge Points Covered)**
+**Session 2026-04-12 — Full Audit Close-Out + HL Round-Trip**
+
+State as of Apr 12:
+- **298 tests, 0 failures, 0 clippy warnings**
+- **HL testnet funded and verified: BUY → fill → SELL → fill → PnL round-trip from Rust code**
+- All 7 audit gaps closed
+- Demo-Readiness Score: ~9/10 (was 7/10)
+
+**HL round-trip (this session):**
+- Root cause found: `serde_json` default `BTreeMap` sorts keys alphabetically, but HL server re-msgpacks from JSON → different hash than signed. Fix: `preserve_order` feature on serde_json
+- Secondary fix: `parse_fill_response` used `avg_px`/`total_sz` (snake_case) but HL returns `avgPx`/`totalSz` (camelCase)
+- HL testnet funded: 100 USDC from faucet to spot, 90 USDC transferred to perps via `usdClassTransfer`
+- `test_hl_testnet_order` now performs full BUY→fill→SELL→fill→PnL round-trip
+- HL account: `0xCDe5f2369f0cE9A8F31E0001dabD3a5A979d1625`, ~89.9 USDC in perps
+
+**Audit close-out (this session):**
+- 🔴 #1: Constraint rejection now references real devnet tx (evolve_phase BelowThreshold + redistribution tx explorer link)
+- 🔴 #2: Memory loaded from disk in cycle 2 (`fs::read_to_string` on `proj-*.json`), printed as `[MEMORY] ✅ loaded from disk`
+- 🟡 #3: `validate_mutation_bounds()` in Evolve Wing — rejects LLM mutations outside soulcontract bounds, 7 new tests
+- 🟡 #4: `soulguard_trade_check()` in Trading Wing — enforces 20% position size cap before HL orders, 6 new tests
+- 🟡 #5: Live HL vault balance printed in demo output
+- 🟢 #6: `sign_action()` deprecated, duplicate `TOKEN_PROGRAM_ID` comment fixed
+- 🟢 #7: Audit Wing `stub_review` threshold raised from 0.5 → 0.7, 2 new threshold tests
+
+**Previous session — Two-Cycle Demo (All 5 Judge Points Covered):**
 
 State as of Apr 11:
-- **276 tests, 0 failures, 0 clippy warnings**
+- **284 tests, 0 failures, 0 clippy warnings**
 - Invariant enforcement: 9/10 (Invariant 7 documented stub)
 - **All 5 judge points covered in demo binary output**
-
-**Two-cycle demo (this session):**
-- `demo.rs` extended with `run_two_cycle_demo()` + `print_two_cycle_demo()`
-- `simulate_below_threshold_withdrawal()` — constraint rejection stub (Point 1)
-- Cycle 1: existing `run_demo_loop()` (8-step swarm coordination) + Orchestrator with healthy states populates memory (5 working entries, 1 project consolidation)
-- Cycle 2: Orchestrator with declining states triggers heartbeat redirect after 1 cycle (stagnation_threshold=2, compares last 2 TSI readings)
-- Memory reference visible: `[MEMORY] referencing cycle 1: yield=0.175 USDC, sharpe=3.96`
-- Redirect visible: `[HEARTBEAT] redirect triggered: stagnation detected after 1 cycle`
-- Treasury URLs printed: PDA explorer + deposit tx explorer (Point 5)
-- New tests: `two_cycle_demo_covers_all_judge_points`, `constraint_rejection_stub_works`
-- Binary `rtp-demo.rs` updated to call two-cycle demo
-- memory_promotion.rs: 23+ tests, fully wired into demo binary via Orchestrator::new_for_demo()
-- Added `new_for_demo()` in `orchestrator.rs` that enables disk persistence in the demo loop; `run_two_cycle_demo()` now uses this path; `print_two_cycle_demo()` lists the actual memory files on disk
-- Demo output now shows `[MEMORY] files written to: /tmp/rtp-demo-memory/project` with `proj-3.json` and `redirect-*.json` visible to judge
-- 284 tests, 0 failures, 0 clippy warnings
 
 **Previous session — Agentic Treasury Signing (Path C implemented):**
 
@@ -346,7 +355,10 @@ State as of Apr 11:
 | ETH keypair for EIP-712 | ✅ `configs/hl_testnet_key.json` |
 | Order payload built | ✅ SOL/USDT Survivor 2.69 |
 | Mock fill testing | ✅ No network required, exercises full parse + PnL path |
-| Testnet funded | ⚠️ Account exists but $0 balance — drip requires mainnet balance |
+| Testnet funded | ✅ ~89.9 USDC in perps clearinghouse |
+| Round-trip trade (Rust) | ✅ BUY 0.12 SOL → fill → SELL → fill → PnL verified |
+| serde_json key ordering fix | ✅ `preserve_order` feature — IndexMap preserves insertion order |
+| parse_fill_response | ✅ Fixed avgPx/totalSz camelCase field names |
 
 **Decisions resolved:**
 - Demo UX → Browser dashboard with `@phantom/browser-sdk`
