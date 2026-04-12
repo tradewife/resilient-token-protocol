@@ -307,8 +307,9 @@ pub fn sign_l1_action(
     })
 }
 
-/// Legacy EIP-191 personal sign (used by demo script, NOT the official SDK).
-/// Kept for backwards compatibility but **not** used for real HL orders.
+/// Legacy EIP-191 personal sign (deprecated — use `sign_l1_action` instead).
+#[deprecated(note = "Use sign_l1_action() for proper EIP-712 signing")]
+#[allow(dead_code)]
 pub fn sign_action(
     action: &serde_json::Value,
     private_key_hex: &str,
@@ -538,6 +539,72 @@ fn parse_fill_response(
     })
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+//  Soulguard Trade Check — Position Size Cap
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Maximum position size as a fraction of treasury vault balance.
+/// The soulcontract mandates "Max position size: 20% of treasury reserves per trade."
+const MAX_POSITION_FRACTION: f64 = 0.20;
+
+/// Check whether a proposed order complies with the soulcontract position
+/// size cap (20% of treasury vault balance).
+///
+/// Returns `Ok(())` if the order is within bounds, or `Err` with a
+/// description of the violation. In production, `vault_balance` would be
+/// fetched from an RPC call to the treasury PDA. For the demo, it uses a
+/// configurable value.
+pub fn soulguard_trade_check(
+    size: &str,
+    price: &str,
+    vault_balance: f64,
+) -> Result<(), String> {
+    let sz: f64 = size
+        .parse()
+        .map_err(|e| format!("invalid size '{}': {}", size, e))?;
+    let px: f64 = price
+        .parse()
+        .map_err(|e| format!("invalid price '{}': {}", price, e))?;
+
+    let notional = sz * px;
+    let max_position = vault_balance * MAX_POSITION_FRACTION;
+
+    if notional > max_position {
+        Err(format!(
+            "[SOULGUARD] ❌ position size ${:.2} exceeds 20% cap (${:.2}) — vault balance: ${:.2}",
+            notional, max_position, vault_balance
+        ))
+    } else {
+        println!(
+            "[SOULGUARD] ✅ position ${:.2} within 20% cap (${:.2}) — vault: ${:.2}",
+            notional, max_position, vault_balance
+        );
+        Ok(())
+    }
+}
+
+/// Get the HL account value (USDC balance) from the perps clearinghouse.
+/// Used as the vault balance for soulguard position-size checks.
+pub fn get_hl_account_value() -> Result<f64, String> {
+    let key = load_hl_key()?;
+    let client = reqwest::blocking::Client::new();
+    let resp = client
+        .post(format!("{}/info", HL_TESTNET_URL))
+        .json(&serde_json::json!({"type":"clearinghouseState","user":key.address}))
+        .send()
+        .map_err(|e| format!("HL account value request failed: {}", e))?;
+
+    let data: serde_json::Value = resp
+        .json()
+        .map_err(|e| format!("HL account value parse error: {}", e))?;
+
+    data["marginSummary"]["accountValue"]
+        .as_str()
+        .unwrap_or("0")
+        .parse::<f64>()
+        .map_err(|e| format!("Bad accountValue: {}", e))
+}
+
 /// Execute a SOL order on Hyperliquid testnet using the configured key.
 ///
 /// This is the primary entry point for the Trading Wing's Hyperliquid
@@ -578,7 +645,6 @@ const RTP_MINT: &str = "2JN8Qr9QspmDXwqRBSmZ9ULX8LLJFawo61rEwYdtpNcf";
 const TREASURY_VAULT: &str = "DKuC9Q3FXS28C32k3Grur8QtBLrN5BR5nDsujFkhs3kM";
 const DEVNET_WALLET: &str = "Driyi8Sw2622yCefU34zrjBsQynrDoGD31tBecXrEF6R";
 
-/// SPL Token program ID (standard).
 /// SPL Token program ID (standard). Kept for reference.
 #[allow(dead_code)]
 const TOKEN_PROGRAM_ID: &str = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
@@ -1124,6 +1190,23 @@ impl TradingWing {
                         .get("size")
                         .and_then(|v| v.as_str())
                         .unwrap_or("0.01");
+
+                    // ── Soulguard: position size cap (20% of vault) ────────
+                    // Check the proposed order against the treasury's 20% max
+                    // position invariant before placing it on HL.
+                    let mid_price = get_sol_mid_price().unwrap_or(0.0);
+                    let vault_balance = get_hl_account_value().unwrap_or(0.0);
+                    if let Err(e) = soulguard_trade_check(size, &format!("{:.2}", mid_price), vault_balance) {
+                        println!("{}", e);
+                        return Some(Message::new(
+                            WingId::Trading,
+                            WingId::Coordinator,
+                            Payload::Error {
+                                reason: format!("Soulguard rejected: {}", e),
+                                in_reply_to: Some(msg.id),
+                            },
+                        ));
+                    }
 
                     // Check for existing position to calculate closing PnL.
                     let entry_price_str = self
@@ -2279,6 +2362,53 @@ mod tests {
 
         let result = deposit_yield_to_treasury(-1.0, None);
         assert!(result.is_err());
+    }
+
+    // ── Soulguard trade check tests ────────────────────────────────────────
+
+    #[test]
+    fn soulguard_allows_order_within_20_pct_cap() {
+        // 0.12 SOL × $85 = $10.20, vault $90, 20% = $18 → OK
+        let result = soulguard_trade_check("0.12", "85.0", 90.0);
+        assert!(result.is_ok(), "should allow order within 20% cap");
+    }
+
+    #[test]
+    fn soulguard_rejects_order_exceeding_20_pct_cap() {
+        // 0.3 SOL × $85 = $25.50, vault $90, 20% = $18 → REJECT
+        let result = soulguard_trade_check("0.3", "85.0", 90.0);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.contains("exceeds 20% cap"), "should mention cap: {}", err);
+    }
+
+    #[test]
+    fn soulguard_exact_20_pct_is_allowed() {
+        // $18 order, vault $90, 20% = $18 → OK (boundary)
+        let result = soulguard_trade_check("0.2", "90.0", 90.0);
+        // 0.2 × 90 = $18, 20% of $90 = $18 → allowed
+        assert!(result.is_ok(), "boundary should be allowed");
+    }
+
+    #[test]
+    fn soulguard_small_order_on_large_vault() {
+        // $0.01 order, vault $10000 → always OK
+        let result = soulguard_trade_check("0.01", "1.0", 10000.0);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn soulguard_rejects_invalid_size() {
+        let result = soulguard_trade_check("abc", "85.0", 90.0);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("invalid size"));
+    }
+
+    #[test]
+    fn soulguard_rejects_invalid_price() {
+        let result = soulguard_trade_check("0.12", "xyz", 90.0);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("invalid price"));
     }
 
     #[test]

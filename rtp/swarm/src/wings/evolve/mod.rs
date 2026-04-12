@@ -97,6 +97,64 @@ fn build_mutation_prompt() -> String {
         .to_string()
 }
 
+/// Soulcontract-enforced bounds for strategy parameters.
+///
+/// These bounds are specified in the LLM prompt and MUST be validated
+/// after the LLM responds, because an LLM can hallucinate out-of-range
+/// values. This is the guardrail between "LLM says" and "code accepts".
+const SOULCONTRACT_BOUNDS: &[(&str, f64, f64)] = &[
+    ("signal_threshold", 0.1, 0.5),
+    ("tp_atr", 1.5, 5.0),
+    ("sl_atr", 0.5, 3.0),
+    ("max_hold", 12.0, 72.0),
+    ("trailing_stop_atr", 0.2, 1.5),
+];
+
+/// Validate that a proposed mutation falls within soulcontract bounds.
+///
+/// Returns `Ok(())` if the mutation is within bounds, `Err` with a
+/// description if out of bounds. Unknown parameters are rejected.
+pub fn validate_mutation_bounds(mutation: &StrategyMutation) -> Result<(), String> {
+    let bound = SOULCONTRACT_BOUNDS
+        .iter()
+        .find(|(name, _, _)| *name == mutation.param);
+
+    match bound {
+        Some((_, min, max)) => {
+            if mutation.value < *min || mutation.value > *max {
+                Err(format!(
+                    "mutation out of bounds: {}={} not in [{}, {}]",
+                    mutation.param, mutation.value, min, max
+                ))
+            } else {
+                Ok(())
+            }
+        }
+        None => Err(format!(
+            "unknown parameter: {} (not in soulcontract bounds)",
+            mutation.param
+        )),
+    }
+}
+
+/// Validate all mutations, filtering out-of-bounds ones.
+///
+/// Returns only mutations that pass the bounds check. Logs rejections.
+pub fn validate_all_mutations(
+    mutations: Vec<StrategyMutation>,
+) -> Vec<StrategyMutation> {
+    mutations
+        .into_iter()
+        .filter(|m| match validate_mutation_bounds(m) {
+            Ok(()) => true,
+            Err(e) => {
+                tracing::warn!("[EVOLVE] ❌ rejected mutation: {}", e);
+                false
+            }
+        })
+        .collect()
+}
+
 /// Deterministic fallback mutations used when the LLM is unavailable.
 ///
 /// These are the same three mutations the LLM would typically propose:
@@ -201,13 +259,14 @@ pub async fn propose_strategy_mutation(config: Option<LlmProposerConfig>) -> Pro
 
                             match parse_mutation_response(&content) {
                                 Ok(mutations) if !mutations.is_empty() => {
+                                    let validated = validate_all_mutations(mutations);
                                     tracing::info!(
-                                        "[EVOLVE] LLM proposed {} mutations (model: {})",
-                                        mutations.len(),
+                                        "[EVOLVE] LLM proposed mutations, {} within soulcontract bounds (model: {})",
+                                        validated.len(),
                                         cfg.model
                                     );
                                     ProposeResult {
-                                        mutations,
+                                        mutations: validated,
                                         used_llm: true,
                                         model_label: cfg.model.clone(),
                                     }
@@ -528,5 +587,87 @@ mod tests {
             std::env::remove_var("LLM_MODEL");
         }
         assert!(LlmProposerConfig::from_env().is_none());
+    }
+
+    #[test]
+    fn validate_mutation_within_bounds() {
+        let m = StrategyMutation {
+            param: "signal_threshold".to_string(),
+            value: 0.3,
+            rationale: "test".to_string(),
+        };
+        assert!(validate_mutation_bounds(&m).is_ok());
+    }
+
+    #[test]
+    fn validate_mutation_below_bounds_rejected() {
+        let m = StrategyMutation {
+            param: "signal_threshold".to_string(),
+            value: 0.05, // below min 0.1
+            rationale: "test".to_string(),
+        };
+        let err = validate_mutation_bounds(&m).unwrap_err();
+        assert!(err.contains("out of bounds"));
+        assert!(err.contains("0.05"));
+    }
+
+    #[test]
+    fn validate_mutation_above_bounds_rejected() {
+        let m = StrategyMutation {
+            param: "tp_atr".to_string(),
+            value: 6.0, // above max 5.0
+            rationale: "test".to_string(),
+        };
+        let err = validate_mutation_bounds(&m).unwrap_err();
+        assert!(err.contains("out of bounds"));
+    }
+
+    #[test]
+    fn validate_mutation_unknown_param_rejected() {
+        let m = StrategyMutation {
+            param: "evil_param".to_string(),
+            value: 999.0,
+            rationale: "malicious".to_string(),
+        };
+        let err = validate_mutation_bounds(&m).unwrap_err();
+        assert!(err.contains("unknown parameter"));
+    }
+
+    #[test]
+    fn validate_all_filters_out_of_bounds() {
+        let mutations = vec![
+            StrategyMutation {
+                param: "signal_threshold".to_string(),
+                value: 0.3, // valid
+                rationale: "good".to_string(),
+            },
+            StrategyMutation {
+                param: "tp_atr".to_string(),
+                value: 99.0, // invalid
+                rationale: "bad".to_string(),
+            },
+            StrategyMutation {
+                param: "unknown".to_string(),
+                value: 1.0, // invalid
+                rationale: "ugly".to_string(),
+            },
+        ];
+        let validated = validate_all_mutations(mutations);
+        assert_eq!(validated.len(), 1);
+        assert_eq!(validated[0].param, "signal_threshold");
+    }
+
+    #[test]
+    fn deterministic_fallback_all_within_bounds() {
+        // Verify all deterministic fallback mutations pass validation.
+        let mutations = deterministic_fallback_mutations();
+        for m in &mutations {
+            assert!(
+                validate_mutation_bounds(m).is_ok(),
+                "fallback mutation {}={} should be within bounds",
+                m.param,
+                m.value
+            );
+        }
     }
 }

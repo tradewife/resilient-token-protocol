@@ -137,7 +137,7 @@ impl AuditWing {
                     ProposalKind::RiskThresholdChange => (false, RiskLevel::High),
                     ProposalKind::PhaseTransition => (false, RiskLevel::High),
                     _ => {
-                        if *confidence >= 0.5 {
+                        if *confidence >= 0.7 {
                             (true, RiskLevel::Low)
                         } else {
                             (false, RiskLevel::Medium)
@@ -498,6 +498,33 @@ mod tests {
         let response = AuditWing::stub_review(&msg).unwrap();
         match response.payload {
             Payload::AuditResult { approved, .. } => assert!(!approved),
+            _ => panic!("Expected AuditResult"),
+        }
+    }
+
+    #[test]
+    fn stub_review_rejects_low_confidence() {
+        // Confidence 0.6 should be rejected (threshold is 0.7)
+        let msg = strategy_proposal(0.6);
+        let response = AuditWing::stub_review(&msg).unwrap();
+        match response.payload {
+            Payload::AuditResult { approved, risk_level, .. } => {
+                assert!(!approved, "confidence 0.6 should be rejected");
+                assert_eq!(risk_level, RiskLevel::Medium);
+            }
+            _ => panic!("Expected AuditResult"),
+        }
+    }
+
+    #[test]
+    fn stub_review_approves_at_threshold() {
+        // Confidence exactly 0.7 should be approved
+        let msg = strategy_proposal(0.7);
+        let response = AuditWing::stub_review(&msg).unwrap();
+        match response.payload {
+            Payload::AuditResult { approved, .. } => {
+                assert!(approved, "confidence 0.7 should be approved");
+            }
             _ => panic!("Expected AuditResult"),
         }
     }
