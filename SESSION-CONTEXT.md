@@ -231,29 +231,63 @@ A judge must be able to verify these five things in under 3 minutes:
 
 ## 8. Session Status
 
-**Session 2026-04-13 — Devnet Loop + Autonomous LLM Evolution**
+**Session 2026-04-13(ii) — Continual Evolution Infrastructure**
 
 State as of Apr 13:
 - **301 tests, 0 failures, 0 clippy warnings**
 - **Devnet loop daemon running autonomously on 6h CI cron**
-- **LLM proposer live on CI: used_llm: true confirmed**
+- **Continual evolution infrastructure built and operational**
 - Demo-Readiness Score: 9.5/10
 
-**Devnet loop daemon (this session):**
+**Continual evolution infrastructure (this session):**
+
+| Component | File | Status |
+|-----------|------|--------|
+| Strategy library (15 cards) | `research/strategy_library.md` | ✅ 15 strategies: 5 trend, 4 MR, 2 carry, 3 vol, 1 volume |
+| Dead ends log | `research/dead_ends.md` | ✅ 9 pre-populated entries (BTC overfitting, XRP dropped, BB failure, etc.) |
+| From-scratch prompt | `research/agents/from_scratch_prompt.md` | ✅ Escape hatch ready — invoked when rolling Sharpe < 1.5 for 2 weeks |
+| Sensitivity sweep | `research/simulation/sensitivity_sweep.py` | ✅ CLI: `python -m research.simulation.sensitivity_sweep --strategy sol_survivor_2_69` |
+| Sweep CSV output | `research/data/sensitivity_sol_survivor_2_69.csv` | ✅ 37 rows (baseline + 7 params × 5 steps) |
+| Sweep chart | `research/data/sensitivity_sol_survivor_2_69.png` | ✅ 6-panel chart for judge demo |
+
+**SOL Survivor 2.69 sensitivity verdict: ROBUST**
+- Average Sharpe range across parameters: **0.30** (target: <1.0 for "flat")
+- 5/7 parameters are completely flat (max_hold_hours, time_decay_hours, stop_loss_atr, take_profit_atr, trailing_stop_atr)
+- signal_threshold is "peaked" but still 2.98 Sharpe / 7/9 folds at +20% deviation
+- `score_flip_delay_hrs` confirmed zero-impact — can be removed from parameter space going forward
+- This is demo evidence: "not a lucky backtest, a robust system"
+
+**Strategy library composition (priority-ranked):**
+- Priority 1 (implement next): S01 Momentum Persistence, S02 Breakout-Band Expansion, S03 Funding Rate Carry, S04 RSI Exhaustion, S05 BB Bounce, S06 Volatility Squeeze
+- Priority 2: S07 Dual MA Cross, S08 MR Band Walk, S09 Funding Momentum, S10 Momentum Divergence, S11 ATR Channel, S12 Multi-TF RSI
+- Priority 3: S13 ADX Trend Filter, S14 Vol Regime Switch, S15 CVD Proxy
+
+**Dead ends pre-populated from existing validation data:**
+1. BTC wide TP + wide SL overfitting (overfitting_score=0.57)
+2. XRP dropped from active symbols (net negative)
+3. ETH production baseline marginal (56% consistency)
+4. BNB production baseline inconsistent (56% consistency)
+5. SOL production baseline suboptimal (resolved by Survivor 2.69)
+6. BB Mean Reversion broad failure (trending regime mismatch)
+7. High signal threshold >0.45 (over-filters, reduces sample)
+8. Long max hold + tight SL (high stop-out rate)
+9. SOL production fragility baseline (resolved by Survivor 2.69)
+
+**Execution loop status** (from prior sessions, unchanged):
+- HL testnet round-trip verified: BUY → fill → SELL → fill → PnL from Rust
+- Treasury CPI transfer to devnet PDA confirmed on-chain
+- Full loop: strategy validates → treasury allocates → HL executes → yield returns to PDA → YES, signed HL orders land on testnet from Rust
+- Signing: ETH keypair EIP-712 for HL, local devnet keypair for Solana CPI (Path C)
+
+**Session 2026-04-13(i) — Devnet Loop + Autonomous LLM Evolution**
+
+**Devnet loop daemon:**
 - `rtp-daemon` binary: single-cycle daemon, loads prior config → orchestrator cycle → LLM/deterministic mutation → apply → persist → exit 0
 - `StrategyConfig` + `apply_mutations()` in Trading Wing (3 unit tests)
 - `data/devnet-cycles/{timestamp}/cycle.json` — auditable trail
 - `data/devnet-cycles/latest/config.json` — config chains between runs
 - `devnet-loop.yml` — cron every 6h + workflow_dispatch, `permissions: contents: write`
 - LLM secrets configured: `LLM_API_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`
-- Vercel integration removed (security concern with treasury project)
-- All docs aligned: BUILD_PLAN_v3.1, SESSION-CONTEXT, CLAUDE.md, README, SOULCONTRACT
-
-**CI workflow fixes:**
-- Initial push failed with exit code 128 — `GITHUB_TOKEN` lacked write permission
-- Fix: `permissions: contents: write` in workflow file
-- `LLM_API_BASE_URL` was empty on first run — secret name/value verified and fixed
-- Second CI run confirmed: `used_llm: true`, all steps green in 37s
 
 **Session 2026-04-12 — Full Audit Close-Out + HL Round-Trip**
 
@@ -460,5 +494,5 @@ Demo               = proof the institution persists without founder trust
 
 ---
 
-*Last updated: 2026-04-13 (session i — devnet loop + LLM evolution) — 301 tests, 0 failures, 0 clippy warnings. HL round-trip verified. Devnet loop running autonomously. Demo-readiness 9.5/10. Build complete — next session is rehearsal + submission.*
+*Last updated: 2026-04-13 (session ii — continual evolution infrastructure) — 301 tests, 0 failures, 0 clippy warnings. HL round-trip verified. Devnet loop running autonomously. SOL Survivor 2.69 sensitivity confirmed ROBUST (Sharpe range 0.30). Strategy library + dead ends + from-scratch prompt operational. Demo-readiness 9.5/10. Build complete — next session is rehearsal + submission.*
 *Update this file after each session that changes canonical decisions or resolves open decisions.*

@@ -15,6 +15,8 @@ data/*
 !data/night_results/**
 !data/devnet-cycles/
 !data/devnet-cycles/**
+!data/sensitivity_*.csv
+!data/sensitivity_*.png
 
 # --- Python artifacts ---
 __pycache__/
