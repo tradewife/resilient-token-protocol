@@ -127,7 +127,7 @@ export default function Home() {
         </div>
 
         <div className="hero-content">
-          <span className="hero-label">Sustenance Phase · Live Treasury</span>
+          <span className="hero-label">Evolving Algorithms · Compound Creator Fees</span>
           <h1 className="hero-title">
             From the Trenches
             <br />
