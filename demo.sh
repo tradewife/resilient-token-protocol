@@ -148,10 +148,65 @@ if [ -f "night_shift.bin" ]; then
     echo "$BRIDGE_RESPONSE" | python3 -m json.tool 2>/dev/null | sed 's/^/    /'
   else
     echo -e "  ${YELLOW}⚠ Bridge binary returned empty (running without data)${RESET}"
+    note "  Falling back to latest devnet cycle for strategy data"
   fi
 else
   echo -e "  ${YELLOW}⚠ night_shift.bin not found — skipping bridge assessment${RESET}"
   note "  Build with: cd rtp/swarm && cargo test bridge::real_binary_bridge_mode_integration"
+fi
+
+# Fallback: read strategy data from latest devnet cycle if bridge didn't run
+if [ -z "$PROJECTED_YIELD" ] && [ -f "data/devnet-cycles/latest/cycle.json" ]; then
+  CYCLE_STRATEGY=$(python3 -c "
+import json
+c = json.load(open('data/devnet-cycles/latest/cycle.json'))
+p = c.get('params_used', {})
+print(f\"SOL/USDT (signal_threshold={p.get('signal_threshold','?')}, tp_atr={p.get('tp_atr','?')})\")" 2>/dev/null || echo "unknown")
+  STRATEGY="$CYCLE_STRATEGY"
+  info "Strategy from latest devnet cycle: $CYCLE_STRATEGY"
+fi
+
+# ── Autonomous Devnet Cycles ──────────────────────────────────────────
+
+step "Autonomous Devnet Cycles (6h cron via GitHub Actions)"
+CYCLE_COUNT=$(ls -d data/devnet-cycles/20* 2>/dev/null | wc -l || echo "0")
+if [ "$CYCLE_COUNT" -gt 0 ] 2>/dev/null; then
+  ok "$CYCLE_COUNT autonomous cycles completed"
+  CYCLE_SUMMARY=$(python3 -c "
+import json
+c = json.load(open('data/devnet-cycles/latest/cycle.json'))
+n_acc = len(c.get('mutations_accepted', []))
+n_rej = len(c.get('mutations_rejected', []))
+llm = c.get('used_llm', False)
+model = c.get('model_label', '?')
+print(f'{n_acc} mutations accepted, {n_rej} rejected | LLM: {\"yes\" if llm else \"no\"} ({model})')
+" 2>/dev/null || echo "cycle data unavailable")
+  info "Latest cycle: $CYCLE_SUMMARY"
+else
+  note "No committed devnet cycles found (daemon runs every 6h via CI)"
+fi
+
+# ── Strategy Adaptation Diff ──────────────────────────────────────────
+
+step "Strategy Adaptation (latest cycle)"
+if [ -f "data/devnet-cycles/latest/cycle.json" ]; then
+  python3 -c "
+import json
+c = json.load(open('data/devnet-cycles/latest/cycle.json'))
+used = c.get('params_used', {})
+next_p = c.get('params_next', {})
+changed = False
+for k in sorted(used.keys()):
+    u, n = used[k], next_p.get(k, used[k])
+    arrow = '→' if str(u) != str(n) else '='
+    if arrow == '→':
+        changed = True
+    print(f'    {k}: {u} {arrow} {n}')
+if not changed:
+    print('    (no parameter changes in latest cycle)')
+" 2>/dev/null || note "Could not parse cycle data"
+else
+  note "No cycle data available for adaptation diff"
 fi
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -172,11 +227,27 @@ cargo run --bin rtp-demo --manifest-path rtp/swarm/Cargo.toml 2>/dev/null || {
   cargo run --bin rtp-demo --manifest-path rtp/swarm/Cargo.toml 2>/dev/null
 }
 
-TEST_COUNT=$(cargo test --manifest-path rtp/swarm/Cargo.toml 2>/dev/null | grep "test result:" | head -1 | grep -oP '\d+(?= passed)' || echo "238")
+TEST_COUNT=$(cargo test --manifest-path rtp/swarm/Cargo.toml 2>/dev/null | grep "test result:" | head -1 | grep -oP '\d+(?= passed)' || echo "unknown")
 echo ""
-ok "Swarm runtime: $TEST_COUNT tests passing"
+if [ "$TEST_COUNT" = "unknown" ]; then
+  note "Swarm runtime: test count unavailable (cargo test parse failed)"
+else
+  ok "Swarm runtime: $TEST_COUNT tests passing"
+fi
 info "6 wings functional (Trading, Security, Evolve, Knowledge, Audit, Futureproof)"
 info "Multi-stage quality gate: soulguard → router → audit tribunal"
+
+# ── On-chain constraint rejection proof ─────────────────────────────────
+echo ""
+step "Constraint Rejection (on-chain proof)"
+echo "  The Anchor program enforces hard constraints that cannot be bypassed."
+echo "  evolve_phase rejects when treasury balance < 50B tokens (BelowThreshold)."
+echo "  The rtp-demo replays the actual rejection from the deployed devnet program."
+echo ""
+note "  Proof: Anchor test suite in rtp/programs/rtp-treasury/tests/treasury.ts"
+note "  evolve_phase BelowThreshold test (line 777)"
+note "  Redistribution tx (70/20/10 enforced):"
+note "    https://explorer.solana.com/tx/9HzWgBfwYxs5ModdjF5mT6gdTfayQq8mMYipopyHfGPmYqk6KESHFqgDrc9Mcie573ttcdPqMHSyJP5nNBKK3bR?cluster=devnet"
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # LAYER 3: ON-CHAIN TREASURY — Fee Flow + Redistribution
@@ -208,7 +279,19 @@ else
   echo -e "  ${YELLOW}⚠ Treasury not built — run: cd rtp/programs/rtp-treasury && anchor build${RESET}"
 fi
 
+# Program liveness check on devnet
+step "Program Liveness Check"
+PROGRAM_INFO=$(curl -s https://api.devnet.solana.com -X POST -H "Content-Type: application/json" \
+  -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"getAccountInfo\",\"params\":[\"4LvsHbe9LLwgogcDbH7ieTsGcWZctjYFZkzZwaHDM8Ad\",{\"encoding\":\"base64\"}]}" 2>/dev/null)
+if echo "$PROGRAM_INFO" | python3 -c "import sys,json; d=json.load(sys.stdin); assert d.get('result',{}).get('value') is not None" 2>/dev/null; then
+  ok "Program 4LvsHb...M8Ad is live on devnet"
+else
+  echo -e "  ${RED}⚠ Program 4LvsHb...M8Ad may not be active on devnet (GC'd?)${RESET}"
+  note "  Re-deploy with: cd rtp/programs/rtp-treasury && anchor deploy --provider.cluster devnet"
+fi
+
 # Check if local validator or devnet is reachable
+step "On-Chain Demo Execution"
 if curl -s http://localhost:8899 -X POST -H "Content-Type: application/json" \
      -d '{"jsonrpc":"2.0","id":1,"method":"getHealth"}' 2>/dev/null | grep -q "ok"; then
   info "Local validator running — executing on-chain demo..."
@@ -220,17 +303,13 @@ elif curl -s https://api.devnet.solana.com -X POST -H "Content-Type: application
   echo ""
   cd rtp/programs/rtp-treasury && ANCHOR_PROVIDER_URL=https://api.devnet.solana.com npx tsx scripts/devnet-demo.ts 2>&1 || echo -e "  ${YELLOW}⚠ On-chain demo encountered errors (see above)${RESET}"; cd "$REPO_ROOT"
 else
-  note "  To run the on-chain demo:"
-  note "    # Terminal 1: Start local validator"
-  note "    solana-test-validator --quiet &"
-  note ""
-  note "    # Terminal 2: Build and run demo"
-  note "    cd rtp/programs/rtp-treasury"
-  note "    anchor build && anchor deploy"
-  note "    npm run demo:localnet"
+  echo -e "  ${RED}LAYER 3: Cannot reach devnet or local validator. On-chain demo skipped.${RESET}"
   echo ""
-  note "  Or on devnet:"
+  note "  To run the on-chain demo:"
   note "    cd rtp/programs/rtp-treasury && npm run demo:devnet"
+  echo ""
+  note "  On-chain constraint rejection proof (already verified in Anchor tests):"
+  note "    rtp/programs/rtp-treasury/tests/treasury.ts — evolve_phase BelowThreshold"
 fi
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

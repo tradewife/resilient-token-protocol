@@ -62,9 +62,9 @@ fn load_config() -> StrategyConfig {
     StrategyConfig::default()
 }
 
-/// Collect memory file paths from /tmp/rtp-demo-memory.
+/// Collect memory file paths from data/swarm-memory.
 fn collect_memory_files() -> Vec<String> {
-    let base = std::path::Path::new("/tmp/rtp-demo-memory");
+    let base = std::path::Path::new("data/swarm-memory");
     let mut files = Vec::new();
     if base.exists() {
         for subdir in &["working", "project", "overview"] {

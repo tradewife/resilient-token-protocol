@@ -32,6 +32,16 @@ A Solana-native, self-funding treasury governed by a modular Rust swarm. Any tok
 
 Any token project adopts RTP, their trading fees feed a swarm that researches, validates, and executes yield strategies — returning yield back to the project and its token holders, autonomously, verifiably, and forever.
 
+## Why This Is Different
+
+Prior hackathon projects built individual components — treasury managers, AI agents, yield aggregators, backtesting tools. RTP is the first to combine them:
+
+- **Constitutional governance** — soulcontract enforced in Rust (soulguard.rs) AND on-chain (Anchor `require!`). No other project has both.
+- **Self-funding economics** — treasury generates its own yield via Hyperliquid perps, with irreversible phase evolution (Sustenance → Ecosystem → Humanity). No VC dependency.
+- **Proven research engine** — 30K configs/night, 9-fold walk-forward validation, fee-aware simulation. Not a backtest screenshot — out-of-sample results across 9 independent time windows.
+- **On-chain constraint proof** — the Anchor program deliberately rejects invalid transactions (10+ rejection tests). Constraint rejection IS the demo.
+- **Hyperliquid execution** — EIP-712 signed orders from Rust, fills on HL testnet, USDC yield deposited to Solana PDA. No prior Colosseum project integrates Hyperliquid.
+
 ## Language Architecture
 
 ```

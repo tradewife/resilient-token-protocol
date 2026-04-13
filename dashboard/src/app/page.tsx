@@ -1,10 +1,13 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Connection, PublicKey } from "@solana/web3.js";
+import { useWallet, useConnection } from "@solana/wallet-adapter-react";
+import { useWalletModal } from "@solana/wallet-adapter-react-ui";
+import { PublicKey, LAMPORTS_PER_SOL } from "@solana/web3.js";
 
 const TREASURY_PDA = "FNQbK1Vw77aT7qM1EMSmeEPDGizSNhX4rkkYBKQNFotF";
-const DEVNET_RPC = "https://api.devnet.solana.com";
+const PROGRAM_ID = "4LvsHbe9LLwgogcDbH7ieTsGcWZctjYFZkzZwaHDM8Ad";
+const MAINNET_RPC = "https://api.mainnet-beta.solana.com";
 
 const FEED_LINES = [
   { ts: "10:04:12", tag: "night shift", msg: "Evaluating 30,000 parameter configs across SOL/USDT" },
@@ -39,25 +42,56 @@ const INVARIANTS = [
 ];
 
 export default function Home() {
-  const [solBalance, setSolBalance] = useState<number | null>(null);
+  const { publicKey, connected, disconnect } = useWallet();
+  const { connection } = useConnection(); // devnet via ConnectionProvider
+  const { setVisible } = useWalletModal();
 
+  const [treasurySol, setTreasurySol] = useState<number | null>(null);
+  const [walletSol, setWalletSol] = useState<number | null>(null);
+
+  // ── Treasury balance (devnet) ──────────────────────────────
   useEffect(() => {
-    async function fetchBalance() {
+    let alive = true;
+    const poll = async () => {
       try {
-        const conn = new Connection(DEVNET_RPC, "confirmed");
-        const key = new PublicKey(TREASURY_PDA);
-        const lamports = await conn.getBalance(key);
-        setSolBalance(lamports / 1e9);
-      } catch (e) {
-        console.error("RPC error:", e);
-      }
-    }
-    fetchBalance();
-    const id = setInterval(fetchBalance, 10_000);
-    return () => clearInterval(id);
-  }, []);
+        const lamports = await connection.getBalance(new PublicKey(TREASURY_PDA));
+        if (alive) setTreasurySol(lamports / LAMPORTS_PER_SOL);
+      } catch { /* retry next tick */ }
+    };
+    poll();
+    const id = setInterval(poll, 10_000);
+    return () => { alive = false; clearInterval(id); };
+  }, [connection]);
 
-  const bal = solBalance !== null ? solBalance.toFixed(4) : "—";
+  // ── Connected wallet balance (mainnet) ─────────────────────
+  useEffect(() => {
+    if (!publicKey) { setWalletSol(null); return; }
+    let alive = true;
+    const poll = async () => {
+      try {
+        const res = await fetch(MAINNET_RPC, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            jsonrpc: "2.0",
+            id: 1,
+            method: "getBalance",
+            params: [publicKey.toBase58()],
+          }),
+        });
+        const json = await res.json();
+        const lamports: number = json?.result?.value ?? 0;
+        if (alive) setWalletSol(lamports / LAMPORTS_PER_SOL);
+      } catch { /* retry */ }
+    };
+    poll();
+    const id = setInterval(poll, 15_000);
+    return () => { alive = false; clearInterval(id); };
+  }, [publicKey]);
+
+  const tBal = treasurySol !== null ? treasurySol.toFixed(4) : "—";
+  const uBal = walletSol !== null ? walletSol.toFixed(4) : null;
+  const addr = publicKey ? `${publicKey.toBase58().slice(0, 4)}...${publicKey.toBase58().slice(-4)}` : null;
 
   return (
     <div className="page">
@@ -69,7 +103,17 @@ export default function Home() {
         </div>
         <div className="topbar-actions">
           <span className="network-badge">Devnet</span>
-          <button className="btn-connect">Connect Phantom</button>
+          {connected && publicKey ? (
+            <div className="wallet-pill">
+              <span className="wallet-indicator" />
+              <span className="wallet-addr">{addr}</span>
+              <button className="btn-disconnect" onClick={disconnect} title="Disconnect">&times;</button>
+            </div>
+          ) : (
+            <button className="btn-connect" onClick={() => setVisible(true)}>
+              Connect Wallet
+            </button>
+          )}
         </div>
       </header>
 
@@ -91,7 +135,7 @@ export default function Home() {
           </h1>
 
           <div className="hero-balance">
-            <span className="hero-balance-value">{bal} SOL</span>
+            <span className="hero-balance-value">{tBal} SOL</span>
             <span className="hero-balance-label">
               Treasury PDA · FNQbK1...otF
             </span>
@@ -99,16 +143,16 @@ export default function Home() {
 
           <div className="hero-metrics">
             <div className="metric">
-              <span className="metric-value">89.90</span>
-              <span className="metric-label">USDC Reserves</span>
+              <span className="metric-value">{tBal}</span>
+              <span className="metric-label">Treasury SOL</span>
             </div>
             <div className="metric">
-              <span className="metric-value accent">+12.1%</span>
-              <span className="metric-label">Monthly Yield</span>
+              <span className="metric-value">{uBal ?? "—"}</span>
+              <span className="metric-label">{connected ? "Your Balance" : "Wallet"}</span>
             </div>
             <div className="metric">
-              <span className="metric-value">298</span>
-              <span className="metric-label">Tests Passing</span>
+              <span className="metric-value">{PROGRAM_ID.slice(0, 4)}...{PROGRAM_ID.slice(-4)}</span>
+              <span className="metric-label">Program</span>
             </div>
           </div>
         </div>
@@ -116,11 +160,10 @@ export default function Home() {
 
       {/* ── Mid section: feed + wings + invariants ──────────── */}
       <section className="mid-section">
-        {/* Swarm activity feed */}
         <div className="feed">
           <div className="feed-header">
             <span className="feed-title">Swarm Activity</span>
-            <span className="feed-status">Live</span>
+            <span className="feed-status">Demo Replay</span>
           </div>
           <div className="feed-body">
             {FEED_LINES.map((line, i) => (
@@ -143,7 +186,6 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Wing status */}
         <div className="wings">
           <div className="wings-header">Wings</div>
           <ul className="wing-list">
@@ -158,7 +200,6 @@ export default function Home() {
           </ul>
         </div>
 
-        {/* Constitutional invariants */}
         <div className="invariants">
           <div className="invariants-header">Constitutional Invariants</div>
           {INVARIANTS.map((inv, i) => (

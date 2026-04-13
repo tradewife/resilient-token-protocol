@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { WalletContextProvider } from "./WalletContextProvider";
 
 export const metadata: Metadata = {
   title: "RTP Sentinel",
@@ -13,7 +14,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <WalletContextProvider>{children}</WalletContextProvider>
+      </body>
     </html>
   );
 }

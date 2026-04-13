@@ -476,7 +476,7 @@ pub async fn run_two_cycle_demo() -> TwoCycleDemoResult {
         consolidation_interval: 3,
         tsi_promotion_threshold: 0.6,
         improvement_window: 5,
-        memory_base_path: std::path::PathBuf::from("/tmp/rtp-demo-memory"),
+        memory_base_path: std::path::PathBuf::from("data/swarm-memory"),
         max_consecutive_halts: 3,
     };
 
@@ -518,7 +518,7 @@ pub async fn run_two_cycle_demo() -> TwoCycleDemoResult {
     // Read the most recent project memory JSON from disk. This proves that
     // memory survives across process restarts (not just in-memory Vec).
     let memory_from_disk = {
-        let proj_dir = std::path::Path::new("/tmp/rtp-demo-memory/project");
+        let proj_dir = std::path::Path::new("data/swarm-memory/project");
         let mut latest: Option<(String, String)> = None;
         if let Ok(entries) = std::fs::read_dir(proj_dir) {
             for entry in entries.flatten() {
@@ -656,7 +656,7 @@ pub fn print_two_cycle_demo(result: &TwoCycleDemoResult) {
             "[MEMORY] cycle 1 persisted: yield=0.175 USDC, sharpe=3.96 ({} working, {} project)",
             result.memory_working_count, result.memory_project_count
         );
-        let mem_path = "/tmp/rtp-demo-memory/project";
+        let mem_path = "data/swarm-memory/project";
         println!("[MEMORY] files written to: {}", mem_path);
         if let Ok(entries) = std::fs::read_dir(mem_path) {
             for entry in entries.flatten() {

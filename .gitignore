@@ -17,6 +17,8 @@ data/*
 !data/devnet-cycles/**
 !data/sensitivity_*.csv
 !data/sensitivity_*.png
+!data/swarm-memory/
+!data/swarm-memory/.gitkeep
 
 # --- Python artifacts ---
 __pycache__/
@@ -76,3 +78,15 @@ video/
 
 # --- Skills lock ---
 skills-lock.json
+
+# --- Agent/skill tooling (local only) ---
+.agents/
+.claude/
+.factory/
+.goose/
+
+# --- Demo outputs ---
+demo_output_*.txt
+
+# --- Swarm runtime data (ephemeral) ---
+rtp/swarm/data/
