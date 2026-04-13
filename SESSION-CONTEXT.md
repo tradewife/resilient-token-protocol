@@ -231,10 +231,34 @@ A judge must be able to verify these five things in under 3 minutes:
 
 ## 8. Session Status
 
+**Session 2026-04-13 — Devnet Loop + Autonomous LLM Evolution**
+
+State as of Apr 13:
+- **301 tests, 0 failures, 0 clippy warnings**
+- **Devnet loop daemon running autonomously on 6h CI cron**
+- **LLM proposer live on CI: used_llm: true confirmed**
+- Demo-Readiness Score: 9.5/10
+
+**Devnet loop daemon (this session):**
+- `rtp-daemon` binary: single-cycle daemon, loads prior config → orchestrator cycle → LLM/deterministic mutation → apply → persist → exit 0
+- `StrategyConfig` + `apply_mutations()` in Trading Wing (3 unit tests)
+- `data/devnet-cycles/{timestamp}/cycle.json` — auditable trail
+- `data/devnet-cycles/latest/config.json` — config chains between runs
+- `devnet-loop.yml` — cron every 6h + workflow_dispatch, `permissions: contents: write`
+- LLM secrets configured: `LLM_API_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`
+- Vercel integration removed (security concern with treasury project)
+- All docs aligned: BUILD_PLAN_v3.1, SESSION-CONTEXT, CLAUDE.md, README, SOULCONTRACT
+
+**CI workflow fixes:**
+- Initial push failed with exit code 128 — `GITHUB_TOKEN` lacked write permission
+- Fix: `permissions: contents: write` in workflow file
+- `LLM_API_BASE_URL` was empty on first run — secret name/value verified and fixed
+- Second CI run confirmed: `used_llm: true`, all steps green in 37s
+
 **Session 2026-04-12 — Full Audit Close-Out + HL Round-Trip**
 
 State as of Apr 12:
-- **298 tests, 0 failures, 0 clippy warnings**
+- **298 tests, 0 failures, 0 clippy warnings** (now 301)
 - **HL testnet funded and verified: BUY → fill → SELL → fill → PnL round-trip from Rust code**
 - All 7 audit gaps closed
 - Demo-Readiness Score: ~9/10 (was 7/10)
@@ -371,9 +395,9 @@ State as of Apr 11:
 **Priority order for next session (demo rehearsal + submission):**
 1. Demo rehearsal — run 3-minute script end-to-end, verify all 5 judge points
 2. Register individually on Colosseum before May 4: https://arena.colosseum.org
-3. README final polish — demo section updated with actual outputs
+3. GitHub Pages dashboard for treasury state (stretch — enhances judge point 5)
 4. Video recording of demo (if needed)
-5. HTML dashboard with devnet explorer integration (stretch — enhances judge point 5)
+5. Final security sweep
 
 ---
 
@@ -436,5 +460,5 @@ Demo               = proof the institution persists without founder trust
 
 ---
 
-*Last updated: 2026-04-12 (session h — audit close-out) — 298 tests, 0 failures, 0 clippy warnings. All 7 audit gaps closed. HL round-trip verified. Demo-readiness ~9/10. Build complete — next session is rehearsal + submission.*
+*Last updated: 2026-04-13 (session i — devnet loop + LLM evolution) — 301 tests, 0 failures, 0 clippy warnings. HL round-trip verified. Devnet loop running autonomously. Demo-readiness 9.5/10. Build complete — next session is rehearsal + submission.*
 *Update this file after each session that changes canonical decisions or resolves open decisions.*

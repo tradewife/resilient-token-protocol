@@ -11,28 +11,34 @@ This file provides guidance to Claude Code when working with this repository.
 
 ---
 
-## Execution Venue — Critical Path
+## Execution Venue — Complete
 
-The **#1 unimplemented gap** is the Hyperliquid perps execution path. Everything else is built. This is what ships next.
+The Hyperliquid perps execution path is fully implemented. BUY→fill→SELL→fill→PnL round-trip verified from Rust. Yield deposits to treasury PDA confirmed on devnet.
 
 ```
 Night Shift (Python, DONE)
   └── validated strategy: SOL/USDT Survivor 2.69, signal_threshold=0.3, tp_atr=3.0, sl_atr=1.5
         │
         ▼ bridge.rs (DONE)
-Trading Wing (Rust, PARTIAL — in-memory mock only)
-  └── ExecutePermit payload → needs reqwest + Hyperliquid order struct
+Trading Wing (Rust, DONE)
+  └── ExecutePermit payload → EIP-712 signed HL order
         │
-        ▼ Hyperliquid REST API (NOT IMPLEMENTED)
-           POST https://api.hyperliquid.xyz/exchange
-           Signed via Phantom Connect agentic wallet
+        ▼ Hyperliquid REST API (DONE)
+           POST https://api.hyperliquid-testnet.xyz/exchange
+           Signed via ETH keypair (EIP-712)
         │
-        ▼ fill confirmed → USDC yield → Treasury PDA (NOT IMPLEMENTED)
+        ▼ fill confirmed → YieldReport with PnL (DONE)
+        │
+        ▼ Treasury CPI transfer (DONE)
+           USDC → Treasury PDA via transfer_checked on devnet
         │
         ▼ check_redistribute on-chain (DONE on devnet)
+        │
+        ▼ Devnet loop daemon (DONE)
+           6h cron, LLM-driven strategy evolution, auditable trail
 ```
 
-### Hyperliquid Integration Resources
+### Integration Resources
 | Resource | URL |
 |----------|-----|
 | Hyperliquid API docs | https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api |
@@ -42,15 +48,10 @@ Trading Wing (Rust, PARTIAL — in-memory mock only)
 | Phantom Connect docs | https://docs.phantom.app/phantom-connect/introduction |
 | CASH stablecoin docs | https://docs.phantom.app/phantom-connect/cash |
 
-### What to build in Trading Wing (`rtp/swarm/src/wings/trading/mod.rs`)
-1. Add `reqwest` + `serde_json` to `rtp/swarm/Cargo.toml`
-2. Define `HyperliquidOrder` struct (asset, isBuy, limitPx, sz, orderType)
-3. In `handle_execute_permit()`: construct order from `TradingConfig` payload, POST to HL testnet
-4. Parse fill response → emit `YieldReport` with realized PnL
-5. CPI transfer: yield USDC → treasury PDA via `transfer_checked`
-6. Phantom signing: use `@phantom/server-sdk` v2.0.0 for Solana CPI transfer back to treasury PDA (see `scripts/phantom_signer.ts`)
-
-   Note: Phantom signing covers the Solana CPI transfer back to treasury PDA. HL order signing uses ETH keypair directly (`configs/hl_testnet_key.json` + `web3.py`). This is intentional — Solana hackathon scope. EVM expansion is post-hackathon.
+### Signing Architecture
+- **HL order signing**: ETH keypair directly (`configs/hl_testnet_key.json`), EIP-712
+- **Solana CPI signing**: Phantom KMS (production) → local devnet keypair (demo)
+- **Signing cascade**: Phantom KMS → `~/.config/solana/id.json` → manual fallback
 
 ---
 
@@ -58,7 +59,7 @@ Trading Wing (Rust, PARTIAL — in-memory mock only)
 
 This repo has three layers:
 1. **Proven Python fractal-swarm** (shipping) — backtesting, optimization, paper trading
-2. **Rust swarm + Solana treasury** (built, 298 tests) — 6-wing architecture, Coordinator, soulcontract
+2. **Rust swarm + Solana treasury** (built, 301 tests) — 6-wing architecture, Coordinator, soulcontract
 3. **Hyperliquid execution** (critical gap) — Trading Wing → HL testnet → yield → treasury PDA
 
 ---
@@ -111,6 +112,8 @@ python -m research.data.download_ohlcv
 ```bash
 cd rtp/swarm && cargo build --release
 cd rtp/swarm && cargo test
+cd rtp/swarm && cargo run --bin rtp-daemon    # single devnet cycle
+cd rtp/swarm && cargo run --bin rtp-demo      # full 8-step demo
 cd rtp/swarm && cargo test --lib trading::tests
 cd rtp/swarm && cargo test --lib audit::tests
 cd rtp/swarm && cargo test --test coordinator_integration
@@ -174,7 +177,8 @@ cd rtp/programs/rtp-treasury && anchor deploy --provider.cluster devnet
 | `rtp/swarm/src/coordinator/soulguard.rs` | Enforce soulcontract on every message |
 | `rtp/swarm/src/coordinator/soulcontract_spec.rs` | Parse SOULCONTRACT.md → structured constraints + drift detection |
 | `rtp/swarm/src/coordinator/lifecycle.rs` | Wing spawn, health-check, retire |
-| `rtp/swarm/src/wings/trading/mod.rs` | **Trading Wing — ExecutePermit handler. Needs Hyperliquid REST wiring.** |
+| `rtp/swarm/src/wings/trading/mod.rs` | **Trading Wing — HL execution, PnL tracking, StrategyConfig, apply_mutations** |
+| `rtp/swarm/src/bin/rtp-daemon.rs` | **Devnet loop daemon — single-cycle, 6h cron, LLM evolution** |
 | `rtp/swarm/src/wings/security/mod.rs` | Threat detection, rate-limiting, suspicious-proposal detection |
 | `rtp/swarm/src/wings/evolve/` | Assessor, proposer, rollback (complete, tested) |
 | `rtp/swarm/src/wings/knowledge/mod.rs` | In-memory knowledge graph, cross-wing queries |
@@ -264,6 +268,7 @@ This is the config the Trading Wing targets on Hyperliquid.
 - **Night shift**: GitHub Actions cron at 14:00 UTC (`night_shift.yml`, 300 min timeout)
 - **Swarm CI**: `swarm-ci.yml` — cargo build + test + clippy + fmt + anchor build
 - **Python tests**: `python-tests.yml` — module imports + CLI help + bridge-mode schema
+- **Devnet loop**: `devnet-loop.yml` — cron every 6h + manual dispatch, runs rtp-daemon, commits cycle output
 - **Binance geo-blocked on GitHub runners** — OHLCV data in `data/ohlcv/`, fetch defaults to `false`
 
 ---

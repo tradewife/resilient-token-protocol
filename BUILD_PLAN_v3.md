@@ -1,22 +1,24 @@
 ================================================================================
   RTP — RESILIENT TOKEN PROTOCOL
-  BUILD PLAN v3.0 — POST-AUDIT REMEDIATION
-  Supersedes: BUILD_PLAN.md (v2.2) for the weekly schedule
+  BUILD PLAN v3.1 — POST-AUDIT REMEDIATION + DEVNET LOOP
+  Supersedes: BUILD_PLAN_v3.md (v3.0)
   Audit ref:  docs/SECURITY_AUDIT_2026-04-07.md
-  Status:     Weeks 2-4 complete on treasury/swarm path.
-              CRITICAL GAP: Hyperliquid perps via Phantom not yet implemented.
+  Status:     ALL CRITICAL PATHS COMPLETE.
+              HL round-trip verified. Devnet loop running autonomously (6h cron).
+              301 tests, 0 failures, 0 clippy warnings.
 ================================================================================
 
 CONTEXT:
   We completed the foundation (treasury program on devnet), the Coordinator +
-  all 6 wings (Phases 1-3 of v2.2), and a full security audit. This plan
-  replaces the v2.2 weekly schedule with one that fixes audit findings first,
-  then completes the Hyperliquid execution path.
+  all 6 wings, a full security audit, the Hyperliquid execution path
+  (BUY→fill→SELL→fill→PnL round-trip verified), and an autonomous devnet
+  loop daemon that runs on a 6h CI schedule with LLM-driven strategy
+  evolution. This plan tracks the remaining polish and submission work.
 
-  EXECUTION VENUE (decided):
+  EXECUTION VENUE (DONE):
   The Trading Wing executes validated strategies as perpetuals trades on
-  Hyperliquid, signed via Phantom Connect (agentic wallet). Yield (USDC)
-  flows back to the Solana treasury PDA. This is the critical demo path.
+  Hyperliquid (EIP-712 signed). Yield flows back to the Solana treasury PDA
+  via CPI transfer. Treasury deposit TX confirmed on devnet.
 
   Key links:
     Hyperliquid API:     https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api
@@ -57,8 +59,8 @@ CONTEXT:
   [x] bridge.rs — typed Python↔Rust interface via subprocess
   [x] demo.rs — 8-step end-to-end demo loop
   [x] devnet-demo.ts — on-chain flow (initialize → fees → redistribute → evolve_phase)
-  [x] CI: swarm-ci.yml + python-tests.yml + night_shift.yml
-  [x] 264 tests passing, 0 warnings, 0 clippy warnings (now 284, still 0 failures)
+  [x] CI: swarm-ci.yml + python-tests.yml + night_shift.yml + devnet-loop.yml
+  [x] 301 tests passing, 0 failures, 0 clippy warnings
   [x] Night shift pipeline operational — top candidate: SOL/USDT Survivor 2.69
   [x] Treasury deployed to devnet — Program 4LvsHbe9LLwgogcDbH7ieTsGcWZctjYFZkzZwaHDM8Ad
   [x] Treasury PDA initialized — FNQbK1Vw77aT7qM1EMSmeEPDGizSNhX4rkkYBKQNFotF
@@ -70,24 +72,37 @@ CONTEXT:
   [x] HL testnet funded (drip complete)
   [x] ETH keypair generated — configs/hl_testnet_key.json
   [x] Signing architecture decided: Phantom ServerSDK for Solana CPI, ETH keypair for HL EIP-712
+  [x] HL round-trip verified: BUY 0.12 SOL → fill → SELL → fill → PnL from Rust code
+  [x] serde_json preserve_order fix for HL msgpack key ordering
+  [x] YieldReport with realized PnL calculation (long + short, entry/exit tracking)
+  [x] PositionState tracking (open/close positions, in-memory HashMap)
+  [x] Treasury CPI transfer: build + sign + submit to devnet (TX confirmed on-chain)
+  [x] Signing cascade: Phantom KMS → local devnet keypair → manual fallback
+  [x] LLM proposer in Evolve Wing: OpenAI-compatible API, deterministic fallback
+  [x] validate_mutation_bounds() — soulcontract bounds enforced on LLM proposals
+  [x] StrategyConfig + apply_mutations() — config mutation with validation
+  [x] Devnet loop daemon (rtp-daemon): single-cycle binary, exits 0, chains config
+  [x] devnet-loop.yml: cron every 6h + workflow_dispatch, commits cycle output
+  [x] LLM integration live on CI: used_llm: true confirmed
+  [x] data/devnet-cycles/ auditable trail whitelisted in .gitignore
 
   INVARIANT ENFORCEMENT: 9/10
   - Invariant 7 (soulguard reload sig) = documented stub, production TODO
   - All others enforced and tested
 
 ================================================================================
-  DEMO COVERAGE STATUS (as of Apr 11)
+  DEMO COVERAGE STATUS (as of Apr 13)
 ================================================================================
 
   Judge must verify these 5 points in 3 minutes:
 
   | Point | Status | Gap |
   |-------|--------|-----|
-  | 1. On-chain constraint rejected | ✅ COVERED | `simulate_below_threshold_withdrawal()` visible in demo output |
-  | 2. Autonomous operation | ✅ COVERED | rtp-demo binary runs 8-step pipeline |
-  | 3. Persistent memory across cycles | ✅ COVERED — two-cycle demo now writes real memory files to disk (`/tmp/rtp-demo-memory/*/*.json`) and lists them in the output; judge can open the files and verify prior cycle data | — |
-  | 4. Visible adaptation/learning | ✅ COVERED | `print_two_cycle_demo()` now shows: real memory persistence (`[MEMORY] files written to: /tmp/rtp-demo-memory/project`), project and redirect `.json` files listed, LLM proposer output and Evolve Wing mutations fed into the demo loop |
-  | 5. Observable treasury state | ✅ COVERED (min) | Explorer link live. Dashboard (full) deferred to Phase 5. |
+  | 1. On-chain constraint rejected | ✅ COVERED | `simulate_below_threshold_withdrawal()` + devnet tx link in demo output |
+  | 2. Autonomous operation | ✅ COVERED | rtp-demo binary runs 8-step pipeline. Devnet loop runs on 6h cron with zero human input. |
+  | 3. Persistent memory across cycles | ✅ COVERED | Two-cycle demo writes real memory files to disk. Devnet loop persists config between runs. |
+  | 4. Visible adaptation/learning | ✅ COVERED | LLM proposer suggests mutations, Evolve Wing applies them, devnet loop shows config evolution across cycles. |
+  | 5. Observable treasury state | ✅ COVERED | Explorer link live. Devnet deposit TX confirmed. Dashboard = GitHub Pages (next). |
 
 ================================================================================
   AUDIT FINDINGS — ALL CRITICAL/HIGH FIXED
@@ -118,103 +133,55 @@ WEEKS 2-4 (Apr 8 – Apr 25): COMPLETE
   [x] All 6 wings built and functional
   [x] bridge.rs + demo.rs working end-to-end
   [x] devnet-demo.ts: full on-chain flow demoable
-  [x] 238 tests, 0 failures, 0 warnings (now 284, still 0 failures)
+  [x] 301 tests, 0 failures, 0 clippy warnings
   [x] Repo cleaned: stale docs deleted, docs/ reorganised, RESOURCES.md created
   [x] Docs aligned: SESSION-CONTEXT, SOULCONTRACT, CLAUDE.md, BUILD_PLAN_v3, README
 
-WEEK 5 (Apr 28 – May 2): HYPERLIQUID EXECUTION + DEMO POINTS 3/4/5
+WEEK 5 (Apr 28 – May 2): COMPLETE
 ─────────────────────────────────────────────────────────────────────
 
-  SETUP COMPLETE (Apr 11):
-  [x] Phantom Portal app registered, creds in configs/.env.phantom
-  [x] Phantom ServerSDK v2.0.0 installed, phantom_signer.ts created
-  [x] Embedded agent wallet created for Trading Wing
-  [x] HL testnet funded, scripts/hl_testnet_demo.py DEPRECATED (EIP-191 wrong, Rust EIP-712 is reference)
-  [x] ETH keypair generated for HL EIP-712 signing
-  [x] Treasury deployed to devnet, 8/8 on-chain steps complete
-  [x] Explorer link live — judge point 5 covered at minimum
+  [x] HL round-trip verified: BUY→fill→SELL→fill→PnL from Rust
+  [x] serde_json preserve_order fix for HL msgpack key ordering
+  [x] parse_fill_response fixed (avgPx/totalSz camelCase)
+  [x] YieldReport with realized PnL (long + short)
+  [x] PositionState tracking (HashMap, process_fill)
+  [x] Treasury CPI transfer built + signed + submitted to devnet
+  [x] Signing cascade operational (Phantom → local keypair → fallback)
+  [x] Deposit wired into handle_execute_permit
+  [x] Two-cycle demo with real memory persistence
+  [x] All 7 audit gaps closed
+  [x] LLM proposer in Evolve Wing (OpenAI-compatible + fallback)
+  [x] validate_mutation_bounds() for soulcontract enforcement
+  [x] Devnet loop daemon (rtp-daemon) running on 6h CI cron
+  [x] LLM integration live on CI (used_llm: true confirmed)
+  [x] 301 tests, 0 failures, 0 clippy warnings
 
-  Priority 1: Hyperliquid execution in Trading Wing (Days 1-3)
-  ──────────────────────────────────────────────
-  File: rtp/swarm/src/wings/trading/mod.rs
-  Resources:
-    Hyperliquid API:      https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api
-    Hyperliquid Rust SDK: https://github.com/hyperliquid-dex/hyperliquid-rust-sdk
-    Testnet endpoint:     https://api.hyperliquid-testnet.xyz/exchange
-    Phantom Connect:      https://docs.phantom.app/phantom-connect/introduction
-
-  Steps:
-  [ ] Add reqwest + serde_json to rtp/swarm/Cargo.toml
-  [ ] Define HyperliquidOrder struct:
-        { asset: String, isBuy: bool, limitPx: f64, sz: f64,
-          orderType: { limit: { tif: "Gtc" } }, reduceOnly: false }
-  [ ] In handle_execute_permit(): build order from TradingConfig payload
-  [ ] POST to https://api.hyperliquid-testnet.xyz/exchange
-  [ ] Sign request via Phantom Connect agentic wallet API
-  [ ] Parse fill response → emit YieldReport with realized PnL
-  [ ] CPI transfer: yield USDC → treasury PDA via transfer_checked
-  [ ] Test: submit paper trade on HL testnet, verify fill + YieldReport emitted
-
-  Top strategy to execute: SOL/USDT Survivor 2.69
+  Top strategy executing: SOL/USDT Survivor 2.69
     signal_threshold=0.3, tp_atr=3.0, sl_atr=1.5, max_hold=36h, trailing_stop_atr=0.5
 
-  Priority 2: Demo points 3 + 4 — memory + heartbeat (Day 3) ✅ COMPLETE
+  Priority 2: GitHub Pages dashboard (stretch)
   ──────────────────────────────────────────────
-  File: rtp/swarm/src/demo.rs
-  [x] Extend demo.rs to run TWO orchestrator cycles
-  [x] Cycle 1: execute strategy, emit YieldReport, persist to memory_promotion
-  [x] Cycle 2: load prior memory, reference cycle 1 yield data in log output
-  [x] Trigger heartbeat redirect in cycle 2 (simulate stagnation → redirect)
-  [x] Verify printed output shows: "[MEMORY] referencing cycle 1: ..."
-                                   "[HEARTBEAT] redirect triggered: ..."
-  [x] Wire `memory_promotion.rs` into demo binary with disk persistence
-      - Added `Orchestrator::new_for_demo()` with `persist=true`
-      - `run_two_cycle_demo()` now uses `new_for_demo()`
-      - Demo output lists real memory files at `/tmp/rtp-demo-memory/project`
-      - 298 tests, 0 failures, 0 clippy warnings
-  This closes judge points 3 and 4 with ~2h of Rust work.
-
-  Priority 3: Demo point 5 — observable treasury state (Days 4-5)
-  ──────────────────────────────────────────────
-  Option A (fast, ~2h): demo binary prints devnet explorer URL for treasury PDA
-    Solana explorer: https://explorer.solana.com/address/{PDA}?cluster=devnet
-  Option B (full, ~6h): single-page HTML dashboard
-    - Rust demo binary dumps state.json
-    - HTML reads state.json + one Solana RPC call (https://api.devnet.solana.com)
-    - Shows: treasury balance, last yield event, redistribution splits
-  Recommendation: do Option A first (covers judge point 5 minimally),
-                  then Option B if time permits.
+  [ ] Static site showing treasury state + devnet cycle history
+  [ ] Reads data/devnet-cycles/ JSON for cycle evolution charts
+  [ ] Devnet explorer links for treasury + deposit TX
+  [ ] Deployed via GitHub Pages (no Vercel, no third-party CI)
 
   DELIVERABLES:
-    ✓ Trading Wing places real order on HL testnet via Phantom
+    ✓ Trading Wing places real order on HL testnet
     ✓ demo.rs shows two-cycle memory persistence + heartbeat redirect
-    ✓ Treasury state visible (explorer URL minimum)
+    ✓ Treasury state visible (explorer link + deposit TX)
+    ✓ Devnet loop running autonomously with LLM-driven evolution
 
 WEEK 6 (May 5‑8): POLISH + SUBMISSION
 ─────────────────────────────────────────────────────────────────────
 
-  Day 1 (May 5):
-  [ ] Demo rehearsal — run 3-minute script end-to-end
-  [ ] Verify all 5 judge points covered
+  Remaining items:
+  [ ] Demo rehearsal — run 3-minute script end-to-end, verify all 5 judge points
+  [ ] GitHub Pages dashboard for treasury state (stretch)
+  [ ] Video recording of demo (if dashboard not complete)
   [ ] Final security sweep
-
-  Day 2-3 (May 6-7):
-  [ ] Video recording of demo (if browser dashboard not complete)
-  [ ] README final polish — demo section updated with actual outputs
-  [ ] soulguard reload with signature verification (or confirm documented stub)
-
-  Day 4 (May 8) — HARD DEADLINE:
-  [ ] Register individually on Colosseum: https://arena.colosseum.org
-      (DO THIS FIRST — blocks submission if missed)
-
-  Day 5-11 (May 9-11):
-  [ ] Submit to Colosseum
-  [ ] Final anchor test run on devnet
-  [ ] Final cargo test run
-  [ ] Buffer for emergency fixes
-  [ ] DEADLINE: May 11
-
-  DELIVERABLES: All 5 judge points covered, demo recorded, submission in.
+  [ ] Register individually on Colosseum before May 4: https://arena.colosseum.org
+  [ ] Submit to Colosseum by May 11
 
 ================================================================================
   INVARIANT ENFORCEMENT TRACKER
@@ -241,13 +208,11 @@ WEEK 6 (May 5‑8): POLISH + SUBMISSION
 
   | Risk | Probability | Impact | Mitigation |
   |------|-------------|--------|------------|
-  | Hyperliquid testnet API changes | LOW | HIGH | Pin SDK version; test early in Week 5 |
-  | Phantom agentic signing complexity | LOW | MEDIUM | ServerSDK v2.0.0 installed, Portal registered, wallet created. Solana CPI path clear. HL uses ETH keypair directly. |
-  | demo points 3/4 not demoable | MEDIUM | HIGH | Pure Rust work; 2h estimate is conservative |
-  | No dashboard by judging day | MEDIUM | MEDIUM | Explorer URL is minimum viable; covers point 5 |
   | Colosseum registration missed | LOW | CRITICAL | Hard deadline May 4 — calendar it now |
+  | No dashboard by judging day | MEDIUM | MEDIUM | Explorer URL covers point 5; dashboard is stretch |
   | Anchor 1.0 breaking changes | LOW | MEDIUM | Pin dependencies in Cargo.toml |
+  | Devnet RPC rate limits | LOW | LOW | Daemon runs 4x/day, single cycle per run |
 
 ================================================================================
-END OF PLAN v3.0
+END OF PLAN v3.1
 ================================================================================

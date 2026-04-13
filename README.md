@@ -150,7 +150,7 @@ The only wing that touches capital. Responsible for generating yield.
 | Full-sim validation (fees, slippage, 429 trades validated) | Python | **Shipping** |
 | Self-correction (fast sim vs full sim calibration) | Python | **Shipping** |
 | Paper trading (live Binance, ADX filter, state persistence) | Python | **Shipping** |
-| Live execution on Hyperliquid (testnet) | Rust | In progress — HL integration script ready, Rust wiring missing |
+| Live execution on Hyperliquid (testnet) | Rust | **Done** — EIP-712 signed, round-trip verified, PnL tracked |
 | Degradation detection + auto-recalibration trigger | Rust | Planned |
 | Strategy lifecycle (hypothesis → validate → deploy → retire) | Both | Planned |
 
