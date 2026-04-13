@@ -1273,7 +1273,11 @@ impl TradingWing {
                                     // Store fill price as SOL price reference for the demo UI.
                                     sol_reserves: report.fill_price.parse().unwrap_or(0.0),
                                     // Drawdown = negative PnL if any (clamped to 0 for positive trades).
-                                    drawdown: report.realized_pnl_usdc.unwrap_or(0.0).min(0.0).abs(),
+                                    drawdown: report
+                                        .realized_pnl_usdc
+                                        .unwrap_or(0.0)
+                                        .min(0.0)
+                                        .abs(),
                                     source: Some("hl_testnet_fill".to_string()),
                                 },
                             ));

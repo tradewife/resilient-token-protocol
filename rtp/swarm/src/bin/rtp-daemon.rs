@@ -13,9 +13,9 @@
 
 use chrono::Utc;
 use rtp_swarm::wings::evolve::{
-    propose_strategy_mutation, validate_all_mutations, LlmProposerConfig,
+    LlmProposerConfig, propose_strategy_mutation, validate_all_mutations,
 };
-use rtp_swarm::wings::trading::{apply_mutations, StrategyConfig};
+use rtp_swarm::wings::trading::{StrategyConfig, apply_mutations};
 use serde::{Deserialize, Serialize};
 
 /// Cycle output written to data/devnet-cycles/{timestamp}/cycle.json.
@@ -83,7 +83,10 @@ fn collect_memory_files() -> Vec<String> {
 async fn main() {
     println!("┌─────────────────────────────────────────────────┐");
     println!("│  RTP — Devnet Loop Daemon                       │");
-    println!("│  Autonomous cycle: {}        │", Utc::now().format("%Y-%m-%d %H:%M UTC"));
+    println!(
+        "│  Autonomous cycle: {}        │",
+        Utc::now().format("%Y-%m-%d %H:%M UTC")
+    );
     println!("└─────────────────────────────────────────────────┘");
     println!();
 
@@ -92,7 +95,11 @@ async fn main() {
     let params_used = config.clone();
     println!(
         "[DAEMON] params: signal_threshold={}, tp_atr={}, sl_atr={}, max_hold={}h, trailing_stop={}",
-        config.signal_threshold, config.tp_atr, config.sl_atr, config.max_hold_hours, config.trailing_stop_atr
+        config.signal_threshold,
+        config.tp_atr,
+        config.sl_atr,
+        config.max_hold_hours,
+        config.trailing_stop_atr
     );
 
     // 2. Run orchestrator cycle (reuses demo infrastructure).
@@ -113,12 +120,19 @@ async fn main() {
 
     println!(
         "[DAEMON] proposer: {} (model: {})",
-        if propose_result.used_llm { "LLM" } else { "deterministic fallback" },
+        if propose_result.used_llm {
+            "LLM"
+        } else {
+            "deterministic fallback"
+        },
         propose_result.model_label
     );
 
     for m in &propose_result.mutations {
-        println!("[DAEMON] proposed: {} → {} ({})", m.param, m.value, m.rationale);
+        println!(
+            "[DAEMON] proposed: {} → {} ({})",
+            m.param, m.value, m.rationale
+        );
     }
 
     // 4. Validate and apply mutations.
@@ -183,7 +197,8 @@ async fn main() {
     } else {
         let _ = std::fs::copy(&cycle_path, latest.join("cycle.json"));
         // Also copy config for next cycle.
-        let config_json = serde_json::to_string_pretty(&output.params_next).expect("serialize config");
+        let config_json =
+            serde_json::to_string_pretty(&output.params_next).expect("serialize config");
         let _ = std::fs::write(latest.join("config.json"), &config_json);
         println!("[DAEMON] updated data/devnet-cycles/latest/");
     }
