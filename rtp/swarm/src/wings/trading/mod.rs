@@ -644,8 +644,9 @@ pub fn apply_mutations(
 /// Execute a SOL order on Hyperliquid testnet using the configured key.
 ///
 /// This is the primary entry point for the Trading Wing's Hyperliquid
-/// execution path. It loads the key, resolves the SOL asset index, places
-/// the order, and returns both the raw response and a parsed yield report.
+/// execution path. It loads the key, resolves the SOL asset index, fetches
+/// the current mid price, and places an IOC order with a limit price that
+/// crosses the spread by 5% to guarantee an immediate fill.
 pub fn execute_hl_sol_order(
     is_buy: bool,
     size: &str,
@@ -653,14 +654,23 @@ pub fn execute_hl_sol_order(
 ) -> Result<(serde_json::Value, YieldReportData), String> {
     let key = load_hl_key()?;
     let sol_idx = get_sol_index()?;
+    let mid_price = get_sol_mid_price()?;
+
+    // IOC: cross the spread by 5% to guarantee fill
+    let limit_price = if is_buy {
+        format!("{:.2}", mid_price * 1.05)
+    } else {
+        format!("{:.2}", mid_price * 0.95)
+    };
 
     println!(
-        "[TRADING WING] Placing SOL {} {} @ market on HL testnet",
+        "[TRADING WING] Placing SOL {} {} @ {} (IOC) on HL testnet",
         if is_buy { "BUY" } else { "SELL" },
-        size
+        size,
+        limit_price
     );
 
-    let response = place_hl_order(sol_idx, is_buy, size, "0", "Ioc", &key.private_key)?;
+    let response = place_hl_order(sol_idx, is_buy, size, &limit_price, "Ioc", &key.private_key)?;
 
     let report = parse_fill_response(&response, "SOL/USDT", is_buy, size, entry_price)?;
 
@@ -1257,9 +1267,13 @@ impl TradingWing {
                                 WingId::Trading,
                                 WingId::Coordinator,
                                 Payload::YieldReport {
-                                    usdc_yield: report.fill_price.parse().unwrap_or(0.0),
-                                    sol_reserves: report.size.parse().unwrap_or(0.0),
-                                    drawdown: report.realized_pnl_usdc.unwrap_or(0.0),
+                                    // For opening fills: 0.0 (no realized PnL yet).
+                                    // For closing fills: the realized USDC profit.
+                                    usdc_yield: report.realized_pnl_usdc.unwrap_or(0.0).max(0.0),
+                                    // Store fill price as SOL price reference for the demo UI.
+                                    sol_reserves: report.fill_price.parse().unwrap_or(0.0),
+                                    // Drawdown = negative PnL if any (clamped to 0 for positive trades).
+                                    drawdown: report.realized_pnl_usdc.unwrap_or(0.0).min(0.0).abs(),
                                     source: Some("hl_testnet_fill".to_string()),
                                 },
                             ));
