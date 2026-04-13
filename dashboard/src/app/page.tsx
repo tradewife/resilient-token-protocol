@@ -99,7 +99,7 @@ export default function Home() {
       <header className="topbar">
         <div className="brand">
           <span className="brand-dot" />
-          <span className="brand-name">RTP Sentinel</span>
+          <span className="brand-name">RESILIENT TOKEN PROTOCOL</span>
         </div>
         <div className="topbar-actions">
           <span className="network-badge">Devnet</span>
@@ -129,9 +129,9 @@ export default function Home() {
         <div className="hero-content">
           <span className="hero-label">Sustenance Phase · Live Treasury</span>
           <h1 className="hero-title">
-            Autonomous
+            From the Trenches
             <br />
-            Treasury
+            we will Bloom
           </h1>
 
           <div className="hero-balance">
