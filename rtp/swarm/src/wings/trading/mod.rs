@@ -1078,6 +1078,59 @@ pub fn deposit_yield_to_treasury(
 }
 
 // ═══════════════════════════════════════════════════════════════════════
+//  Devnet Funding Stub (SOL → USDC simulation)
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Phantom wallet's SOL → Hyperliquid USDC bridge is **mainnet-only**. On
+/// devnet there is no real liquidity pool or bridge contract, so we simulate
+/// the conversion at the current oracle price.
+///
+/// Returns the simulated USDC amount that *would* land in the HL perps
+/// clearinghouse after the bridge completes.
+///
+/// This function is **only compiled with `--features devnet`** and must never
+/// appear in the mainnet binary.
+#[cfg(feature = "devnet")]
+pub fn devnet_fund_stub(sol_amount: f64, sol_price_usdc: f64) -> Result<f64, String> {
+    if sol_amount <= 0.0 {
+        return Err(format!(
+            "devnet_fund_stub: sol_amount must be positive, got {}",
+            sol_amount
+        ));
+    }
+    if sol_price_usdc <= 0.0 {
+        return Err(format!(
+            "devnet_fund_stub: sol_price_usdc must be positive, got {}",
+            sol_price_usdc
+        ));
+    }
+
+    // Simulate a 0.3% bridge fee (realistic for SOL→USDC swap).
+    const BRIDGE_FEE_BPS: f64 = 0.003;
+    let usdc_gross = sol_amount * sol_price_usdc;
+    let usdc_net = usdc_gross * (1.0 - BRIDGE_FEE_BPS);
+
+    println!(
+        "[DEVNET STUB] SOL→USDC simulated: {:.4} SOL × ${:.2} = ${:.4} USDC (fee {:.2}%) → ${:.4} USDC deposited to HL perps",
+        sol_amount,
+        sol_price_usdc,
+        usdc_gross,
+        BRIDGE_FEE_BPS * 100.0,
+        usdc_net
+    );
+
+    Ok(usdc_net)
+}
+
+/// Fetch the current SOL/USDC mid price from Hyperliquid for the devnet stub.
+/// Reuses the existing `get_sol_mid_price()` helper.
+#[cfg(feature = "devnet")]
+pub fn devnet_fund_from_hl_oracle(sol_amount: f64) -> Result<f64, String> {
+    let price = get_sol_mid_price()?;
+    devnet_fund_stub(sol_amount, price)
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 //  Position Tracking
 // ═══════════════════════════════════════════════════════════════════════
 
@@ -2727,5 +2780,46 @@ mod tests {
         }];
         apply_mutations(&mut config, &mutations);
         assert!((config.sl_atr - 2.0).abs() < f64::EPSILON);
+    }
+
+    // ── Devnet funding stub tests (only compiled with --features devnet) ─
+
+    #[cfg(feature = "devnet")]
+    #[test]
+    fn devnet_fund_stub_computes_usdc_with_fee() {
+        // 1 SOL @ $100 = $100 gross, 0.3% fee = $99.70 net
+        let usdc = devnet_fund_stub(1.0, 100.0).unwrap();
+        let expected = 100.0 * (1.0 - 0.003);
+        assert!(
+            (usdc - expected).abs() < 0.001,
+            "expected {}, got {}",
+            expected,
+            usdc
+        );
+    }
+
+    #[cfg(feature = "devnet")]
+    #[test]
+    fn devnet_fund_stub_rejects_zero_sol() {
+        let result = devnet_fund_stub(0.0, 100.0);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("must be positive"));
+    }
+
+    #[cfg(feature = "devnet")]
+    #[test]
+    fn devnet_fund_stub_rejects_negative_price() {
+        let result = devnet_fund_stub(1.0, -50.0);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("must be positive"));
+    }
+
+    #[cfg(feature = "devnet")]
+    #[test]
+    fn devnet_fund_stub_small_amount() {
+        // 0.01 SOL @ $150 = $1.50 gross, 0.3% fee → $1.4955 net
+        let usdc = devnet_fund_stub(0.01, 150.0).unwrap();
+        let expected = 0.01 * 150.0 * (1.0 - 0.003);
+        assert!((usdc - expected).abs() < 0.0001);
     }
 }

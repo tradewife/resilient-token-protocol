@@ -70,7 +70,18 @@ graph TD
                                        │              YieldReport ◄────────┘
                                        │                    │
                                   Memory persist       Treasury CPI transfer
-                                  (data/swarm-memory/)  (USDC → PDA)
+                                  (data/swarm-memory/)  (USDC yield → SOL → PDA)
+```
+
+## Capital Flow (Unified SOL Cycle)
+
+```
+SOL in (fees) → Phantom bridge → USDC → HL perps → USDC yield → Phantom bridge → SOL → Treasury PDA
+                 (mainnet)        ↑                    ↓           (mainnet)
+                              HL clearinghouse    USDC-margined
+                              holds working cap   perps positions
+
+Devnet: HL funded directly via faucet. devnet_fund_stub() simulates bridge for demo.
 ```
 
 ## Autonomous Devnet Loop

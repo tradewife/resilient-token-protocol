@@ -21,8 +21,9 @@ RTP is a memory-persistent, self-coordinating, self-improving agent system whose
 - The Anchor program enforces hard constraints: price floor, treasury limits, permitted actions, distribution rules.
 - An off-chain Rust swarm observes protocol state and executes treasury operations only inside those constraints.
 - The Python research layer (Night Shift) runs 30K configs/night, 9-fold WFA, Darwinian evolution — validated strategies are handed to the Rust Trading Wing via bridge.rs.
-- The Trading Wing executes validated strategies as **perpetuals trades on Hyperliquid**, signed and submitted via **Phantom wallet integration**.
-- Yield (USDC) flows back to the Solana treasury PDA. The redistribution split (70/20/10) is enforced on-chain.
+- The Trading Wing executes validated strategies as **perpetuals trades on Hyperliquid**, signed via ETH keypair (EIP-712) with Phantom Connect for Solana CPI signing.
+- **Capital flow**: SOL in → Phantom bridge → USDC on HL → yield → Phantom bridge → SOL back to treasury PDA. Single asset on-chain, USDC only in-flight.
+- The redistribution split (70/20/10) is enforced on-chain.
 - The swarm accumulates memory, distills strategy knowledge, and improves over repeated market cycles.
 - Core claim: agent operations are bounded by on-chain invariants, fully auditable, and designed for token survival over time.
 
@@ -494,5 +495,5 @@ Demo               = proof the institution persists without founder trust
 
 ---
 
-*Last updated: 2026-04-13 (session ii — continual evolution infrastructure) — 301 tests, 0 failures, 0 clippy warnings. HL round-trip verified. Devnet loop running autonomously. SOL Survivor 2.69 sensitivity confirmed ROBUST (Sharpe range 0.30). Strategy library + dead ends + from-scratch prompt operational. Demo-readiness 9.5/10. Build complete — next session is rehearsal + submission.*
+*Last updated: 2026-04-13 (session iii — Phantom bridge devnet limitation, unified SOL capital model) — 301 tests (305 with devnet feature), 0 failures, 0 clippy warnings. HL round-trip verified. Devnet loop running autonomously. Phantom perps bridge confirmed mainnet-only; `devnet_fund_stub()` added behind `#[cfg(feature = "devnet")]`. SOULCONTRACT.md updated to unified SOL cycle: SOL in → USDC on HL → SOL back to treasury. Demo-readiness 9.5/10. Build complete — next session is rehearsal + submission.*
 *Update this file after each session that changes canonical decisions or resolves open decisions.*

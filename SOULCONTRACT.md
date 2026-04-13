@@ -13,7 +13,7 @@ Amendments require a human signature and a 24-hour monitoring window before taki
 2. **TransferFeeConfig immutable** — fee configuration cannot be revoked after mint. Token adopters are protected.
 3. **CPI-only transfers** — all on-chain token movements are atomic and verifiable.
 4. **Agent proposes, human approves** — irreversible actions require explicit human sign-off.
-5. **No SOL liquidation** — SOL reserves are never sold. The SOL bucket is a long-term appreciating reserve asset. Yield flows are USDC-only. Hyperliquid positions are USDC-margined.
+5. **No SOL liquidation** — SOL reserves are never sold on the open market. The Phantom bridge converts SOL↔USDC trustlessly; the treasury never sells SOL to fund operations. Hyperliquid positions are USDC-margined. SOL on the treasury PDA is never at risk of liquidation.
 6. **Phase transitions irreversible** — Sustenance → Ecosystem → Humanity. No downgrade path.
 7. **Soulcontract amendments require human signature + 24h monitoring** — no autonomous self-modification of governance.
 8. **Auto-rollback on degradation** — if performance drops > 5% post-amendment, rollback is automatic.
@@ -22,30 +22,42 @@ Amendments require a human signature and a 24-hour monitoring window before taki
 
 ---
 
-## Treasury Capital Model
+## Treasury Capital Model — Unified SOL Flow
 
-The treasury holds two distinct asset buckets with separate purposes and policies:
-
-### SOL Bucket — Reserve Asset
-- **Source**: creator fees from adopting token projects (arrive as SOL via TransferFeeConfig)
-- **Policy**: never sold. SOL is held as a long-term appreciating reserve.
-- **Future path**: SOL deposited as collateral into a Solana lending protocol (e.g. via Phantom-native collateral integration), USDC borrowed against it to fund the trading wing. Yield repays the borrow. The treasury grows from both trading returns and SOL appreciation simultaneously.
-- **In early conversation with Phantom** about making SOL collateralisation native to their SDK — this is the post-funding production path.
-
-### USDC Bucket — Trading Capital
-- **Source**: seeded by VC grant or hackathon prize capital (e.g. Frontier $250k support). Not distributed — held as operating reserve.
-- **Policy**: funds the Hyperliquid trading wing. Grows from yield. As yield compounds, the protocol becomes self-funding and external seed capital is no longer required.
-- **VC on-ramp**: if venture funding is raised, capital is received and converted to USDC via MoonPay Agents, then deposited into the treasury PDA. No SOL is sold to achieve this.
-- **Self-sustaining threshold**: when USDC yield exceeds ops cost by 10× sustained over 90 days, external seed capital is no longer required and can be returned or recycled to the ecosystem fund.
-
-### What This Means in Practice
+The protocol operates on a single transparent cycle:
 
 ```
-Creator fees (SOL) → SOL bucket → hold, appreciate, future collateral
-VC / prize grant   → USDC bucket → trade on Hyperliquid → yield → redistribute
+SOL in → USDC (Phantom bridge) → trade on Hyperliquid → USDC yield → SOL (Phantom bridge) → treasury PDA
 ```
 
-The protocol never liquidates community SOL to fund operations. The trading capital is separately sourced. Long-term, borrowing against the SOL reserve removes the need for external capital entirely.
+### Core Invariant
+
+> **The protocol accepts SOL, operates in USDC on Hyperliquid, and returns SOL.** The conversion is handled trustlessly by the Phantom bridge. The treasury PDA holds SOL reserves; the HL clearinghouse holds USDC working capital.
+
+### Capital Flow
+
+| Step | Asset | Location | Mechanism |
+|------|-------|----------|-----------|
+| 1. Fees arrive | SOL | Treasury PDA (Solana) | TransferFeeConfig from adopting token projects |
+| 2. Fund trading | SOL → USDC | Phantom bridge (mainnet) | Trustless swap at oracle price, 0.3% fee |
+| 3. Execute strategies | USDC | HL clearinghouse | USDC-margined perps, EIP-712 signed |
+| 4. Yield returns | USDC → SOL | Phantom bridge (mainnet) | Trustless swap at oracle price |
+| 5. Redistribute | SOL | Treasury PDA | 70% holders / 20% dev / 10% ecosystem (on-chain) |
+
+### Why This Model
+
+- **Single asset on-chain**: the treasury PDA only holds SOL. Judges can verify the full balance on Solana Explorer. No cross-chain reconciliation needed.
+- **USDC only in-flight**: Hyperliquid positions are USDC-margined. SOL is never at risk of liquidation on HL.
+- **Trustless conversion**: the Phantom bridge handles SOL↔USDC without custodial risk. The swarm never holds USDC off-chain.
+- **Auditable**: every step produces an on-chain signature or API receipt. The full cycle is visible in demo output.
+
+### Devnet Note
+
+The Phantom SOL↔USDC bridge is **mainnet-only**. On devnet, the HL clearinghouse is funded directly via faucet, and the `devnet_fund_stub()` simulates the bridge conversion for demo narrative purposes. The treasury PDA holds SOL on devnet as it would in production. See `CLAUDE.md → Devnet Limitations` for details.
+
+### Self-Sustaining Threshold
+
+When USDC yield exceeds ops cost by 10× sustained over 90 days, external seed capital is no longer required and can be returned or recycled to the ecosystem fund.
 
 ---
 

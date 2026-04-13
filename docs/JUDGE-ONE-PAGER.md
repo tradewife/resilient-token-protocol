@@ -29,7 +29,7 @@
 
 ## Key Metrics
 
-- **301** Rust tests passing
+- **301** Rust tests passing (**305** with devnet feature)
 - **6** swarm wings (Trading, Security, Evolve, Knowledge, Audit, Futureproof)
 - **30K** strategy configs evaluated per symbol per night
 - **9-fold** walk-forward validation
@@ -45,4 +45,12 @@
 
 ## What Makes This Different
 
-No prior Colosseum hackathon project combines autonomous research + multi-wing constitutional governance + on-chain constraint enforcement + self-funding economics in a single deployed system. The Anchor program has 10+ constraint rejection tests. The devnet loop has accumulated multiple autonomous cycles with real LLM-driven adaptation.
+No prior Colosseum hackathon project combines autonomous research + multi-wing constitutional governance + on-chain constraint enforcement + self-funding economics in a single deployed system. The Anchor program has 10+ constraint rejection tests. The devnet loop has accumulated multiple autonomous cycles with real LLM-driven adaptation. The unified SOL cycle (SOL in → USDC on HL → SOL back to treasury) is auditable end-to-end: one asset on-chain, trustless conversion via Phantom bridge, USDC-margined positions only.
+
+## Capital Flow
+
+```
+SOL fees → Phantom bridge → USDC → Hyperliquid perps → USDC yield → Phantom bridge → SOL → Treasury PDA → redistribute
+```
+
+Treasury PDA holds SOL reserves. HL clearinghouse holds USDC working capital. Judges can verify the full SOL balance on Solana Explorer.

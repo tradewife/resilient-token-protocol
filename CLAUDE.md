@@ -205,6 +205,38 @@ cd rtp/programs/rtp-treasury && anchor deploy --provider.cluster devnet
 
 ---
 
+## Devnet Limitations
+
+### Phantom Wallet Perps Bridge (SOL → HL USDC) — Mainnet-Only
+
+The Phantom wallet native perps bridge that converts SOL to USDC for Hyperliquid
+perpetual trading operates **on mainnet only**. Phantom's Testnet Mode supports
+basic SOL transactions and dApp connections, but the specific integration for
+bridging to and trading on Hyperliquid relies on mainnet liquidity pools.
+
+**Impact on RTP:** The Trading Wing cannot route SOL from the treasury through
+Phantom's bridge to fund the HL perps account on devnet.
+
+**Devnet workaround:** `devnet_fund_stub()` in `trading/mod.rs` simulates the
+SOL→USDC conversion at the current oracle price (fetched from HL testnet).
+It applies a 0.3% bridge fee (realistic swap cost) and returns the simulated
+USDC amount. This function is gated behind `#[cfg(feature = "devnet")]` and
+is never compiled for the mainnet binary.
+
+```bash
+# Run tests with devnet stub (305 tests):
+cd rtp/swarm && cargo test --lib --features devnet
+
+# Run without devnet stub (301 tests, production config):
+cd rtp/swarm && cargo test --lib
+```
+
+**Production path (mainnet):** The Phantom perps bridge will work natively.
+`devnet_fund_stub()` is excluded from compilation when the `devnet` feature
+is not set, so the mainnet binary remains clean.
+
+---
+
 ## Key Invariants (enforced on-chain)
 
 1. **PDA owns treasury** — no private key risk

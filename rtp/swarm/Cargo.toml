@@ -3,6 +3,12 @@ name = "rtp-swarm"
 version = "0.1.0"
 edition = "2024"
 
+[features]
+default = []
+# Devnet-only stubs that simulate mainnet-only functionality (e.g. SOL→USDC
+# conversion via Phantom perps bridge). These are never compiled for mainnet.
+devnet = []
+
 [dependencies]
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
