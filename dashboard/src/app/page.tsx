@@ -35,9 +35,7 @@ const WINGS = [
 
 const INVARIANTS = [
   "Any token that adopts RTP sets the protocol's treasury as its fee destination at mint — permanently. The configuration cannot be revoked, adjusted, or redirected by anyone, including the team that built it.",
-  "The treasury is owned by a Program Derived Address. No private key exists for it. Every capital movement is executed by the PDA signing for itself according to rules fixed at initialization.",
   "Those fees don't sit idle. The protocol's research engine tests strategies autonomously, routes capital to generate yield, and returns it to the treasury for redistribution to holders.",
-  "Every movement of capital settles atomically on-chain through Cross-Program Invocation. Nothing is deferred, nothing discretionary — the chain is both record and settlement layer.",
   "Agents operate within a constitutional boundary. They can research, propose, and execute within defined parameters. Any irreversible action requires human authorisation before it reaches the network.",
   "The protocol matures through three phases — Sustenance, Ecosystem, Humanity. Each transition is enforced on-chain. Once crossed, it cannot be reversed.",
 ];
