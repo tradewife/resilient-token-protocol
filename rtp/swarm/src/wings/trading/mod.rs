@@ -577,7 +577,7 @@ pub fn get_hl_account_value() -> Result<f64, String> {
 
 /// Active strategy configuration for the Trading Wing.
 ///
-/// Default values are SOL/USDT Survivor 2.69 — confirmed Apr 12 night shift, OOS Sharpe 3.96.
+/// Default values are SOL/USDT Survivor 2.69 — confirmed Apr 12 cycle report, OOS Sharpe 3.96.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StrategyConfig {
     pub signal_threshold: f64,
@@ -589,7 +589,7 @@ pub struct StrategyConfig {
 
 impl Default for StrategyConfig {
     fn default() -> Self {
-        // SOL/USDT Survivor 2.69 — confirmed Apr 12 night shift, OOS Sharpe 3.96
+        // SOL/USDT Survivor 2.69 — confirmed Apr 12 cycle report, OOS Sharpe 3.96
         Self {
             signal_threshold: 0.3,
             tp_atr: 3.0,
@@ -688,7 +688,7 @@ const SOLANA_DEVNET_RPC: &str = "https://api.devnet.solana.com";
 
 /// Devnet deployment addresses (from configs/.env.devnet).
 const RTP_MINT: &str = "2JN8Qr9QspmDXwqRBSmZ9ULX8LLJFawo61rEwYdtpNcf";
-const TREASURY_VAULT: &str = "DKuC9Q3FXS28C32k3Grur8QtBLrN5BR5nDsujFkhs3kM";
+const TREASURY_VAULT: &str = "FNQbK1Vw77aT7qM1EMSmeEPDGizSNhX4rkkYBKQNFotF";
 const DEVNET_WALLET: &str = "Driyi8Sw2622yCefU34zrjBsQynrDoGD31tBecXrEF6R";
 
 /// SPL Token program ID (standard). Kept for reference.

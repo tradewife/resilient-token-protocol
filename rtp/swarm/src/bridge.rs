@@ -1,10 +1,10 @@
 //! Bridge — Python↔Rust typed interface.
 //!
-//! The Trading Wing calls the Python fractal-swarm binary (night_shift.bin)
+//! The Trading Wing calls the Python fractal-swarm binary (cycle_report.bin)
 //! through this bridge and receives typed JSON proposals back.
 //!
 //! Week 3: stub binary path, tested with captured/fake JSON output.
-//! Week 4: swap `NIGHT_SHIFT_BIN` to the real PyInstaller binary.
+//! Week 4: swap `CYCLE_BIN` to the real PyInstaller binary.
 
 use serde::{Deserialize, Serialize};
 use std::io::Write as IoWrite;
@@ -12,7 +12,7 @@ use thiserror::Error;
 
 /// Path to the Python fractal-swarm binary.
 /// Week 4: swap to the real PyInstaller output.
-pub const NIGHT_SHIFT_BIN: &str = "night_shift.bin";
+pub const CYCLE_BIN: &str = "cycle_report.bin";
 
 /// Request sent to the Python fractal-swarm binary.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -61,9 +61,9 @@ pub enum BridgeError {
 }
 
 /// Call the Python binary with a typed request and receive a typed response.
-/// Uses `NIGHT_SHIFT_BIN` as the binary path.
+/// Uses `CYCLE_BIN` as the binary path.
 pub fn call_bridge(request: &BridgeRequest) -> Result<BridgeResponse, BridgeError> {
-    call_bridge_with_bin(NIGHT_SHIFT_BIN, request)
+    call_bridge_with_bin(CYCLE_BIN, request)
 }
 
 /// Call the bridge using a custom binary path (for testing).
@@ -316,17 +316,17 @@ mod tests {
     // ── Constants ─────────────────────────────────────────────────────
 
     #[test]
-    fn night_shift_bin_constant_is_swappable() {
-        assert_eq!(NIGHT_SHIFT_BIN, "night_shift.bin");
+    fn cycle_bin_constant_is_swappable() {
+        assert_eq!(CYCLE_BIN, "cycle_report.bin");
     }
 
     // ── Integration: real binary (optional, only runs if binary exists) ──
 
     #[test]
     fn real_binary_bridge_mode_integration() {
-        // This test only runs if night_shift.bin exists at repo root.
+        // This test only runs if cycle_report.bin exists at repo root.
         // It validates the full Python↔Rust round-trip.
-        let bin_path = format!("{}/../../../night_shift.bin", env!("CARGO_MANIFEST_DIR"));
+        let bin_path = format!("{}/../../../cycle_report.bin", env!("CARGO_MANIFEST_DIR"));
         if !std::path::Path::new(&bin_path).exists() {
             eprintln!("Skipping: {} not found", bin_path);
             return;

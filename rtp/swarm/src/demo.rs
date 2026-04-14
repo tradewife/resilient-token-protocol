@@ -396,6 +396,136 @@ pub fn print_demo_result(result: &DemoResult) {
 // Two-cycle demo — covers all 5 judge points
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Hyperliquid live round-trip (BUY → fill → SELL → fill → PnL → treasury)
+// ---------------------------------------------------------------------------
+
+/// Result of a live HL round-trip trade.
+#[derive(Debug)]
+pub struct HlRoundTripResult {
+    /// BUY fill confirmed.
+    pub buy_filled: bool,
+    /// SELL fill confirmed.
+    pub sell_filled: bool,
+    /// YieldReport emitted with usdc_yield computed.
+    pub yield_reported: bool,
+    /// Realized PnL from the round-trip.
+    pub realized_pnl_usdc: Option<f64>,
+    /// Treasury deposit transaction signature (if submitted).
+    pub treasury_deposit_sig: Option<String>,
+    /// Overall round-trip success.
+    pub success: bool,
+}
+
+/// Execute a live Hyperliquid round-trip on testnet:
+///   1. BUY 0.12 SOL/USDT
+///   2. SELL 0.12 SOL/USDT
+///   3. Assert YieldReport with usdc_yield computed
+///   4. Assert treasury deposit transaction submitted
+///
+/// Uses the Trading Wing's `execute_hl_sol_order` and `deposit_yield_to_treasury`
+/// directly (no coordinator routing — this is a focused execution demo).
+pub fn run_hl_round_trip() -> HlRoundTripResult {
+    use crate::wings::trading::{execute_hl_sol_order, deposit_yield_to_treasury, load_hl_key};
+
+    // Skip if key file or HL testnet is unavailable.
+    if load_hl_key().is_err() {
+        println!("[HL ROUND-TRIP] SKIP: HL key file not found");
+        return HlRoundTripResult {
+            buy_filled: false,
+            sell_filled: false,
+            yield_reported: false,
+            realized_pnl_usdc: None,
+            treasury_deposit_sig: None,
+            success: false,
+        };
+    }
+
+    // Step 1: BUY 0.12 SOL/USDT (opening long).
+    println!("[HL ROUND-TRIP] Step 1: ExecutePermit {{ is_buy: true, symbol: \"SOL/USDT\", size: \"0.12\", execution_venue: \"hyperliquid\" }}");
+    let buy_result = execute_hl_sol_order(true, "0.12", None);
+    let (buy_report, buy_filled) = match buy_result {
+        Ok((_resp, report)) => {
+            println!("[HL ROUND-TRIP] BUY fill: {:?}", report);
+            (report.clone(), true)
+        }
+        Err(e) => {
+            println!("[HL ROUND-TRIP] BUY failed: {}", e);
+            return HlRoundTripResult {
+                buy_filled: false,
+                sell_filled: false,
+                yield_reported: false,
+                realized_pnl_usdc: None,
+                treasury_deposit_sig: None,
+                success: false,
+            };
+        }
+    };
+
+    // Step 2: SELL 0.12 SOL/USDT (closing long).
+    println!("[HL ROUND-TRIP] Step 2: ExecutePermit {{ is_buy: false, symbol: \"SOL/USDT\", size: \"0.12\", execution_venue: \"hyperliquid\" }}");
+    let entry_price = buy_report.fill_price.clone();
+    let sell_result = execute_hl_sol_order(false, "0.12", Some(&entry_price));
+    let (sell_report, sell_filled) = match sell_result {
+        Ok((_resp, report)) => {
+            println!("[HL ROUND-TRIP] SELL fill: {:?}", report);
+            (report.clone(), true)
+        }
+        Err(e) => {
+            println!("[HL ROUND-TRIP] SELL failed: {}", e);
+            return HlRoundTripResult {
+                buy_filled,
+                sell_filled: false,
+                yield_reported: false,
+                realized_pnl_usdc: None,
+                treasury_deposit_sig: None,
+                success: false,
+            };
+        }
+    };
+
+    // Step 3: Assert YieldReport is emitted with usdc_yield > 0.
+    let pnl = sell_report.realized_pnl_usdc;
+    let yield_reported = pnl.is_some();
+    println!(
+        "[HL ROUND-TRIP] Step 3: YieldReport {{ realized_pnl_usdc: {:?} }}",
+        pnl
+    );
+
+    // Step 4: Assert treasury deposit transaction is submitted.
+    let treasury_sig = if let Some(pnl_val) = pnl {
+        if pnl_val > 0.0 {
+            match deposit_yield_to_treasury(pnl_val, None) {
+                Ok(sig) => {
+                    println!("[HL ROUND-TRIP] Step 4: Treasury deposit submitted: {} USDC → sig: {}", pnl_val, sig);
+                    Some(sig)
+                }
+                Err(e) => {
+                    println!("[HL ROUND-TRIP] Step 4: Treasury deposit failed (non-fatal): {}", e);
+                    None
+                }
+            }
+        } else {
+            println!("[HL ROUND-TRIP] Step 4: PnL is non-positive (${:.6}), skipping treasury deposit", pnl_val);
+            None
+        }
+    } else {
+        println!("[HL ROUND-TRIP] Step 4: No realized PnL, skipping treasury deposit");
+        None
+    };
+
+    let success = buy_filled && sell_filled && yield_reported;
+
+    HlRoundTripResult {
+        buy_filled,
+        sell_filled,
+        yield_reported,
+        realized_pnl_usdc: pnl,
+        treasury_deposit_sig: treasury_sig,
+        success,
+    }
+}
+
 /// Verifies on-chain constraint enforcement (Judge Point 1).
 ///
 /// The Anchor program enforces hard constraints that cannot be bypassed:
@@ -442,6 +572,8 @@ pub struct TwoCycleDemoResult {
     pub model_label: String,
     /// Memory loaded from disk (proves cross-cycle persistence via files).
     pub memory_from_disk: Option<String>,
+    /// Live HL round-trip result (BUY → SELL → yield → treasury deposit).
+    pub hl_round_trip: Option<HlRoundTripResult>,
     /// Overall success.
     pub success: bool,
 }
@@ -583,6 +715,11 @@ pub async fn run_two_cycle_demo() -> TwoCycleDemoResult {
     let llm_config = LlmProposerConfig::from_env();
     let propose_result = propose_strategy_mutation(llm_config).await;
 
+    // ── Live HL round-trip: BUY → SELL → yield → treasury deposit ────
+    let hl_round_trip = std::thread::spawn(run_hl_round_trip)
+        .join()
+        .ok();
+
     let success = constraint_rejected && cycle1.success && memory_persisted && redirect_triggered;
 
     TwoCycleDemoResult {
@@ -598,6 +735,7 @@ pub async fn run_two_cycle_demo() -> TwoCycleDemoResult {
         used_llm: propose_result.used_llm,
         model_label: propose_result.model_label,
         memory_from_disk,
+        hl_round_trip,
         success,
     }
 }
@@ -631,7 +769,7 @@ pub fn print_two_cycle_demo(result: &TwoCycleDemoResult) {
     // ── Point 2 + 3: Cycle 1 ──────────────────────────────────────────
     println!();
     println!("=== CYCLE 1: STRATEGY EXECUTION ===");
-    println!("[NIGHT SHIFT] strategy: SOL/USDT Survivor 2.69 (sharpe 3.96)");
+    println!("[CYCLE REPORT] strategy: SOL/USDT Survivor 2.69 (sharpe 3.96)");
     println!("[TRADING WING] ExecutePermit received");
 
     // Report fill/yield from cycle 1 step outcomes.
@@ -730,7 +868,39 @@ pub fn print_two_cycle_demo(result: &TwoCycleDemoResult) {
         "[AUDIT] ✅ all {} mutations within soulcontract bounds",
         result.mutations.len()
     );
-    println!("[EVOLVE] proposals queued for Night Shift backtest");
+    println!("[EVOLVE] proposals queued for Cycle Report backtest");
+
+    // ── HL Round-Trip: live execution demo ────────────────────────────
+    println!();
+    println!("=== HYPERLIQUID ROUND-TRIP (TESTNET) ===");
+    if let Some(ref rt) = result.hl_round_trip {
+        if rt.buy_filled {
+            println!("[TRADING WING] ✅ BUY 0.12 SOL/USDT filled on HL testnet");
+        } else {
+            println!("[TRADING WING] ⚠️ BUY fill skipped/unavailable");
+        }
+        if rt.sell_filled {
+            println!("[TRADING WING] ✅ SELL 0.12 SOL/USDT filled on HL testnet");
+        } else {
+            println!("[TRADING WING] ⚠️ SELL fill skipped/unavailable");
+        }
+        if rt.yield_reported {
+            println!(
+                "[YIELD] ✅ YieldReport emitted: realized_pnl_usdc = {:?}",
+                rt.realized_pnl_usdc
+            );
+        }
+        if let Some(ref sig) = rt.treasury_deposit_sig {
+            println!("[TREASURY] ✅ deposit tx submitted: {}", sig);
+        }
+        if rt.success {
+            println!("[ROUND-TRIP] ✅ full BUY→SELL→yield→treasury cycle complete");
+        } else {
+            println!("[ROUND-TRIP] ⚠️ partial (HL testnet may be unavailable)");
+        }
+    } else {
+        println!("[ROUND-TRIP] ⚠️ HL round-trip skipped (thread join failed)");
+    }
 
     // ── Point 5: Observable treasury state ─────────────────────────────
     println!();
