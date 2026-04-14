@@ -5,7 +5,7 @@ use spl_token_2022_interface::{
     state::Mint as SplMint,
 };
 
-declare_id!("4LvsHbe9LLwgogcDbH7ieTsGcWZctjYFZkzZwaHDM8Ad");
+declare_id!("Bn7rBJ5ENmQzBjkmCKs1mx6WxNhQL8QKRQUj8xtmksXx");
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -37,6 +37,15 @@ const DEFAULT_MIN_RUNWAY: u64 = 10_000_000;
 /// PDA seeds
 const TREASURY_SEED: &[u8] = b"treasury";
 const SWARM_HYDRATION_SEED: &[u8] = b"swarm-hydration";
+const STRATEGY_SEED: &[u8] = b"strategy";
+
+/// Hard stop thresholds — mirrors Python RetirementGate in research/promotion_criteria.py
+const HARD_DRAWDOWN_24H_BPS: u16 = 1000;       // 10% = 1000 bps — mirrors RetirementGate.HARD_DRAWDOWN_24H_PCT
+const HARD_CONSECUTIVE_LOSSES: u8 = 5;          // mirrors RetirementGate.HARD_CONSECUTIVE_LOSSES
+const HARD_ROLLING_SHARPE_MIN_X100: i32 = 50;   // 0.5 * 100 — mirrors RetirementGate.HARD_ROLLING_SHARPE_MIN
+
+/// Soft decay retirement — mirrors Python RetirementGate.SOFT_STRIKE_THRESHOLD
+const SOFT_STRIKE_THRESHOLD: u8 = 3;
 
 // ---------------------------------------------------------------------------
 // Errors
@@ -62,6 +71,16 @@ pub enum TreasuryError {
     ZeroAmount,
     #[msg("Arithmetic overflow in fee accounting")]
     Overflow,
+    #[msg("Strategy is not in Live status — cannot fund or trade")]
+    StrategyNotLive,
+    #[msg("Strategy has breached a hard stop threshold")]
+    HardStopBreached,
+    #[msg("Strategy has accumulated too many soft decay strikes")]
+    SoftDecayRetirement,
+    #[msg("Strategy ID must be 1–16 characters")]
+    InvalidStrategyId,
+    #[msg("Only the treasury authority can register or retire strategies")]
+    UnauthorizedStrategyOp,
 }
 
 // ---------------------------------------------------------------------------
@@ -149,6 +168,64 @@ pub struct AdopterRecord {
 }
 
 // ---------------------------------------------------------------------------
+// StrategyRecord — on-chain strategy lifecycle ledger
+// ---------------------------------------------------------------------------
+
+/// On-chain lifecycle ledger for a single trading strategy.
+/// Seeds: [STRATEGY_SEED, treasury.key(), strategy_id.as_bytes()]
+#[account]
+#[derive(InitSpace)]
+pub struct StrategyRecord {
+    /// The treasury this strategy belongs to
+    pub treasury: Pubkey,
+    /// Unique strategy identifier (max 16 bytes, e.g. "S03", "SOL_CARRY_v1")
+    #[max_len(16)]
+    pub strategy_id: String,
+    /// Current lifecycle status
+    pub status: StrategyLifecycleStatus,
+    /// Unix timestamp when strategy was promoted to LIVE
+    pub promoted_at: i64,
+    /// Unix timestamp of last performance update
+    pub last_update_ts: i64,
+    /// Rolling 30-day PnL in basis points (signed, scaled x100)
+    /// e.g. +350 = +3.50%, -120 = -1.20%
+    pub rolling_pnl_bps: i32,
+    /// Number of consecutive losing trades (reset on any win)
+    pub consecutive_losses: u8,
+    /// Number of soft decay strikes accumulated
+    pub soft_decay_strikes: u8,
+    /// Largest single drawdown observed in the last 24h, in basis points
+    pub drawdown_24h_bps: u16,
+    /// Cumulative total trades executed on-chain
+    pub total_trades: u32,
+    /// Sharpe ratio at time of promotion (stored as integer x100, e.g. 396 = 3.96)
+    pub promotion_sharpe_x100: i32,
+    /// Current rolling Sharpe (integer x100). Updated by the swarm agent.
+    pub rolling_sharpe_x100: i32,
+    /// PDA bump
+    pub bump: u8,
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, InitSpace, Debug)]
+pub enum StrategyLifecycleStatus {
+    /// Promoted, actively trading
+    Live,
+    /// Hard stop triggered — no new trades, existing positions closing
+    Suspended,
+    /// Retired — strategy is dead, no further operations permitted
+    Retired,
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, InitSpace, Debug)]
+pub enum RetirementReason {
+    HardDrawdown,
+    ConsecutiveLosses,
+    RollingSharpeLow,
+    SoftDecayStrikes,
+    AuthorityForced,
+}
+
+// ---------------------------------------------------------------------------
 // Events
 // ---------------------------------------------------------------------------
 
@@ -164,6 +241,36 @@ pub struct FeeDepositRecorded {
     pub amount_lamports: u64,
     pub cumulative: u64,
     pub total_treasury_fees: u64,
+    pub ts: i64,
+}
+
+#[event]
+pub struct StrategyPromoted {
+    pub treasury: Pubkey,
+    pub strategy_id: String,
+    pub promotion_sharpe_x100: i32,
+    pub promoted_at: i64,
+}
+
+#[event]
+pub struct StrategyPerformanceUpdated {
+    pub treasury: Pubkey,
+    pub strategy_id: String,
+    pub rolling_pnl_bps: i32,
+    pub rolling_sharpe_x100: i32,
+    pub consecutive_losses: u8,
+    pub soft_decay_strikes: u8,
+    pub drawdown_24h_bps: u16,
+    pub status: StrategyLifecycleStatus,
+    pub ts: i64,
+}
+
+#[event]
+pub struct StrategyRetired {
+    pub treasury: Pubkey,
+    pub strategy_id: String,
+    pub reason: RetirementReason,
+    pub final_rolling_sharpe_x100: i32,
     pub ts: i64,
 }
 
@@ -404,6 +511,12 @@ pub mod rtp_treasury {
         let treasury = &mut ctx.accounts.treasury;
         let vault = &ctx.accounts.treasury_vault;
 
+        // Strategy lifecycle gate: only Live strategies can receive funding
+        require!(
+            ctx.accounts.strategy_record.status == StrategyLifecycleStatus::Live,
+            TreasuryError::StrategyNotLive,
+        );
+
         require!(amount > 0, TreasuryError::HydrationExceedsBalance);
         require!(vault.amount >= amount, TreasuryError::HydrationExceedsBalance);
 
@@ -564,6 +677,151 @@ pub mod rtp_treasury {
             amount_lamports,
             cumulative: record.fees_contributed_lamports,
             total_treasury_fees: treasury.total_fees_received_lamports,
+            ts: clock.unix_timestamp,
+        });
+
+        Ok(())
+    }
+
+    /// Register (promote) a strategy from the Python research layer into
+    /// on-chain LIVE status. Only callable by `treasury.authority`.
+    pub fn register_strategy(
+        ctx: Context<RegisterStrategy>,
+        strategy_id: String,
+        promotion_sharpe_x100: i32,
+    ) -> Result<()> {
+        require!(
+            strategy_id.len() >= 1 && strategy_id.len() <= 16,
+            TreasuryError::InvalidStrategyId,
+        );
+        require!(
+            ctx.accounts.authority.key() == ctx.accounts.treasury.authority,
+            TreasuryError::UnauthorizedStrategyOp,
+        );
+
+        let clock = Clock::get()?;
+        let record = &mut ctx.accounts.strategy_record;
+        record.treasury = ctx.accounts.treasury.key();
+        record.strategy_id = strategy_id.clone();
+        record.status = StrategyLifecycleStatus::Live;
+        record.promoted_at = clock.unix_timestamp;
+        record.last_update_ts = clock.unix_timestamp;
+        record.rolling_pnl_bps = 0;
+        record.consecutive_losses = 0;
+        record.soft_decay_strikes = 0;
+        record.drawdown_24h_bps = 0;
+        record.total_trades = 0;
+        record.promotion_sharpe_x100 = promotion_sharpe_x100;
+        record.rolling_sharpe_x100 = promotion_sharpe_x100;
+        record.bump = ctx.bumps.strategy_record;
+
+        emit!(StrategyPromoted {
+            treasury: ctx.accounts.treasury.key(),
+            strategy_id,
+            promotion_sharpe_x100,
+            promoted_at: clock.unix_timestamp,
+        });
+
+        Ok(())
+    }
+
+    /// Update strategy performance metrics after each completed trade batch.
+    /// Enforces hard stop and soft decay thresholds automatically.
+    pub fn update_strategy_performance(
+        ctx: Context<UpdateStrategyPerformance>,
+        rolling_pnl_bps: i32,
+        rolling_sharpe_x100: i32,
+        consecutive_losses: u8,
+        drawdown_24h_bps: u16,
+        new_soft_strike: bool,
+    ) -> Result<()> {
+        let record = &mut ctx.accounts.strategy_record;
+        require!(
+            record.status == StrategyLifecycleStatus::Live,
+            TreasuryError::StrategyNotLive,
+        );
+
+        // 2. Update all metric fields
+        record.rolling_pnl_bps = rolling_pnl_bps;
+        record.rolling_sharpe_x100 = rolling_sharpe_x100;
+        record.consecutive_losses = consecutive_losses;
+        record.drawdown_24h_bps = drawdown_24h_bps;
+
+        // 3. Increment soft decay strikes
+        if new_soft_strike {
+            record.soft_decay_strikes = record.soft_decay_strikes.saturating_add(1);
+        }
+
+        // 4. Increment total trades
+        record.total_trades = record.total_trades.saturating_add(1);
+
+        // 5. Set last_update_ts
+        let clock = Clock::get()?;
+        record.last_update_ts = clock.unix_timestamp;
+
+        // Hard stop checks (order matters — first match wins)
+        let mut retirement_reason: Option<RetirementReason> = None;
+
+        if drawdown_24h_bps >= HARD_DRAWDOWN_24H_BPS {
+            record.status = StrategyLifecycleStatus::Suspended;
+            retirement_reason = Some(RetirementReason::HardDrawdown);
+        } else if consecutive_losses >= HARD_CONSECUTIVE_LOSSES {
+            record.status = StrategyLifecycleStatus::Suspended;
+            retirement_reason = Some(RetirementReason::ConsecutiveLosses);
+        } else if rolling_sharpe_x100 < HARD_ROLLING_SHARPE_MIN_X100 {
+            record.status = StrategyLifecycleStatus::Suspended;
+            retirement_reason = Some(RetirementReason::RollingSharpeLow);
+        }
+
+        // Soft decay retirement check
+        if record.soft_decay_strikes >= SOFT_STRIKE_THRESHOLD {
+            record.status = StrategyLifecycleStatus::Retired;
+            retirement_reason = Some(RetirementReason::SoftDecayStrikes);
+        }
+
+        // Emit retirement event if triggered
+        if let Some(reason) = retirement_reason {
+            emit!(StrategyRetired {
+                treasury: ctx.accounts.treasury.key(),
+                strategy_id: record.strategy_id.clone(),
+                reason,
+                final_rolling_sharpe_x100: record.rolling_sharpe_x100,
+                ts: clock.unix_timestamp,
+            });
+        }
+
+        // 6. Always emit performance update (audit trail)
+        emit!(StrategyPerformanceUpdated {
+            treasury: ctx.accounts.treasury.key(),
+            strategy_id: record.strategy_id.clone(),
+            rolling_pnl_bps: record.rolling_pnl_bps,
+            rolling_sharpe_x100: record.rolling_sharpe_x100,
+            consecutive_losses: record.consecutive_losses,
+            soft_decay_strikes: record.soft_decay_strikes,
+            drawdown_24h_bps: record.drawdown_24h_bps,
+            status: record.status,
+            ts: clock.unix_timestamp,
+        });
+
+        Ok(())
+    }
+
+    /// Emergency manual retirement by treasury authority. Bypasses thresholds.
+    pub fn force_retire_strategy(ctx: Context<ForceRetireStrategy>) -> Result<()> {
+        require!(
+            ctx.accounts.authority.key() == ctx.accounts.treasury.authority,
+            TreasuryError::UnauthorizedStrategyOp,
+        );
+
+        let record = &mut ctx.accounts.strategy_record;
+        let clock = Clock::get()?;
+        record.status = StrategyLifecycleStatus::Retired;
+
+        emit!(StrategyRetired {
+            treasury: ctx.accounts.treasury.key(),
+            strategy_id: record.strategy_id.clone(),
+            reason: RetirementReason::AuthorityForced,
+            final_rolling_sharpe_x100: record.rolling_sharpe_x100,
             ts: clock.unix_timestamp,
         });
 
@@ -751,6 +1009,15 @@ pub mod rtp_treasury {
         )]
         pub swarm_vault: InterfaceAccount<'info, TokenAccount>,
 
+        /// Strategy record — MUST be Live to receive funding.
+        /// Seeds: [STRATEGY_SEED, treasury.key(), strategy_id]
+        #[account(
+            seeds = [STRATEGY_SEED, treasury.key().as_ref(), strategy_record.strategy_id.as_bytes()],
+            bump = strategy_record.bump,
+            constraint = strategy_record.treasury == treasury.key(),
+        )]
+        pub strategy_record: Account<'info, StrategyRecord>,
+
         /// Authority initiating hydration (anyone can trigger).
         #[account(mut)]
         pub authority: Signer<'info>,
@@ -881,6 +1148,77 @@ pub mod rtp_treasury {
         pub treasury: Account<'info, Treasury>,
 
         /// The authority that can record fee deposits
+        pub authority: Signer<'info>,
+    }
+
+    #[derive(Accounts)]
+    #[instruction(strategy_id: String, promotion_sharpe_x100: i32)]
+    pub struct RegisterStrategy<'info> {
+        /// Treasury state account (PDA, read-only).
+        #[account(
+            seeds = [TREASURY_SEED, treasury.mint.as_ref()],
+            bump = treasury.bump,
+        )]
+        pub treasury: Account<'info, Treasury>,
+
+        /// Strategy record PDA — init, seeds: [STRATEGY_SEED, treasury, strategy_id]
+        #[account(
+            init,
+            payer = authority,
+            space = 8 + StrategyRecord::INIT_SPACE,
+            seeds = [STRATEGY_SEED, treasury.key().as_ref(), strategy_id.as_bytes()],
+            bump,
+        )]
+        pub strategy_record: Account<'info, StrategyRecord>,
+
+        /// Authority — must equal treasury.authority
+        #[account(mut)]
+        pub authority: Signer<'info>,
+
+        pub system_program: Program<'info, System>,
+    }
+
+    #[derive(Accounts)]
+    pub struct UpdateStrategyPerformance<'info> {
+        /// Treasury state account (PDA, read-only).
+        #[account(
+            seeds = [TREASURY_SEED, treasury.mint.as_ref()],
+            bump = treasury.bump,
+        )]
+        pub treasury: Account<'info, Treasury>,
+
+        /// Strategy record PDA — mutable, seeds verified.
+        #[account(
+            mut,
+            seeds = [STRATEGY_SEED, treasury.key().as_ref(), strategy_record.strategy_id.as_bytes()],
+            bump = strategy_record.bump,
+            constraint = strategy_record.treasury == treasury.key(),
+        )]
+        pub strategy_record: Account<'info, StrategyRecord>,
+
+        /// Authority — must equal treasury.authority
+        pub authority: Signer<'info>,
+    }
+
+    #[derive(Accounts)]
+    pub struct ForceRetireStrategy<'info> {
+        /// Treasury state account (PDA, read-only, seeds verified).
+        #[account(
+            seeds = [TREASURY_SEED, treasury.mint.as_ref()],
+            bump = treasury.bump,
+        )]
+        pub treasury: Account<'info, Treasury>,
+
+        /// Strategy record PDA — mutable, seeds verified.
+        #[account(
+            mut,
+            seeds = [STRATEGY_SEED, treasury.key().as_ref(), strategy_record.strategy_id.as_bytes()],
+            bump = strategy_record.bump,
+            constraint = strategy_record.treasury == treasury.key(),
+        )]
+        pub strategy_record: Account<'info, StrategyRecord>,
+
+        /// Authority — must equal treasury.authority (enforced in handler)
         pub authority: Signer<'info>,
     }
 }

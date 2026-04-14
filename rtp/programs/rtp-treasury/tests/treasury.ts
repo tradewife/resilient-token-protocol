@@ -37,9 +37,10 @@ import { assert } from "chai";
 const SEED_TREASURY = Buffer.from("treasury");
 const SEED_VAULT = Buffer.from("vault");
 const SEED_SWARM = Buffer.from("swarm-hydration");
+const SEED_STRATEGY = Buffer.from("strategy");
 
 const PROGRAM_ID = new PublicKey(
-  "4LvsHbe9LLwgogcDbH7ieTsGcWZctjYFZkzZwaHDM8Ad"
+  "Bn7rBJ5ENmQzBjkmCKs1mx6WxNhQL8QKRQUj8xtmksXx"
 );
 
 const FEE_BASIS_POINTS = 1000; // 10%
@@ -70,6 +71,16 @@ function deriveVaultPDA(mint: PublicKey): [PublicKey, number] {
 function deriveSwarmVaultPDA(mint: PublicKey): [PublicKey, number] {
   return PublicKey.findProgramAddressSync(
     [SEED_SWARM, mint.toBuffer()],
+    PROGRAM_ID
+  );
+}
+
+function deriveStrategyPDA(
+  treasury: PublicKey,
+  strategyId: string
+): [PublicKey, number] {
+  return PublicKey.findProgramAddressSync(
+    [SEED_STRATEGY, treasury.toBuffer(), Buffer.from(strategyId)],
     PROGRAM_ID
   );
 }
@@ -653,6 +664,19 @@ describe("rtp-treasury", () => {
       // Add fees to replenish vault
       await generateAndWithdrawFees(5, BigInt(10_000_000_000));
 
+      // Register a Live strategy (required by hydrate_swarm)
+      const stratId = "LEGACY_HYD";
+      const [stratPDA] = deriveStrategyPDA(treasuryPDA, stratId);
+      await program.methods
+        .registerStrategy(stratId, 300)
+        .accounts({
+          treasury: treasuryPDA,
+          strategyRecord: stratPDA,
+          authority: payer.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+
       // Allow state propagation after withdrawFees CPI
       await new Promise(r => setTimeout(r, 200));
 
@@ -679,6 +703,7 @@ describe("rtp-treasury", () => {
           treasury: treasuryPDA,
           treasuryVault: vaultPDA,
           swarmVault: swarmVaultPDA,
+          strategyRecord: stratPDA,
           authority: payer.publicKey,
           tokenProgram: TOKEN_2022_PROGRAM_ID,
           systemProgram: SystemProgram.programId,
@@ -712,6 +737,10 @@ describe("rtp-treasury", () => {
     });
 
     it("rejects hydration that would violate 90-day runway (invariant #9)", async () => {
+      // Re-derive the strategy PDA (registered in previous test)
+      const stratId = "LEGACY_HYD";
+      const [stratPDA] = deriveStrategyPDA(treasuryPDA, stratId);
+
       const vault = await getAccount(
         provider.connection, vaultPDA, "confirmed", TOKEN_2022_PROGRAM_ID
       );
@@ -730,6 +759,7 @@ describe("rtp-treasury", () => {
             treasury: treasuryPDA,
             treasuryVault: vaultPDA,
             swarmVault: swarmVaultPDA,
+            strategyRecord: stratPDA,
             authority: payer.publicKey,
             tokenProgram: TOKEN_2022_PROGRAM_ID,
             systemProgram: SystemProgram.programId,
