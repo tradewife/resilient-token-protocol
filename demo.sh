@@ -82,6 +82,20 @@ else
   exit 1
 fi
 
+if command -v node &>/dev/null; then
+  ok "Node.js: $(node --version)"
+else
+  echo -e "  ${RED}ERROR: node not found — required for Layer 3 on-chain demo${RESET}"
+  exit 1
+fi
+
+if [ ! -d "rtp/programs/rtp-treasury/node_modules" ]; then
+  info "Installing treasury npm deps..."
+  (cd rtp/programs/rtp-treasury && npm ci --quiet 2>/dev/null) || {
+    echo -e "  ${YELLOW}⚠ npm ci failed — Layer 3 may encounter errors${RESET}"
+  }
+fi
+
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # LAYER 1: PYTHON RESEARCH — Strategy Validation
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -286,8 +300,12 @@ PROGRAM_INFO=$(curl -s https://api.devnet.solana.com -X POST -H "Content-Type: a
 if echo "$PROGRAM_INFO" | python3 -c "import sys,json; d=json.load(sys.stdin); assert d.get('result',{}).get('value') is not None" 2>/dev/null; then
   ok "Program 4LvsHb...M8Ad is live on devnet"
 else
-  echo -e "  ${RED}⚠ Program 4LvsHb...M8Ad may not be active on devnet (GC'd?)${RESET}"
-  note "  Re-deploy with: cd rtp/programs/rtp-treasury && anchor deploy --provider.cluster devnet"
+  echo -e "  ${RED}━━━ BLOCKER: Program GC'd from devnet ━━━${RESET}"
+  echo -e "  ${RED}Cannot present without a live program.${RESET}"
+  echo -e "  ${RED}Re-deploy now:${RESET}"
+  echo -e "  ${BOLD}  cd rtp/programs/rtp-treasury && anchor deploy --provider.cluster devnet${RESET}"
+  echo -e "  ${RED}Then update PROGRAM_ID in page.tsx and demo.sh if it changed.${RESET}"
+  exit 1
 fi
 
 # Check if local validator or devnet is reachable
@@ -348,3 +366,11 @@ echo ""
 echo -e "${CYAN}══════════════════════════════════════════════════════════════${RESET}"
 echo -e "${BOLD}  Demo complete.${RESET}"
 echo -e "${CYAN}══════════════════════════════════════════════════════════════${RESET}"
+echo ""
+echo -e "  ${DIM}Run timestamp: $(date -u +"%Y-%m-%dT%H:%M:%SZ")${RESET}"
+echo -e "  ${DIM}Cycle count:   $CYCLE_COUNT autonomous cycles${RESET}"
+if [ -f "data/paper_trading/state.json" ] && [ -n "$PAPER_INFO" ]; then
+  echo -e "  ${DIM}Paper trader:  $PAPER_INFO${RESET}"
+else
+  echo -e "  ${DIM}Paper trader:  no state (not yet populated)${RESET}"
+fi

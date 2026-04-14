@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RTP — Resilient Token Protocol (Fallback)</title>
+<style>
+  :root {
+    --void: oklch(8% 0.025 160);
+    --surface-0: oklch(11% 0.02 160);
+    --text-primary: #e6f0e8;
+    --text-secondary: oklch(72% 0.03 160);
+    --text-muted: oklch(42% 0.02 160);
+    --coral: oklch(75% 0.12 30);
+    --emerald: oklch(55% 0.1 160);
+    --border: oklch(25% 0.015 160);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--void); color: var(--text-primary); font-family: system-ui, sans-serif; line-height: 1.5; }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 2rem; }
+  h1 { font-size: 1.5rem; font-weight: 400; letter-spacing: -0.02em; margin-bottom: 0.5rem; }
+  .badge { display: inline-block; font-size: 0.625rem; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--emerald); background: oklch(20% 0.04 160); padding: 4px 10px; border-radius: 4px; margin-bottom: 1rem; }
+  .metrics { display: flex; gap: 2rem; padding: 1rem 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); margin: 1.5rem 0; }
+  .metric-value { font-size: 1.25rem; font-variant-numeric: tabular-nums; display: block; }
+  .metric-label { font-size: 0.6875rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); }
+  .section-title { font-size: 0.75rem; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-muted); margin: 1.5rem 0 0.75rem; }
+  .vitals { display: flex; flex-wrap: wrap; gap: 1.5rem; }
+  .vital-value { font-size: 0.9375rem; font-weight: 500; display: block; }
+  .vital-label { font-size: 0.625rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted); }
+  a { color: var(--text-secondary); text-decoration: underline; text-decoration-color: var(--border); }
+  a:hover { color: var(--coral); }
+  .note { font-size: 0.75rem; color: var(--text-muted); margin-top: 2rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <span class="badge">Devnet · Fallback View</span>
+  <h1>Resilient Token Protocol</h1>
+  <p style="color:var(--text-secondary);font-size:0.9rem;">Self-funding treasury governed by a modular Rust swarm. Any token adopts RTP — fees route to the swarm, which autonomously researches, validates, and executes yield strategies.</p>
+
+  <div class="metrics">
+    <div><span class="metric-value" id="treasury">—</span><span class="metric-label">Treasury SOL</span></div>
+    <div><span class="metric-value">7</span><span class="metric-label">Autonomous Cycles</span></div>
+    <div><span class="metric-value">3 accepted</span><span class="metric-label">Mutations (latest)</span></div>
+    <div><span class="metric-value" id="liveness">checking…</span><span class="metric-label">Program Status</span></div>
+  </div>
+
+  <p class="section-title">Protocol Vitals</p>
+  <div class="vitals">
+    <div><span class="vital-value">4LvsHb...M8Ad</span><span class="vital-label">Program ID</span></div>
+    <div><span class="vital-value">FNQbK1...otF</span><span class="vital-label">Treasury PDA</span></div>
+    <div><span class="vital-value">70 / 20 / 10</span><span class="vital-label">Redistribution</span></div>
+    <div><span class="vital-value">Sustenance</span><span class="vital-label">Phase</span></div>
+  </div>
+
+  <p class="section-title">Constraint Proof</p>
+  <p style="font-size:0.8125rem;color:var(--text-secondary);">
+    <a href="https://explorer.solana.com/tx/9HzWgBfwYxs5ModdjF5mT6gdTfayQq8mMYipopyHfGPmYqk6KESHFqgDrc9Mcie573ttcdPqMHSyJP5nNBKK3bR?cluster=devnet" target="_blank">Rejection proof (devnet tx) ↗</a><br>
+    <a href="https://github.com/tradewife/resilient-token-protocol/blob/main/rtp/programs/rtp-treasury/tests/treasury.ts#L777" target="_blank">BelowThreshold Anchor test ↗</a>
+  </p>
+
+  <p class="section-title">Treasury Explorer</p>
+  <p style="font-size:0.8125rem;">
+    <a href="https://explorer.solana.com/address/FNQbK1Vw77aT7qM1EMSmeEPDGizSNhX4rkkYBKQNFotF?cluster=devnet" target="_blank">View on Solana Explorer ↗</a>
+  </p>
+
+  <p class="note">Fallback dashboard — run <code>next dev</code> for the full interactive experience.</p>
+</div>
+<script>
+  // Live treasury balance from devnet
+  fetch("https://api.devnet.solana.com", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({jsonrpc:"2.0",id:1,method:"getBalance",params:["FNQbK1Vw77aT7qM1EMSmeEPDGizSNhX4rkkYBKQNFotF"]})
+  }).then(r=>r.json()).then(j=>{
+    const lamports = j?.result?.value ?? 0;
+    document.getElementById("treasury").textContent = (lamports/1e9).toFixed(4);
+  }).catch(()=>{ document.getElementById("treasury").textContent = "error"; });
+
+  // Program liveness
+  fetch("https://api.devnet.solana.com", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({jsonrpc:"2.0",id:1,method:"getAccountInfo",params:["4LvsHbe9LLwgogcDbH7ieTsGcWZctjYFZkzZwaHDM8Ad",{encoding:"base64"}]})
+  }).then(r=>r.json()).then(j=>{
+    const live = j?.result?.value !== null;
+    document.getElementById("liveness").textContent = live ? "● Live" : "● GC'd";
+    document.getElementById("liveness").style.color = live ? "var(--emerald)" : "var(--coral)";
+  }).catch(()=>{ document.getElementById("liveness").textContent = "unreachable"; });
+</script>
+</body>
+</html>

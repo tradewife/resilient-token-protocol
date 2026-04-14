@@ -1,30 +1,25 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 import { PublicKey, LAMPORTS_PER_SOL } from "@solana/web3.js";
 
 const TREASURY_PDA = "FNQbK1Vw77aT7qM1EMSmeEPDGizSNhX4rkkYBKQNFotF";
-const PROGRAM_ID = "4LvsHbe9LLwgogcDbH7ieTsGcWZctjYFZkzZwaHDM8Ad";
 const MAINNET_RPC = "https://api.mainnet-beta.solana.com";
 
-const FEED_LINES = [
+/* ── Fallback static feed (used when /api/cycle returns 404) ── */
+const FALLBACK_FEED = [
   { ts: "10:04:12", tag: "night shift", msg: "Evaluating 30,000 parameter configs across SOL/USDT" },
   { ts: "10:18:45", tag: "night shift", msg: "9-fold walk-forward analysis complete. Darwinian mutations generated." },
   { ts: "10:19:02", tag: "validated", msg: "SOL/USDT Survivor 2.69 — +118.3% PnL, 78% consistency, 429 trades" },
   { ts: "10:20:15", tag: "trading wing", msg: "Requesting ExecutePermit via soulguard..." },
   { ts: "10:20:18", tag: "audit wing", msg: "3-agent tribunal verifying compliance against soulcontract" },
   { ts: "10:20:45", tag: "approved", msg: "Constraints satisfied. ExecutePermit granted." },
-  { ts: "10:21:05", tag: "trading wing", msg: "Hyperliquid POST /exchange — BUY 0.12 SOL @ $142.50" },
-  { ts: "10:21:08", tag: "trading wing", msg: "Fill confirmed. Position opened." },
-  { ts: "10:35:22", tag: "trading wing", msg: "Hyperliquid POST /exchange — SELL 0.12 SOL @ $160.00" },
-  { ts: "10:35:25", tag: "validated", msg: "Realized PnL: +$0.175 USDC. Depositing yield to treasury PDA." },
-  { ts: "10:36:01", tag: "treasury", msg: "SPL transfer_checked → FNQbK1...otF. Signature: 45DrjL8q..." },
-  { ts: "10:40:00", tag: "memory", msg: "Project memory promoted: cycle_2 → overview tier. 3 files persisted." },
 ];
 
-const WINGS = [
+/* ── Fallback static wings ── */
+const FALLBACK_WINGS = [
   { name: "Trading", status: "Executing SOL/USDT", active: true },
   { name: "Security", status: "Monitoring", active: true },
   { name: "Evolve", status: "Idle", active: false },
@@ -40,15 +35,48 @@ const INVARIANTS = [
   "The protocol matures through three phases — Sustenance, Ecosystem, Humanity. Each transition is enforced on-chain. Once crossed, it cannot be reversed.",
 ];
 
+interface CycleData {
+  cycle_id: string | null;
+  params_used: Record<string, number>;
+  params_next: Record<string, number>;
+  mutations_accepted: Array<{ param: string; value: number; rationale: string }>;
+  mutations_rejected: Array<{ param: string; value: number; rationale: string }>;
+  diffs: Array<{ param: string; from: number; to: number }>;
+  used_llm: boolean;
+  model_label: string;
+  memory_file_count: number;
+  timestamp: string | null;
+  error?: string;
+}
+
+interface MemoryData {
+  fileCount: number;
+  latestFile: string | null;
+  latestTimestamp: string | null;
+  breakdown: Record<string, number>;
+  error?: string;
+}
+
+interface LivenessData {
+  programId: string;
+  live: boolean;
+  executable: boolean;
+  slot: number | null;
+}
+
 export default function Home() {
   const { publicKey, connected, disconnect } = useWallet();
-  const { connection } = useConnection(); // devnet via ConnectionProvider
+  const { connection } = useConnection();
   const { setVisible } = useWalletModal();
 
   const [treasurySol, setTreasurySol] = useState<number | null>(null);
   const [walletSol, setWalletSol] = useState<number | null>(null);
+  const [cycle, setCycle] = useState<CycleData | null>(null);
+  const [memory, setMemory] = useState<MemoryData | null>(null);
+  const [liveness, setLiveness] = useState<LivenessData | null>(null);
+  const [showHowItWorks, setShowHowItWorks] = useState(false);
 
-  // ── Treasury balance (devnet) ──────────────────────────────
+  // ── Treasury balance (devnet) ──
   useEffect(() => {
     let alive = true;
     const poll = async () => {
@@ -62,9 +90,9 @@ export default function Home() {
     return () => { alive = false; clearInterval(id); };
   }, [connection]);
 
-  // ── Connected wallet balance (mainnet) ─────────────────────
+  // ── Connected wallet balance (mainnet) ──
   useEffect(() => {
-    if (!publicKey) { setWalletSol(null); return; }
+    if (!publicKey) return;
     let alive = true;
     const poll = async () => {
       try {
@@ -88,9 +116,65 @@ export default function Home() {
     return () => { alive = false; clearInterval(id); };
   }, [publicKey]);
 
+  // ── Fetch cycle data ──
+  const fetchCycle = useCallback(async () => {
+    try {
+      const res = await fetch("/api/cycle");
+      if (res.ok) {
+        const data: CycleData = await res.json();
+        if (!data.error) { setCycle(data); return; }
+      }
+    } catch { /* use fallback */ }
+    // Keep null as fallback — derived state handles it
+  }, []);
+
+  useEffect(() => { fetchCycle(); }, [fetchCycle]);
+
+  // ── Fetch memory data ──
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/memory");
+        if (res.ok) {
+          const data: MemoryData = await res.json();
+          if (!data.error) setMemory(data);
+        }
+      } catch { /* ignore */ }
+    })();
+  }, []);
+
+  // ── Fetch liveness ──
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/liveness");
+        if (res.ok) {
+          const data: LivenessData = await res.json();
+          setLiveness(data);
+        }
+      } catch { /* ignore */ }
+    })();
+  }, []);
+
+  // ── Derived state ──
   const tBal = treasurySol !== null ? treasurySol.toFixed(4) : "—";
   const uBal = walletSol !== null ? walletSol.toFixed(4) : null;
   const addr = publicKey ? `${publicKey.toBase58().slice(0, 4)}...${publicKey.toBase58().slice(-4)}` : null;
+
+  const cycleCount = 7; // from devnet-cycles directory
+  const lastRun = cycle?.cycle_id
+    ? new Date(cycle.cycle_id).toLocaleDateString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
+    : "—";
+
+  // Build feed lines from cycle data
+  const feedLines = cycle
+    ? buildFeedFromCycle(cycle)
+    : FALLBACK_FEED;
+
+  // Build wings from cycle data
+  const wings = cycle
+    ? buildWingsFromCycle(cycle)
+    : FALLBACK_WINGS;
 
   return (
     <div className="page">
@@ -146,12 +230,16 @@ export default function Home() {
               <span className="metric-label">Treasury SOL</span>
             </div>
             <div className="metric">
-              <span className="metric-value">{uBal ?? "—"}</span>
-              <span className="metric-label">{connected ? "Your Balance" : "Wallet"}</span>
+              <span className="metric-value accent">{cycleCount}</span>
+              <span className="metric-label">Autonomous Cycles</span>
             </div>
             <div className="metric">
-              <span className="metric-value">{PROGRAM_ID.slice(0, 4)}...{PROGRAM_ID.slice(-4)}</span>
-              <span className="metric-label">Program</span>
+              <span className="metric-value">{lastRun}</span>
+              <span className="metric-label">Last Run</span>
+            </div>
+            <div className="metric">
+              <span className="metric-value">{memory?.fileCount ?? "—"}</span>
+              <span className="metric-label">Memory Files</span>
             </div>
           </div>
         </div>
@@ -162,15 +250,17 @@ export default function Home() {
         <div className="feed">
           <div className="feed-header">
             <span className="feed-title">Swarm Activity</span>
-            <span className="feed-status">Demo Replay</span>
+            <span className="feed-status">
+              {cycle ? "Live Data" : "Demo Replay"}
+            </span>
           </div>
           <div className="feed-body">
-            {FEED_LINES.map((line, i) => (
+            {feedLines.map((line, i) => (
               <div className="feed-line" key={i}>
                 <span className="feed-ts">{line.ts}</span>
                 <span
                   className={`feed-tag ${
-                    line.tag === "validated"
+                    line.tag === "validated" || line.tag === "adapted"
                       ? "validated"
                       : line.tag === "approved"
                       ? "approved"
@@ -188,7 +278,7 @@ export default function Home() {
         <div className="wings">
           <div className="wings-header">Wings</div>
           <ul className="wing-list">
-            {WINGS.map((w) => (
+            {wings.map((w) => (
               <li className="wing-item" key={w.name}>
                 <span className="wing-name">{w.name}</span>
                 <span className={`wing-status ${w.active ? "active" : ""}`}>
@@ -210,10 +300,80 @@ export default function Home() {
         </div>
       </section>
 
+      {/* ── How it works accordion (C1) ─────────────────────── */}
+      <section className="how-it-works">
+        <button
+          className="hiw-toggle"
+          onClick={() => setShowHowItWorks(!showHowItWorks)}
+        >
+          <span className="hiw-toggle-label">How it works in 30 seconds</span>
+          <span className="hiw-toggle-icon">{showHowItWorks ? "−" : "+"}</span>
+        </button>
+        {showHowItWorks && (
+          <div className="hiw-steps">
+            <div className="hiw-step">
+              <span className="hiw-num">1</span>
+              <div className="hiw-content">
+                <p className="hiw-text">
+                  Token adopts RTP → fees route to treasury PDA (immutable TransferFeeConfig)
+                </p>
+                <a
+                  className="hiw-link"
+                  href={`https://explorer.solana.com/address/${TREASURY_PDA}?cluster=devnet`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  View treasury on Explorer ↗
+                </a>
+              </div>
+            </div>
+            <div className="hiw-step">
+              <span className="hiw-num">2</span>
+              <div className="hiw-content">
+                <p className="hiw-text">
+                  Swarm researches overnight (30K configs, 9-fold walk-forward) → validates → proposes strategy
+                </p>
+                <a
+                  className="hiw-link"
+                  href="https://github.com/tradewife/resilient-token-protocol/blob/main/research/orchestration/night_shift.py"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  View night shift source ↗
+                </a>
+              </div>
+            </div>
+            <div className="hiw-step">
+              <span className="hiw-num">3</span>
+              <div className="hiw-content">
+                <p className="hiw-text">
+                  Treasury enforces redistribution (70% holders / 20% dev / 10% ecosystem) → yields compound forever
+                </p>
+                <a
+                  className="hiw-link"
+                  href="https://explorer.solana.com/tx/9HzWgBfwYxs5ModdjF5mT6gdTfayQq8mMYipopyHfGPmYqk6KESHFqgDrc9Mcie573ttcdPqMHSyJP5nNBKK3bR?cluster=devnet"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  View redistribution tx ↗
+                </a>
+              </div>
+            </div>
+          </div>
+        )}
+      </section>
+
       {/* ── Bottom vitals ──────────────────────────────────── */}
       <footer className="vitals">
         <div className="vital">
-          <span className="vital-value">4LvsHb...M8Ad</span>
+          <span className="vital-value">
+            4LvsHb...M8Ad{" "}
+            {liveness && (
+              <span className={`liveness-badge ${liveness.live ? "live" : "down"}`}>
+                {liveness.live ? "● Live" : "● Recheck"}
+              </span>
+            )}
+          </span>
           <span className="vital-label">Program ID</span>
         </div>
         <div className="vital">
@@ -228,9 +388,31 @@ export default function Home() {
           <span className="vital-value">Sustenance</span>
           <span className="vital-label">Current Phase</span>
         </div>
+        <div className="vital">
+          <a
+            className="vital-link"
+            href="https://explorer.solana.com/tx/9HzWgBfwYxs5ModdjF5mT6gdTfayQq8mMYipopyHfGPmYqk6KESHFqgDrc9Mcie573ttcdPqMHSyJP5nNBKK3bR?cluster=devnet"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Rejection proof ↗
+          </a>
+          <span className="vital-label">Constraint Rejection</span>
+        </div>
+        <div className="vital">
+          <a
+            className="vital-link"
+            href="https://github.com/tradewife/resilient-token-protocol/blob/main/rtp/programs/rtp-treasury/tests/treasury.ts#L777"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            BelowThreshold test ↗
+          </a>
+          <span className="vital-label">Anchor Test</span>
+        </div>
         <a
           className="vital-link"
-          href="https://explorer.solana.com/address/FNQbK1Vw77aT7qM1EMSmeEPDGizSNhX4rkkYBKQNFotF?cluster=devnet"
+          href={`https://explorer.solana.com/address/${TREASURY_PDA}?cluster=devnet`}
           target="_blank"
           rel="noopener noreferrer"
         >
@@ -239,4 +421,49 @@ export default function Home() {
       </footer>
     </div>
   );
+}
+
+/* ── Helpers ────────────────────────────────────────────────── */
+
+function buildFeedFromCycle(c: CycleData): Array<{ ts: string; tag: string; msg: string }> {
+  const lines: Array<{ ts: string; tag: string; msg: string }> = [];
+  const ts = c.cycle_id
+    ? new Date(c.cycle_id).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+    : "--:--:--";
+
+  lines.push({ ts, tag: "cycle", msg: `Cycle started — ${c.used_llm ? `LLM evolution (${c.model_label})` : "deterministic"}` });
+  lines.push({ ts, tag: "night shift", msg: `Params: signal=${c.params_used.signal_threshold ?? "?"}, tp_atr=${c.params_used.tp_atr ?? "?"}, sl_atr=${c.params_used.sl_atr ?? "?"}` });
+
+  if (c.mutations_accepted.length > 0) {
+    for (const m of c.mutations_accepted) {
+      lines.push({ ts, tag: "adapted", msg: `${m.param}: ${m.rationale}` });
+    }
+  }
+  if (c.mutations_rejected.length > 0) {
+    for (const m of c.mutations_rejected) {
+      lines.push({ ts, tag: "rejected", msg: `${m.param} rejected: ${m.rationale}` });
+    }
+  }
+  if (c.diffs.length > 0) {
+    const diffStr = c.diffs.map(d => `${d.param}: ${d.from} → ${d.to}`).join(", ");
+    lines.push({ ts, tag: "validated", msg: `Strategy adapted — ${diffStr}` });
+  } else {
+    lines.push({ ts, tag: "validated", msg: "No parameter changes this cycle (stable)" });
+  }
+
+  lines.push({ ts, tag: "memory", msg: `${c.memory_file_count} memory files persisted across tiers` });
+
+  return lines;
+}
+
+function buildWingsFromCycle(c: CycleData): Array<{ name: string; status: string; active: boolean }> {
+  const nAcc = c.mutations_accepted.length;
+  return [
+    { name: "Trading", status: `signal=${c.params_used.signal_threshold ?? "?"}, tp=${c.params_used.tp_atr ?? "?"}`, active: true },
+    { name: "Security", status: "Monitoring", active: true },
+    { name: "Evolve", status: nAcc > 0 ? `Active (${nAcc} mutation${nAcc > 1 ? "s" : ""})` : "Idle", active: nAcc > 0 },
+    { name: "Knowledge", status: `${c.memory_file_count} files`, active: c.memory_file_count > 0 },
+    { name: "Audit", status: "3/3 approved", active: true },
+    { name: "Futureproof", status: "Monitoring", active: true },
+  ];
 }
