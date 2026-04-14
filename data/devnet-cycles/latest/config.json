@@ -1,6 +1,6 @@
 {
   "signal_threshold": 0.25,
-  "tp_atr": 3.8,
+  "tp_atr": 3.5,
   "sl_atr": 1.5,
   "max_hold_hours": 36.0,
   "trailing_stop_atr": 0.8
