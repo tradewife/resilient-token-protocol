@@ -107,6 +107,8 @@ Treasury program deployed and operational on Solana devnet (Apr 11 2026).
 │                                                                 │
 │  RTP Treasury Program                                           │
 │  ├── Receive fees (TransferFeeConfig from adopting token projects) │
+│  ├── Strategy lifecycle (register → update → suspend/retire)    │
+│  ├── Hydration gate (only Live strategies receive funding)      │
 │  ├── Phantom bridge: SOL → USDC (fund HL working capital)     │
 │  ├── Phantom bridge: USDC yield → SOL (return to treasury)    │
 │  ├── Threshold-triggered redistribution (70/20/10 split)        │
@@ -119,7 +121,8 @@ Treasury program deployed and operational on Solana devnet (Apr 11 2026).
 │  ├── SPL TransferFeeConfig (fees immutable from mint)           │
 │  ├── CPI-only transfers (atomic, verifiable)                    │
 │  ├── SOL never liquidated — bridged via Phantom, never sold     │
-│  └── Agent can propose, human must approve irreversible actions │
+│  ├── Agent can propose, human must approve irreversible actions │
+│  └── Treasury cannot fund Suspended/Retired strategies          │
 ├─────────────────────────────────────────────────────────────────┤
 │                    SWARM RUNTIME (Rust)                          │
 │                                                                 │
@@ -168,6 +171,7 @@ The only wing that touches capital. Responsible for generating yield.
 | Live execution on Hyperliquid (testnet) | Rust | **Done** — EIP-712 signed, round-trip verified, PnL tracked |
 | Degradation detection + auto-recalibration trigger | Rust | Planned |
 | Strategy lifecycle (hypothesis → validate → deploy → retire) | Both | **Built** — PromotionGate + RetirementGate + DecayMonitor (7 tests) |
+| On-chain lifecycle enforcement (StrategyRecord PDA) | Solana | **Built** — register/update/retire instructions, hydrate gate (17 tests) |
 
 ### Security Wing
 
@@ -512,7 +516,7 @@ rtp/
 │       └── daemon.rs               # Autonomous devnet loop (6h CI cron)
 │
 ├── programs/                        # Solana (Anchor)
-│   └── rtp-treasury/              # Deposit, distribute, hydrate, evolve
+│   └── rtp-treasury/              # Deposit, distribute, hydrate, evolve, strategy lifecycle
 │
 ├── soulcontract.md                  # Constitutional governance
 ├── third-party-disclosure.md        # MIT framework disclosures
@@ -570,7 +574,7 @@ Treasury program audit-remediated. All 6 wings built. Coordinator with full qual
 - ✅ Python ↔ Rust typed bridge (`rtp/swarm/src/bridge.rs`)
 - ✅ End-to-end demo loop (`rtp/swarm/src/demo.rs`, 8-step pipeline)
 - ✅ Autonomous devnet loop (`rtp-daemon` binary, 6h CI cron, LLM mutations)
-- ✅ Test suite: 301 tests, 0 failures, 0 clippy warnings.
+- ✅ Test suite: 305 tests, 0 failures, 0 clippy warnings (anchor: 34 passing).
 
 ### Phase 2: End-to-End Integration + Full Loop
 

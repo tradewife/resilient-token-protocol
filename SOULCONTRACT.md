@@ -106,6 +106,7 @@ No strategy goes live or stays live without clearing codified gates. All thresho
 | Layer | Mechanism |
 |-------|-----------|
 | **On-chain** | Anchor program constraints, PDA authority checks, CPI guards |
+| **On-chain lifecycle** | `StrategyRecord` PDA — hydrate_swarm requires Live status; hard stops auto-suspend; 3 soft strikes auto-retire |
 | **Swarm runtime** | `coordinator/soulguard.rs` validates every message against invariants |
 | **Execution** | Trading Wing enforces position limits before every Hyperliquid API call |
 | **Lifecycle** | `promotion_criteria.py` gates strategy promotion and retirement; `DecayMonitor` tracks live performance against hard/soft thresholds |

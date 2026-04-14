@@ -232,6 +232,33 @@ A judge must be able to verify these five things in under 3 minutes:
 
 ## 8. Session Status
 
+**Session 2026-04-15(ii) — On-Chain Strategy Lifecycle Enforcement**
+
+State as of Apr 15:
+- **305 tests (anchor: 34 passing), 0 failures, 0 clippy warnings**
+- **On-chain strategy lifecycle enforcement: StrategyRecord account + hydrate_swarm gate**
+- Demo-Readiness Score: 9/10
+
+**On-chain strategy lifecycle (this session):**
+
+| Change | File | Detail |
+|--------|------|--------|
+| StrategyRecord PDA account | `rtp/.../lib.rs` | New account: seeds `[STRATEGY_SEED, treasury, strategy_id]`, fields: status, promoted_at, rolling_pnl_bps, consecutive_losses, soft_decay_strikes, drawdown_24h_bps, total_trades, promotion_sharpe_x100, rolling_sharpe_x100 |
+| StrategyLifecycleStatus enum | `rtp/.../lib.rs` | Live, Suspended, Retired |
+| RetirementReason enum | `rtp/.../lib.rs` | HardDrawdown, ConsecutiveLosses, RollingSharpeLow, SoftDecayStrikes, AuthorityForced |
+| register_strategy instruction | `rtp/.../lib.rs` | Authority-gated promotion: validates strategy_id 1–16 chars, initializes Live, emits StrategyPromoted |
+| update_strategy_performance | `rtp/.../lib.rs` | Updates rolling metrics, auto-enforces hard stops (10% DD, 5 losses, Sharpe < 0.5 → Suspended) + soft decay (3 strikes → Retired), emits StrategyPerformanceUpdated + StrategyRetired |
+| force_retire_strategy instruction | `rtp/.../lib.rs` | Emergency retirement by treasury authority, emits StrategyRetired(AuthorityForced) |
+| hydrate_swarm modified | `rtp/.../lib.rs` | **Critical gate**: requires strategy_record.status == Live. Treasury cannot fund a dead/suspended strategy. |
+| On-chain threshold constants | `rtp/.../lib.rs` | HARD_DRAWDOWN_24H_BPS=1000, HARD_CONSECUTIVE_LOSSES=5, HARD_ROLLING_SHARPE_MIN_X100=50, SOFT_STRIKE_THRESHOLD=3 — mirrors Python RetirementGate |
+| 3 new events | `rtp/.../lib.rs` | StrategyPromoted, StrategyPerformanceUpdated, StrategyRetired |
+| 5 new errors | `rtp/.../lib.rs` | StrategyNotLive, HardStopBreached, SoftDecayRetirement, InvalidStrategyId, UnauthorizedStrategyOp |
+| 17 new anchor tests | `tests/strategy-lifecycle.ts` | Register (4), update (6), hydrate gate (3), force retire (2), existing hydrate updated (2). All 34 pass. |
+
+**Key design decision:** `hydrate_swarm` requiring a Live `StrategyRecord` is the linchpin — it makes the entire lifecycle system load-bearing rather than advisory. The Python DecayMonitor detects decay; this Rust account enforces the consequence. Together they form the full invariant chain.
+
+---
+
 **Session 2026-04-15 — Strategy Promotion & Retirement Gates**
 
 State as of Apr 15:
@@ -596,5 +623,5 @@ Demo               = proof the institution persists without founder trust
 
 ---
 
-*Last updated: 2026-04-15 (session v — strategy promotion gates, decay monitor, retirement automation: PromotionGate + RetirementGate dataclasses, DecayMonitor class, 7 pytest tests, wired into validation pipeline) — 305 tests (305 with devnet feature), 0 failures, 0 clippy warnings. Dashboard deployed to resilientprotocol.xyz. All 5 judge points covered (memory partial). 3/3 CI green. HL round-trip verified. Devnet loop running autonomously on 6h cron. Demo-readiness 9/10. Next: rehearsal + Colosseum submission before May 11.*
+*Last updated: 2026-04-15 (session vi — on-chain strategy lifecycle: StrategyRecord account, register/update/retire instructions, hydrate_swarm gate; 34 anchor tests all passing) — 305 tests (305 with devnet feature), 0 failures, 0 clippy warnings. Dashboard deployed to resilientprotocol.xyz. All 5 judge points covered (memory partial). 3/3 CI green. HL round-trip verified. Devnet loop running autonomously on 6h cron. Demo-readiness 9/10. Next: rehearsal + Colosseum submission before May 11.*
 *Update this file after each session that changes canonical decisions or resolves open decisions.*
