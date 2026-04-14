@@ -513,8 +513,6 @@ rtp/
 │   └── rtp-treasury/              # Deposit, distribute, hydrate, evolve
 │
 ├── soulcontract.md                  # Constitutional governance
-├── BUILD_PLAN.md                   # Full build plan v2.2
-├── BUILD_PLAN_v3.md                # Post-audit remediation plan
 ├── third-party-disclosure.md        # MIT framework disclosures
 ├── data/
 │   ├── ohlcv/

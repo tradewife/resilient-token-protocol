@@ -197,7 +197,6 @@ cd rtp/programs/rtp-treasury && anchor deploy --provider.cluster devnet
 |------|---------|
 | `SOULCONTRACT.md` | Constitutional governance — invariants, execution constraints, key links |
 | `SESSION-CONTEXT.md` | Compressed project memory — paste into every fresh session |
-| `BUILD_PLAN_v3.md` | Post-audit schedule (active) |
 | `docs/RESOURCES.md` | All hackathon links, SDK links, sponsor links |
 | `docs/SECURITY_AUDIT_2026-04-07.md` | Full security audit — 18 findings |
 | `docs/CODEREVIEW.md` | Code review protocol |
