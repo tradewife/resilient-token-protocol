@@ -202,17 +202,17 @@ A judge must be able to verify these five things in under 3 minutes:
 4. Visible strategy adaptation or learning (heartbeat redirect or skill promotion)
 5. Observable treasury state on a dashboard or explorer
 
-### Current Coverage (as of Apr 11 audit)
+### Current Coverage (as of Apr 14 — post-dashboard telemetry polish)
 
-| Point | Status | Gap |
-|---|---|---|
-| 1. On-chain constraint rejected | ✅ COVERED | `simulate_below_threshold_withdrawal()` returns `BelowPriceFloor` error. Visible `[ANCHOR] ❌ withdrawal REJECTED` log line in demo output. |
-| 2. Autonomous operation | ✅ COVERED | rtp-demo binary runs full 8-step pipeline without human approval. |
-| 3. Persistent memory across cycles | ✅ COVERED — two-cycle demo now writes real memory files to disk (`/tmp/rtp-demo-memory/*/*.json`) and lists them in the output; judge can open the files and verify prior cycle data | — |
-| 4. Visible adaptation/learning | ✅ COVERED | `print_two_cycle_demo()` now shows: real memory persistence (`[MEMORY] files written to: /tmp/rtp-demo-memory/project`), project and redirect `.json` files listed, LLM proposer output and Evolve Wing mutations fed into the demo loop |
-| 5. Observable treasury state | ✅ COVERED (min) | Explorer link live: https://explorer.solana.com/address/FNQbK1Vw77aT7qM1EMSmeEPDGizSNhX4rkkYBKQNFotF?cluster=devnet — printed in demo output along with deposit tx link. |
+| Point | Status | Score | How Verified |
+|---|---|---|---|
+| 1. On-chain constraint rejected | ✅ COVERED | 8/10 | BelowPriceFloor in demo. Dashboard footer: clickable "Rejection proof ↗" (devnet tx) + "BelowThreshold test ↗" (GitHub). demo.sh exits hard if program GC'd. |
+| 2. Autonomous operation | ✅ COVERED | 8/10 | 7 devnet cycles committed. rtp-demo 8-step pipeline autonomous. Dashboard: "7 Autonomous Cycles" + last-run timestamp from cycle.json. |
+| 3. Persistent memory | ⚠️ PARTIAL | 5/10 | swarm-memory/ has 4 tiers. cycle.json lists 14 files. Dashboard shows memory file count. But working/ and core/ directories are empty — memory is architectural, not yet fully populated on disk. |
+| 4. Visible adaptation | ✅ COVERED | 8/10 | Dashboard feed reads from cycle.json — shows real mutations_accepted (3), param diffs, LLM model label. Dynamic wings: Evolve "Active (3 mutations)". No longer hardcoded. |
+| 5. Observable treasury state | ✅ COVERED | 9/10 | Treasury SOL live (10s devnet polling). Program liveness badge (green dot). Explorer link. Deployed at resilientprotocol.xyz. Auto-rebuilds every 6h when devnet loop commits. |
 
-**All 5 judge points covered as of Session 5. No remaining demo gaps.**
+**All 5 judge points covered. Point 3 (memory) is honest partial — judges can verify the architecture but not yet rich file content.**
 
 ---
 
@@ -231,6 +231,48 @@ A judge must be able to verify these five things in under 3 minutes:
 ---
 
 ## 8. Session Status
+
+**Session 2026-04-14 — Dashboard Telemetry Polish + Static Deploy**
+
+State as of Apr 14:
+- **301 tests, 0 failures, 0 clippy warnings**
+- **Dashboard deployed to resilientprotocol.xyz — all CI green**
+- **3/3 CI workflows passing: Node.js Build, Deploy Dashboard, Swarm CI**
+- Demo-Readiness Score: 9/10
+
+**Dashboard telemetry overhaul (this session):**
+
+| Change | File | Detail |
+|--------|------|--------|
+| Live cycle feed | `dashboard/src/app/page.tsx` | Replaced hardcoded FEED_LINES with dynamic feed from `/data/cycle.json`. Shows real mutations, param diffs, LLM model. |
+| Dynamic wings | `dashboard/src/app/page.tsx` | Wings status derived from cycle data: Evolve shows "Active (3 mutations)", Knowledge shows file count. |
+| Liveness badge | `dashboard/src/app/page.tsx` | Green/red dot next to Program ID — client-side devnet RPC check every 30s. |
+| Constraint proof links | `dashboard/src/app/page.tsx` | Footer: "Rejection proof ↗" (devnet tx explorer) + "BelowThreshold test ↗" (GitHub source). |
+| Cycle + memory metrics | `dashboard/src/app/page.tsx` | Hero section: "7 Autonomous Cycles", last-run timestamp, memory file count. |
+| "How it works" accordion | `dashboard/src/app/page.tsx` | Collapsible 3-step pitch for judges, each with explorer/source links. |
+| Static data pipeline | `dashboard/scripts/prebuild-data.sh` | Generates `public/data/cycle.json` + `memory.json` from repo data before build. |
+| Deploy auto-rebuild | `.github/workflows/deploy-dashboard.yml` | Triggers on `data/**` changes + runs prebuild script. Site refreshes every 6h with new cycle data. |
+| Fallback HTML | `dashboard/public/fallback.html` | Self-contained static page with live treasury balance + liveness check. Works with no server. |
+| demo.sh hardened | `demo.sh` | Exits on program GC (was silent warning). Added node/npm prereqs. Timestamped summary footer. |
+| Live data on static site | All above | Treasury balance + liveness = truly live (client-side RPC). Cycle data = baked at build, auto-refreshes every 6h. |
+
+**Data flow for static export:**
+```
+devnet-loop.yml (6h cron)
+  → commits data/devnet-cycles/latest/cycle.json
+  → triggers deploy-dashboard.yml (path filter: data/**)
+  → prebuild-data.sh copies to dashboard/public/data/
+  → next build (output: "export") bakes into static site
+  → GitHub Pages serves updated resilientprotocol.xyz
+```
+
+**Client-side live data (no server needed):**
+- Treasury SOL balance: `fetch(devnet RPC getBalance)` every 10s
+- Program liveness: `fetch(devnet RPC getAccountInfo)` every 30s
+- Cycle feed: `fetch(/data/cycle.json)` at page load
+- Memory stats: `fetch(/data/memory.json)` at page load
+
+**Previous session — Continual Evolution Infrastructure:**
 
 **Session 2026-04-13(ii) — Continual Evolution Infrastructure**
 
@@ -495,5 +537,5 @@ Demo               = proof the institution persists without founder trust
 
 ---
 
-*Last updated: 2026-04-13 (session iii — Phantom bridge devnet limitation, unified SOL capital model) — 301 tests (305 with devnet feature), 0 failures, 0 clippy warnings. HL round-trip verified. Devnet loop running autonomously. Phantom perps bridge confirmed mainnet-only; `devnet_fund_stub()` added behind `#[cfg(feature = "devnet")]`. SOULCONTRACT.md updated to unified SOL cycle: SOL in → USDC on HL → SOL back to treasury. Demo-readiness 9.5/10. Build complete — next session is rehearsal + submission.*
+*Last updated: 2026-04-14 (session iv — dashboard telemetry polish, static deploy with live data pipeline, demo.sh hardening) — 301 tests (305 with devnet feature), 0 failures, 0 clippy warnings. Dashboard deployed to resilientprotocol.xyz. All 5 judge points covered (memory partial). 3/3 CI green. HL round-trip verified. Devnet loop running autonomously on 6h cron. Demo-readiness 9/10. Next: rehearsal + Colosseum submission before May 11.*
 *Update this file after each session that changes canonical decisions or resolves open decisions.*
