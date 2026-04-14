@@ -227,15 +227,6 @@ Warp's elevation system is remarkably flat — almost zero shadow usage on the m
 - Video elements scale with 10px radius maintained
 - No art direction changes — same compositions across breakpoints
 
-## Treasury Capital Flow — Multi-Token Scaling
-
-Multi-token scaling: each adopting token mint has an AdopterRecord PDA tracking
-cumulative fee contributions. Yield attribution is proportional:
-`share_i = fees_i / Σfees × yield_pool`
-Holder-level distribution for each adopter uses an SPL token balance snapshot
-at redistribution time. Phase 1 uses a single adopter; Phase 2 adds factory
-pattern for full multi-tenant isolation.
-
 ## 9. Agent Prompt Guide
 
 ### Quick Color Reference
