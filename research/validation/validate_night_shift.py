@@ -27,6 +27,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 from research.simulation.future_blind_simulator import FutureBlindSimulator
 from research.simulation.data_window import DataWindow
 from research.simulation.run_backtest_r2 import MultiTFStrategy
+from research.validation.promotion_checker import (
+    check_promotion_eligibility,
+    print_promotion_summary,
+)
 
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "data", "ohlcv")
@@ -274,6 +278,14 @@ async def main():
             v = "FAILED"
         print(f"    [{v:8s}] {r['symbol']} {r['label']} — "
               f"PnL={r['total_pnl_pct']:+.2f}% cons={r['consistency']:.0%}")
+
+    # Promotion eligibility for non-FAILED strategies
+    promotion_verdicts = []
+    for r in all_results:
+        if r["consistency"] >= 0.4 and r["total_pnl_pct"] > 0:
+            verdict = check_promotion_eligibility(r)
+            print_promotion_summary(verdict)
+            promotion_verdicts.append(verdict)
 
     # Save
     out_dir = os.path.join(RESULTS_DIR, datetime.now(timezone.utc).strftime("%Y-%m-%d"))

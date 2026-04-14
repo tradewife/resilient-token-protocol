@@ -6,6 +6,26 @@
 
 ---
 
+## Retirement Criteria (Automated)
+
+A strategy is moved here when `DecayMonitor.get_status()` returns `StrategyStatus.RETIRED`.
+
+Retirement is triggered by either:
+- **Hard stop**: any single threshold breach (see `RetirementGate` in `promotion_criteria.py`)
+  - 24h drawdown ≥ 10% of allocated capital
+  - 5 consecutive losses with no mean-reversion
+  - 30-day rolling Sharpe drops below 0.5
+- **Soft decay**: 3 cumulative strikes from the soft signal set
+  - 30-day Sharpe drops below 50% of promotion Sharpe
+  - Win rate drops below 38% over a 50-trade sample
+  - Active regime ≠ strategy's regime_fit for > 5 consecutive days
+  - Funding rate (carry strategies) average 8h rate < 0.01%
+  - Rolling 30-day correlation to portfolio benchmark > 0.6
+
+Each entry must include: strategy_id, retirement_date, trigger_type (hard/soft), specific signal that caused retirement, and final rolling Sharpe at time of retirement.
+
+---
+
 ### BTC/USDT Wide TP + Wide SL Overfitting
 - **Date logged**: 2026-04-12
 - **Hypothesis**: BTC with take_profit_atr=6.0, stop_loss_atr=3.0, max_hold_hours=36 would capture large Bitcoin trend moves with wide stops
