@@ -3,7 +3,7 @@ import "./globals.css";
 import { WalletContextProvider } from "./WalletContextProvider";
 
 export const metadata: Metadata = {
-  title: "RTP Sentinel",
+  title: "Resilient Token Protocol",
   description: "Autonomous treasury protocol — governed by code, not trust.",
 };
 
