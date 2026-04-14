@@ -232,7 +232,37 @@ A judge must be able to verify these five things in under 3 minutes:
 
 ## 8. Session Status
 
-**Session 2026-04-14 — Dashboard Telemetry Polish + Static Deploy**
+**Session 2026-04-14(iv) — Multi-Token Attribution Layer**
+
+State as of Apr 14:
+- **305 tests (anchor: 19 passing), 0 failures, 0 clippy warnings**
+- **Multi-token fee attribution layer added to Anchor treasury program**
+- Demo-Readiness Score: 9/10
+
+**Multi-token attribution (this session):**
+
+| Change | File | Detail |
+|--------|------|--------|
+| AdopterRecord PDA | `rtp/.../lib.rs` | New account: seeds `["adopter", token_mint]`, tracks per-adopter fee contributions |
+| register_adopter instruction | `rtp/.../lib.rs` | Creates AdopterRecord PDA for a token mint (once per adopting project) |
+| record_fee_deposit instruction | `rtp/.../lib.rs` | Increments per-adopter fees + treasury total_fees_received_lamports |
+| Treasury extended | `rtp/.../lib.rs` | Added `total_fees_received_lamports: u64` (pro-rata denominator) |
+| Events | `rtp/.../lib.rs` | AdopterRegistered, FeeDepositRecorded |
+| Errors | `rtp/.../lib.rs` | ZeroAmount, Overflow (checked_add throughout) |
+| Attribution helper | `scripts/compute_adopter_yield_share.ts` | Pure TS: `(fees_contributed * yield_pool) / total_fees` |
+| 4 new anchor tests | `tests/treasury.ts` | Registration, deposit, 25%/75% pro-rata, zero rejection. All 19 tests pass. |
+| Scaling architecture doc | `dashboard/MULTI_TOKEN_SCALING.md` | Account layout, formula, phase roadmap |
+| README updated | `README.md` | Fee Routing section: multi-token attribution design |
+| DESIGN.md unchanged | `DESIGN.md` | Reverted — scaling notes moved to dashboard/ |
+
+**Pro-rata formula:** `adopter_yield_share = (fees_contributed / total_fees_received) × yield_pool`
+
+**Phase 1 demo unchanged:** single adopter, single treasury PDA, full redistribution cycle proven on devnet.
+**Phase 2 architecture proof:** register_adopter + record_fee_deposit instructions live, AdopterRecord queryable, attribution formula tested.
+
+---
+
+**Session 2026-04-14(iii) — Dashboard Telemetry Polish + Static Deploy**
 
 State as of Apr 14:
 - **301 tests, 0 failures, 0 clippy warnings**
@@ -537,5 +567,5 @@ Demo               = proof the institution persists without founder trust
 
 ---
 
-*Last updated: 2026-04-14 (session iv — dashboard telemetry polish, static deploy with live data pipeline, demo.sh hardening) — 301 tests (305 with devnet feature), 0 failures, 0 clippy warnings. Dashboard deployed to resilientprotocol.xyz. All 5 judge points covered (memory partial). 3/3 CI green. HL round-trip verified. Devnet loop running autonomously on 6h cron. Demo-readiness 9/10. Next: rehearsal + Colosseum submission before May 11.*
+*Last updated: 2026-04-14 (session iv — multi-token attribution layer: AdopterRecord PDA, register_adopter, record_fee_deposit, 19 anchor tests passing, pro-rata yield attribution architecture proven) — 305 tests (305 with devnet feature), 0 failures, 0 clippy warnings. Dashboard deployed to resilientprotocol.xyz. All 5 judge points covered (memory partial). 3/3 CI green. HL round-trip verified. Devnet loop running autonomously on 6h cron. Demo-readiness 9/10. Next: rehearsal + Colosseum submission before May 11.*
 *Update this file after each session that changes canonical decisions or resolves open decisions.*
