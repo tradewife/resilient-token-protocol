@@ -366,6 +366,38 @@ Single asset on-chain, trustless conversion, fully auditable.
 
 **Rug-proof by design**: SPL TransferFeeConfig is immutable once minted. PDA owns treasury (no private key). All transfers via CPI (atomic, verifiable). Mint authority renounced post-launch.
 
+### Multi-Token Attribution (Phase 2 Architecture)
+
+RTP is designed to serve multiple token projects simultaneously. Fee attribution
+uses a proportional model: each adopter's share of generated yield equals their
+proportion of total fees contributed to the treasury.
+
+```
+AdopterRecord PDA (per token mint)
+seeds: ["adopter", token_mint]
+├── fees_contributed_lamports ← incremented on every fee deposit
+└── deposit_count
+
+Treasury (shared)
+└── total_fees_received_lamports ← sum of all adopter contributions
+
+At redistribution:
+  adopter_yield_share = (fees_contributed / total_fees_received) × yield_pool
+
+TokenA contributed 600 SOL → receives 60% of yield pool
+TokenB contributed 400 SOL → receives 40% of yield pool
+
+Each adopter's yield share is then distributed to that token's holders
+via a balance snapshot at redistribution time.
+```
+
+**On-chain proof:** `register_adopter` and `record_fee_deposit` instructions
+are live on devnet. The `AdopterRecord` PDA is queryable for any registered
+token mint. See `scripts/compute_adopter_yield_share.ts` for the attribution formula.
+
+**Phase 1 (current demo):** Single adopter, single treasury, full redistribution cycle proven on devnet.
+**Phase 2:** Factory pattern — `initialize_vault` per adopter, per-adopter yield isolation.
+
 ## Capital Flow
 
 ```

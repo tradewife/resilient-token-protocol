@@ -794,4 +794,122 @@ describe("rtp-treasury", () => {
       }
     });
   });
+
+  // =========================================================================
+  // Multi-token attribution
+  // =========================================================================
+
+  describe("Multi-token attribution", () => {
+    // Derive fake token mint pubkeys for testing adopter records
+    const tokenMintA = Keypair.generate().publicKey;
+    const tokenMintB = Keypair.generate().publicKey;
+
+    function deriveAdopterPDA(tokenMint: PublicKey): [PublicKey, number] {
+      return PublicKey.findProgramAddressSync(
+        [Buffer.from("adopter"), tokenMint.toBuffer()],
+        PROGRAM_ID
+      );
+    }
+
+    it("registers an adopter and initialises AdopterRecord", async () => {
+      const [adopterPda] = deriveAdopterPDA(tokenMintA);
+
+      await program.methods
+        .registerAdopter(tokenMintA)
+        .accounts({
+          adopterRecord: adopterPda,
+          treasury: treasuryPDA,
+          authority: payer.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+
+      const record = await program.account.adopterRecord.fetch(adopterPda);
+      assert.ok(record.tokenMint.equals(tokenMintA));
+      assert.equal(record.feesContributedLamports.toNumber(), 0);
+      assert.equal(record.depositCount.toNumber(), 0);
+      assert.equal(record.bump, deriveAdopterPDA(tokenMintA)[1]);
+    });
+
+    it("records a fee deposit and increments both adopter and treasury totals", async () => {
+      const [adopterPda] = deriveAdopterPDA(tokenMintA);
+      const depositAmount = new BN(1_000_000_000); // 1 SOL
+
+      await program.methods
+        .recordFeeDeposit(depositAmount)
+        .accounts({
+          adopterRecord: adopterPda,
+          treasury: treasuryPDA,
+          authority: payer.publicKey,
+        })
+        .rpc();
+
+      const record = await program.account.adopterRecord.fetch(adopterPda);
+      assert.equal(record.feesContributedLamports.toNumber(), 1_000_000_000);
+      assert.equal(record.depositCount.toNumber(), 1);
+
+      const treasury: any = await (program.account as any).treasury.fetch(treasuryPDA);
+      assert.isTrue(
+        treasury.totalFeesReceivedLamports.toNumber() >= 1_000_000_000,
+        "total_fees_received_lamports should be >= 1 SOL"
+      );
+    });
+
+    it("computes correct pro-rata yield shares for two adopters", async () => {
+      // Register second adopter
+      const [adopterPdaB] = deriveAdopterPDA(tokenMintB);
+
+      await program.methods
+        .registerAdopter(tokenMintB)
+        .accounts({
+          adopterRecord: adopterPdaB,
+          treasury: treasuryPDA,
+          authority: payer.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+
+      // Deposit 3 SOL from tokenB (tokenA has 1 SOL from previous test)
+      await program.methods
+        .recordFeeDeposit(new BN(3_000_000_000))
+        .accounts({
+          adopterRecord: adopterPdaB,
+          treasury: treasuryPDA,
+          authority: payer.publicKey,
+        })
+        .rpc();
+
+      const [adopterPdaA] = deriveAdopterPDA(tokenMintA);
+      const recordA = await program.account.adopterRecord.fetch(adopterPdaA);
+      const recordB = await program.account.adopterRecord.fetch(adopterPdaB);
+      const treasury: any = await (program.account as any).treasury.fetch(treasuryPDA);
+
+      // tokenA: 1 SOL / 4 SOL total = 25%
+      // tokenB: 3 SOL / 4 SOL total = 75%
+      const totalFees = treasury.totalFeesReceivedLamports.toNumber();
+      const shareA = recordA.feesContributedLamports.toNumber() / totalFees;
+      const shareB = recordB.feesContributedLamports.toNumber() / totalFees;
+
+      assert.approximately(shareA, 0.25, 0.01, "TokenA should have ~25% share");
+      assert.approximately(shareB, 0.75, 0.01, "TokenB should have ~75% share");
+    });
+
+    it("rejects zero-amount fee deposit", async () => {
+      const [adopterPda] = deriveAdopterPDA(tokenMintA);
+
+      try {
+        await program.methods
+          .recordFeeDeposit(new BN(0))
+          .accounts({
+            adopterRecord: adopterPda,
+            treasury: treasuryPDA,
+            authority: payer.publicKey,
+          })
+          .rpc();
+        assert.fail("Should have rejected zero amount");
+      } catch (err: any) {
+        assert.include(err.toString(), "ZeroAmount");
+      }
+    });
+  });
 });

@@ -58,6 +58,10 @@ pub enum TreasuryError {
     WithdrawAuthorityMismatch,
     #[msg("Mint does not have TransferFeeConfig enabled — cannot adopt RTP")]
     MintNotConfigured,
+    #[msg("Fee deposit amount must be greater than zero")]
+    ZeroAmount,
+    #[msg("Arithmetic overflow in fee accounting")]
+    Overflow,
 }
 
 // ---------------------------------------------------------------------------
@@ -83,6 +87,10 @@ pub struct Treasury {
     pub total_distributed_ecosystem: u64,
     /// Cumulative tokens sent to swarm hydration vault
     pub total_hydration: u64,
+    /// Cumulative fee contributions recorded from all adopters via record_fee_deposit.
+    /// Denominator for pro-rata yield attribution:
+    ///   adopter_yield_share = fees_contributed / total_fees_received_lamports * yield_pool
+    pub total_fees_received_lamports: u64,
     /// Holders wallet (receives 70% of redistribution)
     pub holders_wallet: Pubkey,
     /// Project dev wallet (receives 20% of redistribution)
@@ -112,6 +120,51 @@ impl Default for Phase {
     fn default() -> Self {
         Phase::Sustenance
     }
+}
+
+// ---------------------------------------------------------------------------
+// AdopterRecord — per-token fee tracking for multi-token attribution
+// ---------------------------------------------------------------------------
+
+/// Tracks a single token project's cumulative fee contributions to the RTP treasury.
+/// One AdopterRecord PDA per adopting token mint.
+/// Seeds: ["adopter", token_mint.key()]
+/// This enables pro-rata yield attribution:
+///   adopter_yield_share = fees_contributed_lamports / treasury.total_fees_received_lamports
+#[account]
+#[derive(InitSpace)]
+pub struct AdopterRecord {
+    /// The SPL token mint of the adopting project
+    pub token_mint: Pubkey,
+    /// Cumulative fee contributions (in lamports) since adoption
+    pub fees_contributed_lamports: u64,
+    /// Unix timestamp of first fee deposit (adoption date)
+    pub adopted_at: i64,
+    /// Unix timestamp of most recent fee deposit
+    pub last_deposit_ts: i64,
+    /// Number of discrete fee deposits recorded
+    pub deposit_count: u64,
+    /// PDA bump
+    pub bump: u8,
+}
+
+// ---------------------------------------------------------------------------
+// Events
+// ---------------------------------------------------------------------------
+
+#[event]
+pub struct AdopterRegistered {
+    pub token_mint: Pubkey,
+    pub adopted_at: i64,
+}
+
+#[event]
+pub struct FeeDepositRecorded {
+    pub token_mint: Pubkey,
+    pub amount_lamports: u64,
+    pub cumulative: u64,
+    pub total_treasury_fees: u64,
+    pub ts: i64,
 }
 
 // ---------------------------------------------------------------------------
@@ -183,6 +236,7 @@ pub mod rtp_treasury {
         treasury.total_distributed_dev = 0;
         treasury.total_distributed_ecosystem = 0;
         treasury.total_hydration = 0;
+        treasury.total_fees_received_lamports = 0;
         treasury.holders_wallet = ctx.accounts.holders_wallet.key();
         treasury.project_dev_wallet = ctx.accounts.project_dev_wallet.key();
         treasury.ecosystem_wallet = ctx.accounts.ecosystem_wallet.key();
@@ -456,6 +510,66 @@ pub mod rtp_treasury {
         Ok(())
     }
 
+    /// Register a new token project as an RTP adopter.
+    ///
+    /// Creates an AdopterRecord PDA for the given token mint. Called once
+    /// per adopting token project at adoption time. The AdopterRecord tracks
+    /// cumulative fee contributions for pro-rata yield attribution.
+    pub fn register_adopter(ctx: Context<RegisterAdopter>, token_mint: Pubkey) -> Result<()> {
+        let record = &mut ctx.accounts.adopter_record;
+        let clock = Clock::get()?;
+
+        record.token_mint = token_mint;
+        record.fees_contributed_lamports = 0;
+        record.adopted_at = clock.unix_timestamp;
+        record.last_deposit_ts = clock.unix_timestamp;
+        record.deposit_count = 0;
+        record.bump = ctx.bumps.adopter_record;
+
+        emit!(AdopterRegistered {
+            token_mint,
+            adopted_at: clock.unix_timestamp,
+        });
+
+        Ok(())
+    }
+
+    /// Record a fee deposit from an adopting token project.
+    ///
+    /// Increments the AdopterRecord's cumulative fees and the treasury's
+    /// total_fees_received_lamports. This is the accounting hook called
+    /// alongside (or composed into) any fee deposit. It does not move
+    /// funds — it only updates accounting state for pro-rata attribution.
+    pub fn record_fee_deposit(ctx: Context<RecordFeeDeposit>, amount_lamports: u64) -> Result<()> {
+        require!(amount_lamports > 0, TreasuryError::ZeroAmount);
+
+        let record = &mut ctx.accounts.adopter_record;
+        let treasury = &mut ctx.accounts.treasury;
+        let clock = Clock::get()?;
+
+        record.fees_contributed_lamports = record
+            .fees_contributed_lamports
+            .checked_add(amount_lamports)
+            .ok_or(TreasuryError::Overflow)?;
+        record.last_deposit_ts = clock.unix_timestamp;
+        record.deposit_count += 1;
+
+        treasury.total_fees_received_lamports = treasury
+            .total_fees_received_lamports
+            .checked_add(amount_lamports)
+            .ok_or(TreasuryError::Overflow)?;
+
+        emit!(FeeDepositRecorded {
+            token_mint: record.token_mint,
+            amount_lamports,
+            cumulative: record.fees_contributed_lamports,
+            total_treasury_fees: treasury.total_fees_received_lamports,
+            ts: clock.unix_timestamp,
+        });
+
+        Ok(())
+    }
+
     // ==== Account Contexts ==================================================
 
     #[derive(Accounts)]
@@ -726,5 +840,47 @@ pub mod rtp_treasury {
 
         pub token_program: Interface<'info, TokenInterface>,
         pub system_program: Program<'info, System>,
+    }
+
+    #[derive(Accounts)]
+    #[instruction(token_mint: Pubkey)]
+    pub struct RegisterAdopter<'info> {
+        /// AdopterRecord PDA — one per token mint. Seeds: ["adopter", token_mint]
+        #[account(
+            init,
+            payer = authority,
+            space = 8 + AdopterRecord::INIT_SPACE,
+            seeds = [b"adopter", token_mint.as_ref()],
+            bump,
+        )]
+        pub adopter_record: Account<'info, AdopterRecord>,
+
+        /// The treasury state account (must already be initialised)
+        #[account(mut)]
+        pub treasury: Account<'info, Treasury>,
+
+        /// The authority signing this registration
+        #[account(mut)]
+        pub authority: Signer<'info>,
+
+        pub system_program: Program<'info, System>,
+    }
+
+    #[derive(Accounts)]
+    pub struct RecordFeeDeposit<'info> {
+        /// AdopterRecord PDA — seeds: ["adopter", token_mint]
+        #[account(
+            mut,
+            seeds = [b"adopter", adopter_record.token_mint.as_ref()],
+            bump = adopter_record.bump,
+        )]
+        pub adopter_record: Account<'info, AdopterRecord>,
+
+        /// Treasury state account — receives the total_fees_received_lamports increment
+        #[account(mut)]
+        pub treasury: Account<'info, Treasury>,
+
+        /// The authority that can record fee deposits
+        pub authority: Signer<'info>,
     }
 }
