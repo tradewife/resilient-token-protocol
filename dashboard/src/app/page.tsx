@@ -116,16 +116,16 @@ export default function Home() {
     return () => { alive = false; clearInterval(id); };
   }, [publicKey]);
 
-  // ── Fetch cycle data ──
+  // ── Fetch cycle data (from static /data/ files, rebuilt every cycle) ──
   const fetchCycle = useCallback(async () => {
     try {
-      const res = await fetch("/api/cycle");
+      const res = await fetch("/data/cycle.json");
       if (res.ok) {
         const data: CycleData = await res.json();
         if (!data.error) { setCycle(data); return; }
       }
     } catch { /* use fallback */ }
-    // Keep null as fallback — derived state handles it
+    // No valid data — derived state uses fallbacks
   }, []);
 
   useEffect(() => { fetchCycle(); }, [fetchCycle]);
@@ -134,26 +134,43 @@ export default function Home() {
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch("/api/memory");
+        const res = await fetch("/data/memory.json");
         if (res.ok) {
           const data: MemoryData = await res.json();
-          if (!data.error) setMemory(data);
+          if (!data.error) { setMemory(data); return; }
         }
       } catch { /* ignore */ }
     })();
   }, []);
 
-  // ── Fetch liveness ──
+  // ── Program liveness (client-side devnet RPC) ──
   useEffect(() => {
-    (async () => {
+    let alive = true;
+    const check = async () => {
       try {
-        const res = await fetch("/api/liveness");
-        if (res.ok) {
-          const data: LivenessData = await res.json();
-          setLiveness(data);
+        const res = await fetch("https://api.devnet.solana.com", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            jsonrpc: "2.0", id: 1, method: "getAccountInfo",
+            params: ["4LvsHbe9LLwgogcDbH7ieTsGcWZctjYFZkzZwaHDM8Ad", { encoding: "base64" }],
+          }),
+        });
+        const json = await res.json();
+        const value = json?.result?.value;
+        if (alive) {
+          setLiveness({
+            programId: "4LvsHbe9LLwgogcDbH7ieTsGcWZctjYFZkzZwaHDM8Ad",
+            live: value !== null && value !== undefined,
+            executable: value?.executable ?? false,
+            slot: json?.result?.context?.slot ?? null,
+          });
         }
-      } catch { /* ignore */ }
-    })();
+      } catch { /* retry later */ }
+    };
+    check();
+    const id = setInterval(check, 30_000);
+    return () => { alive = false; clearInterval(id); };
   }, []);
 
   // ── Derived state ──

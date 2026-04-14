@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "dashboard/**"
+      - "data/**"
   workflow_dispatch:
 
 permissions:
@@ -28,6 +29,8 @@ jobs:
           cache-dependency-path: dashboard/package-lock.json
       - name: Install dependencies
         run: cd dashboard && npm ci
+      - name: Generate static data files
+        run: bash dashboard/scripts/prebuild-data.sh
       - name: Build static export
         run: cd dashboard && npm run build
       - name: Inject CNAME for custom domain
