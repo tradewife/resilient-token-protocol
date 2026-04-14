@@ -142,6 +142,8 @@ Treasury program deployed and operational on Solana devnet (Apr 11 2026).
 │  ├── Night Shift — 30K configs/night, 9-fold WFA, Darwinian    │
 │  ├── Full Simulator — fees, slippage, realistic execution       │
 │  ├── Self-correction — calibration + discrepancy detection      │
+│  ├── Promotion Gates — statistical + regime + consensus checks  │
+│  ├── Decay Monitor — hard stops + soft decay + auto-retirement  │
 │  └── Paper Trader — live market validation                      │
 │                                                                 │
 │  Shared interface (typed JSON) between Python research          │
@@ -165,7 +167,7 @@ The only wing that touches capital. Responsible for generating yield.
 | Paper trading (live Binance, ADX filter, state persistence) | Python | **Shipping** |
 | Live execution on Hyperliquid (testnet) | Rust | **Done** — EIP-712 signed, round-trip verified, PnL tracked |
 | Degradation detection + auto-recalibration trigger | Rust | Planned |
-| Strategy lifecycle (hypothesis → validate → deploy → retire) | Both | Planned |
+| Strategy lifecycle (hypothesis → validate → deploy → retire) | Both | **Built** — PromotionGate + RetirementGate + DecayMonitor (7 tests) |
 
 ### Security Wing
 
@@ -521,6 +523,16 @@ rtp/
 │   ├── calibration/
 │   ├── discrepancies/
 │   └── devnet-cycles/              # Autonomous cycle output (auditable trail)
+│
+├── research/                       # Python research layer
+│   ├── promotion_criteria.py       # PromotionGate, RetirementGate, StrategyStatus, DecayRisk
+│   ├── strategy_library.md         # 15 strategies (S01–S15)
+│   ├── dead_ends.md                # Failure memory log + retirement criteria
+│   └── validation/
+│       ├── validate_night_shift.py # WFA validator + promotion eligibility
+│       ├── promotion_checker.py    # Evaluates validation result against PromotionGate
+│       ├── decay_monitor.py        # DecayMonitor: hard stops + soft decay tracking
+│       └── test_decay_monitor.py   # 7 pytest tests for lifecycle gates
 │
 └── .github/workflows/
     ├── night_shift.yml             # Nightly research pipeline

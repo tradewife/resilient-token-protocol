@@ -232,6 +232,35 @@ A judge must be able to verify these five things in under 3 minutes:
 
 ## 8. Session Status
 
+**Session 2026-04-15 — Strategy Promotion & Retirement Gates**
+
+State as of Apr 15:
+- **305 tests (anchor: 19 passing), 0 failures, 0 clippy warnings**
+- **Strategy lifecycle governance automated: promotion gates, decay monitor, retirement triggers**
+- Demo-Readiness Score: 9/10
+
+**Promotion & retirement gates (this session):**
+
+| Change | File | Detail |
+|--------|------|--------|
+| PromotionGate dataclass | `research/promotion_criteria.py` | 10 thresholds: OOS Sharpe ≥ 1.5, ≥ 3 profitable folds, ≤ 40% overfitting, ≥ 45% win rate, PF ≥ 1.3, DD ≤ 20%, regime robustness, paper hours, portfolio correlation, swarm consensus |
+| RetirementGate dataclass | `research/promotion_criteria.py` | 3 hard stops (10% 24h DD, 5 consecutive losses, Sharpe < 0.5) + 6 soft signals (3 strikes = retire) |
+| StrategyStatus enum | `research/promotion_criteria.py` | RESEARCH → PAPER_TRADING → LIVE → SUSPENDED → RETIRED |
+| DecayRisk enum | `research/promotion_criteria.py` | LOW (45d), MEDIUM (30d), HIGH (14d) rolling windows |
+| Promotion checker | `research/validation/promotion_checker.py` | `check_promotion_eligibility()` evaluates validation result against all gates, returns PROMOTE/CONDITIONAL/REJECT |
+| Decay monitor | `research/validation/decay_monitor.py` | `DecayMonitor` class: records trades in rolling window, checks hard stops + soft decay, returns StrategyStatus |
+| Wired into validation | `research/validation/validate_night_shift.py` | Prints PROMOTION ELIGIBILITY block after STRONG/MODERATE verdicts |
+| Dead ends criteria | `research/dead_ends.md` | Structured retirement criteria header documenting automated trigger logic |
+| Test suite | `research/validation/test_decay_monitor.py` | 7 pytest tests: hard stops, soft decay retirement, serialisation, window pruning — all passing |
+
+**Key design decisions:**
+- All thresholds live in `promotion_criteria.py` only — no magic numbers in consumers
+- Regime/paper/swarm/correlation gates are PENDING stubs (require live data), returning CONDITIONAL
+- Hard stops trigger immediate SUSPENDED status; soft signals accumulate strikes (≥ 3 = RETIRED)
+- Overfitting ratio approximated as `1 - (OOS Sharpe / max fold Sharpe)` when IS Sharpe unavailable
+
+---
+
 **Session 2026-04-14(iv) — Multi-Token Attribution Layer**
 
 State as of Apr 14:
@@ -567,5 +596,5 @@ Demo               = proof the institution persists without founder trust
 
 ---
 
-*Last updated: 2026-04-14 (session iv — multi-token attribution layer: AdopterRecord PDA, register_adopter, record_fee_deposit, 19 anchor tests passing, pro-rata yield attribution architecture proven) — 305 tests (305 with devnet feature), 0 failures, 0 clippy warnings. Dashboard deployed to resilientprotocol.xyz. All 5 judge points covered (memory partial). 3/3 CI green. HL round-trip verified. Devnet loop running autonomously on 6h cron. Demo-readiness 9/10. Next: rehearsal + Colosseum submission before May 11.*
+*Last updated: 2026-04-15 (session v — strategy promotion gates, decay monitor, retirement automation: PromotionGate + RetirementGate dataclasses, DecayMonitor class, 7 pytest tests, wired into validation pipeline) — 305 tests (305 with devnet feature), 0 failures, 0 clippy warnings. Dashboard deployed to resilientprotocol.xyz. All 5 judge points covered (memory partial). 3/3 CI green. HL round-trip verified. Devnet loop running autonomously on 6h cron. Demo-readiness 9/10. Next: rehearsal + Colosseum submission before May 11.*
 *Update this file after each session that changes canonical decisions or resolves open decisions.*

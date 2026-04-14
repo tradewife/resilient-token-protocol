@@ -71,6 +71,24 @@ These apply specifically to the Hyperliquid perps execution path:
 - **Audit Wing approval required** for new strategy configs before first live execution
 - **Phantom signing only**: no raw private key usage; all order signing via Phantom Connect agentic wallet flow
 
+### Strategy Lifecycle Governance (Automated)
+
+No strategy goes live or stays live without clearing codified gates. All thresholds are defined in `research/promotion_criteria.py` — no magic numbers elsewhere.
+
+**Promotion** (RESEARCH → PAPER_TRADING → LIVE):
+- OOS Sharpe ≥ 1.5 across ≥ 3 profitable folds
+- ≤ 40% IS/OOS degradation, ≥ 45% win rate, PF ≥ 1.3, DD ≤ 20%
+- Profitable in ≥ 2 of 3 regimes (trending/ranging/high-vol)
+- ≥ 72h paper trading confirmation
+- Rolling correlation < 0.4 with existing live strategies
+- ≥ 2 of 3 validator agents approve
+
+**Retirement** (LIVE → SUSPENDED or RETIRED):
+- **Hard stops** (immediate suspension): 10% 24h drawdown, 5 consecutive losses, rolling Sharpe < 0.5
+- **Soft decay** (3 strikes = retire): Sharpe drops below 50% of promotion Sharpe, win rate < 38%, regime mismatch > 5 days, funding rate below floor, correlation creep > 0.6
+
+**Decay monitoring** uses risk-adjusted rolling windows: LOW (45 days), MEDIUM (30 days), HIGH (14 days) — matching the strategy's `decay_risk` classification in `strategy_library.md`.
+
 ---
 
 ## Amendment Process
@@ -90,6 +108,7 @@ These apply specifically to the Hyperliquid perps execution path:
 | **On-chain** | Anchor program constraints, PDA authority checks, CPI guards |
 | **Swarm runtime** | `coordinator/soulguard.rs` validates every message against invariants |
 | **Execution** | Trading Wing enforces position limits before every Hyperliquid API call |
+| **Lifecycle** | `promotion_criteria.py` gates strategy promotion and retirement; `DecayMonitor` tracks live performance against hard/soft thresholds |
 | **This document** | Constitutional reference for all LLM sessions, code reviews, and agent prompts |
 
 > Any code that could violate these invariants — even in edge cases — is a CRITICAL finding.
