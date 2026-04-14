@@ -484,7 +484,7 @@ body {
   align-items: flex-start;
   gap: var(--space-sm);
   padding: var(--space-sm) 0;
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   line-height: 1.5;
   color: var(--text-secondary);
 }
@@ -496,7 +496,7 @@ body {
 .invariant-check {
   color: var(--emerald);
   flex-shrink: 0;
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   line-height: 1.5;
 }
 
