@@ -146,12 +146,14 @@ async function main() {
     ok("Airdrop received");
   }
 
-  // Load program
+  // Load program — use devnet program ID (IDL contains localnet key)
   const idl = require("../target/idl/rtp_treasury.json");
-  const programId = new PublicKey(idl.address);
+  const DEVNET_PROGRAM_ID = "4LvsHbe9LLwgogcDbH7ieTsGcWZctjYFZkzZwaHDM8Ad";
+  const isDevnet = connection.rpcEndpoint.includes("devnet");
+  const programId = new PublicKey(isDevnet ? DEVNET_PROGRAM_ID : idl.address);
   const wallet = new anchor.Wallet(payer);
   const provider = new anchor.AnchorProvider(connection, wallet, { commitment: "confirmed" });
-  const program = new anchor.Program(idl, provider);
+  const program = new anchor.Program(idl, programId, provider);
 
   info(`Program: ${programId.toBase58()}`);
 

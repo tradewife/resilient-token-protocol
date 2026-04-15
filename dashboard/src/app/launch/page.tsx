@@ -60,9 +60,11 @@ console.log("Mint:", result.mint);
           </Link>
         </div>
         <div className="topbar-actions">
-          <span className="network-badge">SDK</span>
+          <Link href="/research" className="btn-connect" style={{ textDecoration: "none", fontSize: "0.8125rem", padding: "6px 14px" }}>
+            Research
+          </Link>
           <Link href="/" className="btn-connect" style={{ textDecoration: "none" }}>
-            Back to Dashboard
+            Dashboard
           </Link>
         </div>
       </header>

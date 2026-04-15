@@ -321,9 +321,10 @@ pub fn get_sol_index() -> Result<i64, String> {
         .send()
         .map_err(|e| format!("HL info request failed: {}", e))?;
 
-    let data: serde_json::Value = resp
-        .json()
-        .map_err(|e| format!("HL info parse error: {}", e))?;
+    let status = resp.status();
+    let body = resp.text().map_err(|e| format!("HL info body read error: {}", e))?;
+    let data: serde_json::Value = serde_json::from_str(&body)
+        .map_err(|e| format!("HL info parse error (status {}): {} — body: {}", status, e, &body[..body.len().min(200)]))?;
 
     let universe = data[0]["universe"]
         .as_array()
@@ -350,9 +351,10 @@ pub fn get_sol_mid_price() -> Result<f64, String> {
         .send()
         .map_err(|e| format!("HL info request failed: {}", e))?;
 
-    let data: serde_json::Value = resp
-        .json()
-        .map_err(|e| format!("HL info parse error: {}", e))?;
+    let status = resp.status();
+    let body = resp.text().map_err(|e| format!("HL info body read error: {}", e))?;
+    let data: serde_json::Value = serde_json::from_str(&body)
+        .map_err(|e| format!("HL info parse error (status {}): {} — body: {}", status, e, &body[..body.len().min(200)]))?;
 
     let universe = data[0]["universe"]
         .as_array()

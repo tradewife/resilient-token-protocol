@@ -68,7 +68,9 @@ export default function ResearchPage() {
           </Link>
         </div>
         <div className="topbar-actions">
-          <span className="network-badge">Research</span>
+          <Link href="/launch" className="btn-connect" style={{ textDecoration: "none", fontSize: "0.8125rem", padding: "6px 14px" }}>
+            Launch
+          </Link>
           <Link href="/" className="btn-connect" style={{ textDecoration: "none" }}>
             Dashboard
           </Link>
