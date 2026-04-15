@@ -81,7 +81,7 @@
   fetch("https://api.devnet.solana.com", {
     method: "POST",
     headers: {"Content-Type":"application/json"},
-    body: JSON.stringify({jsonrpc:"2.0",id:1,method:"getAccountInfo",params:["4LvsHbe9LLwgogcDbH7ieTsGcWZctjYFZkzZwaHDM8Ad",{encoding:"base64"}]})
+    body: JSON.stringify({jsonrpc:"2.0",id:1,method:"getAccountInfo",params:["8rt6yiBnRTyHy8F69jUd7exWwwShUs4Eokeq41auo2RB",{encoding:"base64"}]})
   }).then(r=>r.json()).then(j=>{
     const live = j?.result?.value !== null;
     document.getElementById("liveness").textContent = live ? "● Live" : "● GC'd";

@@ -296,9 +296,9 @@ fi
 # Program liveness check on devnet
 step "Program Liveness Check"
 PROGRAM_INFO=$(curl -s https://api.devnet.solana.com -X POST -H "Content-Type: application/json" \
-  -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"getAccountInfo\",\"params\":[\"4LvsHbe9LLwgogcDbH7ieTsGcWZctjYFZkzZwaHDM8Ad\",{\"encoding\":\"base64\"}]}" 2>/dev/null)
+  -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"getAccountInfo\",\"params\":[\"8rt6yiBnRTyHy8F69jUd7exWwwShUs4Eokeq41auo2RB\",{\"encoding\":\"base64\"}]}" 2>/dev/null)
 if echo "$PROGRAM_INFO" | python3 -c "import sys,json; d=json.load(sys.stdin); assert d.get('result',{}).get('value') is not None" 2>/dev/null; then
-  ok "Program 4LvsHb...M8Ad is live on devnet"
+  ok "Program 8rt6yi...o2RB is live on devnet"
 else
   echo -e "  ${RED}━━━ BLOCKER: Program GC'd from devnet ━━━${RESET}"
   echo -e "  ${RED}Cannot present without a live program.${RESET}"

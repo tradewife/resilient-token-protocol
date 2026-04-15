@@ -92,7 +92,7 @@ Treasury program deployed and operational on Solana devnet (Apr 11 2026).
 
 | Item | Value |
 |------|-------|
-| Program ID | `4LvsHbe9LLwgogcDbH7ieTsGcWZctjYFZkzZwaHDM8Ad` |
+| Program ID | `8rt6yiBnRTyHy8F69jUd7exWwwShUs4Eokeq41auo2RB` |
 | Treasury PDA | `FNQbK1Vw77aT7qM1EMSmeEPDGizSNhX4rkkYBKQNFotF` |
 | Explorer | [View on Solana Explorer](https://explorer.solana.com/address/FNQbK1Vw77aT7qM1EMSmeEPDGizSNhX4rkkYBKQNFotF?cluster=devnet) |
 | Redistribution tx | [View transaction](https://explorer.solana.com/tx/9HzWgBfwYxs5ModdjF5mT6gdTfayQq8mMYipopyHfGPmYqk6KESHFqgDrc9Mcie573ttcdPqMHSyJP5nNBKK3bR?cluster=devnet) |

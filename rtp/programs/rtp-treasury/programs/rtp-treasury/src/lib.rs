@@ -5,7 +5,7 @@ use spl_token_2022_interface::{
     state::Mint as SplMint,
 };
 
-declare_id!("Bn7rBJ5ENmQzBjkmCKs1mx6WxNhQL8QKRQUj8xtmksXx");
+declare_id!("8rt6yiBnRTyHy8F69jUd7exWwwShUs4Eokeq41auo2RB");
 
 // ---------------------------------------------------------------------------
 // Constants

@@ -157,14 +157,14 @@ export default function Home() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             jsonrpc: "2.0", id: 1, method: "getAccountInfo",
-            params: ["4LvsHbe9LLwgogcDbH7ieTsGcWZctjYFZkzZwaHDM8Ad", { encoding: "base64" }],
+            params: ["8rt6yiBnRTyHy8F69jUd7exWwwShUs4Eokeq41auo2RB", { encoding: "base64" }],
           }),
         });
         const json = await res.json();
         const value = json?.result?.value;
         if (alive) {
           setLiveness({
-            programId: "4LvsHbe9LLwgogcDbH7ieTsGcWZctjYFZkzZwaHDM8Ad",
+            programId: "8rt6yiBnRTyHy8F69jUd7exWwwShUs4Eokeq41auo2RB",
             live: value !== null && value !== undefined,
             executable: value?.executable ?? false,
             slot: json?.result?.context?.slot ?? null,

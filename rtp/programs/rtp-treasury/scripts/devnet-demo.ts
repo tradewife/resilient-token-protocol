@@ -146,16 +146,35 @@ async function main() {
     ok("Airdrop received");
   }
 
-  // Load program — use devnet program ID (IDL contains localnet key)
-  const idl = require("../target/idl/rtp_treasury.json");
-  const DEVNET_PROGRAM_ID = "4LvsHbe9LLwgogcDbH7ieTsGcWZctjYFZkzZwaHDM8Ad";
+  // Load program — patch IDL with devnet program ID and merge account types
+  const rawIdl = require("../target/idl/rtp_treasury.json");
+  const DEVNET_PROGRAM_ID = "8rt6yiBnRTyHy8F69jUd7exWwwShUs4Eokeq41auo2RB";
   const isDevnet = connection.rpcEndpoint.includes("devnet");
-  const programId = new PublicKey(isDevnet ? DEVNET_PROGRAM_ID : idl.address);
+
+  // Fix: Anchor 0.31 IDL has accounts without 'type' field.
+  // Merge from the types array so BorshCoder can resolve struct layout.
+  // Also set idl.address to the devnet program ID so anchor.Program uses it.
+  const idl = JSON.parse(JSON.stringify(rawIdl));
+  if (isDevnet) {
+    idl.address = DEVNET_PROGRAM_ID;
+  }
+  const typeMap: Record<string, any> = {};
+  for (const t of idl.types || []) {
+    typeMap[t.name] = t;
+  }
+  for (const acc of idl.accounts || []) {
+    if (!acc.type && typeMap[acc.name]) {
+      acc.type = typeMap[acc.name].type;
+    }
+  }
+
   const wallet = new anchor.Wallet(payer);
   const provider = new anchor.AnchorProvider(connection, wallet, { commitment: "confirmed" });
-  const program = new anchor.Program(idl, programId, provider);
+  // anchor.Program constructor: (idl, provider?, coder?, resolver?)
+  // It reads programId from idl.address — do NOT pass programId as a separate arg.
+  const program = new anchor.Program(idl, provider);
 
-  info(`Program: ${programId.toBase58()}`);
+  info(`Program: ${idl.address}`);
 
   // -----------------------------------------------------------------------
   // Generate all keypairs
@@ -171,9 +190,9 @@ async function main() {
   const sourceWallet = Keypair.generate();
   const feeRecipientWallet = Keypair.generate();
 
-  const [treasuryPDA, treasuryBump] = deriveTreasuryPDA(mintPk, programId);
-  const [vaultPDA] = deriveVaultPDA(mintPk, programId);
-  const [swarmVaultPDA] = deriveSwarmVaultPDA(mintPk, programId);
+  const [treasuryPDA, treasuryBump] = deriveTreasuryPDA(mintPk, program.programId);
+  const [vaultPDA] = deriveVaultPDA(mintPk, program.programId);
+  const [swarmVaultPDA] = deriveSwarmVaultPDA(mintPk, program.programId);
 
   // -----------------------------------------------------------------------
   // STEP 1: Create Token-2022 Mint with TransferFeeConfig
@@ -575,5 +594,9 @@ async function main() {
 
 main().catch((err) => {
   console.error("\n❌ Demo failed:", err.message || err);
+  if (err.stack) {
+    const lines = err.stack.split("\n").slice(1, 6);
+    lines.forEach((l: string) => console.error("  " + l.trim()));
+  }
   process.exit(1);
 });

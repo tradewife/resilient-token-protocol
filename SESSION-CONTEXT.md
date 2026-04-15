@@ -514,7 +514,7 @@ State as of Apr 11:
 - Kept as historical reference for action payload structure
 
 **Anchor treasury deployed to devnet 2026-04-11:**
-- Program ID: `4LvsHbe9LLwgogcDbH7ieTsGcWZctjYFZkzZwaHDM8Ad`
+- Program ID: `8rt6yiBnRTyHy8F69jUd7exWwwShUs4Eokeq41auo2RB`
 - Treasury PDA: `FNQbK1Vw77aT7qM1EMSmeEPDGizSNhX4rkkYBKQNFotF`
 - Treasury Vault: `DKuC9Q3FXS28C32k3Grur8QtBLrN5BR5nDsujFkhs3kM`
 - Swarm Vault: `E8k82YihuxmX`

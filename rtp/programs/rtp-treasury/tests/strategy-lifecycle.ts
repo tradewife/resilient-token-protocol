@@ -44,7 +44,7 @@ const SEED_SWARM = Buffer.from("swarm-hydration");
 const SEED_STRATEGY = Buffer.from("strategy");
 
 const PROGRAM_ID = new PublicKey(
-  "Bn7rBJ5ENmQzBjkmCKs1mx6WxNhQL8QKRQUj8xtmksXx"
+  "8rt6yiBnRTyHy8F69jUd7exWwwShUs4Eokeq41auo2RB"
 );
 
 const FEE_BASIS_POINTS = 1000;

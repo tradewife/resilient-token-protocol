@@ -5,10 +5,10 @@ resolution = true
 skip-lint = false
 
 [programs.devnet]
-rtp_treasury = "4LvsHbe9LLwgogcDbH7ieTsGcWZctjYFZkzZwaHDM8Ad"
+rtp_treasury = "8rt6yiBnRTyHy8F69jUd7exWwwShUs4Eokeq41auo2RB"
 
 [programs.localnet]
-rtp_treasury = "Bn7rBJ5ENmQzBjkmCKs1mx6WxNhQL8QKRQUj8xtmksXx"
+rtp_treasury = "8rt6yiBnRTyHy8F69jUd7exWwwShUs4Eokeq41auo2RB"
 
 [provider]
 cluster = "localnet"
