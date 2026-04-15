@@ -296,9 +296,8 @@ This is the config the Trading Wing targets on Hyperliquid.
 
 ## CI/CD
 
-- **Night shift**: GitHub Actions cron at 14:00 UTC (`night_shift.yml`, 300 min timeout)
+- **Night shift**: GitHub Actions cron at 14:00 UTC (`night_shift.yml`, 300 min timeout) — also runs Python module import + CLI tests
 - **Swarm CI**: `swarm-ci.yml` — cargo build + test + clippy + fmt + anchor build
-- **Python tests**: `python-tests.yml` — module imports + CLI help + bridge-mode schema
 - **Devnet loop**: `devnet-loop.yml` — cron every 6h + manual dispatch, runs rtp-daemon, commits cycle output
 - **Binance geo-blocked on GitHub runners** — OHLCV data in `data/ohlcv/`, fetch defaults to `false`
 

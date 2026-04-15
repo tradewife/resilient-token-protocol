@@ -232,14 +232,14 @@ A judge must be able to verify these five things in under 3 minutes:
 
 ## 8. Session Status
 
-**Session 2026-04-15(ii) — On-Chain Strategy Lifecycle Enforcement**
+**Session 2026-04-15 — Strategy Lifecycle + Promotion Gates**
 
 State as of Apr 15:
 - **305 tests (anchor: 34 passing), 0 failures, 0 clippy warnings**
-- **On-chain strategy lifecycle enforcement: StrategyRecord account + hydrate_swarm gate**
+- **On-chain strategy lifecycle enforcement + Python promotion/retirement gates**
 - Demo-Readiness Score: 9/10
 
-**On-chain strategy lifecycle (this session):**
+**On-chain strategy lifecycle:**
 
 | Change | File | Detail |
 |--------|------|--------|
@@ -255,36 +255,17 @@ State as of Apr 15:
 | 5 new errors | `rtp/.../lib.rs` | StrategyNotLive, HardStopBreached, SoftDecayRetirement, InvalidStrategyId, UnauthorizedStrategyOp |
 | 17 new anchor tests | `tests/strategy-lifecycle.ts` | Register (4), update (6), hydrate gate (3), force retire (2), existing hydrate updated (2). All 34 pass. |
 
-**Key design decision:** `hydrate_swarm` requiring a Live `StrategyRecord` is the linchpin — it makes the entire lifecycle system load-bearing rather than advisory. The Python DecayMonitor detects decay; this Rust account enforces the consequence. Together they form the full invariant chain.
-
----
-
-**Session 2026-04-15 — Strategy Promotion & Retirement Gates**
-
-State as of Apr 15:
-- **305 tests (anchor: 19 passing), 0 failures, 0 clippy warnings**
-- **Strategy lifecycle governance automated: promotion gates, decay monitor, retirement triggers**
-- Demo-Readiness Score: 9/10
-
-**Promotion & retirement gates (this session):**
+**Python promotion & retirement gates (same session):**
 
 | Change | File | Detail |
 |--------|------|--------|
-| PromotionGate dataclass | `research/promotion_criteria.py` | 10 thresholds: OOS Sharpe ≥ 1.5, ≥ 3 profitable folds, ≤ 40% overfitting, ≥ 45% win rate, PF ≥ 1.3, DD ≤ 20%, regime robustness, paper hours, portfolio correlation, swarm consensus |
-| RetirementGate dataclass | `research/promotion_criteria.py` | 3 hard stops (10% 24h DD, 5 consecutive losses, Sharpe < 0.5) + 6 soft signals (3 strikes = retire) |
-| StrategyStatus enum | `research/promotion_criteria.py` | RESEARCH → PAPER_TRADING → LIVE → SUSPENDED → RETIRED |
-| DecayRisk enum | `research/promotion_criteria.py` | LOW (45d), MEDIUM (30d), HIGH (14d) rolling windows |
-| Promotion checker | `research/validation/promotion_checker.py` | `check_promotion_eligibility()` evaluates validation result against all gates, returns PROMOTE/CONDITIONAL/REJECT |
-| Decay monitor | `research/validation/decay_monitor.py` | `DecayMonitor` class: records trades in rolling window, checks hard stops + soft decay, returns StrategyStatus |
-| Wired into validation | `research/validation/validate_night_shift.py` | Prints PROMOTION ELIGIBILITY block after STRONG/MODERATE verdicts |
-| Dead ends criteria | `research/dead_ends.md` | Structured retirement criteria header documenting automated trigger logic |
-| Test suite | `research/validation/test_decay_monitor.py` | 7 pytest tests: hard stops, soft decay retirement, serialisation, window pruning — all passing |
+| PromotionGate + RetirementGate | `research/promotion_criteria.py` | 10 promotion thresholds + 3 hard stops + 6 soft signals |
+| DecayMonitor | `research/validation/decay_monitor.py` | Rolling window, hard stops + soft decay, returns StrategyStatus |
+| Promotion checker | `research/validation/promotion_checker.py` | `check_promotion_eligibility()` → PROMOTE/CONDITIONAL/REJECT |
+| Wired into validation | `research/validation/validate_night_shift.py` | Prints PROMOTION ELIGIBILITY block |
+| Test suite | `research/validation/test_decay_monitor.py` | 7 pytest tests — all passing |
 
-**Key design decisions:**
-- All thresholds live in `promotion_criteria.py` only — no magic numbers in consumers
-- Regime/paper/swarm/correlation gates are PENDING stubs (require live data), returning CONDITIONAL
-- Hard stops trigger immediate SUSPENDED status; soft signals accumulate strikes (≥ 3 = RETIRED)
-- Overfitting ratio approximated as `1 - (OOS Sharpe / max fold Sharpe)` when IS Sharpe unavailable
+**Key design decision:** `hydrate_swarm` requiring a Live `StrategyRecord` is the linchinpin — it makes the entire lifecycle system load-bearing rather than advisory. The Python DecayMonitor detects decay; this Rust account enforces the consequence. Together they form the full invariant chain.
 
 ---
 
