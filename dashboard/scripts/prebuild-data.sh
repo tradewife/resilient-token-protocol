@@ -71,6 +71,27 @@ json.dump({
     "breakdown": breakdown,
 }, open(os.path.join(DATA_DIR, "memory.json"), "w"), indent=2)
 print(f"memory.json written ({len(files)} files)")
+
+# ── night.json (latest night shift summary) ──
+nr = os.path.join(REPO, "data", "night_results")
+if os.path.isdir(nr):
+    nights = sorted(d for d in os.listdir(nr) if os.path.isdir(os.path.join(nr, d)))
+    if nights:
+        latest = nights[-1]
+        sf = os.path.join(nr, latest, "summary.json")
+        rf = os.path.join(nr, latest, "report.md")
+        if os.path.isfile(sf):
+            summary = json.load(open(sf))
+            summary["_date"] = latest
+            summary["_report"] = open(rf).read() if os.path.isfile(rf) else ""
+            json.dump(summary, open(os.path.join(DATA_DIR, "night.json"), "w"), indent=2)
+            print(f"night.json written ({latest})")
+        else:
+            print("night.json: no summary.json in latest dir")
+    else:
+        print("night.json: no night_results subdirs")
+else:
+    print("night.json: night_results dir not found")
 PYEOF
 
 echo "Data files ready in $DATA_DIR"

@@ -1,0 +1,20 @@
+{
+  "name": "@resilient-protocol/sdk",
+  "version": "0.1.0",
+  "description": "Launchpad SDK for the Resilient Token Protocol — create Token-2022 mints with fees routing to the RTP treasury vault",
+  "main": "index.ts",
+  "types": "index.ts",
+  "license": "MIT",
+  "peerDependencies": {
+    "@solana/web3.js": "^1.95.0",
+    "@solana/spl-token": "^0.4.0"
+  },
+  "keywords": [
+    "solana",
+    "token-2022",
+    "treasury",
+    "launchpad",
+    "rtp",
+    "resilient-token-protocol"
+  ]
+}

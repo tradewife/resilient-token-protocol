@@ -1,9 +1,8 @@
 name: Night Shift — Autonomous Strategy Optimization
 
 on:
-  schedule:
-    # Run nightly at 00:00 AEST (14:00 UTC)
-    - cron: '0 14 * * *'
+  # schedule:
+  #   - cron: '0 14 * * *'    # paused — re-enable when needed
   workflow_dispatch:
     # Allow manual trigger from GitHub Actions tab
     inputs:

@@ -1,11 +1,11 @@
 {
-  "cycle_id": "2026-04-14T03:23:59.688760774+00:00",
+  "cycle_id": "2026-04-15T03:21:50.321559919+00:00",
   "params_used": {
-    "signal_threshold": 0.25,
-    "tp_atr": 3.8,
+    "signal_threshold": 0.28,
+    "tp_atr": 3.5,
     "sl_atr": 1.5,
     "max_hold_hours": 36.0,
-    "trailing_stop_atr": 0.8
+    "trailing_stop_atr": 0.4
   },
   "params_next": {
     "signal_threshold": 0.25,
@@ -18,23 +18,39 @@
     {
       "param": "signal_threshold",
       "value": 0.25,
-      "rationale": "Lower threshold to increase trade frequency from stagnation, capture more opportunities while Sharpe is strong enough to absorb slightly weaker signals"
+      "rationale": "lower threshold to increase trade frequency and combat stagnation with more entries"
     },
     {
       "param": "tp_atr",
       "value": 3.8,
-      "rationale": "Extend take profit to ride winners longer given high Sharpe indicates good signal quality, increase yield per trade beyond current modest 0.175 USDC"
+      "rationale": "extend take-profit to capture larger moves since sharpe is strong, suggesting high-quality signals"
     },
     {
       "param": "trailing_stop_atr",
       "value": 0.8,
-      "rationale": "Widen trailing stop to reduce premature exits on healthy pullbacks, allow trends to develop more fully before locking in profits"
+      "rationale": "widen trailing stop to let winning trades breathe longer and reduce premature exits"
     }
   ],
   "mutations_rejected": [],
-  "diffs": [],
+  "diffs": [
+    {
+      "param": "signal_threshold",
+      "from": 0.28,
+      "to": 0.25
+    },
+    {
+      "param": "tp_atr",
+      "from": 3.5,
+      "to": 3.8
+    },
+    {
+      "param": "trailing_stop_atr",
+      "from": 0.4,
+      "to": 0.8
+    }
+  ],
   "used_llm": true,
   "model_label": "GLM-5.1",
   "memory_file_count": 14,
-  "timestamp": "2026-04-14T03:23:59.688760774+00:00"
+  "timestamp": "2026-04-15T03:21:50.321559919+00:00"
 }

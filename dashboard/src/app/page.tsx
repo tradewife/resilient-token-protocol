@@ -4,9 +4,10 @@ import React, { useEffect, useState, useCallback } from "react";
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 import { PublicKey, LAMPORTS_PER_SOL } from "@solana/web3.js";
+import Link from "next/link";
 
 const TREASURY_PDA = "FNQbK1Vw77aT7qM1EMSmeEPDGizSNhX4rkkYBKQNFotF";
-const DEVNET_WALLET = "Driyi8Sw2622yCefU34zrjBsQynrDoGD31tBecXrEF6R";
+const DEVNET_RPC = "https://api.devnet.solana.com";
 const MAINNET_RPC = "https://api.mainnet-beta.solana.com";
 
 /* ── Fallback static feed (used when /api/cycle returns 404) ── */
@@ -76,13 +77,15 @@ export default function Home() {
   const [memory, setMemory] = useState<MemoryData | null>(null);
   const [liveness, setLiveness] = useState<LivenessData | null>(null);
   const [showHowItWorks, setShowHowItWorks] = useState(false);
+  const [yieldReceived, setYieldReceived] = useState<number | null>(null);
+  const [yieldLoading, setYieldLoading] = useState(false);
 
-  // ── Treasury balance (devnet) ──
+  // ── Treasury PDA balance (devnet) ──
   useEffect(() => {
     let alive = true;
     const poll = async () => {
       try {
-        const lamports = await connection.getBalance(new PublicKey(DEVNET_WALLET));
+        const lamports = await connection.getBalance(new PublicKey(TREASURY_PDA));
         if (alive) setTreasurySol(lamports / LAMPORTS_PER_SOL);
       } catch { /* retry next tick */ }
     };
@@ -174,6 +177,69 @@ export default function Home() {
     return () => { alive = false; clearInterval(id); };
   }, []);
 
+  // ── Yield received: scan treasury PDA txs for SOL sent to connected wallet ──
+  useEffect(() => {
+    if (!publicKey) {
+      setYieldReceived(null);
+      return;
+    }
+    let cancelled = false;
+    setYieldLoading(true);
+
+    (async () => {
+      try {
+        const treasuryPubkey = new PublicKey(TREASURY_PDA);
+        const walletStr = publicKey.toBase58();
+
+        // Get recent signatures for treasury PDA
+        const signatures = await connection.getSignaturesForAddress(treasuryPubkey, { limit: 100 });
+        let totalYieldLamports = 0;
+
+        // Check each transaction for SOL sent to the connected wallet
+        for (const sigInfo of signatures) {
+          if (cancelled) break;
+          try {
+            const tx = await connection.getTransaction(sigInfo.signature, {
+              maxSupportedTransactionVersion: 0,
+            });
+            if (!tx || !tx.meta) continue;
+
+            const { preBalances, postBalances } = tx.meta;
+            const accountKeys = tx.transaction.message.staticAccountKeys
+              ? tx.transaction.message.staticAccountKeys
+              : (tx.transaction.message as { accountKeys: PublicKey[] }).accountKeys;
+            // Find the connected wallet's index in accountKeys
+            for (let i = 0; i < accountKeys.length; i++) {
+              const key = accountKeys[i] instanceof PublicKey
+                ? (accountKeys[i] as PublicKey).toBase58()
+                : String(accountKeys[i]);
+              if (key === walletStr) {
+                const delta = (postBalances[i] ?? 0) - (preBalances[i] ?? 0);
+                if (delta > 0) {
+                  totalYieldLamports += delta;
+                }
+              }
+            }
+          } catch {
+            // Skip individual tx failures (rate limits, etc.)
+          }
+        }
+
+        if (!cancelled) {
+          setYieldReceived(totalYieldLamports / LAMPORTS_PER_SOL);
+          setYieldLoading(false);
+        }
+      } catch {
+        if (!cancelled) {
+          setYieldReceived(null);
+          setYieldLoading(false);
+        }
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [publicKey, connection]);
+
   // ── Derived state ──
   const tBal = treasurySol !== null ? treasurySol.toFixed(4) : "—";
   const uBal = walletSol !== null ? walletSol.toFixed(4) : null;
@@ -204,6 +270,12 @@ export default function Home() {
         </div>
         <div className="topbar-actions">
           <span className="network-badge">Devnet</span>
+          <Link href="/research" className="btn-connect" style={{ textDecoration: "none", fontSize: "0.8125rem", padding: "6px 14px" }}>
+            Research
+          </Link>
+          <Link href="/launch" className="btn-connect" style={{ textDecoration: "none", fontSize: "0.8125rem", padding: "6px 14px" }}>
+            Launch
+          </Link>
           {connected && publicKey ? (
             <div className="wallet-pill">
               <span className="wallet-indicator" />
@@ -238,14 +310,14 @@ export default function Home() {
           <div className="hero-balance">
             <span className="hero-balance-value">{tBal} SOL</span>
             <span className="hero-balance-label">
-              Devnet Wallet · Driyi8...EF6R
+              TREASURY VAULT · FNQbK1...otF
             </span>
           </div>
 
           <div className="hero-metrics">
             <div className="metric">
               <span className="metric-value">{tBal}</span>
-              <span className="metric-label">Devnet SOL</span>
+              <span className="metric-label">TREASURY SOL</span>
             </div>
             <div className="metric">
               <span className="metric-value accent">{cycleCount}</span>
@@ -260,6 +332,22 @@ export default function Home() {
               <span className="metric-label">Memory Files</span>
             </div>
           </div>
+
+          {connected && publicKey && (
+            <div className="hero-yield">
+              {yieldLoading ? (
+                <span className="yield-text">Scanning treasury transactions...</span>
+              ) : yieldReceived !== null && yieldReceived > 0 ? (
+                <span className="yield-text">
+                  You have received <strong>{yieldReceived.toFixed(4)} SOL</strong> from RTP
+                </span>
+              ) : yieldReceived !== null ? (
+                <span className="yield-text">No yield received yet — treasury is compounding</span>
+              ) : (
+                <span className="yield-text">Could not fetch yield data</span>
+              )}
+            </div>
+          )}
         </div>
       </section>
 
