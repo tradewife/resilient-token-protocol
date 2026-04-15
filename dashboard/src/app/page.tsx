@@ -6,6 +6,7 @@ import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 import { PublicKey, LAMPORTS_PER_SOL } from "@solana/web3.js";
 
 const TREASURY_PDA = "FNQbK1Vw77aT7qM1EMSmeEPDGizSNhX4rkkYBKQNFotF";
+const DEVNET_WALLET = "Driyi8Sw2622yCefU34zrjBsQynrDoGD31tBecXrEF6R";
 const MAINNET_RPC = "https://api.mainnet-beta.solana.com";
 
 /* ── Fallback static feed (used when /api/cycle returns 404) ── */
@@ -81,7 +82,7 @@ export default function Home() {
     let alive = true;
     const poll = async () => {
       try {
-        const lamports = await connection.getBalance(new PublicKey(TREASURY_PDA));
+        const lamports = await connection.getBalance(new PublicKey(DEVNET_WALLET));
         if (alive) setTreasurySol(lamports / LAMPORTS_PER_SOL);
       } catch { /* retry next tick */ }
     };
@@ -237,14 +238,14 @@ export default function Home() {
           <div className="hero-balance">
             <span className="hero-balance-value">{tBal} SOL</span>
             <span className="hero-balance-label">
-              Treasury PDA · FNQbK1...otF
+              Devnet Wallet · Driyi8...EF6R
             </span>
           </div>
 
           <div className="hero-metrics">
             <div className="metric">
               <span className="metric-value">{tBal}</span>
-              <span className="metric-label">Treasury SOL</span>
+              <span className="metric-label">Devnet SOL</span>
             </div>
             <div className="metric">
               <span className="metric-value accent">{cycleCount}</span>
