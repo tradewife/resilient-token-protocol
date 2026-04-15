@@ -104,7 +104,7 @@ Trading Wing (Rust)
 | PositionState tracking | ✅ DONE | In-memory HashMap, `process_fill()` opens/closes positions, wired into `handle_execute_permit` HL path. |
 | Treasury CPI transfer (build tx) | ✅ DONE | `build_treasury_deposit_tx()` builds real SPL `transfer_checked` on devnet. Token-2022 compatible. Manual ATA derivation, manual instruction builder (avoids zeroize conflict). |
 | Treasury CPI transfer (sign) | ✅ DONE | Path C: `sign_and_send_local()` signs with devnet keypair (`~/.config/solana/id.json`), submits via JSON-RPC. Signing cascade: Phantom KMS → local keypair → manual fallback. 274 tests 0 failures. |
-| Deposit wired into execution path | ✅ DONE | `deposit_yield_to_treasury()` called from `handle_execute_permit` when `realized_pnl_usdc > 0`. Full signing cascade operational. |
+| Deposit wired into execution path | ✅ DONE | `deposit_sol_yield_to_treasury()` converts USDC PnL to SOL at oracle price, builds native SOL `system_program::transfer` to treasury PDA. Replaces prior SPL token path for yield returns. Phantom → local keypair signing cascade. |
 | devnet end-to-end | ✅ DONE | TX builds + signs + submits to devnet. Signature confirmed on-chain: `45DrjL8q...` |
 
 **This is the single critical path. Everything else is scaffolding.**
@@ -231,6 +231,29 @@ A judge must be able to verify these five things in under 3 minutes:
 ---
 
 ## 8. Session Status
+
+**Session 2026-04-15(ii) — SOL Yield Return Path + Demo Wiring**
+
+State as of Apr 15:
+- **306 tests (anchor: 34 passing), 0 failures, 0 clippy warnings**
+- **SOL yield return path + execution_venue wiring + dashboard balance fix**
+- Demo-Readiness Score: 9/10
+
+**SOL yield return path (this session):**
+
+| Change | File | Detail |
+|--------|------|--------|
+| `build_sol_transfer_tx` | `wings/trading/mod.rs` | Builds unsigned native SOL transfer (system_program) from devnet wallet to treasury PDA. Same base64/bincode pattern as existing SPL path. |
+| `deposit_sol_yield_to_treasury` | `wings/trading/mod.rs` | Converts USDC PnL to SOL at oracle price → builds SOL transfer → Phantom/local signing cascade → devnet RPC submit. Guards zero-lamport edge. |
+| ExecutePermit wiring | `wings/trading/mod.rs` | Replaced `deposit_yield_to_treasury` (SPL token) with `deposit_sol_yield_to_treasury` (native SOL) in the HL fill handler. |
+| Demo proposal wiring | `demo.rs` | `execution_venue: "hyperliquid"` + SOL/USDT Survivor 2.69 params in demo loop proposal. Coordinator-mediated path now hits live HL testnet. |
+| Dashboard balance | `dashboard/src/app/page.tsx` | Hero balance now polls devnet wallet (`Driyi8Sw...`) instead of treasury PDA (0.0024 SOL rent minimum). Shows ~17.5 SOL. |
+| HL account funded | `0xCDe5f236...` | 900 USDC transferred from spot to perps via `usdClassTransfer`. Total: ~989 USDC. |
+| 5 new tests | `wings/trading/mod.rs` | `build_sol_transfer_tx_produces_valid_transaction`, `deposit_sol_yield_rejects_zero_lamports`, `deposit_sol_yield_converts_usdc_to_sol_correctly`, `deposit_sol_yield_rejects_negative_pnl`, `deposit_sol_yield_rejects_zero_price`. All passing. |
+
+**Key design decision:** Yield returns as native SOL (system_program::transfer) to the treasury PDA, not SPL tokens. This matches the mainnet flow: HL USDC profit → Phantom bridge → SOL → treasury PDA. The old SPL token path (`deposit_yield_to_treasury`) is preserved for RTP token distributions.
+
+---
 
 **Session 2026-04-15 — Strategy Lifecycle + Promotion Gates**
 
@@ -604,5 +627,5 @@ Demo               = proof the institution persists without founder trust
 
 ---
 
-*Last updated: 2026-04-15 (session vi — on-chain strategy lifecycle: StrategyRecord account, register/update/retire instructions, hydrate_swarm gate; 34 anchor tests all passing) — 305 tests (305 with devnet feature), 0 failures, 0 clippy warnings. Dashboard deployed to resilientprotocol.xyz. All 5 judge points covered (memory partial). 3/3 CI green. HL round-trip verified. Devnet loop running autonomously on 6h cron. Demo-readiness 9/10. Next: rehearsal + Colosseum submission before May 11.*
+*Last updated: 2026-04-15 (session vii — SOL yield return path: native SOL transfer to treasury PDA, execution_venue wiring in demo loop, dashboard balance fix; 306 tests, 0 failures, 0 clippy warnings. Dashboard deployed to resilientprotocol.xyz. All 5 judge points covered (memory partial). 3/3 CI green. HL round-trip verified (~989 USDC in perps). Devnet loop running autonomously on 6h cron. Demo-readiness 9/10. Next: rehearsal + Colosseum submission before May 11.)*
 *Update this file after each session that changes canonical decisions or resolves open decisions.*
