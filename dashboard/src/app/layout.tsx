@@ -6,7 +6,7 @@ export const metadata: Metadata = {
   title: "Resilient Token Protocol",
   description: "Autonomous treasury protocol — governed by code, not trust.",
   icons: {
-    icon: "/favicon.png",
+    icon: "/icon.svg",
   },
 };
 

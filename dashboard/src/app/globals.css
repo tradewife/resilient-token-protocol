@@ -100,12 +100,13 @@ body {
   color: var(--text-secondary);
 }
 
-.brand-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--coral);
+.brand-icon {
+  width: 22px;
+  height: 22px;
   display: inline-block;
+  vertical-align: middle;
+  transform: translateY(3px);
+  flex-shrink: 0;
 }
 
 .topbar-actions {

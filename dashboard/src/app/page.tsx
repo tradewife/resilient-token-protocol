@@ -265,7 +265,7 @@ export default function Home() {
       {/* ── Top bar ────────────────────────────────────────── */}
       <header className="topbar">
         <div className="brand">
-          <span className="brand-dot" />
+          <img className="brand-icon" src="/icon.svg" alt="RTP" />
           <span className="brand-name">RESILIENT TOKEN PROTOCOL</span>
         </div>
         <div className="topbar-actions">

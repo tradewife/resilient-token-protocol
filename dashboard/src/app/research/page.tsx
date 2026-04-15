@@ -62,7 +62,7 @@ export default function ResearchPage() {
       {/* ── Top bar ────────────────────────────────────────── */}
       <header className="topbar">
         <div className="brand">
-          <span className="brand-dot" />
+          <img className="brand-icon" src="/icon.svg" alt="RTP" />
           <Link href="/" className="brand-name" style={{ textDecoration: "none", color: "inherit" }}>
             RESILIENT TOKEN PROTOCOL
           </Link>
