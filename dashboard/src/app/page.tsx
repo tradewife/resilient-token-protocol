@@ -439,14 +439,12 @@ export default function Home() {
                 <p className="hiw-text">
                   Swarm researches overnight (30K configs, 9-fold walk-forward) → validates → proposes strategy
                 </p>
-                <a
+                <Link
                   className="hiw-link"
-                  href="https://github.com/tradewife/resilient-token-protocol/blob/main/research/orchestration/night_shift.py"
-                  target="_blank"
-                  rel="noopener noreferrer"
+                  href="/research"
                 >
-                  View night shift source ↗
-                </a>
+                  View night shift results →
+                </Link>
               </div>
             </div>
             <div className="hiw-step">
