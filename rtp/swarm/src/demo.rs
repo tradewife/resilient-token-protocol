@@ -84,20 +84,25 @@ pub async fn run_demo_loop() -> DemoResult {
     });
 
     // Step 2: Trading Wing proposes a strategy deployment.
+    // SOL/USDT Survivor 2.69 — OOS Sharpe +3.96, 9/9 folds positive.
+    // execution_venue: "hyperliquid" enables the live HL testnet path.
     let proposal = Message::new(
         WingId::Trading,
         WingId::Coordinator,
         Payload::Proposal {
             kind: ProposalKind::StrategyChange,
-            description: "Deploy optimized BTC/USDT mean-reversion strategy".to_string(),
+            description: "Deploy SOL/USDT Survivor 2.69 on Hyperliquid testnet".to_string(),
             changes: serde_json::json!({
-                "strategy": "mr_rsi_bb",
-                "symbol": "BTC/USDT",
-                "params": {
-                    "rsi_entry": 28,
-                    "stop_loss": 0.03,
-                    "confidence": 0.92,
-                }
+                "strategy": "multitf_survivor",
+                "symbol": "SOL/USDT",
+                "execution_venue": "hyperliquid",
+                "is_buy": true,
+                "size": "0.12",
+                "signal_threshold": 0.3,
+                "take_profit_atr": 3.0,
+                "stop_loss_atr": 1.5,
+                "max_hold_hours": 36,
+                "trailing_stop_atr": 0.5
             }),
             confidence: 0.92,
         },
