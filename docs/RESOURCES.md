@@ -32,7 +32,7 @@ Extracted from BUILD_PLAN v2.2. Keep this file updated as new tools are integrat
 ## Sponsored Hackathon Tools
 
 ### Phantom Connect + CASH + MCP
-- Docs: https://docs.phantom.app/phantom-connect/introduction
+- Docs: https://docs.phantom.com/phantom-connect
 - Get Started: https://phantom.app/phantom-connect
 - React Template: https://github.com/phantom-labs/phantom-connect-react
 - JS Template: https://github.com/phantom-labs/phantom-connect-js
@@ -46,9 +46,8 @@ Extracted from BUILD_PLAN v2.2. Keep this file updated as new tools are integrat
 > not a programmatic API. RTP's Hyperliquid execution uses an ETH keypair + EIP-712 signing
 > directly in `trading/mod.rs` — this is the correct and final architecture for HL order placement.
 > Phantom's role in RTP is Solana treasury signing (CPI transfer), not HL trading.
-> `@phantom/server-sdk` is installed for production KMS signing; for the devnet demo, a local
-> keypair signs the treasury deposit tx. The signing cascade: Phantom KMS (production) →
-> local devnet keypair (demo) → manual submission (fallback).
+> For the devnet demo, a local keypair signs the treasury deposit tx. The signing cascade:
+> Phantom KMS (production) → local devnet keypair (demo) → manual submission (fallback).
 
 ### Squads Multisig
 - Docs: https://docs.squads.so
@@ -132,7 +131,7 @@ Extracted from BUILD_PLAN v2.2. Keep this file updated as new tools are integrat
 |---|---|
 | Phantom × HL native perps for execution | UI feature only, not a programmatic API. HL execution uses ETH keypair + EIP-712 in `trading/mod.rs` directly. |
 | Hyperliquid via Arbitrum bridge | Not needed — HL testnet API is accessed directly via REST. No bridge or EVM wallet needed for programmatic orders. |
-| Phantom MCP for treasury signing | Deferred. `@phantom/server-sdk` is the production KMS path. Demo uses local devnet keypair for signing. |
+| Phantom MCP for treasury signing | Deferred. Production KMS path via Phantom Portal. Demo uses local devnet keypair for signing. |
 | World Coin | Toxic sentiment — skip entirely |
 | Privy | Not yet available |
 | Coinbase | Not yet available |

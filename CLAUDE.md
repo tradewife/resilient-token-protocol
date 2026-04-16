@@ -223,10 +223,10 @@ USDC amount. This function is gated behind `#[cfg(feature = "devnet")]` and
 is never compiled for the mainnet binary.
 
 ```bash
-# Run tests with devnet stub (305 tests):
+# Run tests with devnet stub (310 tests):
 cd rtp/swarm && cargo test --lib --features devnet
 
-# Run without devnet stub (301 tests, production config):
+# Run without devnet stub (306 tests, production config):
 cd rtp/swarm && cargo test --lib
 ```
 

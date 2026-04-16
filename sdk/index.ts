@@ -20,10 +20,11 @@ import {
   createInitializeTransferFeeConfigInstruction,
   getMintLen,
   ExtensionType,
-  mintTo,
-  createAssociatedTokenAccount,
+  createMintToInstruction,
+  createAssociatedTokenAccountInstruction,
   getAssociatedTokenAddressSync,
   getAccount,
+  getMint,
 } from "@solana/spl-token";
 
 // ── Constants ────────────────────────────────────────────────
@@ -110,6 +111,7 @@ export interface TreasuryState {
   totalDistributedDev: number;
   totalDistributedEcosystem: number;
   totalHydration: number;
+  totalFeesReceived: number;
   minRunwayBalance: number;
 }
 
@@ -158,6 +160,10 @@ export async function createRTPToken(
     }),
   );
 
+  // Maximum fee ceiling in token lamports. Matches devnet-demo pattern.
+  // 1B lamports = 1000 tokens at 6 decimals — caps per-transfer fee at a reasonable level.
+  const maxFee = BigInt(config.supply) * BigInt(10 ** decimals) / BigInt(10);
+
   // Fee destination = treasury vault PDA for this specific mint
   transaction.add(
     createInitializeTransferFeeConfigInstruction(
@@ -165,7 +171,7 @@ export async function createRTPToken(
       payerPubkey,                  // fee config authority
       treasuryPDA,                  // withdraw_withheld_authority = Treasury PDA
       feeBps,
-      BigInt(Math.max(feeBps, 500)),
+      maxFee,
       TOKEN_2022_PROGRAM_ID,
     ),
   );
@@ -195,58 +201,84 @@ export async function createRTPToken(
     signature = await sendAndConfirmTransaction(connection, signed, []);
   }
 
-  // ── Keypair path: initialize treasury + mint supply ──
+  // ── Initialize treasury + mint supply ──
+
+  const holdersWallet = config.holdersWallet ?? payerPubkey;
+  const projectDevWallet = config.projectDevWallet ?? payerPubkey;
+  const ecosystemWallet = config.ecosystemWallet ?? payerPubkey;
+  const minRunwayBalance = config.minRunwayBalance ?? 10_000_000;
+
+  // Build the initialize instruction via Anchor
+  const idl = loadPatchedIdl();
+  const provider = new anchor.AnchorProvider(
+    connection,
+    payer instanceof Keypair ? new anchor.Wallet(payer) : { publicKey: payerPubkey } as any,
+    { commitment: "confirmed" },
+  );
+  const program = new anchor.Program(idl, provider);
+
+  const initTx = await program.methods
+    .initialize(new BN(minRunwayBalance))
+    .accounts({
+      mint: mintPubkey,
+      treasury: treasuryPDA,
+      treasuryVault: vaultPDA,
+      holdersWallet,
+      projectDevWallet,
+      ecosystemWallet,
+      authority: payerPubkey,
+      tokenProgram: TOKEN_2022_PROGRAM_ID,
+      systemProgram: SystemProgram.programId,
+    })
+    .transaction();
+
+  initTx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
+  initTx.feePayer = payerPubkey;
 
   if (payer instanceof Keypair) {
-    // Initialize the RTP treasury program for this mint
-    const idl = loadPatchedIdl();
-    const wallet = new anchor.Wallet(payer);
-    const provider = new anchor.AnchorProvider(connection, wallet, { commitment: "confirmed" });
-    const program = new anchor.Program(idl, provider);
+    await sendAndConfirmTransaction(connection, initTx, [payer]);
+  } else {
+    const signedInit = await payer.signTransaction(initTx);
+    await sendAndConfirmTransaction(connection, signedInit, []);
+  }
 
-    const holdersWallet = config.holdersWallet ?? payerPubkey;
-    const projectDevWallet = config.projectDevWallet ?? payerPubkey;
-    const ecosystemWallet = config.ecosystemWallet ?? payerPubkey;
-    const minRunwayBalance = config.minRunwayBalance ?? 10_000_000;
+  // Create ATA and mint initial supply
+  const supplyLamports = BigInt(config.supply) * BigInt(10 ** decimals);
+  const ata = getAssociatedTokenAddressSync(mintPubkey, payerPubkey, false, TOKEN_2022_PROGRAM_ID);
 
-    await program.methods
-      .initialize(new BN(minRunwayBalance))
-      .accounts({
-        mint: mintPubkey,
-        treasury: treasuryPDA,
-        treasuryVault: vaultPDA,
-        holdersWallet,
-        projectDevWallet,
-        ecosystemWallet,
-        authority: payerPubkey,
-        tokenProgram: TOKEN_2022_PROGRAM_ID,
-        systemProgram: SystemProgram.programId,
-      })
-      .rpc();
-
-    // Create ATA and mint initial supply
-    const supplyLamports = BigInt(config.supply) * BigInt(10 ** decimals);
-
-    const ata = await createAssociatedTokenAccount(
-      connection,
-      payer,
-      mintPubkey,
-      payer.publicKey,
-      undefined,
-      TOKEN_2022_PROGRAM_ID,
+  // Check if ATA exists, create if not
+  let ataInfo: any;
+  try {
+    ataInfo = await getAccount(connection, ata, "confirmed", TOKEN_2022_PROGRAM_ID);
+  } catch {
+    const createAtaIx = createAssociatedTokenAccountInstruction(
+      payerPubkey, ata, payerPubkey, mintPubkey, TOKEN_2022_PROGRAM_ID,
     );
+    const ataTx = new Transaction().add(createAtaIx);
+    ataTx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
+    ataTx.feePayer = payerPubkey;
 
-    await mintTo(
-      connection,
-      payer,
-      mintPubkey,
-      ata,
-      payer,
-      supplyLamports,
-      [],
-      { commitment: "confirmed" },
-      TOKEN_2022_PROGRAM_ID,
-    );
+    if (payer instanceof Keypair) {
+      await sendAndConfirmTransaction(connection, ataTx, [payer]);
+    } else {
+      const signedAta = await payer.signTransaction(ataTx);
+      await sendAndConfirmTransaction(connection, signedAta, []);
+    }
+  }
+
+  // Mint initial supply (raw Token-2022 instruction works for both Keypair and WalletAdapter)
+  const mintToIx = createMintToInstruction(
+    mintPubkey, ata, payerPubkey, supplyLamports, [], TOKEN_2022_PROGRAM_ID,
+  );
+  const mintTx = new Transaction().add(mintToIx);
+  mintTx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
+  mintTx.feePayer = payerPubkey;
+
+  if (payer instanceof Keypair) {
+    await sendAndConfirmTransaction(connection, mintTx, [payer]);
+  } else {
+    const signedMint = await payer.signTransaction(mintTx);
+    await sendAndConfirmTransaction(connection, signedMint, []);
   }
 
   const cluster = connection.rpcEndpoint.includes("devnet") ? "devnet" : "mainnet-beta";
@@ -288,6 +320,7 @@ export async function fetchTreasuryState(
       totalDistributedDev: 0,
       totalDistributedEcosystem: 0,
       totalHydration: 0,
+      totalFeesReceived: 0,
       minRunwayBalance: 0,
     };
   }
@@ -307,7 +340,14 @@ export async function fetchTreasuryState(
     // Vault doesn't exist yet
   }
 
-  const decimals = 6;
+  // Read actual decimals from the mint account (not hardcoded)
+  let decimals = 6;
+  try {
+    const mintInfo = await getMint(connection, mint, "confirmed", TOKEN_2022_PROGRAM_ID);
+    decimals = mintInfo.decimals;
+  } catch {
+    // Mint doesn't exist or not reachable — use default
+  }
 
   return {
     mint: mint.toBase58(),
@@ -318,6 +358,7 @@ export async function fetchTreasuryState(
     totalDistributedDev: Number(treasury.totalDistributedDev) / 10 ** decimals,
     totalDistributedEcosystem: Number(treasury.totalDistributedEcosystem) / 10 ** decimals,
     totalHydration: Number(treasury.totalHydration) / 10 ** decimals,
+    totalFeesReceived: Number(treasury.totalFeesReceivedLamports) / 10 ** decimals,
     minRunwayBalance: Number(treasury.minRunwayBalance) / 10 ** decimals,
   };
 }
