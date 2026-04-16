@@ -255,7 +255,7 @@ is not set, so the mainnet binary remains clean.
 
 | Sponsor | Use in RTP | Link |
 |---------|-----------|------|
-| Phantom Connect | **Phantom Portal app registered**. MCP server for AI agent wallet ops. Connect SDKs for dashboard UX. | https://docs.phantom.com/introduction |
+| Phantom Connect | **Phantom Portal app registered**. `@solana/wallet-adapter-react` wired to dashboard (/, /launch, /docs). Wallet connect + live token launch flow operational on devnet. MCP server for AI agent wallet ops. | https://docs.phantom.com/introduction |
 | CASH stablecoin | **Treasury yield settlement currency** | https://docs.phantom.com/phantom-connect |
 | Squads Multisig | Treasury PDA security (production path) | https://docs.squads.so |
 | Swig | Programmable smart wallets for wing message bus | https://docs.swig.fi |

@@ -72,9 +72,12 @@ export default function ResearchPage() {
             Docs
           </Link>
           <Link href="/launch" className="btn-connect" style={{ textDecoration: "none", fontSize: "0.8125rem", padding: "6px 14px" }}>
-            Launch
+            Platform Demo
           </Link>
-          <Link href="/" className="btn-connect" style={{ textDecoration: "none" }}>
+          <Link href="/research" className="btn-connect" style={{ textDecoration: "none", fontSize: "0.8125rem", padding: "6px 14px" }}>
+            Research
+          </Link>
+          <Link href="/" className="btn-connect" style={{ textDecoration: "none", fontSize: "0.8125rem", padding: "6px 14px" }}>
             Dashboard
           </Link>
         </div>

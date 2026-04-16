@@ -94,6 +94,10 @@ npm install @resilient-protocol/sdk @solana/web3.js @solana/spl-token @coral-xyz
 
 ```typescript
 import { createRTPToken } from "@resilient-protocol/sdk";
+import { Connection, Keypair } from "@solana/web3.js";
+
+const connection = new Connection("https://api.devnet.solana.com");
+const payer = Keypair.generate(); // or use a WalletAdapter from @solana/wallet-adapter-react
 
 const result = await createRTPToken(connection, payer, {
   name: "Community Token",
@@ -103,6 +107,16 @@ const result = await createRTPToken(connection, payer, {
 });
 
 // result.mint, result.treasuryPDA, result.vaultPDA
+```
+
+For browser wallets (e.g. Phantom), pass the wallet adapter directly — no keypair needed:
+```typescript
+import { useWallet, useConnection } from "@solana/wallet-adapter-react";
+
+const { publicKey, signTransaction } = useWallet();
+const { connection } = useConnection();
+
+const result = await createRTPToken(connection, { publicKey, signTransaction }, config);
 ```
 
 Three functions — that's the entire SDK: `createRTPToken()`, `fetchTreasuryState()`, `withdrawAndRedistribute()`. See [sdk/README.md](sdk/README.md) for details.

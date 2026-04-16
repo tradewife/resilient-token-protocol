@@ -273,11 +273,11 @@ export default function Home() {
           <Link href="/docs" className="btn-connect" style={{ textDecoration: "none", fontSize: "0.8125rem", padding: "6px 14px" }}>
             Docs
           </Link>
+          <Link href="/launch" className="btn-connect" style={{ textDecoration: "none", fontSize: "0.8125rem", padding: "6px 14px" }}>
+            Platform Demo
+          </Link>
           <Link href="/research" className="btn-connect" style={{ textDecoration: "none", fontSize: "0.8125rem", padding: "6px 14px" }}>
             Research
-          </Link>
-          <Link href="/launch" className="btn-connect" style={{ textDecoration: "none", fontSize: "0.8125rem", padding: "6px 14px" }}>
-            Launch
           </Link>
           {connected && publicKey ? (
             <div className="wallet-pill">
@@ -474,7 +474,7 @@ export default function Home() {
       <footer className="vitals">
         <div className="vital">
           <span className="vital-value">
-            4LvsHb...M8Ad{" "}
+            8rt6yi...2RB{" "}
             {liveness && (
               <span className={`liveness-badge ${liveness.live ? "live" : "down"}`}>
                 {liveness.live ? "● Live" : "● Recheck"}

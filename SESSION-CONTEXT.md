@@ -59,7 +59,7 @@ The execution path is **fully implemented**. BUY→fill→SELL→fill→PnL roun
   | Hyperliquid order signing | ETH keypair (`configs/hl_testnet_key.json`) via EIP-712 | ✅ READY |
   | Solana treasury CPI | `@phantom/server-sdk` v2.0.0 via `scripts/phantom_signer.ts` | ✅ INSTALLED (production path, creds deferred) |
   | Solana treasury CPI (demo) | Local devnet keypair via `sign_and_send_local()` | ✅ WORKING |
-  | Demo dashboard signing | `@phantom/browser-sdk` (Phase 5) | 🔌 Deferred |
+  | Demo dashboard signing | `@solana/wallet-adapter-react` (Phantom) | ✅ CONNECTED |
 
   > **Scope:** This is a Solana hackathon. Phantom signing covers the Solana CPI path. ETH keypair handles HL EIP-712 directly. Multi-chain Phantom expansion is post-hackathon scope.
 - `@phantom/server-sdk` v2.0.0 — agentic signing path for Solana CPI (published 2026-04-10)
@@ -93,7 +93,7 @@ Trading Wing (Rust)
 | Strategy validated (SOL/USDT Survivor 2.69) | ✅ DONE | — |
 | bridge.rs wires Python → Rust | ✅ DONE | — |
 | Trading Wing handles ExecutePermit | ✅ DONE | In-memory mock only |
-| Treasury deployed to devnet (8/8 steps) | ✅ DONE | Program `4LvsHb...`, PDA `FNQbK1...` |
+| Treasury deployed to devnet (8/8 steps) | ✅ DONE | Program `8rt6yi...`, PDA `FNQbK1...` |
 | Phantom ServerSDK v2.0.0 installed + sidecar | ✅ DONE | `@phantom/server-sdk` v2.0.0, `scripts/phantom_signer.ts` ready |
 | HL testnet API connectivity | ✅ DONE | 207 assets, SOL idx 0, order payload built |
 | HL Python integration script (fallback) | ✅ DONE | `scripts/hl_testnet_demo.py` — EIP-712 via web3.py (fallback) |
@@ -107,6 +107,7 @@ Trading Wing (Rust)
 | Treasury CPI transfer (sign) | ✅ DONE | Path C: `sign_and_send_local()` signs with devnet keypair (`~/.config/solana/id.json`), submits via JSON-RPC. Signing cascade: Phantom KMS → local keypair → manual fallback. 274 tests 0 failures. |
 | Deposit wired into execution path | ✅ DONE | `deposit_sol_yield_to_treasury()` converts USDC PnL to SOL at oracle price, builds native SOL `system_program::transfer` to treasury PDA. Replaces prior SPL token path for yield returns. Phantom → local keypair signing cascade. |
 | devnet end-to-end | ✅ DONE | TX builds + signs + submits to devnet. Signature confirmed on-chain: `45DrjL8q...` |
+| Phantom wallet connect (dashboard) | ✅ DONE | `@solana/wallet-adapter-react` + Phantom adapter wired on /, /launch, /docs. Live token launch on /launch. |
 
 **Execution path complete. Remaining work: SDK polish, demo rehearsal, submission.**
 
@@ -222,7 +223,7 @@ A judge must be able to verify these five things in under 3 minutes:
 | Decision | Status | Notes |
 |---|---|---|
 | Trust model for agent execution | OPEN | Multisig? Optimistic challenge? ZK? Not required for MVP demo. |
-| Demo UX | **DECISION: Browser dashboard** | Use `@phantom/browser-sdk` for connect flow in HTML dashboard. |
+| Demo UX | **DECISION: Browser dashboard** | `@solana/wallet-adapter-react` + Phantom. Wallet connect wired in topbar (/), /launch, /docs. Live token launch flow on /launch. |
 | Invariant 7 (soulguard reload sig) | CLOSED (documented) | Production TODO: ed25519 on reload(). Comment in soulguard.rs. Demo path unaffected. |
 | Hyperliquid testnet vs mainnet for demo | **DECISION: Testnet** | Safer for hackathon. Same API interface as mainnet. Judges care about the flow working end-to-end. |
 | Phantom signing architecture | **DECISION: Path C for demo** | Phantom KMS for production. Local devnet keypair for demo. Signing cascade: Phantom → local → manual. |
@@ -232,6 +233,37 @@ A judge must be able to verify these five things in under 3 minutes:
 ---
 
 ## 8. Session Status
+
+**Session 2026-04-17 — SDK Audit Fixes + Phantom Wallet Integration + Dashboard /docs**
+
+State as of Apr 17:
+- **306 tests (anchor: 34 passing), 0 failures, 0 clippy warnings**
+- **SDK signing bug fixed, Phantom wallet wired to dashboard, /docs interactive**
+- Demo-Readiness Score: 9.5/10
+
+**SDK fixes (this session):**
+
+| Change | File | Detail |
+|--------|------|--------|
+| WalletAdapter sendRawTransaction fix | `sdk/index.ts` | Replaced `sendAndConfirmTransaction(connection, signed, [])` with `sendRawTransaction` + `confirmTransaction`. New `sendTx()` helper handles both Keypair and WalletAdapter paths. |
+| WalletAdapter overload | `sdk/index.ts` | `withdrawAndRedistribute()` now accepts `Keypair \| WalletAdapter` — mirrors `createRTPToken()` pattern. |
+| IDL bundled inline | `sdk/idl.ts` | New file: IDL JSON exported as const. Eliminates `require()` file dependency — works as npm package. |
+| anchor.Wallet ESM fix | `sdk/index.ts` | Replaced `import * as anchor` with named imports (`AnchorProvider`, `BorshCoder`, `Program`). Added `kpWallet()` to avoid `anchor.Wallet` not found in ESM build. |
+
+**Dashboard integration (this session):**
+
+| Change | File | Detail |
+|--------|------|--------|
+| /launch live token flow | `dashboard/src/app/launch/page.tsx` | Full rewrite: wallet connect, form → confirm → Phantom signing → live mint creation on devnet. Shows mint/treasuryPDA/vaultPDA with explorer links. |
+| /docs "Try it live" | `dashboard/src/app/docs/page.tsx` | Interactive section: enter mint address → fetch live TreasuryState from devnet. Renders phase, balances, distributions as table. |
+| /docs + /launch wallet connect | Both pages | Topbar shows "Connect Wallet" button → wallet modal → connected pill with truncated address. |
+| Dashboard footer fix | `dashboard/src/app/page.tsx` | `4LvsHb...M8Ad` → `8rt6yi...2RB` (correct program ID). |
+| SDK local copy | `dashboard/src/lib/sdk/` | Copy of SDK with ESM-compatible imports. Needed because Turbopack can't resolve modules from symlinked external directories. |
+| Dependencies added | `dashboard/package.json` | `@coral-xyz/anchor`, `@solana/spl-token` for SDK functions. `@resilient-protocol/sdk` as file: link. |
+
+**Key design decision:** Dashboard uses `@solana/wallet-adapter-react` (already installed) for all wallet interactions. The `WalletContextProvider` wraps all pages via `layout.tsx`. Phantom and Solflare adapters configured. This is the standard Solana dApp pattern — no custom Phantom MCP needed for browser-side flows.
+
+---
 
 **Session 2026-04-15(ii) — SOL Yield Return Path + Demo Wiring**
 
@@ -628,5 +660,5 @@ Demo               = proof the institution persists without founder trust
 
 ---
 
-*Last updated: 2026-04-16 (session viii — SDK complete: createRTPToken/fetchTreasuryState/withdrawAndRedistribute, per-mint treasury PDAs, B2B launchpad framing, README/CLAUDE.md/SESSION-CONTEXT/SOULCONTRACT aligned. 306 tests, 0 failures. Next: demo rehearsal + Colosseum submission before May 11.)*
+*Last updated: 2026-04-17 (session ix — SDK audit: WalletAdapter signing fix, IDL inline bundling, anchor.Wallet ESM fix. Dashboard: /launch live token flow, /docs "Try it live", wallet connect on all pages. 306 tests, 0 failures. Next: demo rehearsal + Colosseum submission before May 11.)*
 *Update this file after each session that changes canonical decisions or resolves open decisions.*
