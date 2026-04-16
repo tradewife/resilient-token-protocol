@@ -17,7 +17,7 @@
 | Item | Value |
 |------|-------|
 | Program ID | `8rt6yiBnRTyHy8F69jUd7exWwwShUs4Eokeq41auo2RB` |
-| Treasury PDA | `FNQbK1Vw77aT7qM1EMSmeEPDGizSNhX4rkkYBKQNFotF` |
+| Treasury PDA | Per-mint — demo: `FNQbK1Vw77aT7qM1EMSmeEPDGizSNhX4rkkYBKQNFotF` |
 | Explorer | [View on Solana Explorer](https://explorer.solana.com/address/FNQbK1Vw77aT7qM1EMSmeEPDGizSNhX4rkkYBKQNFotF?cluster=devnet) |
 | Redistribution TX | [View transaction](https://explorer.solana.com/tx/9HzWgBfwYxs5ModdjF5mT6gdTfayQq8mMYipopyHfGPmYqk6KESHFqgDrc9Mcie573ttcdPqMHSyJP5nNBKK3bR?cluster=devnet) |
 
@@ -29,7 +29,7 @@
 
 ## Key Metrics
 
-- **301** Rust tests passing (**305** with devnet feature)
+- **306** Rust tests passing
 - **6** swarm wings (Trading, Security, Evolve, Knowledge, Audit, Futureproof)
 - **30K** strategy configs evaluated per symbol per night
 - **9-fold** walk-forward validation

@@ -45,8 +45,8 @@ Trading Wing (Rust, DONE)
 | Hyperliquid Python SDK | https://github.com/hyperliquid-dex/hyperliquid-python-sdk |
 | Hyperliquid Rust SDK | https://github.com/hyperliquid-dex/hyperliquid-rust-sdk |
 | Testnet endpoint | https://api.hyperliquid-testnet.xyz/exchange |
-| Phantom Connect docs | https://docs.phantom.app/phantom-connect/introduction |
-| CASH stablecoin docs | https://docs.phantom.app/phantom-connect/cash |
+| Phantom Connect docs | https://docs.phantom.com/phantom-connect |
+| CASH stablecoin docs | https://docs.phantom.com/phantom-connect |
 
 ### Signing Architecture
 - **HL order signing**: ETH keypair directly (`configs/hl_testnet_key.json`), EIP-712
@@ -59,8 +59,8 @@ Trading Wing (Rust, DONE)
 
 This repo has three layers:
 1. **Proven Python fractal-swarm** (shipping) — backtesting, optimization, paper trading
-2. **Rust swarm + Solana treasury** (built, 301 tests) — 6-wing architecture, Coordinator, soulcontract
-3. **Hyperliquid execution** (critical gap) — Trading Wing → HL testnet → yield → treasury PDA
+2. **Rust swarm + Solana treasury** (built, 306 tests) — 6-wing architecture, Coordinator, soulcontract
+3. **Hyperliquid execution** (done — devnet verified) — Trading Wing → HL testnet → yield → treasury PDA
 
 ---
 
@@ -255,8 +255,8 @@ is not set, so the mainnet binary remains clean.
 
 | Sponsor | Use in RTP | Link |
 |---------|-----------|------|
-| Phantom Connect | **Solana CPI signing via ServerSDK v2.0.0**. Portal app "RTP Trading Wing" registered. Embedded wallet (KMS-backed). | https://docs.phantom.app/phantom-connect/introduction |
-| CASH stablecoin | **Treasury yield settlement currency** | https://docs.phantom.app/phantom-connect/cash |
+| Phantom Connect | **Phantom Portal app registered**. MCP server for AI agent wallet ops. Connect SDKs for dashboard UX. | https://docs.phantom.com/introduction |
+| CASH stablecoin | **Treasury yield settlement currency** | https://docs.phantom.com/phantom-connect |
 | Squads Multisig | Treasury PDA security (production path) | https://docs.squads.so |
 | Swig | Programmable smart wallets for wing message bus | https://docs.swig.fi |
 | MoonPay Agents | Agent money movement infrastructure | https://www.moonpay.com/developers/agents |
@@ -300,6 +300,7 @@ This is the config the Trading Wing targets on Hyperliquid.
 - **Swarm CI**: `swarm-ci.yml` — cargo build + test + clippy + fmt + anchor build
 - **Devnet loop**: `devnet-loop.yml` — cron every 6h + manual dispatch, runs rtp-daemon, commits cycle output
 - **Binance geo-blocked on GitHub runners** — OHLCV data in `data/ohlcv/`, fetch defaults to `false`
+- **All workflow push/PR triggers currently paused** (workflow_dispatch only) to conserve Actions minutes. Re-enable `swarm-ci.yml` push trigger before May 11 submission for one final green CI run.
 
 ---
 

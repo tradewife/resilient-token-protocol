@@ -30,7 +30,7 @@ A Solana-native, self-funding treasury governed by a modular Rust swarm. Any tok
 
 ## The One-Liner
 
-Any token project adopts RTP, their trading fees feed a swarm that researches, validates, and executes yield strategies — returning yield back to the project and its token holders, autonomously, verifiably, and forever.
+Any launch platform integrates RTP — one function call per token launch. Transfer fees route to a program-owned treasury vault. An autonomous swarm generates yield, returns it to the project and holders, forever. There is no RTP token. RTP is infrastructure.
 
 ## Why This Is Different
 
@@ -86,6 +86,27 @@ This is not a backtest screenshot. These are out-of-sample walk-forward results 
 
 See [docs/demo-flow.md](docs/demo-flow.md) for the 3-minute hackathon demo script.
 
+## SDK — One Function Call
+
+```bash
+npm install @resilient-protocol/sdk @solana/web3.js @solana/spl-token @coral-xyz/anchor
+```
+
+```typescript
+import { createRTPToken } from "@resilient-protocol/sdk";
+
+const result = await createRTPToken(connection, payer, {
+  name: "Community Token",
+  symbol: "CMTY",
+  supply: 1_000_000_000,
+  feeBps: 200,  // 2% transfer fee → treasury vault
+});
+
+// result.mint, result.treasuryPDA, result.vaultPDA
+```
+
+Three functions — that's the entire SDK: `createRTPToken()`, `fetchTreasuryState()`, `withdrawAndRedistribute()`. See [sdk/README.md](sdk/README.md) for details.
+
 ## Live on Devnet
 
 Treasury program deployed and operational on Solana devnet (Apr 11 2026).
@@ -93,8 +114,8 @@ Treasury program deployed and operational on Solana devnet (Apr 11 2026).
 | Item | Value |
 |------|-------|
 | Program ID | `8rt6yiBnRTyHy8F69jUd7exWwwShUs4Eokeq41auo2RB` |
-| Treasury PDA | `FNQbK1Vw77aT7qM1EMSmeEPDGizSNhX4rkkYBKQNFotF` |
-| Explorer | [View on Solana Explorer](https://explorer.solana.com/address/FNQbK1Vw77aT7qM1EMSmeEPDGizSNhX4rkkYBKQNFotF?cluster=devnet) |
+| Treasury PDA | Per-mint — demo: `FNQbK1Vw77aT7qM1EMSmeEPDGizSNhX4rkkYBKQNFotF` |
+| Explorer | [View demo treasury](https://explorer.solana.com/address/FNQbK1Vw77aT7qM1EMSmeEPDGizSNhX4rkkYBKQNFotF?cluster=devnet) |
 | Redistribution tx | [View transaction](https://explorer.solana.com/tx/9HzWgBfwYxs5ModdjF5mT6gdTfayQq8mMYipopyHfGPmYqk6KESHFqgDrc9Mcie573ttcdPqMHSyJP5nNBKK3bR?cluster=devnet) |
 
 8/8 on-chain steps completed including live redistribution (70/20/10 split).
@@ -451,10 +472,10 @@ Single asset on-chain (SOL). USDC only exists in-flight on Hyperliquid. Trustles
 
 ## What This Is Not
 
-- **Not a meme coin** — RTP is infrastructure, not a token (initially)
+- **Not a token** — there is no RTP token. RTP is pure infrastructure that serves the tokens that adopt it
 - **Not a vault** — no custody of user funds, no withdrawal interface
 - **Not dependent on LLMs** — core loop is deterministic Python; LLMs optional for hypothesis generation
-- **Not just a trading bot** — it's a token standard that any Solana project can adopt
+- **Not just a trading bot** — it's infrastructure that any launch platform can integrate
 - **Not requiring venture infrastructure** — runs on a single machine, no database, no Kubernetes
 - **Not liquidating community SOL** — SOL is bridged to USDC via Phantom (trustless), never sold on the open market. SOL on the treasury PDA is never at risk of liquidation.
 
@@ -474,7 +495,7 @@ The Trading Wing's research layer is shipping today. Everything else is scaffold
 | Treasury Program (Anchor: deposit, distribute, hydrate, evolve) | — | Solana | **Built** (audit remediated) |
 | soulcontract.md (constitutional governance layer) | — | Governance | **Defined** |
 | Python ↔ Rust Bridge (typed JSON, bridge-mode subprocess) | Trading | Both | **Built** |
-| Coordinator (soulguard + router + lifecycle) | — | Rust | **Built** (301 tests) |
+| Coordinator (soulguard + router + lifecycle) | — | Rust | **Built** (306 tests) |
 | Evolve Wing (assessor + proposer + rollback) | Evolve | Rust | **Built** |
 | Audit Wing (3-agent tribunal, Byzantine consensus) | Audit | Rust | **Built** |
 | Trading Wing (bridge-backed execution, in-memory state) | Trading | Rust | **Built** |
@@ -541,7 +562,6 @@ rtp/
 └── .github/workflows/
     ├── night_shift.yml             # Nightly research pipeline
     ├── swarm-ci.yml                # Rust build + test + clippy + anchor build
-    ├── python-tests.yml            # Python lint + smoke tests
     └── devnet-loop.yml             # 6h autonomous devnet cycle
 ```
 
@@ -574,7 +594,7 @@ Treasury program audit-remediated. All 6 wings built. Coordinator with full qual
 - ✅ Python ↔ Rust typed bridge (`rtp/swarm/src/bridge.rs`)
 - ✅ End-to-end demo loop (`rtp/swarm/src/demo.rs`, 8-step pipeline)
 - ✅ Autonomous devnet loop (`rtp-daemon` binary, 6h CI cron, LLM mutations)
-- ✅ Test suite: 305 tests, 0 failures, 0 clippy warnings (anchor: 34 passing).
+- ✅ Test suite: 306 tests, 0 failures, 0 clippy warnings (anchor: 34 passing).
 
 ### Phase 2: End-to-End Integration + Full Loop
 
@@ -628,7 +648,7 @@ cargo run --bin rtp-daemon
 | **Functionality** | ? | Working demo with real transactions | Live: adopt→fees→swarm→yield→redistribute on devnet |
 | **Potential Impact** | ? | Project with lasting real-world value | Any Solana token can adopt — unruggable yield standard |
 | **Novelty** | ? | Novel approach, original architecture | Six-wing modular swarm + token adoption model |
-| **UX** | ? | Great demo experience | Phantom ServerSDK (agentic Solana wallet) + CASH flows, devnet treasury live, 3-min demo |
+| **UX** | ? | Great demo experience | Phantom Connect + MCP server (agentic wallet), devnet treasury live, 3-min demo |
 | **Open-source** | ? | Clean, well-documented repo | Full swarm arch + treasury program (MIT), clean repo history |
 | **Business Plan** | ? | Viable business model | Adoption fees → self-funding swarm → yield back to holders |
 

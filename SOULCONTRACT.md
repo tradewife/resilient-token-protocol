@@ -32,21 +32,21 @@ SOL in → USDC (Phantom bridge) → trade on Hyperliquid → USDC yield → SOL
 
 ### Core Invariant
 
-> **The protocol accepts SOL, operates in USDC on Hyperliquid, and returns SOL.** The conversion is handled trustlessly by the Phantom bridge. The treasury PDA holds SOL reserves; the HL clearinghouse holds USDC working capital.
+> **Each adopting token's transfer fees flow to its per-mint treasury vault PDA.** The swarm trades yield strategies on Hyperliquid (USDC-margined). Yield returns to the treasury for redistribution.
 
 ### Capital Flow
 
 | Step | Asset | Location | Mechanism |
 |------|-------|----------|-----------|
-| 1. Fees arrive | SOL | Treasury PDA (Solana) | TransferFeeConfig from adopting token projects |
+| 1. Fees arrive | Token | Treasury vault PDA (Solana) | TransferFeeConfig — per-mint vault receives withheld fees |
 | 2. Fund trading | SOL → USDC | Phantom bridge (mainnet) | Trustless swap at oracle price, 0.3% fee |
 | 3. Execute strategies | USDC | HL clearinghouse | USDC-margined perps, EIP-712 signed |
 | 4. Yield returns | USDC → SOL | Phantom bridge (mainnet) | Trustless swap at oracle price |
-| 5. Redistribute | SOL | Treasury PDA | 70% holders / 20% dev / 10% ecosystem (on-chain) |
+| 5. Redistribute | Token | Treasury vault PDA | 70% holders / 20% dev / 10% ecosystem (on-chain) |
 
 ### Why This Model
 
-- **Single asset on-chain**: the treasury PDA only holds SOL. Judges can verify the full balance on Solana Explorer. No cross-chain reconciliation needed.
+- **Per-mint isolation**: each adopting token has its own treasury PDA and vault. Judges can verify any token's treasury balance on Solana Explorer.
 - **USDC only in-flight**: Hyperliquid positions are USDC-margined. SOL is never at risk of liquidation on HL.
 - **Trustless conversion**: the Phantom bridge handles SOL↔USDC without custodial risk. The swarm never holds USDC off-chain.
 - **Auditable**: every step produces an on-chain signature or API receipt. The full cycle is visible in demo output.
@@ -123,7 +123,7 @@ No strategy goes live or stays live without clearing codified gates. All thresho
 |----------|-----|
 | Hyperliquid API | https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api |
 | Hyperliquid Rust SDK | https://github.com/hyperliquid-dex/hyperliquid-rust-sdk |
-| Phantom Connect | https://docs.phantom.app/phantom-connect/introduction |
+| Phantom Connect | https://docs.phantom.com/phantom-connect |
 | MoonPay Agents | https://www.moonpay.com/developers/agents |
 | Treasury program | `rtp/programs/rtp-treasury/` |
 | Soulguard enforcement | `rtp/swarm/src/coordinator/soulguard.rs` |

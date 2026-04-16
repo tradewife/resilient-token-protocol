@@ -6,6 +6,7 @@
   "types": "index.ts",
   "license": "MIT",
   "peerDependencies": {
+    "@coral-xyz/anchor": "^0.31.0",
     "@solana/web3.js": "^1.95.0",
     "@solana/spl-token": "^0.4.0"
   },
