@@ -270,6 +270,9 @@ export default function Home() {
         </div>
         <div className="topbar-actions">
           <span className="network-badge">Devnet</span>
+          <Link href="/docs" className="btn-connect" style={{ textDecoration: "none", fontSize: "0.8125rem", padding: "6px 14px" }}>
+            Docs
+          </Link>
           <Link href="/research" className="btn-connect" style={{ textDecoration: "none", fontSize: "0.8125rem", padding: "6px 14px" }}>
             Research
           </Link>

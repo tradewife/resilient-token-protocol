@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import Link from "next/link";
 
-const TREASURY_VAULT = "FNQbK1Vw77aT7qM1EMSmeEPDGizSNhX4rkkYBKQNFotF";
+const RTP_PROGRAM_ID = "8rt6yiBnRTyHy8F69jUd7exWwwShUs4Eokeq41auo2RB";
 
 interface FormData {
   projectName: string;
@@ -47,7 +47,9 @@ const result = await createRTPToken(connection, payer, {
 });
 
 console.log("Mint:", result.mint);
-// Fee destination: ${TREASURY_VAULT} (hardcoded, immutable)`;
+console.log("Treasury PDA:", result.treasuryPDA);
+console.log("Vault PDA:", result.vaultPDA);
+// Fee destination: per-mint vault PDA (program-owned, immutable)`;
 
   return (
     <div className="page">
@@ -60,6 +62,9 @@ console.log("Mint:", result.mint);
           </Link>
         </div>
         <div className="topbar-actions">
+          <Link href="/docs" className="btn-connect" style={{ textDecoration: "none", fontSize: "0.8125rem", padding: "6px 14px" }}>
+            Docs
+          </Link>
           <Link href="/research" className="btn-connect" style={{ textDecoration: "none", fontSize: "0.8125rem", padding: "6px 14px" }}>
             Research
           </Link>
@@ -72,7 +77,7 @@ console.log("Mint:", result.mint);
       <section className="launch-hero">
         <h1 className="launch-title">Launch Your Token with RTP</h1>
         <p className="launch-subtitle">
-          Create a Token-2022 mint whose transfer fees permanently route to the RTP treasury vault.
+          Create a Token-2022 mint whose transfer fees permanently route to a per-mint treasury vault PDA.
           No RTP token. No middleman. Just enforced economics.
         </p>
       </section>
@@ -162,9 +167,9 @@ console.log("Mint:", result.mint);
             </div>
 
             <div className="form-note">
-              The transfer fee destination is hardcoded to the RTP treasury vault
-              (<code>{TREASURY_VAULT.slice(0, 8)}...{TREASURY_VAULT.slice(-4)}</code>).
-              This cannot be changed — it is a constitutional invariant of the protocol.
+              The transfer fee destination is a per-mint vault PDA derived from the program ID
+              (<code>{RTP_PROGRAM_ID.slice(0, 8)}...{RTP_PROGRAM_ID.slice(-4)}</code>).
+              Each token gets its own treasury — no shared vault, no single point of failure.
             </div>
 
             <button type="submit" className="btn-launch">
@@ -206,8 +211,8 @@ console.log("Mint:", result.mint);
           <div className="result-info">
             <div className="info-card">
               <span className="info-label">Fee Destination</span>
-              <span className="info-value">{TREASURY_VAULT}</span>
-              <span className="info-note">Hardcoded — cannot be redirected</span>
+              <span className="info-value">Per-mint vault PDA</span>
+              <span className="info-note">Program-owned — derived from your mint address</span>
             </div>
             <div className="info-card">
               <span className="info-label">Token Standard</span>
@@ -230,8 +235,12 @@ console.log("Mint:", result.mint);
           <span className="vital-label">Protocol</span>
         </div>
         <div className="vital">
-          <span className="vital-value">{TREASURY_VAULT.slice(0, 8)}...{TREASURY_VAULT.slice(-4)}</span>
-          <span className="vital-label">Treasury Vault (immutable)</span>
+          <span className="vital-value">{RTP_PROGRAM_ID.slice(0, 8)}...{RTP_PROGRAM_ID.slice(-4)}</span>
+          <span className="vital-label">Program ID</span>
+        </div>
+        <div className="vital">
+          <span className="vital-value">Per-mint PDA</span>
+          <span className="vital-label">Treasury Vault</span>
         </div>
         <div className="vital">
           <span className="vital-value">MIT</span>
