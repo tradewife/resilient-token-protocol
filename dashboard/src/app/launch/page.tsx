@@ -1,9 +1,15 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import Link from "next/link";
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
+import {
+  VersionedTransaction,
+  Transaction,
+  Keypair,
+  PublicKey,
+} from "@solana/web3.js";
 import {
   createRTPToken,
   fetchTreasuryState,
@@ -28,274 +34,271 @@ interface PlatformDef {
 }
 
 const PLATFORMS: PlatformDef[] = [
-  {
-    id: "rtp",
-    name: "RTP Direct",
-    color: "var(--coral)",
-    desc: "Token-2022 with TransferFeeConfig",
-    token: "Token-2022",
-  },
-  {
-    id: "metaplex",
-    name: "Metaplex",
-    color: "#4169E1",
-    desc: "Fair launch via Genesis Launch Pool",
-    token: "SPL (standard)",
-  },
-  {
-    id: "pumpfun",
-    name: "Pump.fun",
-    color: "#00d18c",
-    desc: "Bonding curve memecoin launch",
-    token: "SPL (bonding curve)",
-  },
-  {
-    id: "bags",
-    name: "Bags.fm",
-    color: "#7C3AED",
-    desc: "Fee sharing on Meteora DLMM",
-    token: "SPL (Meteora DLMM)",
-  },
+  { id: "rtp", name: "RTP Direct", color: "var(--coral)", desc: "Token-2022 with TransferFeeConfig", token: "Token-2022" },
+  { id: "metaplex", name: "Metaplex", color: "#4169E1", desc: "Fair launch via Genesis Launch Pool", token: "SPL (standard)" },
+  { id: "pumpfun", name: "Pump.fun", color: "#00d18c", desc: "Bonding curve memecoin launch", token: "SPL (bonding curve)" },
+  { id: "bags", name: "Bags.fm", color: "#B8A9E8", desc: "Fee sharing on Meteora DLMM", token: "SPL (Meteora DLMM)" },
 ];
 
-// ── Code generators ─────────────────────────────────────────
+// ── Types ───────────────────────────────────────────────────
 
-function generateRTPSnippet(f: { projectName: string; tokenSymbol: string; totalSupply: string; feeBps: string }): string {
-  const name = f.projectName || "My Token";
-  const symbol = f.tokenSymbol || "TKN";
-  const supply = f.totalSupply || "1_000_000_000";
-  const feeBps = f.feeBps || "200";
-  return `import { createRTPToken } from "@resilient-protocol/sdk";
-import { Connection, Keypair } from "@solana/web3.js";
+type LaunchPhase = "form" | "confirming" | "launching" | "rtp_init" | "success" | "error";
 
-const connection = new Connection("https://api.devnet.solana.com");
-const payer = Keypair.generate(); // your launchpad keypair
-
-const result = await createRTPToken(connection, payer, {
-  name: "${name}",
-  symbol: "${symbol}",
-  supply: ${supply},
-  feeBps: ${feeBps},  // ${(parseInt(feeBps) / 100).toFixed(0)}% transfer fee
-});
-
-console.log("Mint:", result.mint);
-console.log("Treasury PDA:", result.treasuryPDA);
-console.log("Vault PDA:", result.vaultPDA);
-// Fee destination: per-mint vault PDA (program-owned, immutable)`;
+interface LaunchResult {
+  mint: string;
+  signature: string;
+  explorerUrl: string;
+  platform: Platform;
+  treasuryPDA?: string;
+  vaultPDA?: string;
 }
 
-function generateMetaplexSnippet(f: { projectName: string; tokenSymbol: string; metaSupply: string; launchType: string; pricePerToken: string }): string {
-  const name = f.projectName || "My Token";
-  const symbol = f.tokenSymbol || "TKN";
-  const supply = f.metaSupply || "1_000_000_000";
-  const lt = f.launchType || "launchpool";
-  const raiseGoal = f.pricePerToken || "250";
-  return `import {
-  createAndRegisterLaunch,
-  type CreateLaunchInput,
-  genesis,
-} from "@metaplex-foundation/genesis";
-import { createUmi } from "@metaplex-foundation/umi-bundle-defaults";
-import { keypairIdentity } from "@metaplex-foundation/umi";
-import { createRTPToken } from "@resilient-protocol/sdk";
-import { Connection, Keypair } from "@solana/web3.js";
+// ── Helpers ─────────────────────────────────────────────────
 
-// Genesis SDK uses Umi (not the old Metaplex JS SDK)
-const umi = createUmi("https://api.mainnet-beta.solana.com").use(genesis());
-const payer = Keypair.generate();
-umi.use(keypairIdentity(payer));
-
-const input: CreateLaunchInput = {
-  wallet: umi.identity.publicKey,
-  token: {
-    name: "${name}",
-    symbol: "${symbol}",
-    image: "https://gateway.irys.xyz/YOUR_IMAGE_CID",
-    description: "Launched via RTP + Metaplex Genesis",
-  },
-  launchType: "${lt}",
-  launch: {
-    launchpool: {
-      tokenAllocation: ${supply},       // tokens to sell
-      depositStartTime: new Date(Date.now() + 48 * 60 * 60 * 1000),
-      raiseGoal: ${raiseGoal},            // SOL to raise (min 250)
-      raydiumLiquidityBps: 5000,          // 50% to Raydium LP
-      fundsRecipient: umi.identity.publicKey,
-    },
-  },
-};
-
-// One call: creates accounts, signs, sends, registers
-const result = await createAndRegisterLaunch(umi, {}, input);
-console.log("Launch live at:", result.launch.link);
-console.log("Mint:", result.mintAddress);
-
-// Initialize RTP treasury for the new mint
-const connection = new Connection("https://api.mainnet-beta.solana.com");
-const rtpResult = await createRTPToken(connection, payer, {
-  name: "${name}",
-  symbol: "${symbol}",
-  supply: ${supply},
-  feeBps: 200,  // 2% transfer fee to treasury
-});
-console.log("RTP Treasury PDA:", rtpResult.treasuryPDA);`;
+async function sendAndConfirm(
+  connection: any,
+  signedTx: VersionedTransaction | Transaction,
+): Promise<string> {
+  const raw = signedTx.serialize();
+  const sig = await connection.sendRawTransaction(raw, { skipPreflight: false, maxRetries: 3 });
+  const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
+  await connection.confirmTransaction({ signature: sig, blockhash, lastValidBlockHeight }, "confirmed");
+  return sig;
 }
 
-function generatePumpSnippet(f: { projectName: string; tokenSymbol: string; description: string; imageUrl: string; website: string; twitter: string; telegram: string; devBuyAmount: string }): string {
-  const name = f.projectName || "My Token";
-  const symbol = f.tokenSymbol || "TKN";
-  const buyAmt = f.devBuyAmount || "0.1";
-  return `import {
-  Connection,
-  Keypair,
-  VersionedTransaction,
-} from "@solana/web3.js";
-import { createRTPToken } from "@resilient-protocol/sdk";
+function getStored(key: string): string {
+  if (typeof window === "undefined") return "";
+  return localStorage.getItem(key) || "";
+}
 
-const connection = new Connection("https://api.mainnet-beta.solana.com");
-const mintKeypair = Keypair.generate();
-const payer = Keypair.generate(); // your wallet keypair
+function setStored(key: string, val: string) {
+  if (typeof window !== "undefined") localStorage.setItem(key, val);
+}
 
-// 1. Upload metadata to IPFS (e.g. Pinata)
-//    POST image to https://uploads.pinata.cloud/v3/files
-//    Then POST JSON metadata { name, symbol, image, description, ... }
-//    to get a metadata URI (https://ipfs.io/ipfs/CID)
+// ── Upload metadata JSON to Pinata (optional) ──────────────
 
-// 2. Get the create transaction from PumpPortal
-const response = await fetch("https://pumpportal.fun/api/trade-local", {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({
-    publicKey: payer.publicKey.toBase58(),
-    action: "create",
-    tokenMetadata: {
-      name: "${name}",
-      symbol: "${symbol}",
-      uri: "https://ipfs.io/ipfs/YOUR_METADATA_CID",
-    },
+async function uploadMetadataToPinata(jwt: string, metadata: object): Promise<string | null> {
+  try {
+    const res = await fetch("https://api.pinata.cloud/pinning/pinJSONToIPFS", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${jwt}` },
+      body: JSON.stringify({ pinataContent: metadata }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return `https://ipfs.io/ipfs/${data.IpfsHash}`;
+  } catch {
+    return null;
+  }
+}
+
+// ── Pump.fun launch ────────────────────────────────────────
+
+async function launchPumpFun({
+  connection, wallet, name, symbol, imageUrl, description, website, twitter, telegram, devBuyAmount,
+}: {
+  connection: any;
+  wallet: { publicKey: PublicKey; signTransaction: <T extends VersionedTransaction | Transaction>(tx: T) => Promise<T> };
+  name: string; symbol: string; imageUrl: string; description: string;
+  website: string; twitter: string; telegram: string; devBuyAmount: number;
+}): Promise<LaunchResult> {
+  const mintKeypair = Keypair.generate();
+
+  // Build metadata
+  const metadata: Record<string, any> = { name, symbol, description: description || "", image: imageUrl || "", showName: true };
+  const extensions: Record<string, string> = {};
+  if (website) extensions.website = website;
+  if (twitter) extensions.twitter = twitter;
+  if (telegram) extensions.telegram = telegram;
+  if (Object.keys(extensions).length > 0) metadata.extensions = extensions;
+
+  // Try Pinata IPFS upload
+  let metadataUri = imageUrl || "";
+  const pinataJwt = getStored("rtp_pinata_jwt");
+  if (pinataJwt) {
+    const uri = await uploadMetadataToPinata(pinataJwt, metadata);
+    if (uri) metadataUri = uri;
+  }
+
+  // Get create transaction from PumpPortal
+  const response = await fetch("https://pumpportal.fun/api/trade-local", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      publicKey: wallet.publicKey.toBase58(),
+      action: "create",
+      tokenMetadata: { name, symbol, uri: metadataUri },
+      mint: mintKeypair.publicKey.toBase58(),
+      denominatedInSol: "true",
+      amount: devBuyAmount,
+      slippage: 10,
+      priorityFee: 0.00005,
+      pool: "pump",
+    }),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`PumpPortal error (${response.status}): ${text}`);
+  }
+
+  const txData = await response.arrayBuffer();
+  const tx = VersionedTransaction.deserialize(new Uint8Array(txData));
+  tx.sign([mintKeypair]);
+  const signedTx = await wallet.signTransaction(tx);
+  const sig = await sendAndConfirm(connection, signedTx);
+
+  return {
     mint: mintKeypair.publicKey.toBase58(),
-    denominatedInSol: "true",
-    amount: ${buyAmt},       // dev buy in SOL
-    slippage: 10,
-    priorityFee: 0.00005,
-    pool: "pump",
-  }),
-});
-
-if (!response.ok) throw new Error("PumpPortal create failed: " + response.statusText);
-const txData = await response.arrayBuffer();
-
-// 3. Sign with mint keypair + payer, then send
-const tx = VersionedTransaction.deserialize(new Uint8Array(txData));
-tx.sign([mintKeypair, payer]);
-const sig = await connection.sendTransaction(tx);
-console.log("Pump.fun tx:", sig);
-
-// 4. Initialize RTP treasury (separate step — Pump.fun uses standard SPL)
-const rtpResult = await createRTPToken(connection, payer, {
-  name: "${name}",
-  symbol: "${symbol}",
-  supply: 1_000_000_000,
-  feeBps: 200,
-});
-console.log("RTP Treasury PDA:", rtpResult.treasuryPDA);`;
+    signature: sig,
+    explorerUrl: `https://explorer.solana.com/tx/${sig}?cluster=mainnet-beta`,
+    platform: "pumpfun",
+  };
 }
 
-function generateBagsSnippet(f: { projectName: string; tokenSymbol: string; description: string; imageUrl: string; website: string; twitter: string; telegram: string; bagsBuyAmount: string; feeClaimers: string }): string {
-  const name = f.projectName || "My Token";
-  const symbol = f.tokenSymbol || "TKN";
-  const desc = f.description || "A new token on Bags.fm";
-  const img = f.imageUrl || "https://example.com/token.png";
-  const buyAmt = f.bagsBuyAmount || "0.1";
-  const claimers = f.feeClaimers || "";
-  const socialParams = [
-    f.twitter ? `    twitter: "${f.twitter}",` : null,
-    f.website ? `    website: "${f.website}",` : null,
-    f.telegram ? `    telegram: "${f.telegram}",` : null,
-  ].filter(Boolean).join("\n");
-  return `import {
-  BagsSDK,
-  signAndSendTransaction,
-} from "@bagsfm/bags-sdk";
-import { Connection, Keypair, LAMPORTS_PER_SOL } from "@solana/web3.js";
-import bs58 from "bs58";
-import { createRTPToken } from "@resilient-protocol/sdk";
+// ── Metaplex Genesis launch (REST) ─────────────────────────
 
-const connection = new Connection("https://api.mainnet-beta.solana.com");
-const keypair = Keypair.fromSecretKey(bs58.decode("YOUR_BASE58_KEY"));
-const sdk = new BagsSDK("YOUR_BAGS_API_KEY", connection, "processed");
+async function launchMetaplex({
+  connection, wallet, name, symbol, imageUrl, description, supply, raiseGoal,
+}: {
+  connection: any;
+  wallet: { publicKey: PublicKey; signTransaction: <T extends VersionedTransaction | Transaction>(tx: T) => Promise<T> };
+  name: string; symbol: string; imageUrl: string; description: string;
+  supply: number; raiseGoal: number;
+}): Promise<LaunchResult> {
+  const createRes = await fetch("https://api.metaplex.com/v1/launches/create", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      wallet: wallet.publicKey.toBase58(),
+      token: { name, symbol, image: imageUrl || "", description: description || "Launched via RTP + Metaplex Genesis" },
+      launchType: "launchpool",
+      launch: {
+        launchpool: {
+          tokenAllocation: supply,
+          depositStartTime: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString(),
+          raiseGoal,
+          raydiumLiquidityBps: 5000,
+          fundsRecipient: wallet.publicKey.toBase58(),
+        },
+      },
+    }),
+  });
 
-// Step 1: Create token info + metadata (IPFS handled by Bags API)
-const tokenInfo = await sdk.tokenLaunch.createTokenInfoAndMetadata({
-  imageUrl: "${img}",
-  name: "${name}",
-  symbol: "${symbol}".toUpperCase().replace("$", ""),
-  description: "${desc}",
-${socialParams}
-});
-console.log("Token mint:", tokenInfo.tokenMint);
+  if (!createRes.ok) {
+    const text = await createRes.text();
+    throw new Error(`Metaplex API error (${createRes.status}): ${text}`);
+  }
 
-// Step 2: Create fee share config
-${claimers ? `// Set RTP treasury PDA as a fee claimer — fees route to treasury automatically
-const feeClaimers = [{ user: keypair.publicKey, userBps: 7000 }, { user: new PublicKey("${claimers}"), userBps: 3000 }];
-` : `// All fees to creator — set fee claimer to RTP treasury PDA if desired
-const feeClaimers = [{ user: keypair.publicKey, userBps: 10000 }];
-`}const configResult = await sdk.config.createBagsFeeShareConfig({
-  payer: keypair.publicKey,
-  baseMint: new PublicKey(tokenInfo.tokenMint),
-  feeClaimers,
-});
-for (const tx of configResult.transactions || []) {
-  await signAndSendTransaction(connection, "processed", tx, keypair);
+  const createData = await createRes.json();
+  let lastSig = "";
+  const mintAddress = createData.mintAddress || "";
+
+  for (const txBase64 of createData.transactions || []) {
+    const tx = Transaction.from(Buffer.from(txBase64, "base64"));
+    const signed = await wallet.signTransaction(tx);
+    lastSig = await sendAndConfirm(connection, signed);
+  }
+
+  // Register launch (best-effort)
+  try {
+    await fetch("https://api.metaplex.com/v1/launches/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ launchId: createData.launchId, wallet: wallet.publicKey.toBase58() }),
+    });
+  } catch { /* best-effort */ }
+
+  return {
+    mint: mintAddress,
+    signature: lastSig,
+    explorerUrl: `https://explorer.solana.com/tx/${lastSig}?cluster=mainnet-beta`,
+    platform: "metaplex",
+  };
 }
-console.log("Config key:", configResult.meteoraConfigKey.toString());
 
-// Step 3: Get token launch transaction
-const launchTx = await sdk.tokenLaunch.createLaunchTransaction({
-  metadataUrl: tokenInfo.tokenMetadata,
-  tokenMint: new PublicKey(tokenInfo.tokenMint),
-  launchWallet: keypair.publicKey,
-  initialBuyLamports: ${buyAmt} * LAMPORTS_PER_SOL,
-  configKey: configResult.meteoraConfigKey,
-});
-const sig = await signAndSendTransaction(connection, "processed", launchTx, keypair);
-console.log("Launch sig:", sig);
+// ── Bags.fm launch (REST + API key) ────────────────────────
 
-// Step 4: Initialize RTP treasury
-const rtpResult = await createRTPToken(connection, keypair, {
-  name: "${name}",
-  symbol: "${symbol}",
-  supply: 1_000_000_000,
-  feeBps: 200,
-});
-console.log("RTP Treasury PDA:", rtpResult.treasuryPDA);
-console.log("View: https://bags.fm/" + tokenInfo.tokenMint);`;
+async function launchBags({
+  connection, wallet, apiKey, name, symbol, imageUrl, description,
+  website, twitter, telegram, buyAmount, feeClaimers,
+}: {
+  connection: any;
+  wallet: { publicKey: PublicKey; signTransaction: <T extends VersionedTransaction | Transaction>(tx: T) => Promise<T> };
+  apiKey: string; name: string; symbol: string; imageUrl: string; description: string;
+  website: string; twitter: string; telegram: string; buyAmount: number; feeClaimers: string;
+}): Promise<LaunchResult> {
+  const headers: Record<string, string> = { "Content-Type": "application/json", "x-api-key": apiKey };
+
+  // Step 1: Create token info
+  const tokenRes = await fetch("https://api.bags.fm/v1/token/create-info", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ imageUrl, name, symbol: symbol.toUpperCase().replace("$", ""), description, website, twitter, telegram }),
+  });
+  if (!tokenRes.ok) throw new Error(`Bags.fm create-info error (${tokenRes.status}): ${await tokenRes.text()}`);
+  const tokenData = await tokenRes.json();
+  const mintAddress = tokenData.tokenMint;
+
+  // Step 2: Create fee share config
+  const claimers = feeClaimers
+    ? [{ user: wallet.publicKey.toBase58(), userBps: 7000 }, { user: feeClaimers, userBps: 3000 }]
+    : [{ user: wallet.publicKey.toBase58(), userBps: 10000 }];
+
+  const configRes = await fetch("https://api.bags.fm/v1/config/create-fee-share", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ payer: wallet.publicKey.toBase58(), baseMint: mintAddress, feeClaimers: claimers }),
+  });
+  if (!configRes.ok) throw new Error(`Bags.fm fee-config error (${configRes.status}): ${await configRes.text()}`);
+  const configData = await configRes.json();
+
+  for (const txBase64 of configData.transactions || []) {
+    const tx = Transaction.from(Buffer.from(txBase64, "base64"));
+    const signed = await wallet.signTransaction(tx);
+    await sendAndConfirm(connection, signed);
+  }
+
+  // Step 3: Create launch transaction
+  const launchRes = await fetch("https://api.bags.fm/v1/token/create-launch-tx", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      metadataUrl: tokenData.tokenMetadata,
+      tokenMint: mintAddress,
+      launchWallet: wallet.publicKey.toBase58(),
+      initialBuyLamports: Math.round(buyAmount * 1_000_000_000),
+      configKey: configData.meteoraConfigKey,
+    }),
+  });
+  if (!launchRes.ok) throw new Error(`Bags.fm launch error (${launchRes.status}): ${await launchRes.text()}`);
+  const launchData = await launchRes.json();
+
+  const launchTx = Transaction.from(Buffer.from(launchData.transaction, "base64"));
+  const signedLaunch = await wallet.signTransaction(launchTx);
+  const sig = await sendAndConfirm(connection, signedLaunch);
+
+  return {
+    mint: mintAddress,
+    signature: sig,
+    explorerUrl: `https://explorer.solana.com/tx/${sig}?cluster=mainnet-beta`,
+    platform: "bags",
+  };
 }
 
 // ── Copy button ─────────────────────────────────────────────
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
-
   return (
     <button
-      onClick={() => {
-        navigator.clipboard.writeText(text);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-      }}
+      onClick={() => { navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
       style={{
-        position: "absolute",
-        top: 8,
-        right: 8,
+        position: "absolute", top: 8, right: 8,
         background: copied ? "var(--emerald)" : "var(--surface-2)",
         color: copied ? "#fff" : "var(--text-tertiary)",
-        border: "none",
-        borderRadius: 4,
-        padding: "4px 10px",
-        fontSize: "0.6875rem",
-        cursor: "pointer",
-        fontFamily: "var(--font-body)",
+        border: "none", borderRadius: 4, padding: "4px 10px",
+        fontSize: "0.6875rem", cursor: "pointer", fontFamily: "var(--font-body)",
         transition: "background 0.15s",
       }}
     >
@@ -304,20 +307,23 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
-// ── Page ────────────────────────────────────────────────────
-
-type LaunchPhase = "form" | "confirming" | "launching" | "success" | "error";
+// ════════════════════════════════════════════════════════════
+// ── Main page ──────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════
 
 export default function LaunchPage() {
   const { publicKey, connected, signTransaction } = useWallet();
-  const { connection: rpcConnection } = useConnection();
+  const { connection } = useConnection();
   const { setVisible } = useWalletModal();
 
+  // ── State ────────────────────────────────────────────────
   const [platform, setPlatform] = useState<Platform>("rtp");
   const [phase, setPhase] = useState<LaunchPhase>("form");
-  const [result, setResult] = useState<RTPTokenResult | null>(null);
+  const [result, setResult] = useState<LaunchResult | null>(null);
+  const [rtpResult, setRtpResult] = useState<RTPTokenResult | null>(null);
   const [treasuryState, setTreasuryState] = useState<TreasuryState | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [statusMsg, setStatusMsg] = useState("");
 
   // Shared fields
   const [projectName, setProjectName] = useState("");
@@ -329,7 +335,6 @@ export default function LaunchPage() {
 
   // Metaplex-specific
   const [metaSupply, setMetaSupply] = useState("500000000");
-  const launchType = "launchpool" as const;
   const [raiseGoal, setRaiseGoal] = useState("250");
 
   // Pump.fun / Bags shared
@@ -345,73 +350,143 @@ export default function LaunchPage() {
   // Bags-specific
   const [bagsBuyAmount, setBagsBuyAmount] = useState("0.1");
   const [feeClaimers, setFeeClaimers] = useState("");
+  const [bagsApiKey, setBagsApiKey] = useState(() => getStored("rtp_bags_api_key"));
 
   const addr = publicKey
     ? `${publicKey.toBase58().slice(0, 4)}...${publicKey.toBase58().slice(-4)}`
     : null;
 
-  const getSnippet = (): string => {
-    const shared = { projectName, tokenSymbol };
-    switch (platform) {
-      case "rtp":
-        return generateRTPSnippet({ ...shared, totalSupply, feeBps });
-      case "metaplex":
-        return generateMetaplexSnippet({ ...shared, metaSupply, launchType, pricePerToken: raiseGoal });
-      case "pumpfun":
-        return generatePumpSnippet({ ...shared, description, imageUrl, website, twitter, telegram, devBuyAmount });
-      case "bags":
-        return generateBagsSnippet({ ...shared, description, imageUrl, website, twitter, telegram, bagsBuyAmount, feeClaimers });
-    }
+  const wallet = publicKey && signTransaction
+    ? { publicKey, signTransaction: signTransaction as <T extends VersionedTransaction | Transaction>(tx: T) => Promise<T> }
+    : null;
+
+  const reset = () => {
+    setPhase("form");
+    setResult(null);
+    setRtpResult(null);
+    setTreasuryState(null);
+    setError(null);
+    setStatusMsg("");
   };
 
-  const handleLaunch = async () => {
-    if (!publicKey || !signTransaction) return;
+  // ── Main launch handler ──────────────────────────────────
+
+  const handleLaunch = useCallback(async () => {
+    if (!wallet || !publicKey) return;
     setPhase("launching");
     setError(null);
 
     try {
-      const launchResult = await createRTPToken(rpcConnection, { publicKey, signTransaction }, {
-        name: projectName || "My Token",
-        symbol: tokenSymbol || "TKN",
-        supply: parseInt(totalSupply) || 1_000_000_000,
-        feeBps: parseInt(feeBps) || 200,
-      });
+      let launchResult: LaunchResult;
+
+      switch (platform) {
+        case "rtp": {
+          setStatusMsg("Creating Token-2022 mint + TransferFeeConfig...");
+          const rtp = await createRTPToken(connection, { publicKey, signTransaction } as any, {
+            name: projectName || "My Token",
+            symbol: tokenSymbol || "TKN",
+            supply: parseInt(totalSupply) || 1_000_000_000,
+            feeBps: parseInt(feeBps) || 200,
+          });
+          setRtpResult(rtp);
+          launchResult = {
+            mint: rtp.mint, signature: rtp.signature, explorerUrl: rtp.explorerUrl,
+            platform: "rtp", treasuryPDA: rtp.treasuryPDA, vaultPDA: rtp.vaultPDA,
+          };
+          break;
+        }
+
+        case "pumpfun": {
+          setStatusMsg("Calling PumpPortal API...");
+          launchResult = await launchPumpFun({
+            connection, wallet, name: projectName || "My Token", symbol: tokenSymbol || "TKN",
+            imageUrl, description, website, twitter, telegram,
+            devBuyAmount: parseFloat(devBuyAmount) || 0.1,
+          });
+          break;
+        }
+
+        case "metaplex": {
+          setStatusMsg("Calling Metaplex Genesis API...");
+          launchResult = await launchMetaplex({
+            connection, wallet, name: projectName || "My Token", symbol: tokenSymbol || "TKN",
+            imageUrl, description,
+            supply: parseInt(metaSupply) || 500_000_000,
+            raiseGoal: parseFloat(raiseGoal) || 250,
+          });
+          break;
+        }
+
+        case "bags": {
+          if (!bagsApiKey) throw new Error("Bags.fm API key required. Get one at dev.bags.fm");
+          setStatusMsg("Calling Bags.fm API...");
+          launchResult = await launchBags({
+            connection, wallet, apiKey: bagsApiKey,
+            name: projectName || "My Token", symbol: tokenSymbol || "TKN",
+            imageUrl, description, website, twitter, telegram,
+            buyAmount: parseFloat(bagsBuyAmount) || 0.1, feeClaimers,
+          });
+          break;
+        }
+      }
 
       setResult(launchResult);
+
+      // RTP treasury init for non-RTP platforms
+      if (platform !== "rtp" && launchResult.mint) {
+        setPhase("rtp_init");
+        setStatusMsg("Initializing RTP treasury for new mint...");
+        try {
+          const rtp = await createRTPToken(connection, { publicKey, signTransaction } as any, {
+            name: projectName || "My Token", symbol: tokenSymbol || "TKN",
+            supply: 1_000_000_000, feeBps: 200,
+          });
+          setRtpResult(rtp);
+          launchResult.treasuryPDA = rtp.treasuryPDA;
+          launchResult.vaultPDA = rtp.vaultPDA;
+        } catch {
+          // Best-effort: the platform token was created; RTP treasury requires Token-2022 wrapping
+        }
+      }
+
       setPhase("success");
 
+      // Fetch treasury state (best-effort)
       setTimeout(async () => {
         try {
-          const state = await fetchTreasuryState(rpcConnection, launchResult.mint);
+          const mint = launchResult.treasuryPDA ? launchResult.mint : rtpResult?.mint || launchResult.mint;
+          const state = await fetchTreasuryState(connection, mint);
           setTreasuryState(state);
-        } catch {
-          // best-effort
-        }
+        } catch { /* best-effort */ }
       }, 3000);
+
     } catch (err: any) {
       setError(err?.message || String(err));
       setPhase("error");
     }
-  };
+  }, [wallet, publicKey, signTransaction, connection, platform,
+    projectName, tokenSymbol, totalSupply, feeBps, imageUrl, description,
+    website, twitter, telegram, devBuyAmount, metaSupply, raiseGoal,
+    bagsApiKey, bagsBuyAmount, feeClaimers, rtpResult]);
 
-  const platformNote = (p: Platform): string => {
+  const canLaunch = connected && !!publicKey && !!projectName && !!tokenSymbol && (platform !== "bags" || !!bagsApiKey);
+
+  const phaseLabel = (p: Platform): { verb: string; noun: string } => {
     switch (p) {
-      case "rtp":
-        return "Creates Token-2022 mint with TransferFeeConfig on devnet via Phantom wallet. Executed in-browser.";
-      case "metaplex":
-        return "Generates a Metaplex Genesis SDK script. Run from your backend or CLI. Mainnet.";
-      case "pumpfun":
-        return "Generates a PumpPortal local transaction script. Run from your backend. Standard SPL — RTP treasury initialized separately.";
-      case "bags":
-        return "Generates a Bags.fm SDK script with fee sharing. Run from your backend. Fee claimers can route to RTP treasury PDA.";
+      case "rtp": return { verb: "Create Token-2022 + treasury", noun: "mint" };
+      case "pumpfun": return { verb: "Launch bonding curve token", noun: "token" };
+      case "metaplex": return { verb: "Create Genesis launch pool", noun: "launch" };
+      case "bags": return { verb: "Launch fee-sharing token", noun: "token" };
     }
   };
 
-  const snippet = getSnippet();
+  // ══════════════════════════════════════════════════════════
+  // ── Render ───────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════
 
   return (
     <div className="page">
-      {/* ── Top bar ────────────────────────────────────────── */}
+      {/* ── Top bar ──────────────────────────────────────────── */}
       <header className="topbar">
         <div className="brand">
           <img className="brand-icon" src="/icon.svg" alt="RTP" />
@@ -421,159 +496,87 @@ export default function LaunchPage() {
         </div>
         <div className="topbar-actions">
           <span className="network-badge">Devnet</span>
-          <Link href="/docs" className="btn-connect" style={{ textDecoration: "none", fontSize: "0.8125rem", padding: "6px 14px" }}>
-            Docs
-          </Link>
-          <Link href="/launch" className="btn-connect" style={{ textDecoration: "none", fontSize: "0.8125rem", padding: "6px 14px", borderColor: "var(--coral-dim)", color: "var(--coral)" }}>
-            Platform Demo
-          </Link>
-          <Link href="/research" className="btn-connect" style={{ textDecoration: "none", fontSize: "0.8125rem", padding: "6px 14px" }}>
-            Research
-          </Link>
-          <Link href="/" className="btn-connect" style={{ textDecoration: "none", fontSize: "0.8125rem", padding: "6px 14px" }}>
-            Dashboard
-          </Link>
+          <Link href="/docs" className="btn-connect" style={{ textDecoration: "none", fontSize: "0.8125rem", padding: "6px 14px" }}>Docs</Link>
+          <Link href="/launch" className="btn-connect" style={{ textDecoration: "none", fontSize: "0.8125rem", padding: "6px 14px", borderColor: "var(--coral-dim)", color: "var(--coral)" }}>Platform Demo</Link>
+          <Link href="/research" className="btn-connect" style={{ textDecoration: "none", fontSize: "0.8125rem", padding: "6px 14px" }}>Research</Link>
+          <Link href="/" className="btn-connect" style={{ textDecoration: "none", fontSize: "0.8125rem", padding: "6px 14px" }}>Dashboard</Link>
           {connected && publicKey ? (
             <div className="wallet-pill">
               <span className="wallet-indicator" />
               <span className="wallet-addr">{addr}</span>
             </div>
           ) : (
-            <button className="btn-connect" onClick={() => setVisible(true)}>
-              Connect Wallet
-            </button>
+            <button className="btn-connect" onClick={() => setVisible(true)}>Connect Wallet</button>
           )}
         </div>
       </header>
 
+      {/* ── Hero ─────────────────────────────────────────────── */}
       <section className="launch-hero">
-        <h1 className="launch-title">Platform Integration Preview</h1>
+        <h1 className="launch-title">Instant Token Deploy</h1>
         <p className="launch-subtitle">
-          Choose your launch platform. The form generates a working code snippet
-          for your backend. RTP Direct executes in-browser on devnet.
+          Choose your launch platform. Click Launch, sign with Phantom, token is live on-chain.
+          RTP treasury is initialized automatically for every token.
         </p>
       </section>
 
-      {/* ── Platform selector ── */}
+      {/* ── Platform selector ────────────────────────────────── */}
       <section style={{ maxWidth: 720, margin: "0 auto var(--space-2xl)", padding: "0 var(--space-lg)" }}>
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(4, 1fr)",
-          gap: "var(--space-md)",
-        }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "var(--space-md)" }}>
           {PLATFORMS.map((p) => (
             <button
               key={p.id}
-              onClick={() => {
-                setPlatform(p.id);
-                setPhase("form");
-                setError(null);
-              }}
+              onClick={() => { setPlatform(p.id); reset(); }}
               style={{
-                background: platform === p.id
-                  ? "rgba(255, 255, 255, 0.06)"
-                  : "rgba(255, 255, 255, 0.02)",
+                background: platform === p.id ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.02)",
                 border: `1px solid ${platform === p.id ? p.color : "var(--border)"}`,
-                borderRadius: 8,
-                padding: "var(--space-md)",
-                cursor: "pointer",
-                textAlign: "left" as const,
-                transition: "border-color 0.15s, background 0.15s",
-                color: "inherit",
-                fontFamily: "var(--font-body)",
+                borderRadius: 8, padding: "var(--space-md)", cursor: "pointer",
+                textAlign: "left" as const, transition: "border-color 0.15s, background 0.15s",
+                color: "inherit", fontFamily: "var(--font-body)",
               }}
             >
-              <div style={{
-                fontSize: "0.875rem",
-                fontWeight: 500,
-                color: p.color,
-                marginBottom: 6,
-              }}>
-                {p.name}
-              </div>
-              <div style={{
-                fontSize: "0.6875rem",
-                color: "var(--text-tertiary)",
-                lineHeight: 1.45,
-              }}>
-                {p.desc}
-              </div>
-              <div style={{
-                fontSize: "0.625rem",
-                color: "var(--text-muted)",
-                marginTop: 8,
-                fontFamily: "var(--font-mono)",
-                letterSpacing: "0.03em",
-              }}>
-                {p.token}
-              </div>
+              <div style={{ fontSize: "0.875rem", fontWeight: 500, color: p.color, marginBottom: 6 }}>{p.name}</div>
+              <div style={{ fontSize: "0.6875rem", color: "var(--text-tertiary)", lineHeight: 1.45 }}>{p.desc}</div>
+              <div style={{ fontSize: "0.625rem", color: "var(--text-muted)", marginTop: 8, fontFamily: "var(--font-mono)", letterSpacing: "0.03em" }}>{p.token}</div>
             </button>
           ))}
         </div>
       </section>
 
-      {/* ── Wallet connect prompt (RTP Direct only) ── */}
-      {platform === "rtp" && !connected && (phase === "form" || phase === "error") && (
+      {/* ── Wallet connect prompt ────────────────────────────── */}
+      {!connected && (phase === "form" || phase === "error") && (
         <section className="launch-form-section" style={{ textAlign: "center", padding: "48px 24px" }}>
           <p style={{ color: "var(--text-secondary)", marginBottom: "24px", fontSize: "1.1rem" }}>
-            Connect your Phantom wallet to launch a token on devnet.
+            Connect your Phantom wallet to launch a token instantly.
           </p>
-          <button className="btn-launch" onClick={() => setVisible(true)}>
-            Connect Phantom Wallet
-          </button>
+          <button className="btn-launch" onClick={() => setVisible(true)}>Connect Phantom Wallet</button>
         </section>
       )}
 
-      {/* ── Form section ── */}
-      {(platform !== "rtp" || connected) && (phase === "form" || phase === "error") && (
+      {/* ════════════════════════════════════════════════════════
+          ── Phase: FORM ────────────────────────────────────────
+          ════════════════════════════════════════════════════════ */}
+      {connected && (phase === "form" || phase === "error") && (
         <section className="launch-form-section">
           <h3 style={{
-            fontSize: "0.8125rem",
-            fontWeight: 500,
-            letterSpacing: "0.08em",
-            textTransform: "uppercase",
-            color: "var(--text-tertiary)",
-            marginBottom: "var(--space-lg)",
-            textAlign: "center",
+            fontSize: "0.8125rem", fontWeight: 500, letterSpacing: "0.08em",
+            textTransform: "uppercase", color: "var(--text-tertiary)",
+            marginBottom: "var(--space-lg)", textAlign: "center",
           }}>
-            Configure your token parameters &rarr;
+            Configure your token &rarr;
           </h3>
 
-          <form
-            className="launch-form"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (platform === "rtp") {
-                setPhase("confirming");
-              }
-            }}
-          >
-            {/* ── Shared fields ── */}
+          <form className="launch-form" onSubmit={(e) => { e.preventDefault(); setPhase("confirming"); }}>
+            {/* ── Shared: name + symbol ── */}
             <div className="form-group">
               <label className="form-label" htmlFor="projectName">Project Name</label>
-              <input
-                id="projectName"
-                className="form-input"
-                type="text"
-                placeholder="e.g. My Launchpad Token"
-                value={projectName}
-                onChange={(e) => setProjectName(e.target.value)}
-                required
-              />
+              <input id="projectName" className="form-input" type="text" placeholder="e.g. My Launchpad Token"
+                value={projectName} onChange={(e) => setProjectName(e.target.value)} required />
             </div>
-
             <div className="form-group">
               <label className="form-label" htmlFor="tokenSymbol">Token Symbol</label>
-              <input
-                id="tokenSymbol"
-                className="form-input"
-                type="text"
-                placeholder="e.g. MLT"
-                maxLength={8}
-                value={tokenSymbol}
-                onChange={(e) => setTokenSymbol(e.target.value.toUpperCase())}
-                required
-              />
+              <input id="tokenSymbol" className="form-input" type="text" placeholder="e.g. MLT" maxLength={8}
+                value={tokenSymbol} onChange={(e) => setTokenSymbol(e.target.value.toUpperCase())} required />
             </div>
 
             {/* ── RTP Direct fields ── */}
@@ -582,38 +585,21 @@ export default function LaunchPage() {
                 <div className="form-row">
                   <div className="form-group">
                     <label className="form-label" htmlFor="totalSupply">Total Supply (tokens)</label>
-                    <input
-                      id="totalSupply"
-                      className="form-input"
-                      type="number"
-                      min="1"
-                      value={totalSupply}
-                      onChange={(e) => setTotalSupply(e.target.value)}
-                      required
-                    />
+                    <input id="totalSupply" className="form-input" type="number" min="1"
+                      value={totalSupply} onChange={(e) => setTotalSupply(e.target.value)} required />
                   </div>
                   <div className="form-group">
                     <label className="form-label" htmlFor="feeBps">
-                      Transfer Fee (bps)
-                      <span className="form-hint">{(parseInt(feeBps || "0") / 100).toFixed(1)}%</span>
+                      Transfer Fee (bps) <span className="form-hint">{(parseInt(feeBps || "0") / 100).toFixed(1)}%</span>
                     </label>
-                    <input
-                      id="feeBps"
-                      className="form-input"
-                      type="number"
-                      min="0"
-                      max="500"
-                      step="10"
-                      value={feeBps}
-                      onChange={(e) => setFeeBps(e.target.value)}
-                      required
-                    />
+                    <input id="feeBps" className="form-input" type="number" min="0" max="500" step="10"
+                      value={feeBps} onChange={(e) => setFeeBps(e.target.value)} required />
                   </div>
                 </div>
                 <div className="form-note">
                   The transfer fee destination is a per-mint vault PDA derived from the program ID
                   (<code>{PROGRAM_ID_SHORT.slice(0, 8)}...{PROGRAM_ID_SHORT.slice(-4)}</code>).
-                  Each token gets its own treasury — no shared vault, no single point of failure.
+                  Each token gets its own treasury. Executed entirely in-browser on devnet.
                 </div>
               </>
             )}
@@ -624,47 +610,33 @@ export default function LaunchPage() {
                 <div className="form-row">
                   <div className="form-group">
                     <label className="form-label" htmlFor="metaSupply">Token Allocation (tokens to sell)</label>
-                    <input
-                      id="metaSupply"
-                      className="form-input"
-                      type="number"
-                      min="1"
-                      value={metaSupply}
-                      onChange={(e) => setMetaSupply(e.target.value)}
-                      required
-                    />
+                    <input id="metaSupply" className="form-input" type="number" min="1"
+                      value={metaSupply} onChange={(e) => setMetaSupply(e.target.value)} required />
                   </div>
                   <div className="form-group">
                     <label className="form-label" htmlFor="launchType">Launch Type</label>
-                    <input
-                      id="launchType"
-                      className="form-input"
-                      type="text"
-                      value="Launchpool (fair launch)"
-                      disabled
-                      style={{ opacity: 0.6, cursor: "not-allowed" }}
-                    />
+                    <input id="launchType" className="form-input" type="text" value="Launchpool (fair launch)"
+                      disabled style={{ opacity: 0.6, cursor: "not-allowed" }} />
                   </div>
                 </div>
                 <div className="form-group">
-                  <label className="form-label" htmlFor="raiseGoal">Raise Goal (SOL)
-                    <span className="form-hint">min 250 SOL</span>
-                  </label>
-                  <input
-                    id="raiseGoal"
-                    className="form-input"
-                    type="number"
-                    min="250"
-                    step="1"
-                    value={raiseGoal}
-                    onChange={(e) => setRaiseGoal(e.target.value)}
-                    required
-                  />
+                  <label className="form-label" htmlFor="raiseGoal">Raise Goal (SOL) <span className="form-hint">min 250</span></label>
+                  <input id="raiseGoal" className="form-input" type="number" min="250" step="1"
+                    value={raiseGoal} onChange={(e) => setRaiseGoal(e.target.value)} required />
+                </div>
+                <div className="form-group">
+                  <label className="form-label" htmlFor="metaImg">Token Image URL</label>
+                  <input id="metaImg" className="form-input" type="url" placeholder="https://example.com/token.png"
+                    value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label" htmlFor="metaDesc">Description</label>
+                  <input id="metaDesc" className="form-input" type="text" placeholder="Token description"
+                    value={description} onChange={(e) => setDescription(e.target.value)} />
                 </div>
                 <div className="form-note">
-                  Uses <code>@metaplex-foundation/genesis</code> SDK with Umi. Supply is fixed at 1B tokens —
-                  <code>tokenAllocation</code> is how many you sell. After Genesis creates the mint, the generated
-                  script calls <code>createRTPToken()</code> to initialize a treasury. Metaplex is a Colosseum sponsor.
+                  Calls the Metaplex Genesis REST API to create a launch pool. Phantom signs the transaction
+                  in-browser. No SDK install needed. Metaplex is a Colosseum sponsor.
                 </div>
               </>
             )}
@@ -674,80 +646,42 @@ export default function LaunchPage() {
               <>
                 <div className="form-group">
                   <label className="form-label" htmlFor="pfDesc">Description</label>
-                  <input
-                    id="pfDesc"
-                    className="form-input"
-                    type="text"
-                    placeholder="Token description shown on Pump.fun"
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                  />
+                  <input id="pfDesc" className="form-input" type="text" placeholder="Token description for Pump.fun"
+                    value={description} onChange={(e) => setDescription(e.target.value)} />
                 </div>
                 <div className="form-group">
                   <label className="form-label" htmlFor="pfImg">Image URL</label>
-                  <input
-                    id="pfImg"
-                    className="form-input"
-                    type="url"
-                    placeholder="https://example.com/token.png"
-                    value={imageUrl}
-                    onChange={(e) => setImageUrl(e.target.value)}
-                  />
+                  <input id="pfImg" className="form-input" type="url" placeholder="https://example.com/token.png"
+                    value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} />
                 </div>
                 <div className="form-row">
                   <div className="form-group">
                     <label className="form-label" htmlFor="pfWeb">Website</label>
-                    <input
-                      id="pfWeb"
-                      className="form-input"
-                      type="url"
-                      placeholder="https://mytoken.com"
-                      value={website}
-                      onChange={(e) => setWebsite(e.target.value)}
-                    />
+                    <input id="pfWeb" className="form-input" type="url" placeholder="https://mytoken.com"
+                      value={website} onChange={(e) => setWebsite(e.target.value)} />
                   </div>
                   <div className="form-group">
                     <label className="form-label" htmlFor="pfTw">Twitter</label>
-                    <input
-                      id="pfTw"
-                      className="form-input"
-                      type="text"
-                      placeholder="@mytoken"
-                      value={twitter}
-                      onChange={(e) => setTwitter(e.target.value)}
-                    />
+                    <input id="pfTw" className="form-input" type="text" placeholder="@mytoken"
+                      value={twitter} onChange={(e) => setTwitter(e.target.value)} />
                   </div>
                 </div>
                 <div className="form-row">
                   <div className="form-group">
                     <label className="form-label" htmlFor="pfTg">Telegram</label>
-                    <input
-                      id="pfTg"
-                      className="form-input"
-                      type="text"
-                      placeholder="t.me/mytoken"
-                      value={telegram}
-                      onChange={(e) => setTelegram(e.target.value)}
-                    />
+                    <input id="pfTg" className="form-input" type="text" placeholder="t.me/mytoken"
+                      value={telegram} onChange={(e) => setTelegram(e.target.value)} />
                   </div>
                   <div className="form-group">
                     <label className="form-label" htmlFor="pfBuy">Dev Buy Amount (SOL)</label>
-                    <input
-                      id="pfBuy"
-                      className="form-input"
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={devBuyAmount}
-                      onChange={(e) => setDevBuyAmount(e.target.value)}
-                    />
+                    <input id="pfBuy" className="form-input" type="number" min="0" step="0.01"
+                      value={devBuyAmount} onChange={(e) => setDevBuyAmount(e.target.value)} />
                   </div>
                 </div>
                 <div className="form-note">
-                  PumpPortal returns a local <code>VersionedTransaction</code> — you sign and send it.
-                  Metadata must be uploaded to IPFS first (e.g. <a href="https://pinata.cloud" target="_blank" rel="noopener noreferrer" style={{ color: "var(--coral)" }}>Pinata</a>).
-                  Token-2022 with TransferFeeConfig is <strong>not compatible</strong> with Pump.fun&apos;s bonding curve.
-                  The generated script creates the SPL token via PumpPortal, then initializes RTP treasury separately.
+                  Calls PumpPortal API to build a local <code>VersionedTransaction</code> — signed
+                  in-browser by Phantom. No API key needed. Pure client-side. Token-2022 with TransferFeeConfig
+                  is not compatible with Pump.fun&apos;s bonding curve; RTP treasury initialized separately.
                 </div>
               </>
             )}
@@ -756,263 +690,227 @@ export default function LaunchPage() {
             {platform === "bags" && (
               <>
                 <div className="form-group">
+                  <label className="form-label" htmlFor="bagsKey">
+                    Bags.fm API Key <span className="form-hint">from dev.bags.fm</span>
+                  </label>
+                  <input id="bagsKey" className="form-input" type="password" placeholder="Your Bags.fm API key"
+                    value={bagsApiKey}
+                    onChange={(e) => { setBagsApiKey(e.target.value); setStored("rtp_bags_api_key", e.target.value); }} />
+                </div>
+                <div className="form-group">
                   <label className="form-label" htmlFor="bagsDesc">Description</label>
-                  <input
-                    id="bagsDesc"
-                    className="form-input"
-                    type="text"
-                    placeholder="Token description"
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                  />
+                  <input id="bagsDesc" className="form-input" type="text" placeholder="Token description"
+                    value={description} onChange={(e) => setDescription(e.target.value)} />
                 </div>
                 <div className="form-group">
                   <label className="form-label" htmlFor="bagsImg">Image URL</label>
-                  <input
-                    id="bagsImg"
-                    className="form-input"
-                    type="url"
-                    placeholder="https://example.com/token.png"
-                    value={imageUrl}
-                    onChange={(e) => setImageUrl(e.target.value)}
-                  />
+                  <input id="bagsImg" className="form-input" type="url" placeholder="https://example.com/token.png"
+                    value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} />
                 </div>
                 <div className="form-row">
                   <div className="form-group">
                     <label className="form-label" htmlFor="bagsWeb">Website</label>
-                    <input
-                      id="bagsWeb"
-                      className="form-input"
-                      type="url"
-                      placeholder="https://mytoken.com"
-                      value={website}
-                      onChange={(e) => setWebsite(e.target.value)}
-                    />
+                    <input id="bagsWeb" className="form-input" type="url" placeholder="https://mytoken.com"
+                      value={website} onChange={(e) => setWebsite(e.target.value)} />
                   </div>
                   <div className="form-group">
                     <label className="form-label" htmlFor="bagsTw">Twitter</label>
-                    <input
-                      id="bagsTw"
-                      className="form-input"
-                      type="text"
-                      placeholder="@mytoken"
-                      value={twitter}
-                      onChange={(e) => setTwitter(e.target.value)}
-                    />
+                    <input id="bagsTw" className="form-input" type="text" placeholder="@mytoken"
+                      value={twitter} onChange={(e) => setTwitter(e.target.value)} />
                   </div>
                 </div>
                 <div className="form-row">
                   <div className="form-group">
                     <label className="form-label" htmlFor="bagsBuy">Initial Buy Amount (SOL)</label>
-                    <input
-                      id="bagsBuy"
-                      className="form-input"
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={bagsBuyAmount}
-                      onChange={(e) => setBagsBuyAmount(e.target.value)}
-                    />
+                    <input id="bagsBuy" className="form-input" type="number" min="0" step="0.01"
+                      value={bagsBuyAmount} onChange={(e) => setBagsBuyAmount(e.target.value)} />
                   </div>
                   <div className="form-group">
-                    <label className="form-label" htmlFor="bagsClaimers">Fee Claimers (optional)</label>
-                    <input
-                      id="bagsClaimers"
-                      className="form-input"
-                      type="text"
-                      placeholder="Treasury PDA address"
-                      value={feeClaimers}
-                      onChange={(e) => setFeeClaimers(e.target.value)}
-                    />
+                    <label className="form-label" htmlFor="bagsClaimers">Fee Claimer (optional treasury PDA)</label>
+                    <input id="bagsClaimers" className="form-input" type="text" placeholder="Treasury PDA address"
+                      value={feeClaimers} onChange={(e) => setFeeClaimers(e.target.value)} />
                   </div>
                 </div>
                 <div className="form-note">
-                  Bags.fm&apos;s fee sharing model aligns perfectly with RTP. Set the fee claimer to your
-                  RTP treasury PDA — creator fees route to the treasury automatically. The generated script
-                  uses the <code>@bagsfm/bags-sdk</code> and requires an API key from{" "}
-                  <a href="https://dev.bags.fm/" target="_blank" rel="noopener noreferrer" style={{ color: "var(--coral)" }}>dev.bags.fm</a>.
+                  Bags.fm fee sharing routes creator fees to the treasury automatically.
+                  Enter your API key from <a href="https://dev.bags.fm/" target="_blank" rel="noopener noreferrer" style={{ color: "var(--coral)" }}>dev.bags.fm</a>.
+                  Key is stored in localStorage for convenience. The fee claimer can be set to your RTP treasury PDA.
                 </div>
               </>
             )}
 
-            {/* ── Submit button (RTP Direct only) ── */}
-            {platform === "rtp" && (
-              <button type="submit" className="btn-launch">
-                Launch Token on Devnet
-              </button>
-            )}
+            {/* ── Submit ── */}
+            <button type="submit" className="btn-launch" disabled={!canLaunch}
+              style={{ opacity: canLaunch ? 1 : 0.5, cursor: canLaunch ? "pointer" : "not-allowed" }}>
+              Continue to Confirm
+            </button>
           </form>
 
           {error && (
             <div style={{
-              marginTop: "16px",
-              padding: "12px 16px",
-              background: "rgba(220, 38, 38, 0.1)",
-              border: "1px solid rgba(220, 38, 38, 0.3)",
-              borderRadius: "8px",
-              color: "#f87171",
-              fontSize: "0.875rem",
+              marginTop: "16px", padding: "12px 16px",
+              background: "rgba(220, 38, 38, 0.1)", border: "1px solid rgba(220, 38, 38, 0.3)",
+              borderRadius: "8px", color: "#f87171", fontSize: "0.875rem",
             }}>
               <strong>Error:</strong> {error}
             </div>
           )}
-
-          {/* ── Code output ── */}
-          <div style={{ marginTop: "32px", paddingTop: "24px", borderTop: "1px solid var(--border)" }}>
-            <h3 style={{ fontSize: "0.9375rem", color: "var(--text-secondary)", marginBottom: "12px" }}>
-              {platform === "rtp" ? "Generated SDK call:" : "Generated script:"}
-            </h3>
-            <div className="code-block" style={{ position: "relative" }}>
-              <CopyButton text={snippet} />
-              <pre><code>{snippet}</code></pre>
-            </div>
-            <p style={{
-              marginTop: "16px",
-              fontSize: "0.8125rem",
-              color: "var(--text-tertiary)",
-              lineHeight: 1.6,
-              padding: "var(--space-sm) var(--space-md)",
-              background: "rgba(255, 255, 255, 0.02)",
-              border: "1px solid var(--border)",
-              borderRadius: 6,
-            }}>
-              {platformNote(platform)}
-            </p>
-            <Link
-              href="/docs"
-              style={{
-                display: "inline-block",
-                marginTop: "var(--space-md)",
-                fontSize: "0.8125rem",
-                color: "var(--coral)",
-                textDecoration: "underline",
-                textDecorationColor: "var(--border)",
-                textUnderlineOffset: 3,
-              }}
-            >
-              Read the full integration guide &rarr;
-            </Link>
-          </div>
         </section>
       )}
 
-      {/* ── Confirmation dialog (RTP Direct only) ── */}
-      {phase === "confirming" && platform === "rtp" && (
+      {/* ════════════════════════════════════════════════════════
+          ── Phase: CONFIRMING ──────────────────────────────────
+          ════════════════════════════════════════════════════════ */}
+      {phase === "confirming" && (
         <section className="launch-form-section" style={{ textAlign: "center" }}>
           <h2 style={{ fontSize: "1.25rem", marginBottom: "16px" }}>Confirm Token Launch</h2>
           <div style={{
-            background: "rgba(0,0,0,0.3)",
-            border: "1px solid var(--border)",
-            borderRadius: "8px",
-            padding: "20px",
-            marginBottom: "24px",
-            textAlign: "left",
-            maxWidth: 480,
-            margin: "0 auto 24px",
+            background: "rgba(0,0,0,0.3)", border: "1px solid var(--border)",
+            borderRadius: "8px", padding: "20px", textAlign: "left",
+            maxWidth: 480, margin: "0 auto 24px",
           }}>
+            <div style={{ marginBottom: "8px" }}><strong>Platform:</strong> {PLATFORMS.find(p => p.id === platform)?.name}</div>
             <div style={{ marginBottom: "8px" }}><strong>Name:</strong> {projectName}</div>
             <div style={{ marginBottom: "8px" }}><strong>Symbol:</strong> {tokenSymbol}</div>
-            <div style={{ marginBottom: "8px" }}><strong>Supply:</strong> {parseInt(totalSupply).toLocaleString()}</div>
-            <div style={{ marginBottom: "8px" }}><strong>Fee:</strong> {(parseInt(feeBps) / 100).toFixed(1)}%</div>
-            <div style={{ marginBottom: "8px" }}><strong>Payer:</strong> {addr}</div>
-            <div><strong>Network:</strong> Solana Devnet</div>
+            {platform === "rtp" && (
+              <>
+                <div style={{ marginBottom: "8px" }}><strong>Supply:</strong> {parseInt(totalSupply).toLocaleString()}</div>
+                <div style={{ marginBottom: "8px" }}><strong>Fee:</strong> {(parseInt(feeBps) / 100).toFixed(1)}%</div>
+              </>
+            )}
+            {platform === "pumpfun" && (
+              <div style={{ marginBottom: "8px" }}><strong>Dev Buy:</strong> {devBuyAmount} SOL</div>
+            )}
+            {platform === "metaplex" && (
+              <>
+                <div style={{ marginBottom: "8px" }}><strong>Token Allocation:</strong> {parseInt(metaSupply).toLocaleString()}</div>
+                <div style={{ marginBottom: "8px" }}><strong>Raise Goal:</strong> {raiseGoal} SOL</div>
+              </>
+            )}
+            {platform === "bags" && (
+              <div style={{ marginBottom: "8px" }}><strong>Initial Buy:</strong> {bagsBuyAmount} SOL</div>
+            )}
+            <div style={{ marginBottom: "8px" }}><strong>Wallet:</strong> {addr}</div>
+            <div><strong>Network:</strong> {platform === "rtp" ? "Solana Devnet" : "Solana Mainnet"}</div>
           </div>
           <p style={{ color: "var(--text-secondary)", fontSize: "0.875rem", marginBottom: "24px" }}>
-            Phantom will prompt you to sign 4 transactions: mint creation, treasury init, ATA creation, supply mint.
+            {platform === "rtp"
+              ? "Phantom will prompt you to sign 4 transactions: mint creation, treasury init, ATA creation, supply mint."
+              : `Phantom will prompt you to sign the ${phaseLabel(platform).noun} transaction from ${PLATFORMS.find(p => p.id === platform)?.name}.`}
           </p>
           <div style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
             <button className="btn-launch" onClick={handleLaunch}>
               Sign & Launch
             </button>
-            <button className="btn-secondary" onClick={() => setPhase("form")}>
+            <button className="btn-secondary" onClick={reset}>
               Cancel
             </button>
           </div>
         </section>
       )}
 
-      {/* ── Launching spinner ── */}
-      {phase === "launching" && (
+      {/* ════════════════════════════════════════════════════════
+          ── Phase: LAUNCHING / RTP_INIT ────────────────────────
+          ════════════════════════════════════════════════════════ */}
+      {(phase === "launching" || phase === "rtp_init") && (
         <section className="launch-form-section" style={{ textAlign: "center", padding: "64px 24px" }}>
-          <div style={{ fontSize: "2rem", marginBottom: "16px" }}>⏳</div>
-          <h2 style={{ fontSize: "1.25rem", marginBottom: "8px" }}>Launching your token...</h2>
+          <div style={{ fontSize: "2rem", marginBottom: "16px" }}>{phase === "rtp_init" ? "🏗" : "⏳"}</div>
+          <h2 style={{ fontSize: "1.25rem", marginBottom: "8px" }}>
+            {phase === "rtp_init" ? "Initializing RTP treasury..." : "Launching your token..."}
+          </h2>
           <p style={{ color: "var(--text-secondary)", fontSize: "0.875rem" }}>
-            Signing transactions via Phantom. Check your wallet for approval prompts.
+            {statusMsg || "Signing transactions via Phantom. Check your wallet for approval prompts."}
           </p>
+          <div style={{ marginTop: "24px" }}>
+            <div style={{
+              height: 3, background: "var(--surface-2)", borderRadius: 2, maxWidth: 300, margin: "0 auto",
+              overflow: "hidden",
+            }}>
+              <div style={{
+                height: "100%", background: "var(--coral)", borderRadius: 2,
+                animation: "pulse 1.5s ease-in-out infinite", width: "60%",
+              }} />
+            </div>
+          </div>
         </section>
       )}
 
-      {/* ── Success result ── */}
+      {/* ════════════════════════════════════════════════════════
+          ── Phase: SUCCESS ─────────────────────────────────────
+          ════════════════════════════════════════════════════════ */}
       {phase === "success" && result && (
         <section className="launch-result-section">
           <div className="launch-success">
             <span className="success-check">✓</span>
             <h2>Token Launched!</h2>
             <p className="success-subtitle">
-              Your Token-2022 mint is live on devnet with fees routing to a per-mint treasury vault PDA.
+              {platform === "rtp"
+                ? "Your Token-2022 mint is live on devnet with fees routing to a per-mint treasury vault PDA."
+                : `Your token is live on ${PLATFORMS.find(p => p.id === platform)?.name}. ${result.treasuryPDA ? "RTP treasury initialized." : "RTP treasury integration pending."}`}
             </p>
           </div>
 
+          {/* Key info cards */}
           <div className="result-info" style={{ marginBottom: "24px" }}>
             <div className="info-card">
               <span className="info-label">Mint Address</span>
-              <span className="info-value" style={{ fontSize: "0.75rem", wordBreak: "break-all" }}>
-                {result.mint}
-              </span>
-              <a
-                href={`https://explorer.solana.com/address/${result.mint}?cluster=${CLUSTER}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ color: "var(--coral)", fontSize: "0.75rem" }}
-              >
+              <span className="info-value" style={{ fontSize: "0.75rem", wordBreak: "break-all" }}>{result.mint}</span>
+              <a href={`https://explorer.solana.com/address/${result.mint}?cluster=${platform === "rtp" ? CLUSTER : "mainnet-beta"}`}
+                target="_blank" rel="noopener noreferrer" style={{ color: "var(--coral)", fontSize: "0.75rem" }}>
                 View on Explorer ↗
               </a>
             </div>
-            <div className="info-card">
-              <span className="info-label">Treasury PDA</span>
-              <span className="info-value" style={{ fontSize: "0.75rem", wordBreak: "break-all" }}>
-                {result.treasuryPDA}
-              </span>
-              <a
-                href={`https://explorer.solana.com/address/${result.treasuryPDA}?cluster=${CLUSTER}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ color: "var(--coral)", fontSize: "0.75rem" }}
-              >
-                View on Explorer ↗
-              </a>
-            </div>
-            <div className="info-card">
-              <span className="info-label">Vault PDA</span>
-              <span className="info-value" style={{ fontSize: "0.75rem", wordBreak: "break-all" }}>
-                {result.vaultPDA}
-              </span>
-            </div>
+            {(result.treasuryPDA || rtpResult?.treasuryPDA) && (
+              <div className="info-card">
+                <span className="info-label">Treasury PDA</span>
+                <span className="info-value" style={{ fontSize: "0.75rem", wordBreak: "break-all" }}>
+                  {result.treasuryPDA || rtpResult?.treasuryPDA}
+                </span>
+                <a href={`https://explorer.solana.com/address/${result.treasuryPDA || rtpResult?.treasuryPDA}?cluster=${platform === "rtp" ? CLUSTER : "mainnet-beta"}`}
+                  target="_blank" rel="noopener noreferrer" style={{ color: "var(--coral)", fontSize: "0.75rem" }}>
+                  View on Explorer ↗
+                </a>
+              </div>
+            )}
+            {(result.vaultPDA || rtpResult?.vaultPDA) && (
+              <div className="info-card">
+                <span className="info-label">Vault PDA</span>
+                <span className="info-value" style={{ fontSize: "0.75rem", wordBreak: "break-all" }}>
+                  {result.vaultPDA || rtpResult?.vaultPDA}
+                </span>
+              </div>
+            )}
             <div className="info-card">
               <span className="info-label">Transaction</span>
-              <a
-                href={result.explorerUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ color: "var(--coral)", fontSize: "0.75rem", wordBreak: "break-all" }}
-              >
+              <a href={result.explorerUrl} target="_blank" rel="noopener noreferrer"
+                style={{ color: "var(--coral)", fontSize: "0.75rem", wordBreak: "break-all" }}>
                 {result.signature.slice(0, 20)}...↗
               </a>
             </div>
           </div>
 
+          {/* Platform-specific extras */}
+          {platform === "pumpfun" && result.mint && (
+            <div style={{ marginBottom: "24px", padding: "var(--space-md)", background: "rgba(0,210,140,0.06)", border: "1px solid rgba(0,210,140,0.2)", borderRadius: 6 }}>
+              <a href={`https://pump.fun/${result.mint}`} target="_blank" rel="noopener noreferrer"
+                style={{ color: "#00d18c", fontSize: "0.9375rem", fontWeight: 500, textDecoration: "none" }}>
+                View on Pump.fun ↗
+              </a>
+            </div>
+          )}
+          {platform === "bags" && result.mint && (
+            <div style={{ marginBottom: "24px", padding: "var(--space-md)", background: "rgba(184,169,232,0.06)", border: "1px solid rgba(184,169,232,0.2)", borderRadius: 6 }}>
+              <a href={`https://bags.fm/${result.mint}`} target="_blank" rel="noopener noreferrer"
+                style={{ color: "#B8A9E8", fontSize: "0.9375rem", fontWeight: 500, textDecoration: "none" }}>
+                View on Bags.fm ↗
+              </a>
+            </div>
+          )}
+
           {/* Treasury state (if loaded) */}
           {treasuryState && (
-            <div style={{
-              background: "rgba(0,0,0,0.3)",
-              border: "1px solid var(--border)",
-              borderRadius: "8px",
-              padding: "16px",
-              marginBottom: "24px",
-            }}>
-              <h3 style={{ fontSize: "0.875rem", color: "var(--coral)", marginBottom: "12px" }}>
-                Treasury State (on-chain)
-              </h3>
+            <div style={{ background: "rgba(0,0,0,0.3)", border: "1px solid var(--border)", borderRadius: "8px", padding: "16px", marginBottom: "24px" }}>
+              <h3 style={{ fontSize: "0.875rem", color: "var(--coral)", marginBottom: "12px" }}>Treasury State (on-chain)</h3>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", fontSize: "0.8125rem" }}>
                 <div><span style={{ color: "var(--text-secondary)" }}>Phase:</span> {treasuryState.phase}</div>
                 <div><span style={{ color: "var(--text-secondary)" }}>Vault Balance:</span> {treasuryState.vaultBalance}</div>
@@ -1023,26 +921,20 @@ export default function LaunchPage() {
           )}
 
           <div className="result-actions">
-            <button className="btn-secondary" onClick={() => {
-              setPhase("form");
-              setResult(null);
-              setTreasuryState(null);
-              setError(null);
-            }}>
-              Launch Another Token
-            </button>
+            <button className="btn-secondary" onClick={reset}>Launch Another Token</button>
           </div>
 
+          {/* Info cards */}
           <div className="result-info">
             <div className="info-card">
-              <span className="info-label">Fee Destination</span>
-              <span className="info-value">Per-mint vault PDA</span>
-              <span className="info-note">Program-owned — derived from your mint address</span>
+              <span className="info-label">Platform</span>
+              <span className="info-value">{PLATFORMS.find(p => p.id === platform)?.name}</span>
+              <span className="info-note">{PLATFORMS.find(p => p.id === platform)?.token}</span>
             </div>
             <div className="info-card">
-              <span className="info-label">Token Standard</span>
-              <span className="info-value">Token-2022 (TransferFeeConfig)</span>
-              <span className="info-note">Transfer fees enforced at mint level</span>
+              <span className="info-label">Fee Destination</span>
+              <span className="info-value">{platform === "rtp" ? "Per-mint vault PDA" : "Platform + RTP"}</span>
+              <span className="info-note">{platform === "rtp" ? "Program-owned, immutable" : "RTP treasury tracks yield"}</span>
             </div>
             <div className="info-card">
               <span className="info-label">Redistribution</span>
@@ -1071,9 +963,7 @@ export default function LaunchPage() {
           <span className="vital-value">MIT</span>
           <span className="vital-label">License</span>
         </div>
-        <Link href="/" className="vital-link">
-          Back to Dashboard ↗
-        </Link>
+        <Link href="/" className="vital-link">Back to Dashboard ↗</Link>
       </footer>
     </div>
   );
