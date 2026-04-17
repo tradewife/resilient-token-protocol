@@ -81,6 +81,10 @@ pub enum TreasuryError {
     InvalidStrategyId,
     #[msg("Only the treasury authority can register or retire strategies")]
     UnauthorizedStrategyOp,
+    #[msg("Beta period has expired — operations no longer permitted")]
+    BetaExpired,
+    #[msg("Only the treasury authority can end a beta")]
+    UnauthorizedBetaOp,
 }
 
 // ---------------------------------------------------------------------------
@@ -163,6 +167,11 @@ pub struct AdopterRecord {
     pub last_deposit_ts: i64,
     /// Number of discrete fee deposits recorded
     pub deposit_count: u64,
+    /// Beta expiry: Unix timestamp after which the swarm stops managing this adopter.
+    /// 0 = permanent adopter (no expiry). Non-zero = beta adopter with sunset date.
+    pub beta_expires_at: i64,
+    /// Whether this beta has been manually ended by the authority
+    pub beta_ended: bool,
     /// PDA bump
     pub bump: u8,
 }
@@ -272,6 +281,13 @@ pub struct StrategyRetired {
     pub reason: RetirementReason,
     pub final_rolling_sharpe_x100: i32,
     pub ts: i64,
+}
+
+#[event]
+pub struct BetaEnded {
+    pub token_mint: Pubkey,
+    pub ended_at: i64,
+    pub fees_contributed_lamports: u64,
 }
 
 // ---------------------------------------------------------------------------
@@ -517,6 +533,18 @@ pub mod rtp_treasury {
             TreasuryError::StrategyNotLive,
         );
 
+        // Beta expiry gate: if this treasury has an adopter record with a
+        // beta expiry set, refuse funding after expiry or manual end.
+        // Permanent adopters (beta_expires_at == 0) are not affected.
+        let adopter = &ctx.accounts.adopter_record;
+        if adopter.beta_expires_at > 0 {
+            let clock = Clock::get()?;
+            require!(
+                !adopter.beta_ended && clock.unix_timestamp < adopter.beta_expires_at,
+                TreasuryError::BetaExpired,
+            );
+        }
+
         require!(amount > 0, TreasuryError::HydrationExceedsBalance);
         require!(vault.amount >= amount, TreasuryError::HydrationExceedsBalance);
 
@@ -623,7 +651,7 @@ pub mod rtp_treasury {
         Ok(())
     }
 
-    /// Register a new token project as an RTP adopter.
+    /// Register a new token project as an RTP adopter (permanent — no expiry).
     ///
     /// Creates an AdopterRecord PDA for the given token mint. Called once
     /// per adopting token project at adoption time. The AdopterRecord tracks
@@ -637,6 +665,46 @@ pub mod rtp_treasury {
         record.adopted_at = clock.unix_timestamp;
         record.last_deposit_ts = clock.unix_timestamp;
         record.deposit_count = 0;
+        record.beta_expires_at = 0; // permanent — no expiry
+        record.beta_ended = false;
+        record.bump = ctx.bumps.adopter_record;
+
+        emit!(AdopterRegistered {
+            token_mint,
+            adopted_at: clock.unix_timestamp,
+        });
+
+        Ok(())
+    }
+
+    /// Register a beta adopter with an automatic expiry timestamp.
+    ///
+    /// Same as register_adopter but sets `beta_expires_at`. After this
+    /// timestamp, hydrate_swarm will refuse to fund strategies for this
+    /// adopter. The beta can also be ended early via `end_beta`.
+    ///
+    /// Typical use: Colosseum hackathon beta — expires 1 week after the
+    /// hackathon deadline.
+    pub fn register_adopter_beta(
+        ctx: Context<RegisterAdopter>,
+        token_mint: Pubkey,
+        beta_expires_at: i64,
+    ) -> Result<()> {
+        let clock = Clock::get()?;
+        require!(
+            beta_expires_at > clock.unix_timestamp,
+            TreasuryError::BetaExpired,
+        );
+
+        let record = &mut ctx.accounts.adopter_record;
+
+        record.token_mint = token_mint;
+        record.fees_contributed_lamports = 0;
+        record.adopted_at = clock.unix_timestamp;
+        record.last_deposit_ts = clock.unix_timestamp;
+        record.deposit_count = 0;
+        record.beta_expires_at = beta_expires_at;
+        record.beta_ended = false;
         record.bump = ctx.bumps.adopter_record;
 
         emit!(AdopterRegistered {
@@ -678,6 +746,31 @@ pub mod rtp_treasury {
             cumulative: record.fees_contributed_lamports,
             total_treasury_fees: treasury.total_fees_received_lamports,
             ts: clock.unix_timestamp,
+        });
+
+        Ok(())
+    }
+
+    /// End a beta adopter's RTP participation early.
+    ///
+    /// Only callable by `treasury.authority`. Sets `beta_ended = true`,
+    /// which prevents further hydrate_swarm funding for this adopter.
+    /// The adopter's fee contributions remain on record for attribution.
+    /// Yield already generated stays with the project.
+    pub fn end_beta(ctx: Context<EndBeta>) -> Result<()> {
+        require!(
+            ctx.accounts.authority.key() == ctx.accounts.treasury.authority,
+            TreasuryError::UnauthorizedBetaOp,
+        );
+
+        let record = &mut ctx.accounts.adopter_record;
+        let clock = Clock::get()?;
+        record.beta_ended = true;
+
+        emit!(BetaEnded {
+            token_mint: record.token_mint,
+            ended_at: clock.unix_timestamp,
+            fees_contributed_lamports: record.fees_contributed_lamports,
         });
 
         Ok(())
@@ -1018,6 +1111,15 @@ pub mod rtp_treasury {
         )]
         pub strategy_record: Account<'info, StrategyRecord>,
 
+        /// Adopter record for beta expiry check. Seeds: ["adopter", token_mint]
+        /// If beta_expires_at > 0 and the beta has expired or been ended,
+        /// hydrate_swarm is refused.
+        #[account(
+            seeds = [b"adopter", adopter_record.token_mint.as_ref()],
+            bump = adopter_record.bump,
+        )]
+        pub adopter_record: Account<'info, AdopterRecord>,
+
         /// Authority initiating hydration (anyone can trigger).
         #[account(mut)]
         pub authority: Signer<'info>,
@@ -1217,6 +1319,27 @@ pub mod rtp_treasury {
             constraint = strategy_record.treasury == treasury.key(),
         )]
         pub strategy_record: Account<'info, StrategyRecord>,
+
+        /// Authority — must equal treasury.authority (enforced in handler)
+        pub authority: Signer<'info>,
+    }
+
+    #[derive(Accounts)]
+    pub struct EndBeta<'info> {
+        /// AdopterRecord PDA — seeds: ["adopter", token_mint]
+        #[account(
+            mut,
+            seeds = [b"adopter", adopter_record.token_mint.as_ref()],
+            bump = adopter_record.bump,
+        )]
+        pub adopter_record: Account<'info, AdopterRecord>,
+
+        /// Treasury state account (PDA, read-only, seeds verified).
+        #[account(
+            seeds = [TREASURY_SEED, treasury.mint.as_ref()],
+            bump = treasury.bump,
+        )]
+        pub treasury: Account<'info, Treasury>,
 
         /// Authority — must equal treasury.authority (enforced in handler)
         pub authority: Signer<'info>,

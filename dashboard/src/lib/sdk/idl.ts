@@ -5,7 +5,7 @@ export const RAW_IDL =
     "name": "rtp_treasury",
     "version": "0.1.0",
     "spec": "0.1.0",
-    "description": "Resilient Token Protocol — PDA-owned treasury with fee withdrawal, redistribution, swarm hydration, and phase evolution"
+    "description": "Resilient Token Protocol \u2014 PDA-owned treasury with fee withdrawal, redistribution, swarm hydration, and phase evolution"
   },
   "instructions": [
     {
@@ -14,9 +14,9 @@ export const RAW_IDL =
         "Check redistribution threshold and execute 70/20/10 split.",
         "",
         "Distributes the vault's excess above `min_runway_balance`:",
-        "- 70% → holders",
-        "- 20% → project dev wallet",
-        "- 10% → ecosystem wallet (+ rounding dust)",
+        "- 70% \u2192 holders",
+        "- 20% \u2192 project dev wallet",
+        "- 10% \u2192 ecosystem wallet (+ rounding dust)",
         "",
         "Callable by anyone. The split is deterministic on-chain."
       ],
@@ -245,17 +245,104 @@ export const RAW_IDL =
       "args": []
     },
     {
+      "name": "end_beta",
+      "docs": [
+        "End a beta adopter's RTP participation early.",
+        "",
+        "Only callable by `treasury.authority`. Sets `beta_ended = true`,",
+        "which prevents further hydrate_swarm funding for this adopter.",
+        "The adopter's fee contributions remain on record for attribution.",
+        "Yield already generated stays with the project."
+      ],
+      "discriminator": [
+        7,
+        114,
+        33,
+        172,
+        76,
+        192,
+        47,
+        49
+      ],
+      "accounts": [
+        {
+          "name": "adopter_record",
+          "docs": [
+            "AdopterRecord PDA \u2014 seeds: [\"adopter\", token_mint]"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  100,
+                  111,
+                  112,
+                  116,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "adopter_record.token_mint",
+                "account": "AdopterRecord"
+              }
+            ]
+          }
+        },
+        {
+          "name": "treasury",
+          "docs": [
+            "Treasury state account (PDA, read-only, seeds verified)."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  114,
+                  101,
+                  97,
+                  115,
+                  117,
+                  114,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "treasury.mint",
+                "account": "Treasury"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "docs": [
+            "Authority \u2014 must equal treasury.authority (enforced in handler)"
+          ],
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "evolve_phase",
       "docs": [
         "Evolve the treasury phase. IRREVERSIBLE.",
         "",
         "Phase thresholds (USDC value of treasury reserves):",
-        "- Sustenance → Ecosystem:  >= $50k   (SUSTENANCE_CAP)",
-        "- Ecosystem   → Humanity:  >= $1M    (ECOSYSTEM_CAP)",
+        "- Sustenance \u2192 Ecosystem:  >= $50k   (SUSTENANCE_CAP)",
+        "- Ecosystem   \u2192 Humanity:  >= $1M    (ECOSYSTEM_CAP)",
         "",
         "Production: these thresholds should be validated against an on-chain",
         "oracle (e.g. Pyth). For devnet, the phase_authority signature is",
-        "the guard — the authority is responsible for checking reserves.",
+        "the guard \u2014 the authority is responsible for checking reserves.",
         "",
         "Only the treasury authority can trigger (Squads Multisig compatible)."
       ],
@@ -307,7 +394,7 @@ export const RAW_IDL =
         {
           "name": "treasury_vault",
           "docs": [
-            "Treasury vault — balance checked against phase caps (C-1 fix).",
+            "Treasury vault \u2014 balance checked against phase caps (C-1 fix).",
             "Authority = treasury PDA."
           ],
           "pda": {
@@ -345,10 +432,10 @@ export const RAW_IDL =
         {
           "name": "phase_authority",
           "docs": [
-            "Phase authority — MUST be `treasury.authority`.",
+            "Phase authority \u2014 MUST be `treasury.authority`.",
             "Can be a Squads Multisig PDA for governance.",
             "S-002 fix: moved check here as Anchor constraint (single guard,",
-            "spec-lock principle) — previously duplicated in handler body."
+            "spec-lock principle) \u2014 previously duplicated in handler body."
           ],
           "signer": true
         },
@@ -405,7 +492,7 @@ export const RAW_IDL =
         {
           "name": "strategy_record",
           "docs": [
-            "Strategy record PDA — mutable, seeds verified."
+            "Strategy record PDA \u2014 mutable, seeds verified."
           ],
           "writable": true,
           "pda": {
@@ -438,7 +525,7 @@ export const RAW_IDL =
         {
           "name": "authority",
           "docs": [
-            "Authority — must equal treasury.authority (enforced in handler)"
+            "Authority \u2014 must equal treasury.authority (enforced in handler)"
           ],
           "signer": true
         }
@@ -579,7 +666,7 @@ export const RAW_IDL =
         {
           "name": "strategy_record",
           "docs": [
-            "Strategy record — MUST be Live to receive funding.",
+            "Strategy record \u2014 MUST be Live to receive funding.",
             "Seeds: [STRATEGY_SEED, treasury.key(), strategy_id]"
           ],
           "pda": {
@@ -605,6 +692,35 @@ export const RAW_IDL =
                 "kind": "account",
                 "path": "strategy_record.strategy_id",
                 "account": "StrategyRecord"
+              }
+            ]
+          }
+        },
+        {
+          "name": "adopter_record",
+          "docs": [
+            "Adopter record for beta expiry check. Seeds: [\"adopter\", token_mint]",
+            "If beta_expires_at > 0 and the beta has expired or been ended,",
+            "hydrate_swarm is refused."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  100,
+                  111,
+                  112,
+                  116,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "adopter_record.token_mint",
+                "account": "AdopterRecord"
               }
             ]
           }
@@ -733,21 +849,21 @@ export const RAW_IDL =
         {
           "name": "holders_wallet",
           "docs": [
-            "Holders wallet — receives 70% of redistribution.",
+            "Holders wallet \u2014 receives 70% of redistribution.",
             "Stored as pubkey in treasury state for on-chain verification."
           ]
         },
         {
           "name": "project_dev_wallet",
           "docs": [
-            "Project dev wallet — receives 20% of redistribution.",
+            "Project dev wallet \u2014 receives 20% of redistribution.",
             "Stored as pubkey in treasury state for on-chain verification."
           ]
         },
         {
           "name": "ecosystem_wallet",
           "docs": [
-            "Ecosystem wallet — receives 10% of redistribution.",
+            "Ecosystem wallet \u2014 receives 10% of redistribution.",
             "Stored as pubkey in treasury state for on-chain verification."
           ]
         },
@@ -782,7 +898,7 @@ export const RAW_IDL =
         "Increments the AdopterRecord's cumulative fees and the treasury's",
         "total_fees_received_lamports. This is the accounting hook called",
         "alongside (or composed into) any fee deposit. It does not move",
-        "funds — it only updates accounting state for pro-rata attribution."
+        "funds \u2014 it only updates accounting state for pro-rata attribution."
       ],
       "discriminator": [
         82,
@@ -798,7 +914,7 @@ export const RAW_IDL =
         {
           "name": "adopter_record",
           "docs": [
-            "AdopterRecord PDA — seeds: [\"adopter\", token_mint]"
+            "AdopterRecord PDA \u2014 seeds: [\"adopter\", token_mint]"
           ],
           "writable": true,
           "pda": {
@@ -826,7 +942,7 @@ export const RAW_IDL =
         {
           "name": "treasury",
           "docs": [
-            "Treasury state account — receives the total_fees_received_lamports increment"
+            "Treasury state account \u2014 receives the total_fees_received_lamports increment"
           ],
           "writable": true
         },
@@ -848,7 +964,7 @@ export const RAW_IDL =
     {
       "name": "register_adopter",
       "docs": [
-        "Register a new token project as an RTP adopter.",
+        "Register a new token project as an RTP adopter (permanent \u2014 no expiry).",
         "",
         "Creates an AdopterRecord PDA for the given token mint. Called once",
         "per adopting token project at adoption time. The AdopterRecord tracks",
@@ -868,7 +984,7 @@ export const RAW_IDL =
         {
           "name": "adopter_record",
           "docs": [
-            "AdopterRecord PDA — one per token mint. Seeds: [\"adopter\", token_mint]"
+            "AdopterRecord PDA \u2014 one per token mint. Seeds: [\"adopter\", token_mint]"
           ],
           "writable": true,
           "pda": {
@@ -920,6 +1036,87 @@ export const RAW_IDL =
       ]
     },
     {
+      "name": "register_adopter_beta",
+      "docs": [
+        "Register a beta adopter with an automatic expiry timestamp.",
+        "",
+        "Same as register_adopter but sets `beta_expires_at`. After this",
+        "timestamp, hydrate_swarm will refuse to fund strategies for this",
+        "adopter. The beta can also be ended early via `end_beta`.",
+        "",
+        "Typical use: Colosseum hackathon beta \u2014 expires 1 week after the",
+        "hackathon deadline."
+      ],
+      "discriminator": [
+        108,
+        155,
+        116,
+        10,
+        100,
+        217,
+        144,
+        173
+      ],
+      "accounts": [
+        {
+          "name": "adopter_record",
+          "docs": [
+            "AdopterRecord PDA \u2014 one per token mint. Seeds: [\"adopter\", token_mint]"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  100,
+                  111,
+                  112,
+                  116,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "token_mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "treasury",
+          "docs": [
+            "The treasury state account (must already be initialised)"
+          ],
+          "writable": true
+        },
+        {
+          "name": "authority",
+          "docs": [
+            "The authority signing this registration"
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "token_mint",
+          "type": "pubkey"
+        },
+        {
+          "name": "beta_expires_at",
+          "type": "i64"
+        }
+      ]
+    },
+    {
       "name": "register_strategy",
       "docs": [
         "Register (promote) a strategy from the Python research layer into",
@@ -967,7 +1164,7 @@ export const RAW_IDL =
         {
           "name": "strategy_record",
           "docs": [
-            "Strategy record PDA — init, seeds: [STRATEGY_SEED, treasury, strategy_id]"
+            "Strategy record PDA \u2014 init, seeds: [STRATEGY_SEED, treasury, strategy_id]"
           ],
           "writable": true,
           "pda": {
@@ -999,7 +1196,7 @@ export const RAW_IDL =
         {
           "name": "authority",
           "docs": [
-            "Authority — must equal treasury.authority"
+            "Authority \u2014 must equal treasury.authority"
           ],
           "writable": true,
           "signer": true
@@ -1068,7 +1265,7 @@ export const RAW_IDL =
         {
           "name": "strategy_record",
           "docs": [
-            "Strategy record PDA — mutable, seeds verified."
+            "Strategy record PDA \u2014 mutable, seeds verified."
           ],
           "writable": true,
           "pda": {
@@ -1101,7 +1298,7 @@ export const RAW_IDL =
         {
           "name": "authority",
           "docs": [
-            "Authority — must equal treasury.authority"
+            "Authority \u2014 must equal treasury.authority"
           ],
           "signer": true
         }
@@ -1135,7 +1332,7 @@ export const RAW_IDL =
         "Verify that the mint has TransferFeeConfig enabled and that the",
         "Treasury PDA is the `withdraw_withheld_authority`.",
         "",
-        "READ-ONLY instruction — no state mutation. Deserializes the mint",
+        "READ-ONLY instruction \u2014 no state mutation. Deserializes the mint",
         "account data (base Mint + TLV extensions) and confirms the withdraw",
         "authority matches the Treasury PDA.",
         "",
@@ -1156,7 +1353,7 @@ export const RAW_IDL =
         {
           "name": "mint",
           "docs": [
-            "The Token-2022 mint — MUST have TransferFeeConfig enabled."
+            "The Token-2022 mint \u2014 MUST have TransferFeeConfig enabled."
           ]
         },
         {
@@ -1199,7 +1396,7 @@ export const RAW_IDL =
         "",
         "Uses CPI: `spl_token_2022::withdraw_withheld_tokens_from_mint`",
         "The Treasury PDA (set as `withdraw_withheld_authority` on the mint at",
-        "adoption time) signs for the withdrawal. Anyone can call this — fees",
+        "adoption time) signs for the withdrawal. Anyone can call this \u2014 fees",
         "are permissionlessly pulled into the PDA."
       ],
       "discriminator": [
@@ -1352,6 +1549,19 @@ export const RAW_IDL =
       ]
     },
     {
+      "name": "BetaEnded",
+      "discriminator": [
+        63,
+        18,
+        196,
+        45,
+        156,
+        43,
+        24,
+        201
+      ]
+    },
+    {
       "name": "FeeDepositRecorded",
       "discriminator": [
         140,
@@ -1438,7 +1648,7 @@ export const RAW_IDL =
     {
       "code": 6006,
       "name": "MintNotConfigured",
-      "msg": "Mint does not have TransferFeeConfig enabled — cannot adopt RTP"
+      "msg": "Mint does not have TransferFeeConfig enabled \u2014 cannot adopt RTP"
     },
     {
       "code": 6007,
@@ -1453,7 +1663,7 @@ export const RAW_IDL =
     {
       "code": 6009,
       "name": "StrategyNotLive",
-      "msg": "Strategy is not in Live status — cannot fund or trade"
+      "msg": "Strategy is not in Live status \u2014 cannot fund or trade"
     },
     {
       "code": 6010,
@@ -1468,12 +1678,22 @@ export const RAW_IDL =
     {
       "code": 6012,
       "name": "InvalidStrategyId",
-      "msg": "Strategy ID must be 1–16 characters"
+      "msg": "Strategy ID must be 1\u201316 characters"
     },
     {
       "code": 6013,
       "name": "UnauthorizedStrategyOp",
       "msg": "Only the treasury authority can register or retire strategies"
+    },
+    {
+      "code": 6014,
+      "name": "BetaExpired",
+      "msg": "Beta period has expired \u2014 operations no longer permitted"
+    },
+    {
+      "code": 6015,
+      "name": "UnauthorizedBetaOp",
+      "msg": "Only the treasury authority can end a beta"
     }
   ],
   "types": [
@@ -1525,6 +1745,21 @@ export const RAW_IDL =
             "type": "u64"
           },
           {
+            "name": "beta_expires_at",
+            "docs": [
+              "Beta expiry: Unix timestamp after which the swarm stops managing this adopter.",
+              "0 = permanent adopter (no expiry). Non-zero = beta adopter with sunset date."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "beta_ended",
+            "docs": [
+              "Whether this beta has been manually ended by the authority"
+            ],
+            "type": "bool"
+          },
+          {
             "name": "bump",
             "docs": [
               "PDA bump"
@@ -1546,6 +1781,26 @@ export const RAW_IDL =
           {
             "name": "adopted_at",
             "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "BetaEnded",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "token_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "ended_at",
+            "type": "i64"
+          },
+          {
+            "name": "fees_contributed_lamports",
+            "type": "u64"
           }
         ]
       }
@@ -1581,7 +1836,7 @@ export const RAW_IDL =
     {
       "name": "Phase",
       "docs": [
-        "Treasury phase — can only advance forward. Transitions are IRREVERSIBLE.",
+        "Treasury phase \u2014 can only advance forward. Transitions are IRREVERSIBLE.",
         "- Sustenance (<$50k): self-hydrate, reinvest all yield",
         "- Ecosystem ($50k-$1M): auto-provide LP to top RTP-adopting tokens",
         "- Humanity (>$1M): USDC grants to Solana public-goods projects"
@@ -1875,7 +2130,7 @@ export const RAW_IDL =
           {
             "name": "phase",
             "docs": [
-              "Current evolution phase (Sustenance → Ecosystem → Humanity)"
+              "Current evolution phase (Sustenance \u2192 Ecosystem \u2192 Humanity)"
             ],
             "type": {
               "defined": {

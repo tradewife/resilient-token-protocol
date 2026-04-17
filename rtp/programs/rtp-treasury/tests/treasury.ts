@@ -115,6 +115,7 @@ describe("rtp-treasury", () => {
   let ecosystemATA: PublicKey;
   let sourceATA: PublicKey;
   let feeRecipientATA: PublicKey;
+  let treasuryAdopterPDA: PublicKey;
 
   // -----------------------------------------------------------------------
   // Helpers (must be inside describe to access provider/payer/program)
@@ -271,6 +272,21 @@ describe("rtp-treasury", () => {
         swarmVault: swarmVaultPDA,
         authority: payer.publicKey,
         tokenProgram: TOKEN_2022_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+      })
+      .rpc();
+
+    // Register the treasury's mint as an adopter (Phase 1: 1 mint = 1 adopter)
+    [treasuryAdopterPDA] = PublicKey.findProgramAddressSync(
+      [Buffer.from("adopter"), mint.toBuffer()],
+      PROGRAM_ID
+    );
+    await program.methods
+      .registerAdopter(mint)
+      .accounts({
+        adopterRecord: treasuryAdopterPDA,
+        treasury: treasuryPDA,
+        authority: payer.publicKey,
         systemProgram: SystemProgram.programId,
       })
       .rpc();
@@ -704,6 +720,7 @@ describe("rtp-treasury", () => {
           treasuryVault: vaultPDA,
           swarmVault: swarmVaultPDA,
           strategyRecord: stratPDA,
+          adopterRecord: treasuryAdopterPDA,
           authority: payer.publicKey,
           tokenProgram: TOKEN_2022_PROGRAM_ID,
           systemProgram: SystemProgram.programId,
@@ -760,6 +777,7 @@ describe("rtp-treasury", () => {
             treasuryVault: vaultPDA,
             swarmVault: swarmVaultPDA,
             strategyRecord: stratPDA,
+            adopterRecord: treasuryAdopterPDA,
             authority: payer.publicKey,
             tokenProgram: TOKEN_2022_PROGRAM_ID,
             systemProgram: SystemProgram.programId,
@@ -858,6 +876,8 @@ describe("rtp-treasury", () => {
       assert.ok(record.tokenMint.equals(tokenMintA));
       assert.equal(record.feesContributedLamports.toNumber(), 0);
       assert.equal(record.depositCount.toNumber(), 0);
+      assert.equal(record.betaExpiresAt.toNumber(), 0);
+      assert.equal(record.betaEnded, false);
       assert.equal(record.bump, deriveAdopterPDA(tokenMintA)[1]);
     });
 
@@ -939,6 +959,228 @@ describe("rtp-treasury", () => {
         assert.fail("Should have rejected zero amount");
       } catch (err: any) {
         assert.include(err.toString(), "ZeroAmount");
+      }
+    });
+  });
+
+  // =========================================================================
+  // Beta adopter lifecycle
+  // =========================================================================
+
+  describe("Beta adopter lifecycle", () => {
+    const betaTokenMint = Keypair.generate().publicKey;
+
+    function deriveAdopterPDA(tokenMint: PublicKey): [PublicKey, number] {
+      return PublicKey.findProgramAddressSync(
+        [Buffer.from("adopter"), tokenMint.toBuffer()],
+        PROGRAM_ID
+      );
+    }
+
+    it("registers a beta adopter with expiry timestamp", async () => {
+      const [adopterPda] = deriveAdopterPDA(betaTokenMint);
+      // Expires 7 days from now
+      const expiresAt = Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60;
+
+      await program.methods
+        .registerAdopterBeta(betaTokenMint, new BN(expiresAt))
+        .accounts({
+          adopterRecord: adopterPda,
+          treasury: treasuryPDA,
+          authority: payer.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+
+      const record = await program.account.adopterRecord.fetch(adopterPda);
+      assert.ok(record.tokenMint.equals(betaTokenMint));
+      assert.equal(record.betaExpiresAt.toNumber(), expiresAt);
+      assert.equal(record.betaEnded, false);
+    });
+
+    it("rejects beta registration with past expiry", async () => {
+      const pastMint = Keypair.generate().publicKey;
+      const [adopterPda] = deriveAdopterPDA(pastMint);
+      const pastExpiry = Math.floor(Date.now() / 1000) - 3600; // 1 hour ago
+
+      try {
+        await program.methods
+          .registerAdopterBeta(pastMint, new BN(pastExpiry))
+          .accounts({
+            adopterRecord: adopterPda,
+            treasury: treasuryPDA,
+            authority: payer.publicKey,
+            systemProgram: SystemProgram.programId,
+          })
+          .rpc();
+        assert.fail("Should have rejected past expiry");
+      } catch (err: any) {
+        assert.include(err.toString(), "BetaExpired");
+      }
+    });
+
+    it("end_beta sets beta_ended flag and emits event", async () => {
+      const [adopterPda] = deriveAdopterPDA(betaTokenMint);
+
+      await program.methods
+        .endBeta()
+        .accounts({
+          adopterRecord: adopterPda,
+          treasury: treasuryPDA,
+          authority: payer.publicKey,
+        })
+        .rpc();
+
+      const record = await program.account.adopterRecord.fetch(adopterPda);
+      assert.equal(record.betaEnded, true);
+    });
+
+    it("rejects end_beta from unauthorized caller", async () => {
+      // Re-register a fresh beta adopter to test unauthorized end_beta
+      const freshMint = Keypair.generate().publicKey;
+      const [adopterPda] = deriveAdopterPDA(freshMint);
+      const expiresAt = Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60;
+
+      await program.methods
+        .registerAdopterBeta(freshMint, new BN(expiresAt))
+        .accounts({
+          adopterRecord: adopterPda,
+          treasury: treasuryPDA,
+          authority: payer.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+
+      const attacker = Keypair.generate();
+      const sig = await provider.connection.requestAirdrop(
+        attacker.publicKey, 2 * anchor.web3.LAMPORTS_PER_SOL
+      );
+      await provider.connection.confirmTransaction(sig, "confirmed");
+
+      try {
+        await program.methods
+          .endBeta()
+          .accounts({
+            adopterRecord: adopterPda,
+            treasury: treasuryPDA,
+            authority: attacker.publicKey,
+          })
+          .signers([attacker])
+          .rpc();
+        assert.fail("Should have rejected unauthorized caller");
+      } catch (err: any) {
+        assert.include(err.toString(), "UnauthorizedBetaOp");
+      }
+    });
+
+    it("hydrate_swarm refuses funding for ended beta adopters", async () => {
+      // The betaTokenMint adopter has beta_ended=true from previous test.
+      // But hydrate_swarm uses treasury's own adopter record, not this one.
+      // We need a setup where the treasury's mint adopter record has beta_ended=true.
+      // Instead, test with a fresh isolated setup.
+
+      const auth = Keypair.generate();
+      const mk = Keypair.generate();
+      const [tp] = deriveTreasuryPDA(mk.publicKey);
+      const [vp] = deriveVaultPDA(mk.publicKey);
+      const [svp] = deriveSwarmVaultPDA(mk.publicKey);
+
+      await createMintWithFee(auth, mk, tp);
+
+      await program.methods
+        .initialize(new BN(MIN_RUNWAY))
+        .accounts({
+          mint: mk.publicKey, treasury: tp, treasuryVault: vp,
+          holdersWallet: holdersWallet.publicKey,
+          projectDevWallet: devWallet.publicKey,
+          ecosystemWallet: ecosystemWallet.publicKey,
+          authority: payer.publicKey,
+          tokenProgram: TOKEN_2022_PROGRAM_ID,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+
+      // Register beta adopter for this mint with future expiry
+      const [ap] = PublicKey.findProgramAddressSync(
+        [Buffer.from("adopter"), mk.publicKey.toBuffer()],
+        PROGRAM_ID
+      );
+      const expiresAt = Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60;
+      await program.methods
+        .registerAdopterBeta(mk.publicKey, new BN(expiresAt))
+        .accounts({
+          adopterRecord: ap,
+          treasury: tp,
+          authority: payer.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+
+      // End the beta
+      await program.methods
+        .endBeta()
+        .accounts({
+          adopterRecord: ap,
+          treasury: tp,
+          authority: payer.publicKey,
+        })
+        .rpc();
+
+      // Create swarm vault + register strategy
+      await program.methods
+        .createSwarmVault()
+        .accounts({
+          mint: mk.publicKey, treasury: tp, swarmVault: svp,
+          authority: payer.publicKey,
+          tokenProgram: TOKEN_2022_PROGRAM_ID,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+
+      const stratId = "BETA_TEST";
+      const [sp] = deriveStrategyPDA(tp, stratId);
+      await program.methods
+        .registerStrategy(stratId, 300)
+        .accounts({
+          treasury: tp,
+          strategyRecord: sp,
+          authority: payer.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+
+      // Mint tokens to vault to have balance
+      const vaultATA = await createATA(mk.publicKey, payer.publicKey);
+      // Actually need to fund the treasury vault. Let's transfer to vault directly.
+      const sourceATA2 = await createATA(mk.publicKey, sourceWallet.publicKey);
+      await mintTo(
+        provider.connection, payer, mk.publicKey, sourceATA2, auth,
+        BigInt(100_000_000_000), [], undefined, TOKEN_2022_PROGRAM_ID
+      );
+
+      // Transfer with fee to generate vault balance (simplified: just send to fee recipient, harvest, withdraw)
+      // For simplicity, let's just attempt hydration with 0 balance — it should still hit the BetaExpired check
+      // before the balance check if beta_ended is true.
+
+      try {
+        await program.methods
+          .hydrateSwarm(new BN(1_000_000))
+          .accounts({
+            mint: mk.publicKey,
+            treasury: tp,
+            treasuryVault: vp,
+            swarmVault: svp,
+            strategyRecord: sp,
+            adopterRecord: ap,
+            authority: payer.publicKey,
+            tokenProgram: TOKEN_2022_PROGRAM_ID,
+            systemProgram: SystemProgram.programId,
+          })
+          .rpc();
+        assert.fail("Should have rejected beta-ended adopter");
+      } catch (err: any) {
+        assert.include(err.toString(), "BetaExpired",
+          `Expected BetaExpired, got: ${err}`);
       }
     });
   });

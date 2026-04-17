@@ -119,6 +119,7 @@ describe("strategy-lifecycle", () => {
   let ecosystemATA: PublicKey;
   let sourceATA: PublicKey;
   let feeRecipientATA: PublicKey;
+  let treasuryAdopterPDA: PublicKey;
 
   // -----------------------------------------------------------------------
   // Helpers
@@ -240,6 +241,21 @@ describe("strategy-lifecycle", () => {
         swarmVault: swarmVaultPDA,
         authority: payer.publicKey,
         tokenProgram: TOKEN_2022_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+      })
+      .rpc();
+
+    // Register the treasury's mint as an adopter (Phase 1: 1 mint = 1 adopter)
+    [treasuryAdopterPDA] = PublicKey.findProgramAddressSync(
+      [Buffer.from("adopter"), mint.toBuffer()],
+      PROGRAM_ID
+    );
+    await program.methods
+      .registerAdopter(mint)
+      .accounts({
+        adopterRecord: treasuryAdopterPDA,
+        treasury: treasuryPDA,
+        authority: payer.publicKey,
         systemProgram: SystemProgram.programId,
       })
       .rpc();
@@ -739,6 +755,7 @@ describe("strategy-lifecycle", () => {
           treasuryVault: vaultPDA,
           swarmVault: swarmVaultPDA,
           strategyRecord: strategyPDA,
+          adopterRecord: treasuryAdopterPDA,
           authority: payer.publicKey,
           tokenProgram: TOKEN_2022_PROGRAM_ID,
           systemProgram: SystemProgram.programId,
@@ -810,6 +827,7 @@ describe("strategy-lifecycle", () => {
             treasuryVault: vaultPDA,
             swarmVault: swarmVaultPDA,
             strategyRecord: strategyPDA,
+            adopterRecord: treasuryAdopterPDA,
             authority: payer.publicKey,
             tokenProgram: TOKEN_2022_PROGRAM_ID,
             systemProgram: SystemProgram.programId,
@@ -868,6 +886,7 @@ describe("strategy-lifecycle", () => {
             treasuryVault: vaultPDA,
             swarmVault: swarmVaultPDA,
             strategyRecord: strategyPDA,
+            adopterRecord: treasuryAdopterPDA,
             authority: payer.publicKey,
             tokenProgram: TOKEN_2022_PROGRAM_ID,
             systemProgram: SystemProgram.programId,
