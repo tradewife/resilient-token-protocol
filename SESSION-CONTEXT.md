@@ -445,7 +445,7 @@ State as of Apr 13:
 |-----------|------|--------|
 | Strategy library (15 cards) | `research/strategy_library.md` | ✅ 15 strategies: 5 trend, 4 MR, 2 carry, 3 vol, 1 volume |
 | Dead ends log | `research/dead_ends.md` | ✅ 9 pre-populated entries (BTC overfitting, XRP dropped, BB failure, etc.) |
-| From-scratch prompt | `research/agents/from_scratch_prompt.md` | ✅ Escape hatch ready — invoked when rolling Sharpe < 1.5 for 2 weeks |
+| From-scratch prompt | *(removed in audit — was unused)* | N/A |
 | Sensitivity sweep | `research/simulation/sensitivity_sweep.py` | ✅ CLI: `python -m research.simulation.sensitivity_sweep --strategy sol_survivor_2_69` |
 | Sweep CSV output | `research/data/sensitivity_sol_survivor_2_69.csv` | ✅ 37 rows (baseline + 7 params × 5 steps) |
 | Sweep chart | `research/data/sensitivity_sol_survivor_2_69.png` | ✅ 6-panel chart for judge demo |
