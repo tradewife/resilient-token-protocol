@@ -234,6 +234,40 @@ A judge must be able to verify these five things in under 3 minutes:
 
 ## 8. Session Status
 
+**Session 2026-04-17(ii) — Beta Adopter Lifecycle + Mainnet Audit**
+
+State as of Apr 17:
+- **39 anchor tests (5 new beta tests), 306 Rust tests, 18/18 devnet integration tests, 0 failures**
+- **Beta adopter lifecycle shipped, mainnet audit completed**
+- Demo-Readiness Score: 9.5/10
+
+**Beta adopter lifecycle (this session):**
+
+| Change | File | Detail |
+|--------|------|--------|
+| AdopterRecord extended | `lib.rs` | Added `beta_expires_at: i64` + `beta_ended: bool` |
+| register_adopter_beta | `lib.rs` | New instruction with expiry timestamp, rejects past dates |
+| end_beta | `lib.rs` | Authority-gated sunset, sets beta_ended=true, emits BetaEnded |
+| hydrate_swarm beta gate | `lib.rs` | Checks beta_expires_at + beta_ended, refuses expired betas |
+| HydrateSwarm account | `lib.rs` | Added adopter_record account for beta check |
+| Redistribution event | `lib.rs` | check_redistribute now emits Redistribution { mint, excess, holders, dev, ecosystem, ts } |
+| New errors | `lib.rs` | BetaExpired, UnauthorizedBetaOp |
+| New events | `lib.rs` | BetaEnded, Redistribution |
+| Devnet integration tests | `scripts/devnet-beta-test.ts` | 11 scenarios, 18 assertions, all passing on devnet |
+| Updated tests | `tests/treasury.ts`, `tests/strategy-lifecycle.ts` | HydrateSwarm now requires adopterRecord account |
+
+**Mainnet audit (this session):**
+- Permissionless model confirmed for recording instructions (withdraw_fees, record_fee_deposit, update_strategy_performance, register_adopter) — aligned with trustless design
+- Authority-gated for irreversible actions (evolve_phase, register_strategy, force_retire_strategy, end_beta)
+- Accepted for launch: oracle-less phase thresholds (C-1), no adopter-treasury linkage constraint (M-1)
+- Fixed: redistribution audit event (M-3)
+- Program deployed to devnet: slot 456040003, 404,832 bytes
+- Trust Model section added to CLAUDE.md — documents permissionless vs authority-gated split
+
+**Key design decision:** Permissionless recording + authority-gated irreversible actions. The PDA owns all treasury assets. Permissionless instructions move funds INTO the PDA or record accounting — never extract. Real enforcement is on-chain via authority checks and status gates.
+
+---
+
 **Session 2026-04-17 — SDK Audit Fixes + Phantom Wallet Integration + Dashboard /docs**
 
 State as of Apr 17:
@@ -660,5 +694,5 @@ Demo               = proof the institution persists without founder trust
 
 ---
 
-*Last updated: 2026-04-17 (session ix — SDK audit: WalletAdapter signing fix, IDL inline bundling, anchor.Wallet ESM fix. Dashboard: /launch live token flow, /docs "Try it live", wallet connect on all pages. 306 tests, 0 failures. Next: demo rehearsal + Colosseum submission before May 11.)*
+*Last updated: 2026-04-17 (session x — beta adopter lifecycle: register_adopter_beta, end_beta, hydrate_swarm beta gate. Redistribution audit event. Mainnet audit: permissionless model confirmed, authority gates verified. 39 anchor + 306 Rust + 18 devnet integration tests, 0 failures. Next: mainnet deploy.)*
 *Update this file after each session that changes canonical decisions or resolves open decisions.*

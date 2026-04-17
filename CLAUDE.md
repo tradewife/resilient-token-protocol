@@ -249,6 +249,33 @@ is not set, so the mainnet binary remains clean.
 9. **Self-hydration only if sustenance bucket > 90-day runway**
 10. **Research code remains reviewable while collaboration is active**
 
+## Trust Model — Permissionless Recording, Authority-Gated Actions
+
+The on-chain program separates instructions into two categories:
+
+**Authority-gated (treasury.authority required):**
+- `initialize` — creates treasury, sets authority/wallets/runway
+- `evolve_phase` — irreversible phase transitions, authority checked via Anchor constraint
+- `register_strategy` — promotes strategy to Live status
+- `force_retire_strategy` — emergency strategy retirement
+- `end_beta` — manual beta adopter sunset
+- `create_swarm_vault` — creates hydration vault (anyone can pay, but treasury PDA is authority)
+
+**Permissionless (any signer can call):**
+- `withdraw_fees` — anyone can pull TransferFeeConfig fees INTO the PDA vault (not out)
+- `check_redistribute` — anyone can trigger 70/20/10 split (deterministic, no discretion)
+- `hydrate_swarm` — anyone can propose hydration (gated by strategy Live status + beta check + runway invariant)
+- `register_adopter` / `register_adopter_beta` — anyone can create an adopter record (caller pays rent)
+- `record_fee_deposit` — anyone can record fee accounting (no fund movement, just counters)
+- `update_strategy_performance` — anyone can write strategy metrics (enforcement is on-chain via hydrate_swarm gate)
+- `verify_adoption` — read-only verification
+
+**Why this is safe:** Permissionless instructions either move funds INTO the PDA (never out), record accounting state (no fund movement), or write metrics where the real enforcement happens via authority-gated on-chain checks. The PDA owns all treasury assets — no private key can sign them away. Cumulative counters use `saturating_add` (never panics, never overflows to wrong values).
+
+**Known mainnet considerations (accepted for launch, post-launch improvements):**
+- `evolve_phase` thresholds checked against raw vault balance, not oracle-denominated USD. Authority manually verifies reserves before calling. Post-launch: integrate Pyth/Switchboard oracle.
+- `check_redistribute` emits a `Redistribution` event for auditability (added Apr 2026).
+
 ---
 
 ## Sponsored Hackathon Resources

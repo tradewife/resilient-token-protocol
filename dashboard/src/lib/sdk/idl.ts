@@ -1575,6 +1575,19 @@ export const RAW_IDL =
       ]
     },
     {
+      "name": "Redistribution",
+      "discriminator": [
+        233,
+        133,
+        152,
+        65,
+        89,
+        103,
+        79,
+        145
+      ]
+    },
+    {
       "name": "StrategyPerformanceUpdated",
       "discriminator": [
         8,
@@ -1852,6 +1865,38 @@ export const RAW_IDL =
           },
           {
             "name": "Humanity"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Redistribution",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "excess",
+            "type": "u64"
+          },
+          {
+            "name": "holders_amount",
+            "type": "u64"
+          },
+          {
+            "name": "dev_amount",
+            "type": "u64"
+          },
+          {
+            "name": "ecosystem_amount",
+            "type": "u64"
+          },
+          {
+            "name": "ts",
+            "type": "i64"
           }
         ]
       }

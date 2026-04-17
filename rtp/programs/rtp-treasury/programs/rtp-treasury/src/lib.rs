@@ -290,6 +290,16 @@ pub struct BetaEnded {
     pub fees_contributed_lamports: u64,
 }
 
+#[event]
+pub struct Redistribution {
+    pub mint: Pubkey,
+    pub excess: u64,
+    pub holders_amount: u64,
+    pub dev_amount: u64,
+    pub ecosystem_amount: u64,
+    pub ts: i64,
+}
+
 // ---------------------------------------------------------------------------
 // Shared Helpers (outside #[program] so Anchor doesn't treat as instructions)
 // ---------------------------------------------------------------------------
@@ -515,6 +525,18 @@ pub mod rtp_treasury {
         treasury.total_distributed_holders = treasury.total_distributed_holders.saturating_add(holders_amt);
         treasury.total_distributed_dev = treasury.total_distributed_dev.saturating_add(dev_amt);
         treasury.total_distributed_ecosystem = treasury.total_distributed_ecosystem.saturating_add(eco_amt);
+
+        // Audit event — every redistribution is on-chain verifiable
+        let clock = Clock::get()?;
+        emit!(Redistribution {
+            mint: mint_key,
+            excess,
+            holders_amount: holders_amt,
+            dev_amount: dev_amt,
+            ecosystem_amount: eco_amt,
+            ts: clock.unix_timestamp,
+        });
+
         Ok(())
     }
 
