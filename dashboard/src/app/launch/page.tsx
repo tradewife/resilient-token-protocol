@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 import {
+  Connection,
   VersionedTransaction,
   Transaction,
   Keypair,
@@ -56,7 +57,7 @@ interface LaunchResult {
 // ── Helpers ─────────────────────────────────────────────────
 
 async function sendAndConfirm(
-  connection: any,
+  connection: Connection,
   signedTx: VersionedTransaction | Transaction,
 ): Promise<string> {
   const raw = signedTx.serialize();
@@ -87,7 +88,9 @@ async function uploadMetadataToPinata(jwt: string, metadata: object): Promise<st
     if (!res.ok) return null;
     const data = await res.json();
     return `https://ipfs.io/ipfs/${data.IpfsHash}`;
-  } catch {
+  } catch (e: unknown) {
+    // Pinata IPFS upload failed — metadata will be missing from token URI
+    console.warn("[Launch] Pinata IPFS upload failed:", e instanceof Error ? e.message : String(e));
     return null;
   }
 }
@@ -97,7 +100,7 @@ async function uploadMetadataToPinata(jwt: string, metadata: object): Promise<st
 async function launchPumpFun({
   connection, wallet, name, symbol, imageUrl, description, website, twitter, telegram, devBuyAmount,
 }: {
-  connection: any;
+  connection: Connection;
   wallet: { publicKey: PublicKey; signTransaction: <T extends VersionedTransaction | Transaction>(tx: T) => Promise<T> };
   name: string; symbol: string; imageUrl: string; description: string;
   website: string; twitter: string; telegram: string; devBuyAmount: number;
@@ -161,7 +164,7 @@ async function launchPumpFun({
 async function launchMetaplex({
   connection, wallet, name, symbol, imageUrl, description, supply, raiseGoal,
 }: {
-  connection: any;
+  connection: Connection;
   wallet: { publicKey: PublicKey; signTransaction: <T extends VersionedTransaction | Transaction>(tx: T) => Promise<T> };
   name: string; symbol: string; imageUrl: string; description: string;
   supply: number; raiseGoal: number;
@@ -200,14 +203,17 @@ async function launchMetaplex({
     lastSig = await sendAndConfirm(connection, signed);
   }
 
-  // Register launch (best-effort)
+  // Register launch (best-effort — external API may be unreachable)
   try {
     await fetch("https://api.metaplex.com/v1/launches/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ launchId: createData.launchId, wallet: wallet.publicKey.toBase58() }),
     });
-  } catch { /* best-effort */ }
+  } catch (e: unknown) {
+    // External Metaplex registry unreachable — non-critical, token already created
+    console.warn("[Launch] Metaplex registry failed:", e instanceof Error ? e.message : String(e));
+  }
 
   return {
     mint: mintAddress,
@@ -223,7 +229,7 @@ async function launchBags({
   connection, wallet, apiKey, name, symbol, imageUrl, description,
   website, twitter, telegram, buyAmount, feeClaimers,
 }: {
-  connection: any;
+  connection: Connection;
   wallet: { publicKey: PublicKey; signTransaction: <T extends VersionedTransaction | Transaction>(tx: T) => Promise<T> };
   apiKey: string; name: string; symbol: string; imageUrl: string; description: string;
   website: string; twitter: string; telegram: string; buyAmount: number; feeClaimers: string;
@@ -382,7 +388,7 @@ export default function LaunchPage() {
       switch (platform) {
         case "rtp": {
           setStatusMsg("Creating Token-2022 mint + TransferFeeConfig...");
-          const rtp = await createRTPToken(connection, { publicKey, signTransaction } as any, {
+          const rtp = await createRTPToken(connection, wallet, {
             name: projectName || "My Token",
             symbol: tokenSymbol || "TKN",
             supply: parseInt(totalSupply) || 1_000_000_000,
@@ -437,15 +443,16 @@ export default function LaunchPage() {
         setPhase("rtp_init");
         setStatusMsg("Initializing RTP treasury for new mint...");
         try {
-          const rtp = await createRTPToken(connection, { publicKey, signTransaction } as any, {
+          const rtp = await createRTPToken(connection, wallet, {
             name: projectName || "My Token", symbol: tokenSymbol || "TKN",
             supply: 1_000_000_000, feeBps: 200,
           });
           setRtpResult(rtp);
           launchResult.treasuryPDA = rtp.treasuryPDA;
           launchResult.vaultPDA = rtp.vaultPDA;
-        } catch {
-          // Best-effort: the platform token was created; RTP treasury requires Token-2022 wrapping
+        } catch (e: unknown) {
+          // Non-RTP platforms don't always support Token-2022 wrapping — token created, treasury skipped
+          console.warn("[Launch] RTP treasury init skipped:", e instanceof Error ? e.message : String(e));
         }
       }
 
@@ -457,11 +464,14 @@ export default function LaunchPage() {
           const mint = launchResult.treasuryPDA ? launchResult.mint : rtpResult?.mint || launchResult.mint;
           const state = await fetchTreasuryState(connection, mint);
           setTreasuryState(state);
-        } catch { /* best-effort */ }
+        } catch (e: unknown) {
+          // Treasury state not yet available on-chain (may take a slot to confirm)
+          console.warn("[Launch] Treasury state fetch failed:", e instanceof Error ? e.message : String(e));
+        }
       }, 3000);
 
-    } catch (err: any) {
-      setError(err?.message || String(err));
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
       setPhase("error");
     }
   }, [wallet, publicKey, signTransaction, connection, platform,

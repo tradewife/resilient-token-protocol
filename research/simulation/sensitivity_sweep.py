@@ -28,8 +28,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 from research.optimization.per_symbol_optimizer import (
     compute_indicators,
-    simulate_trades,
-    compute_metrics,
 )
 from research.orchestration.night_shift import (
     create_folds,

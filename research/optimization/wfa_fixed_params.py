@@ -14,7 +14,7 @@ import json
 import numpy as np
 import pandas as pd
 from datetime import datetime, timedelta
-from typing import Dict, List
+from typing import Dict
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 

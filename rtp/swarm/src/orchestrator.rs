@@ -306,6 +306,17 @@ impl Orchestrator {
         Self::new(OrchestratorConfig::default(), Hooks::default())
     }
 
+    /// Lock the status mutex, recovering from poison with a warning log.
+    fn lock_status(&self) -> std::sync::MutexGuard<'_, OrchestratorStatus> {
+        match self.status.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => {
+                warn!("Orchestrator status mutex poisoned — recovering from previous panic");
+                poisoned.into_inner()
+            }
+        }
+    }
+
     /// Create for demo — disk persistence enabled, no sleep.
     pub fn new_for_demo(config: OrchestratorConfig) -> Self {
         let evaluator = Evaluator::new(config.stagnation_threshold);
@@ -452,7 +463,7 @@ impl Orchestrator {
         let mut results = Vec::new();
 
         {
-            let mut status = self.status.lock().unwrap();
+            let mut status = self.lock_status();
             status.is_running = true;
         }
 
@@ -471,7 +482,7 @@ impl Orchestrator {
                     results.push(result);
 
                     if is_halt {
-                        let status = self.status.lock().unwrap();
+                        let status = self.lock_status();
                         if status.consecutive_halts >= self.config.max_consecutive_halts {
                             error!(
                                 "Terminal escalation: {} consecutive halts. Stopping.",
@@ -489,7 +500,7 @@ impl Orchestrator {
         }
 
         {
-            let mut status = self.status.lock().unwrap();
+            let mut status = self.lock_status();
             status.is_running = false;
         }
 
@@ -500,7 +511,7 @@ impl Orchestrator {
     /// Production entry point.
     pub fn run(&mut self, treasury: &dyn TreasuryFetcher, bridge: &dyn BridgeFetcher) {
         {
-            let mut status = self.status.lock().unwrap();
+            let mut status = self.lock_status();
             status.is_running = true;
         }
 
@@ -513,7 +524,7 @@ impl Orchestrator {
             match self.run_cycle(treasury, bridge) {
                 Ok(result) => {
                     if result.recommended_action == RecommendedAction::Halt {
-                        let status = self.status.lock().unwrap();
+                        let status = self.lock_status();
                         if status.consecutive_halts >= self.config.max_consecutive_halts {
                             error!(
                                 "Terminal escalation: {} consecutive halts",
@@ -537,7 +548,7 @@ impl Orchestrator {
         }
 
         {
-            let mut status = self.status.lock().unwrap();
+            let mut status = self.lock_status();
             status.is_running = false;
         }
     }
@@ -566,7 +577,7 @@ impl Orchestrator {
     // ── Status management ────────────────────────────────────────────
 
     fn update_status(&self, _signal: &HeartbeatSignal, result: &CycleResult) {
-        let mut status = self.status.lock().unwrap();
+        let mut status = self.lock_status();
         status.current_tsi = result.tsi;
         status.cycles_run = result.cycle;
         status.last_heartbeat_type = Some(result.heartbeat_type);

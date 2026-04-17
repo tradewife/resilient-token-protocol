@@ -2,11 +2,8 @@
 Validate per-symbol optimized configs through the actual FutureBlindSimulator.
 This gives accurate numbers including fees, slippage, and position sizing.
 """
-import asyncio
 import os
 import sys
-import json
-import numpy as np
 
 sys.stdout.reconfigure(line_buffering=True)
 sys.stderr.reconfigure(line_buffering=True)

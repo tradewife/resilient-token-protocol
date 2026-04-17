@@ -2,7 +2,7 @@
 // The launchpad integration SDK for the Resilient Token Protocol.
 // Three functions: createRTPToken, fetchTreasuryState, withdrawAndRedistribute.
 
-import { AnchorProvider, BorshCoder, Program } from "@coral-xyz/anchor";
+import { AnchorProvider, BorshCoder, Program, Idl } from "@coral-xyz/anchor";
 import { BN } from "@coral-xyz/anchor";
 
 import {
@@ -11,6 +11,7 @@ import {
   PublicKey,
   SystemProgram,
   Transaction,
+  VersionedTransaction,
   sendAndConfirmTransaction,
 } from "@solana/web3.js";
 
@@ -25,6 +26,7 @@ import {
   getAssociatedTokenAddressSync,
   getAccount,
   getMint,
+  Account,
 } from "@solana/spl-token";
 
 // ── Constants ────────────────────────────────────────────────
@@ -63,7 +65,7 @@ function deriveVaultPDA(mint: PublicKey): [PublicKey, number] {
 
 import { RAW_IDL } from "./idl";
 
-function loadPatchedIdl(): any {
+function loadPatchedIdl(): Idl {
   const idl = JSON.parse(JSON.stringify(RAW_IDL));
   idl.address = RTP_PROGRAM_ID.toBase58();
   // Anchor 0.31 workaround: accounts array entries are missing 'type'
@@ -97,10 +99,12 @@ export interface RTPTokenResult {
   vaultPDA: string;       // the treasury vault token account address
 }
 
-/** Minimal wallet adapter interface — compatible with @solana/wallet-adapter-react */
+/** Minimal wallet adapter interface — compatible with @solana/wallet-adapter-react.
+ *  Supports both legacy Transaction and VersionedTransaction (required for
+ *  Pump.fun and other platforms that return VersionedTransaction from APIs). */
 export interface WalletAdapter {
   publicKey: PublicKey | null;
-  signTransaction<T extends Transaction>(tx: T): Promise<T>;
+  signTransaction<T extends Transaction | VersionedTransaction>(tx: T): Promise<T>;
 }
 
 export interface TreasuryState {
@@ -120,8 +124,37 @@ export interface TreasuryState {
 function kpWallet(kp: Keypair) {
   return {
     publicKey: kp.publicKey,
-    signTransaction: async <T extends Transaction>(tx: T): Promise<T> => { tx.partialSign(kp); return tx; },
-    signAllTransactions: async <T extends Transaction>(txs: T[]): Promise<T[]> => txs.map(tx => { tx.partialSign(kp); return tx; }),
+    signTransaction: async <T extends Transaction | VersionedTransaction>(tx: T): Promise<T> => {
+      if (tx instanceof VersionedTransaction) {
+        tx.sign([kp]);
+      } else {
+        tx.partialSign(kp);
+      }
+      return tx;
+    },
+    signAllTransactions: async <T extends Transaction | VersionedTransaction>(txs: T[]): Promise<T[]> => {
+      return txs.map(tx => {
+        if (tx instanceof VersionedTransaction) {
+          tx.sign([kp]);
+        } else {
+          tx.partialSign(kp);
+        }
+        return tx;
+      });
+    },
+  };
+}
+
+/** Adapt a WalletAdapter into the wallet interface expected by AnchorProvider. */
+function walletToAnchorWallet(adapter: WalletAdapter) {
+  return {
+    publicKey: adapter.publicKey!,
+    signTransaction: async <T extends Transaction | VersionedTransaction>(tx: T): Promise<T> => {
+      return adapter.signTransaction(tx);
+    },
+    signAllTransactions: async <T extends Transaction | VersionedTransaction>(txs: T[]): Promise<T[]> => {
+      return Promise.all(txs.map(tx => adapter.signTransaction(tx)));
+    },
   };
 }
 
@@ -251,7 +284,7 @@ export async function createRTPToken(
   const idl = loadPatchedIdl();
   const provider = new AnchorProvider(
     connection,
-    payer instanceof Keypair ? kpWallet(payer) : { publicKey: payerPubkey } as any,
+    payer instanceof Keypair ? kpWallet(payer) : walletToAnchorWallet(payer),
     { commitment: "confirmed" },
   );
   const program = new Program(idl, provider);
@@ -278,10 +311,15 @@ export async function createRTPToken(
   const ata = getAssociatedTokenAddressSync(mintPubkey, payerPubkey, false, TOKEN_2022_PROGRAM_ID);
 
   // Check if ATA exists, create if not
-  let ataInfo: any;
+  let ataInfo: Account | null = null;
   try {
     ataInfo = await getAccount(connection, ata, "confirmed", TOKEN_2022_PROGRAM_ID);
-  } catch {
+  } catch (e: unknown) {
+    // ATA doesn't exist yet — expected for new mints, create it
+    const msg = e instanceof Error ? e.message : String(e);
+    if (!msg.includes("could not find account")) {
+      console.warn("[RTP SDK] Unexpected ATA fetch error:", msg);
+    }
     const createAtaIx = createAssociatedTokenAccountInstruction(
       payerPubkey, ata, payerPubkey, mintPubkey, TOKEN_2022_PROGRAM_ID,
     );
@@ -352,7 +390,7 @@ export async function fetchTreasuryState(
     const vaultAccount = await getAccount(connection, vaultPDA, "confirmed", TOKEN_2022_PROGRAM_ID);
     vaultBalance = Number(vaultAccount.amount);
   } catch {
-    // Vault doesn't exist yet
+    // Vault token account doesn't exist yet — expected before first fee deposit
   }
 
   // Read actual decimals from the mint account (not hardcoded)
@@ -361,7 +399,7 @@ export async function fetchTreasuryState(
     const mintInfo = await getMint(connection, mint, "confirmed", TOKEN_2022_PROGRAM_ID);
     decimals = mintInfo.decimals;
   } catch {
-    // Mint doesn't exist or not reachable — use default
+    // Mint not reachable (network error, wrong cluster) — use default 6 decimals
   }
 
   return {
@@ -397,7 +435,7 @@ export async function withdrawAndRedistribute(
   const payerPubkey = payer instanceof Keypair ? payer.publicKey : payer.publicKey!;
   const provider = new AnchorProvider(
     connection,
-    payer instanceof Keypair ? kpWallet(payer) : { publicKey: payerPubkey } as any,
+    payer instanceof Keypair ? kpWallet(payer) : walletToAnchorWallet(payer),
     { commitment: "confirmed" },
   );
   const program = new Program(idl, provider);
@@ -452,12 +490,16 @@ export async function withdrawAndRedistribute(
     const redistributeSig = await sendTx(connection, redistributeTx, payer);
 
     return { withdrawSig, redistributeSig };
-  } catch (err: any) {
+  } catch (err: unknown) {
     // BelowThreshold (error code 6000) is expected — vault doesn't have enough yet
+    const anchorErr = err as {
+      error?: { errorCode?: { code?: string; number?: number } };
+      message?: string;
+    };
     const isBelowThreshold =
-      err?.error?.errorCode?.code === "BelowThreshold" ||
-      err?.message?.includes("BelowThreshold") ||
-      err?.error?.errorCode?.number === 6000;
+      anchorErr.error?.errorCode?.code === "BelowThreshold" ||
+      anchorErr.message?.includes("BelowThreshold") ||
+      anchorErr.error?.errorCode?.number === 6000;
 
     if (isBelowThreshold) {
       return { withdrawSig };

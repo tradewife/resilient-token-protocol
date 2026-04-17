@@ -31,8 +31,7 @@ from collections import Counter
 from dataclasses import dataclass, asdict, field
 from datetime import datetime, timedelta, timezone
 from itertools import product
-from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -46,7 +45,6 @@ from research.optimization.per_symbol_optimizer import (
     compute_indicators,
     simulate_trades,
     compute_metrics,
-    _compute_score,
 )
 
 # ─── Paths ────────────────────────────────────────────────────────────────────

@@ -14,55 +14,30 @@
 
 use crate::bridge::{self, BridgeRequest};
 use crate::types::{Message, Payload, WingId};
-use serde::{Deserialize, Serialize};
+pub mod types;
+pub use types::{HlKeyFile, HlSignature, PositionState, StrategyConfig, YieldReportData};
 use solana_sdk::signer::Signer;
 use std::sync::Mutex;
+use std::sync::MutexGuard;
 
-// ═══════════════════════════════════════════════════════════════════════
-//  Hyperliquid Integration
-// ═══════════════════════════════════════════════════════════════════════
+/// Lock a mutex, logging a warning if poisoned by a previous panic, then recovering.
+fn lock_state<'a>(mtx: &'a Mutex<TradingState>) -> Option<MutexGuard<'a, TradingState>> {
+    match mtx.lock() {
+        Ok(guard) => Some(guard),
+        Err(poisoned) => {
+            tracing::warn!("[TradingWing] State mutex poisoned — recovering from previous panic");
+            Some(poisoned.into_inner())
+        }
+    }
+}
+
+// Hyperliquid Integration
 
 /// Hyperliquid testnet exchange endpoint.
 const HL_TESTNET_URL: &str = "https://api.hyperliquid-testnet.xyz";
 
 /// Key file path relative to repo root.
 const HL_KEY_PATH: &str = "configs/hl_testnet_key.json";
-
-/// ECDSA signature components for Hyperliquid EIP-191 signing.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct HlSignature {
-    pub r: String,
-    pub s: String,
-    pub v: u64,
-}
-
-/// Key file structure for the HL testnet ETH keypair.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct HlKeyFile {
-    pub address: String,
-    pub private_key: String,
-    pub network: String,
-}
-
-/// Yield report data emitted after a confirmed Hyperliquid fill.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct YieldReportData {
-    pub symbol: String,
-    pub side: String,
-    pub fill_price: String,
-    pub size: String,
-    /// Entry price from the opening fill. Stored for PnL calculation on close.
-    pub entry_price: Option<String>,
-    /// Realized PnL in USDC. `None` means the position is still open (no PnL
-    /// realized yet). `Some(value)` means the position was closed and this is
-    /// the actual realized profit/loss.
-    /// For opening fills: `(fill_price - entry_price) * size` is meaningless
-    /// because entry_price == fill_price, so PnL = None.
-    /// For closing fills: `(exit_price - entry_price) * size` for longs,
-    /// `(entry_price - exit_price) * size` for shorts.
-    pub realized_pnl_usdc: Option<f64>,
-    pub timestamp: String,
-}
 
 /// Load the ETH keypair from the key file.
 ///
@@ -515,21 +490,14 @@ fn parse_fill_response(
     })
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-//  Soulguard Trade Check — Position Size Cap
-// ═══════════════════════════════════════════════════════════════════════
+// Soulguard Trade Check
 
 /// Maximum position size as a fraction of treasury vault balance.
 /// The soulcontract mandates "Max position size: 20% of treasury reserves per trade."
 const MAX_POSITION_FRACTION: f64 = 0.20;
 
-/// Check whether a proposed order complies with the soulcontract position
-/// size cap (20% of treasury vault balance).
-///
-/// Returns `Ok(())` if the order is within bounds, or `Err` with a
-/// description of the violation. In production, `vault_balance` would be
-/// fetched from an RPC call to the treasury PDA. For the demo, it uses a
-/// configurable value.
+/// Check proposed order against soulcontract 20% position cap.
+/// `vault_balance` comes from HL clearinghouse state in production, configurable for demo.
 pub fn soulguard_trade_check(size: &str, price: &str, vault_balance: f64) -> Result<(), String> {
     let sz: f64 = size
         .parse()
@@ -575,31 +543,6 @@ pub fn get_hl_account_value() -> Result<f64, String> {
         .unwrap_or("0")
         .parse::<f64>()
         .map_err(|e| format!("Bad accountValue: {}", e))
-}
-
-/// Active strategy configuration for the Trading Wing.
-///
-/// Default values are SOL/USDT Survivor 2.69 — confirmed Apr 12 cycle report, OOS Sharpe 3.96.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct StrategyConfig {
-    pub signal_threshold: f64,
-    pub tp_atr: f64,
-    pub sl_atr: f64,
-    pub max_hold_hours: f64,
-    pub trailing_stop_atr: f64,
-}
-
-impl Default for StrategyConfig {
-    fn default() -> Self {
-        // SOL/USDT Survivor 2.69 — confirmed Apr 12 cycle report, OOS Sharpe 3.96
-        Self {
-            signal_threshold: 0.3,
-            tp_atr: 3.0,
-            sl_atr: 1.5,
-            max_hold_hours: 36.0,
-            trailing_stop_atr: 0.5,
-        }
-    }
 }
 
 /// Apply validated strategy mutations to the active config.
@@ -681,9 +624,7 @@ pub fn execute_hl_sol_order(
     Ok((response, report))
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-//  Treasury CPI Transfer
-// ═══════════════════════════════════════════════════════════════════════
+// Treasury CPI Transfer
 
 /// Devnet RPC endpoint.
 const SOLANA_DEVNET_RPC: &str = "https://api.devnet.solana.com";
@@ -914,17 +855,10 @@ pub fn get_phantom_solana_address() -> Result<String, String> {
     Err("No Solana address found in phantom_signer output".to_string())
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-//  Local Keypair Signing (Path C — devnet demo)
-// ═══════════════════════════════════════════════════════════════════════
+// Local Keypair Signing (devnet demo)
 
 /// Load the default Solana CLI keypair from `~/.config/solana/id.json`.
-///
-/// In production, the agent uses Phantom KMS for signing (TEE/HSM-backed).
-/// For the devnet demo, we load the local keypair from the Solana CLI wallet.
-///
-/// Demo narrative: "In production, the agent wallet is Phantom KMS-backed.
-/// For this demo, we use a devnet keypair to show the same flow."
+/// Production path uses Phantom KMS; this is the devnet demo fallback.
 pub fn load_devnet_keypair() -> Result<solana_sdk::signer::keypair::Keypair, String> {
     let home = std::env::var("HOME").unwrap_or_else(|_| "/home/kt".to_string());
     let path = format!("{}/.config/solana/id.json", home);
@@ -1079,9 +1013,7 @@ pub fn deposit_yield_to_treasury(
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-//  SOL Yield Transfer (native SOL → treasury PDA)
-// ═══════════════════════════════════════════════════════════════════════
+// SOL Yield Transfer
 
 /// Build an unsigned native SOL transfer transaction from `from_wallet` to
 /// `TREASURY_VAULT` for `lamports` lamports.
@@ -1096,7 +1028,7 @@ pub fn build_sol_transfer_tx(from_wallet: &str, lamports: u64) -> Result<String,
 
     let transfer_ix = solana_sdk::system_instruction::transfer(&from, &vault, lamports);
 
-    let (_blockhash_str, blockhash) = get_devnet_blockhash()?;
+    let (_blockhash_str, _blockhash) = get_devnet_blockhash()?;
 
     let message = solana_sdk::message::Message::new(&[transfer_ix], Some(&from));
     let tx = solana_sdk::transaction::Transaction::new_unsigned(message);
@@ -1195,9 +1127,7 @@ pub fn deposit_sol_yield_to_treasury(
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-//  Devnet Funding Stub (SOL → USDC simulation)
-// ═══════════════════════════════════════════════════════════════════════
+// Devnet Funding Stub
 
 /// Phantom wallet's SOL → Hyperliquid USDC bridge is **mainnet-only**. On
 /// devnet there is no real liquidity pool or bridge contract, so we simulate
@@ -1249,39 +1179,6 @@ pub fn devnet_fund_from_hl_oracle(sol_amount: f64) -> Result<f64, String> {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-//  Position Tracking
-// ═══════════════════════════════════════════════════════════════════════
-
-/// Tracks an open position in the Trading Wing's in-memory state.
-///
-/// Created when an opening fill is confirmed. Consumed when the position
-/// is closed, at which point realized PnL is calculated:
-///   - Long close:  `(fill_price - entry_price) * size`
-///   - Short close: `(entry_price - fill_price) * size`
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PositionState {
-    pub symbol: String,
-    pub side: String,
-    pub entry_price: f64,
-    pub size: f64,
-    pub opened_at: String,
-}
-
-impl PositionState {
-    /// Calculate realized PnL when closing this position.
-    ///
-    /// `close_price` is the fill price of the closing order.
-    /// `close_size` is the size being closed (may be partial).
-    pub fn realized_pnl(&self, close_price: f64, close_size: f64) -> f64 {
-        match self.side.as_str() {
-            "BUY" => (close_price - self.entry_price) * close_size,
-            "SELL" => (self.entry_price - close_price) * close_size,
-            _ => 0.0,
-        }
-    }
-}
-
-// ═══════════════════════════════════════════════════════════════════════
 //  Trading Wing
 // ═══════════════════════════════════════════════════════════════════════
 
@@ -1319,7 +1216,7 @@ impl TradingWing {
     pub fn handle_message(&self, msg: &Message) -> Option<Message> {
         match &msg.payload {
             Payload::TradingConfig { strategy, params } => {
-                let mut state = self.state.lock().ok()?;
+                let mut state = lock_state(&self.state)?;
                 state.last_proposal = Some(serde_json::json!({
                     "strategy": strategy,
                     "params": params,
@@ -1340,7 +1237,7 @@ impl TradingWing {
                 confidence: _,
             } => {
                 // Validate and store the proposal for later execution.
-                let mut state = self.state.lock().ok()?;
+                let mut state = lock_state(&self.state)?;
                 state.last_proposal = Some(changes.clone());
                 Some(Message::new(
                     WingId::Trading,
@@ -1354,7 +1251,7 @@ impl TradingWing {
             Payload::ExecutePermit { proposal_id } => {
                 // Read proposal config in a single lock scope (avoids TOCTOU).
                 let (symbol, config) = {
-                    let state = self.state.lock().ok()?;
+                    let state = lock_state(&self.state)?;
                     let config = state
                         .last_proposal
                         .as_ref()
@@ -1368,10 +1265,7 @@ impl TradingWing {
                     (symbol, config)
                 };
 
-                // ── Hyperliquid execution path ────────────────────────
-                // When the proposal sets execution_venue: "hyperliquid",
-                // place a real order on HL testnet instead of using the
-                // bridge fallback.
+                // HL execution path
                 let use_hl =
                     config.get("execution_venue").and_then(|v| v.as_str()) == Some("hyperliquid");
 
@@ -1385,9 +1279,7 @@ impl TradingWing {
                         .and_then(|v| v.as_str())
                         .unwrap_or("0.01");
 
-                    // ── Soulguard: position size cap (20% of vault) ────────
-                    // Check the proposed order against the treasury's 20% max
-                    // position invariant before placing it on HL.
+                    // Soulguard: 20% position cap
                     let mid_price = get_sol_mid_price().unwrap_or(0.0);
                     let vault_balance = get_hl_account_value().unwrap_or(0.0);
                     if let Err(e) =
@@ -1415,7 +1307,7 @@ impl TradingWing {
                             let _tracked_pnl =
                                 self.process_fill(&symbol, is_buy, fill_price, fill_size);
 
-                            // ── Deposit positive PnL to treasury vault as SOL ──
+                            // Deposit positive PnL to treasury
                             if let Some(pnl) = report.realized_pnl_usdc
                                 && pnl > 0.0
                             {
@@ -1431,7 +1323,7 @@ impl TradingWing {
                                 }
                             }
 
-                            let mut state = self.state.lock().ok()?;
+                            let mut state = lock_state(&self.state)?;
                             state.execution_count += 1;
                             state.last_yield_report =
                                 Some(serde_json::to_value(&report).unwrap_or_default());
@@ -1439,12 +1331,8 @@ impl TradingWing {
                                 WingId::Trading,
                                 WingId::Coordinator,
                                 Payload::YieldReport {
-                                    // For opening fills: 0.0 (no realized PnL yet).
-                                    // For closing fills: the realized USDC profit.
                                     usdc_yield: report.realized_pnl_usdc.unwrap_or(0.0).max(0.0),
-                                    // Store fill price as SOL price reference for the demo UI.
                                     sol_reserves: report.fill_price.parse().unwrap_or(0.0),
-                                    // Drawdown = negative PnL if any (clamped to 0 for positive trades).
                                     drawdown: report
                                         .realized_pnl_usdc
                                         .unwrap_or(0.0)
@@ -1467,11 +1355,11 @@ impl TradingWing {
                     }
                 }
 
-                // ── Bridge fallback path ──────────────────────────────
+                // Bridge fallback path
                 let request = BridgeRequest::new(&symbol, config);
                 match bridge::call_bridge(&request) {
                     Ok(response) => {
-                        let mut state = self.state.lock().ok()?;
+                        let mut state = lock_state(&self.state)?;
                         state.execution_count += 1;
                         state.last_yield_report = Some(serde_json::json!({
                             "strategy": response.strategy,
@@ -1509,7 +1397,7 @@ impl TradingWing {
                 drawdown,
                 ..
             } => {
-                let mut state = self.state.lock().ok()?;
+                let mut state = lock_state(&self.state)?;
                 state.last_yield_report = Some(serde_json::json!({
                     "usdc_yield": usdc_yield,
                     "sol_reserves": sol_reserves,
@@ -1525,7 +1413,7 @@ impl TradingWing {
             }
 
             Payload::Heartbeat { .. } => {
-                let state = self.state.lock().ok()?;
+                let state = lock_state(&self.state)?;
                 let metrics = serde_json::json!({
                     "execution_count": state.execution_count,
                     "has_proposal": state.last_proposal.is_some(),
@@ -1555,7 +1443,7 @@ impl TradingWing {
 
     /// Get the current execution count.
     pub fn execution_count(&self) -> u64 {
-        self.state.lock().map(|s| s.execution_count).unwrap_or(0)
+        lock_state(&self.state).map(|s| s.execution_count).unwrap_or(0)
     }
 
     /// Check if the wing has a stored proposal.
@@ -1579,7 +1467,7 @@ impl TradingWing {
         fill_price: f64,
         fill_size: f64,
     ) -> Option<f64> {
-        let mut state = self.state.lock().ok()?;
+        let mut state = lock_state(&self.state)?;
         let key = symbol.to_string();
 
         if let Some(existing) = state.open_positions.remove(&key) {
@@ -1608,17 +1496,14 @@ impl TradingWing {
 
     /// Check if there is an open position for a given symbol.
     pub fn has_open_position(&self, symbol: &str) -> bool {
-        self.state
-            .lock()
+        lock_state(&self.state)
             .map(|s| s.open_positions.contains_key(symbol))
             .unwrap_or(false)
     }
 
     /// Get the entry price of an open position, if one exists.
     pub fn get_entry_price(&self, symbol: &str) -> Option<f64> {
-        self.state
-            .lock()
-            .ok()
+        lock_state(&self.state)
             .and_then(|s| s.open_positions.get(symbol).map(|p| p.entry_price))
     }
 }
@@ -1782,7 +1667,7 @@ mod tests {
         assert_eq!(wing.execution_count(), 0);
     }
 
-    // ── Hyperliquid unit tests ────────────────────────────────────────
+    // Hyperliquid unit tests
 
     #[test]
     fn hl_key_file_roundtrip() {
@@ -2135,7 +2020,7 @@ mod tests {
         }
     }
 
-    // ── Integration: Hyperliquid testnet live order ────────────────────
+    // Integration: HL testnet live order
     // Places a real 0.01 SOL order on HL testnet. Requires:
     //   1. configs/hl_testnet_key.json present
     //   2. Testnet account funded (https://app.hyperliquid-testnet.xyz/drip)
@@ -2186,7 +2071,7 @@ mod tests {
         // HL requires a minimum notional of $10. Size 0.12 at ~$90 = ~$10.80.
         let order_size = "0.12";
 
-        // ── STEP 1: BUY (open long) ──────────────────────────────────
+        // STEP 1: BUY
         println!(
             "[TEST] === STEP 1: BUY {} SOL @ {} (IOC) ===",
             order_size, price_str
@@ -2256,7 +2141,7 @@ mod tests {
             "opening fill has no PnL"
         );
 
-        // ── STEP 2: SELL (close long) ────────────────────────────────
+        // STEP 2: SELL
         let sell_price = mid_price * 0.95; // Below mid for immediate fill
         let sell_price_str = format!("{:.2}", sell_price);
 
@@ -2313,16 +2198,14 @@ mod tests {
             "closing fill should have PnL"
         );
         let pnl = sell_report.realized_pnl_usdc.unwrap();
-        println!("\n[TEST] ═══════════════════════════════════════");
-        println!("[TEST]   ROUND-TRIP COMPLETE");
+        println!("\n[TEST] ROUND-TRIP COMPLETE");
         println!("[TEST]   BUY  @ ${:.3}", buy_price);
         println!("[TEST]   SELL @ ${:.3}", sell_price_actual);
         println!("[TEST]   Size: {} SOL", order_size);
         println!("[TEST]   Realized PnL: ${:.6} USDC", pnl);
-        println!("[TEST] ═══════════════════════════════════════");
     }
 
-    // ── Mock fill tests (no network required) ───────────────────────────
+    // Mock fill tests
 
     /// Mock fill response for testing without HL testnet connectivity.
     /// Simulates a successful IOC fill on SOL/USDT.
@@ -2346,7 +2229,7 @@ mod tests {
 
     #[test]
     fn mock_fill_opening_then_closing() {
-        // ── Opening fill (no prior position) ───────────────────────────
+        // Opening fill
         let open_resp = mock_fill_response("142.50", "0.01");
         let open_report = parse_fill_response(
             &open_resp, "SOL/USDT", true, // is_buy = opening a long
@@ -2372,7 +2255,7 @@ mod tests {
         assert_eq!(open_report.fill_price, "142.50");
         assert_eq!(open_report.size, "0.01");
 
-        // ── Closing fill (prior position exists) ──────────────────────
+        // Closing fill
         // Close the long at $160.00 → PnL = (160 - 142.50) * 0.01 = 0.175 USDC
         let close_resp = mock_fill_response("160.00", "0.01");
         let close_report = parse_fill_response(
@@ -2425,7 +2308,7 @@ mod tests {
         );
     }
 
-    // ── Position tracking tests ─────────────────────────────────────────
+    // Position tracking tests
 
     #[test]
     fn process_fill_opens_position_on_first_fill() {
@@ -2506,7 +2389,7 @@ mod tests {
         assert_eq!(wing.get_entry_price("BTC/USDT"), None);
     }
 
-    // ── Treasury CPI transfer tests (devnet integration) ──────────────
+    // Treasury CPI transfer tests
 
     #[test]
     fn derive_ata_matches_known_program() {
@@ -2630,7 +2513,7 @@ mod tests {
         assert!(result.is_err());
     }
 
-    // ── SOL yield transfer tests ─────────────────────────────────────────
+    // SOL yield transfer tests
 
     #[test]
     fn build_sol_transfer_tx_produces_valid_transaction() {
@@ -2723,7 +2606,7 @@ mod tests {
         assert!(result.unwrap_err().contains("Invalid SOL price"));
     }
 
-    // ── Soulguard trade check tests ────────────────────────────────────────
+    // Soulguard trade check tests
 
     #[test]
     fn soulguard_allows_order_within_20_pct_cap() {
@@ -2803,7 +2686,7 @@ mod tests {
         }
     }
 
-    // ── Local keypair signing tests (Path C) ─────────────────────────────
+    // Local keypair signing tests
 
     #[test]
     fn load_devnet_keypair_loads_valid_keypair() {
@@ -2940,7 +2823,7 @@ mod tests {
         }
     }
 
-    // ── apply_mutations tests ─────────────────────────────────────────
+    // apply_mutations tests
 
     #[test]
     fn apply_mutations_updates_known_params() {
@@ -2994,7 +2877,7 @@ mod tests {
         assert!((config.sl_atr - 2.0).abs() < f64::EPSILON);
     }
 
-    // ── Devnet funding stub tests (only compiled with --features devnet) ─
+    // Devnet funding stub tests
 
     #[cfg(feature = "devnet")]
     #[test]

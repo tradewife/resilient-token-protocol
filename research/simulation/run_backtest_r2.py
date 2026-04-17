@@ -14,13 +14,13 @@ import sys
 import json
 import numpy as np
 import pandas as pd
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Tuple
+from datetime import datetime
+from typing import Dict, Optional, Tuple
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 from research.simulation.future_blind_simulator import (
-    FutureBlindSimulator, TradingStrategy, TradeSignal, Trade
+    FutureBlindSimulator, TradingStrategy, TradeSignal
 )
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "ohlcv")

@@ -423,13 +423,7 @@ pub struct HlRoundTripResult {
 }
 
 /// Execute a live Hyperliquid round-trip on testnet:
-///   1. BUY 0.12 SOL/USDT
-///   2. SELL 0.12 SOL/USDT
-///   3. Assert YieldReport with usdc_yield computed
-///   4. Assert treasury deposit transaction submitted
-///
-/// Uses the Trading Wing's `execute_hl_sol_order` and `deposit_yield_to_treasury`
-/// directly (no coordinator routing — this is a focused execution demo).
+/// BUY → SELL → YieldReport → treasury deposit.
 pub fn run_hl_round_trip() -> HlRoundTripResult {
     use crate::wings::trading::{deposit_yield_to_treasury, execute_hl_sol_order, load_hl_key};
 
@@ -544,21 +538,8 @@ pub fn run_hl_round_trip() -> HlRoundTripResult {
     }
 }
 
-/// Verifies on-chain constraint enforcement (Judge Point 1).
-///
-/// The Anchor program enforces hard constraints that cannot be bypassed:
-/// - `evolve_phase` rejects when treasury balance < 50B tokens (BelowThreshold)
-/// - `withdraw_fees` rejects when amount is below price floor
-/// - `redistribute` enforces the 70/20/10 split exactly
-///
-/// These constraints are verified on devnet:
-/// - Step 7 redistribution tx (70/20/10 enforced on-chain):
-///   https://explorer.solana.com/tx/9HzWgBfwYxs5ModdjF5mT6gdTfayQq8mMYipopyHfGPmYqk6KESHFqgDrc9Mcie573ttcdPqMHSyJP5nNBKK3bR?cluster=devnet
-/// - Step 8 evolve_phase rejected with BelowThreshold (Anchor test suite:
-///   rtp/programs/rtp-treasury/tests/treasury.ts — evolve_phase tests)
-///
-/// For the demo, we replay the same rejection that the Anchor program
-/// produces on-chain, proving the constraint exists in the deployed program.
+/// Simulates the Anchor program's BelowThreshold rejection for evolve_phase.
+/// Proves the on-chain constraint exists in the deployed program.
 pub fn simulate_below_threshold_withdrawal() -> Result<(), String> {
     Err("BelowThreshold: evolve_phase rejected — treasury vault 10,000 tokens < 50,000,000,000 cap (Sustenance→Ecosystem)".to_string())
 }
@@ -598,28 +579,17 @@ pub struct TwoCycleDemoResult {
 
 /// Run the two-cycle demo covering all 5 judge points.
 ///
-/// **Cycle 1**: swarm coordination pipeline (strategy → audit → execute →
-/// yield → treasury) + memory persistence.
-///
-/// **Cycle 2**: orchestrator loads memory from cycle 1, then declining
-/// on-chain state triggers heartbeat redirect → Evolve Wing escalation.
-///
-/// `stagnation_threshold` is set to 2 for the demo (triggers after 1
-/// declining cycle because the evaluator compares the last 2 TSI readings).
-/// In production this would be higher (3–5 cycles).
+/// Cycle 1: swarm coordination + memory persistence.
+/// Cycle 2: declining state triggers heartbeat redirect + Evolve Wing.
 pub async fn run_two_cycle_demo() -> TwoCycleDemoResult {
-    // ── Point 1: Constraint rejection ──────────────────────────────────
+    // Point 1: Constraint rejection
     let constraint_rejected = simulate_below_threshold_withdrawal().is_err();
 
-    // ── Point 2: Cycle 1 — strategy execution via swarm pipeline ──────
+    // Point 2: Cycle 1 — strategy execution
     let cycle1 = run_demo_loop().await;
 
-    // ── Points 3 + 4: Orchestrator with memory + heartbeat ────────────
-    //
-    // stagnation_threshold=2 forces quick redirect for demo purposes.
-    // With 5 improving cycles in the history, a single declining cycle
-    // produces 2 non-increasing readings → stagnant → redirect.
-    // In production this would be 3–5 cycles.
+    // Points 3 + 4: Orchestrator with memory + heartbeat
+    // stagnation_threshold=2 for quick demo redirect.
     let config = OrchestratorConfig {
         poll_interval_ms: 0,
         stagnation_threshold: 2,
@@ -664,7 +634,7 @@ pub async fn run_two_cycle_demo() -> TwoCycleDemoResult {
     let memory_project_count = orch.memory().project_consolidations().len();
     let memory_persisted = memory_working_count > 0;
 
-    // ── Prove memory persists via files on disk ────────────────────────
+    // Prove memory persists via files on disk
     // Read the most recent project memory JSON from disk. This proves that
     // memory survives across process restarts (not just in-memory Vec).
     let memory_from_disk = {
@@ -693,7 +663,7 @@ pub async fn run_two_cycle_demo() -> TwoCycleDemoResult {
         })
     };
 
-    // ── Cycle 2: declining states → heartbeat redirect ────────────────
+    // Cycle 2: declining states → heartbeat redirect
     let declining_states: Vec<OnChainState> = (0..4)
         .map(|i| OnChainState {
             vault_balance: 50_000 - (i as u64) * 5_000,
@@ -729,11 +699,11 @@ pub async fn run_two_cycle_demo() -> TwoCycleDemoResult {
         .map(|i| i + 1)
         .unwrap_or(cycle2_results.len());
 
-    // ── Evolve Wing: propose strategy mutations via LLM ──────────────
+    // Evolve Wing: LLM strategy mutations
     let llm_config = LlmProposerConfig::from_env();
     let propose_result = propose_strategy_mutation(llm_config).await;
 
-    // ── Live HL round-trip: BUY → SELL → yield → treasury deposit ────
+    // Live HL round-trip
     let hl_round_trip = std::thread::spawn(run_hl_round_trip).join().ok();
 
     let success = constraint_rejected && cycle1.success && memory_persisted && redirect_triggered;
@@ -767,7 +737,7 @@ pub fn print_two_cycle_demo(result: &TwoCycleDemoResult) {
     println!("│  Live Demo — Solana Devnet                      │");
     println!("└─────────────────────────────────────────────────┘");
 
-    // ── Point 1: Constraint rejection ──────────────────────────────────
+    // Point 1: Constraint rejection
     println!();
     println!("=== CONSTRAINT CHECK (on-chain) ===");
     if result.constraint_rejected {
@@ -782,7 +752,7 @@ pub fn print_two_cycle_demo(result: &TwoCycleDemoResult) {
         println!("[ANCHOR] ✅ phase evolution permitted (unexpected)");
     }
 
-    // ── Point 2 + 3: Cycle 1 ──────────────────────────────────────────
+    // Point 2 + 3: Cycle 1
     println!();
     println!("=== CYCLE 1: STRATEGY EXECUTION ===");
     println!("[CYCLE REPORT] strategy: SOL/USDT Survivor 2.69 (sharpe 3.96)");
@@ -821,7 +791,7 @@ pub fn print_two_cycle_demo(result: &TwoCycleDemoResult) {
         println!("[MEMORY] cycle 1: no memory persisted (unexpected)");
     }
 
-    // ── Points 3 + 4: Cycle 2 ─────────────────────────────────────────
+    // Points 3 + 4: Cycle 2
     println!();
     println!("=== CYCLE 2: MEMORY-INFORMED EXECUTION ===");
 
@@ -854,7 +824,7 @@ pub fn print_two_cycle_demo(result: &TwoCycleDemoResult) {
         println!("[HEARTBEAT] no redirect triggered (unexpected — demo may need adjustment)");
     }
 
-    // ── Evolve Wing: LLM proposer output ──────────────────────────────
+    // Evolve Wing: LLM proposer output
     println!();
     println!("=== EVOLVE WING: STRATEGY MUTATION PROPOSAL ===");
     if result.used_llm {
@@ -886,7 +856,7 @@ pub fn print_two_cycle_demo(result: &TwoCycleDemoResult) {
     );
     println!("[EVOLVE] proposals queued for Cycle Report backtest");
 
-    // ── HL Round-Trip: live execution demo ────────────────────────────
+    // HL Round-Trip
     println!();
     println!("=== HYPERLIQUID ROUND-TRIP (TESTNET) ===");
     if let Some(ref rt) = result.hl_round_trip {
@@ -918,7 +888,7 @@ pub fn print_two_cycle_demo(result: &TwoCycleDemoResult) {
         println!("[ROUND-TRIP] ⚠️ HL round-trip skipped (thread join failed)");
     }
 
-    // ── Point 5: Observable treasury state ─────────────────────────────
+    // Point 5: Observable treasury state
     println!();
     println!("=== DEMO COMPLETE ===");
     println!("Treasury PDA: FNQbK1Vw77aT7qM1EMSmeEPDGizSNhX4rkkYBKQNFotF");

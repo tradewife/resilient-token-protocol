@@ -10,6 +10,19 @@ use chrono::Utc;
 use std::collections::HashMap;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::MutexGuard;
+
+/// Lock the store mutex, logging a warning if it was poisoned by a previous panic.
+/// Returns `None` only if the lock cannot be acquired at all (should never happen).
+fn lock_store<'a>(mtx: &'a Mutex<HashMap<String, KnowledgeEntry>>) -> Option<MutexGuard<'a, HashMap<String, KnowledgeEntry>>> {
+    match mtx.lock() {
+        Ok(guard) => Some(guard),
+        Err(poisoned) => {
+            tracing::warn!("[KnowledgeWing] Mutex poisoned — recovering from previous panic");
+            Some(poisoned.into_inner())
+        }
+    }
+}
 
 /// A single knowledge entry.
 #[derive(Debug, Clone)]
@@ -39,7 +52,7 @@ impl KnowledgeWing {
         match &msg.payload {
             Payload::KnowledgeQuery { query, context } => {
                 self.query_count.fetch_add(1, Ordering::Relaxed);
-                let store = self.store.lock().ok()?;
+                let store = lock_store(&self.store)?;
                 let results = Self::search(&store, query, context.as_deref());
                 Some(Message::new(
                     WingId::Knowledge,
@@ -54,7 +67,7 @@ impl KnowledgeWing {
                 drawdown,
                 ..
             } => {
-                let mut store = self.store.lock().ok()?;
+                let mut store = lock_store(&self.store)?;
                 let entry =
                     store
                         .entry("yield_reports".to_string())
@@ -85,7 +98,7 @@ impl KnowledgeWing {
                 bottlenecks,
                 recommendations,
             } => {
-                let mut store = self.store.lock().ok()?;
+                let mut store = lock_store(&self.store)?;
                 let key = format!("assessment:{}", wing);
                 let entry = store.entry(key).or_insert_with(|| KnowledgeEntry {
                     values: Vec::new(),
@@ -109,7 +122,7 @@ impl KnowledgeWing {
             }
 
             Payload::Heartbeat { .. } => {
-                let store = self.store.lock().ok()?;
+                let store = lock_store(&self.store)?;
                 let metrics = serde_json::json!({
                     "store_size": store.len(),
                     "query_count": self.query_count.load(Ordering::Relaxed),

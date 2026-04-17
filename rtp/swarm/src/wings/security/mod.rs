@@ -10,6 +10,18 @@ use crate::types::{Message, Payload, ProposalKind, RiskLevel, WingId};
 use chrono::{Duration, Utc};
 use std::collections::HashMap;
 use std::sync::Mutex;
+use std::sync::MutexGuard;
+
+/// Lock a mutex, logging a warning if poisoned by a previous panic, then recovering.
+fn lock_or_recover<'a, T>(mtx: &'a Mutex<T>, label: &str) -> Option<MutexGuard<'a, T>> {
+    match mtx.lock() {
+        Ok(guard) => Some(guard),
+        Err(poisoned) => {
+            tracing::warn!("[SecurityWing] {} mutex poisoned — recovering", label);
+            Some(poisoned.into_inner())
+        }
+    }
+}
 
 /// Max proposals per wing per window before flagging rate-limit.
 const RATE_LIMIT_THRESHOLD: u64 = 10;
@@ -55,7 +67,7 @@ impl SecurityWing {
     pub fn handle_message(&self, msg: &Message) -> Option<Message> {
         match &msg.payload {
             Payload::SecurityAlert { severity, threat } => {
-                let mut alerts = self.alerts.lock().ok()?;
+                let mut alerts = lock_or_recover(&self.alerts, "alerts")?;
                 alerts.push(AlertEntry {
                     severity: *severity,
                     threat: threat.clone(),
@@ -111,11 +123,11 @@ impl SecurityWing {
             }
 
             Payload::Heartbeat { .. } => {
-                let alerts = self.alerts.lock().ok()?;
+                let alerts = lock_or_recover(&self.alerts, "alerts")?;
                 let last_alert_ts = alerts.last().map(|a| a.detected_at.to_rfc3339());
                 let count = alerts.len();
                 let rate_info = {
-                    let limits = self.rate_limits.lock().ok()?;
+                    let limits = lock_or_recover(&self.rate_limits, "rate_limits")?;
                     limits
                         .iter()
                         .map(|(w, e)| {
@@ -156,7 +168,7 @@ impl SecurityWing {
 
     /// Record one message from a wing for rate-limiting.
     fn track_rate(&self, wing: &WingId) {
-        if let Ok(mut limits) = self.rate_limits.lock() {
+        if let Some(mut limits) = lock_or_recover(&self.rate_limits, "rate_limits") {
             let now = Utc::now();
             let entry = limits.entry(*wing).or_insert(RateEntry {
                 count: 0,
@@ -172,18 +184,14 @@ impl SecurityWing {
 
     /// Check if a wing has exceeded the rate-limit threshold.
     pub fn is_rate_limited(&self, wing: &WingId) -> bool {
-        self.rate_limits
-            .lock()
-            .ok()
+        lock_or_recover(&self.rate_limits, "rate_limits")
             .and_then(|l| l.get(wing).map(|e| e.count > RATE_LIMIT_THRESHOLD))
             .unwrap_or(false)
     }
 
     /// Proposal count for a wing in the current window.
     pub fn proposal_count(&self, wing: &WingId) -> u64 {
-        self.rate_limits
-            .lock()
-            .ok()
+        lock_or_recover(&self.rate_limits, "rate_limits")
             .and_then(|l| l.get(wing).map(|e| e.count))
             .unwrap_or(0)
     }

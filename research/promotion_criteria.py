@@ -4,7 +4,7 @@ Single source-of-truth for strategy promotion and retirement thresholds.
 Importable by both the research pipeline and the execution layer.
 All numeric thresholds live here — no magic numbers in consumers.
 """
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 
 

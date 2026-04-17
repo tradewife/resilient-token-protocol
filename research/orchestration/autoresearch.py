@@ -16,16 +16,13 @@ Loop:
 
 Each iteration is one "training step". Run overnight for ~100 experiments.
 """
-import asyncio
 import os
 import sys
 import json
-import subprocess
 import numpy as np
 import pandas as pd
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Tuple
-from itertools import product
+from datetime import datetime
+from typing import Dict, List, Optional
 from dataclasses import dataclass, asdict
 
 sys.stdout.reconfigure(line_buffering=True)
@@ -33,7 +30,7 @@ sys.stderr.reconfigure(line_buffering=True)
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
-from research.optimization.per_symbol_optimizer import compute_indicators, simulate_trades, compute_metrics, _compute_score
+from research.optimization.per_symbol_optimizer import compute_indicators, simulate_trades, compute_metrics
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "data", "ohlcv")
 SYMBOLS = ["BTC/USDT", "ETH/USDT", "SOL/USDT", "BNB/USDT"]

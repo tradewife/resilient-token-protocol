@@ -13,15 +13,23 @@ import os
 import sys
 import json
 from datetime import datetime
+from typing import TYPE_CHECKING, Any
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
-try:
+if TYPE_CHECKING:
     from knowledge_base_schema import KnowledgeBase, StrategyGenome, StrategyPerformance
-except ImportError:
-    KnowledgeBase = None  # type: ignore[misc,assignment]
-    StrategyGenome = None  # type: ignore[misc,assignment]
-    StrategyPerformance = None  # type: ignore[misc,assignment]
+else:
+    try:
+        from knowledge_base_schema import KnowledgeBase, StrategyGenome, StrategyPerformance
+    except ImportError:
+        import logging
+        logging.getLogger(__name__).warning(
+            "knowledge_base_schema not found — knowledge-base persistence disabled"
+        )
+        KnowledgeBase: Any = None
+        StrategyGenome: Any = None
+        StrategyPerformance: Any = None
 
 
 # ─── Winning configuration ───────────────────────────────────────────────────

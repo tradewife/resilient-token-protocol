@@ -1,5 +1,16 @@
 # Multi-Platform Launcher Plan
 
+## Context (read this first)
+
+- **Project**: Resilient Token Protocol (RTP) — B2B yield treasury infrastructure for Solana launch platforms. There is NO RTP token.
+- **Site**: Next.js 16 app at `dashboard/`. Public URL: resilientprotocol.xyz
+- **Key docs**: Read `CLAUDE.md` for full project context. Read `dashboard/AGENTS.md` for Next.js version warnings.
+- **Current pages**: `/` (dashboard), `/docs` (SDK guide), `/launch` (platform integration preview), `/research` (night shift results)
+- **The /launch page already works**: RTP Direct mode creates Token-2022 mints with TransferFeeConfig on devnet via Phantom wallet. This plan adds 3 more platform options.
+- **Design system**: All CSS is in `dashboard/src/app/globals.css`. Use existing classes (`.btn-launch`, `.btn-connect`, `.code-block`, `.form-input`, etc.). No new CSS frameworks.
+- **Build check**: Always run `cd dashboard && npm run build` after changes.
+- **Hackathon**: SWARMs/Canteen × Colosseum, deadline May 11, 2026. Metaplex is a sponsor.
+
 ## Goal
 
 Add a platform selector to `/launch` so users can choose where to deploy their token.

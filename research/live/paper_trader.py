@@ -19,11 +19,9 @@ import sys
 import json
 import time
 import signal
-import numpy as np
 import pandas as pd
 from datetime import datetime, timedelta, timezone
-from typing import Dict, List, Optional
-from pathlib import Path
+from typing import Optional
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
@@ -184,6 +182,8 @@ class PaperTrader:
                 if state.get("start_time"):
                     self.start_time = datetime.fromisoformat(state["start_time"])
                 print(f"Loaded state: {len(self.round_trips)} trades, {len(self.positions)} open")
+            except (json.JSONDecodeError, KeyError, ValueError) as e:
+                print(f"State load failed (corrupt data): {e}, starting fresh")
             except Exception as e:
                 print(f"State load failed: {e}, starting fresh")
 

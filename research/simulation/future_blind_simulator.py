@@ -3,16 +3,14 @@ Future-Blind Backtesting Simulator
 Ensures that trading decisions are made without knowledge of future data
 """
 
-import asyncio
 import pandas as pd
 import numpy as np
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Callable, Any
+from datetime import datetime
+from typing import Dict, List, Optional
 import json
 import logging
 from dataclasses import dataclass, field
 from abc import ABC, abstractmethod
-import random
 from concurrent.futures import ProcessPoolExecutor
 import multiprocessing as mp
 

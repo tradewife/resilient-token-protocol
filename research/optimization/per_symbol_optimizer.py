@@ -12,7 +12,7 @@ import json
 import numpy as np
 import pandas as pd
 from datetime import datetime
-from typing import Dict, List, Tuple
+from typing import Dict, List
 from itertools import product
 
 sys.stdout.reconfigure(line_buffering=True)

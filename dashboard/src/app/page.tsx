@@ -87,7 +87,9 @@ export default function Home() {
       try {
         const lamports = await connection.getBalance(new PublicKey(TREASURY_PDA));
         if (alive) setTreasurySol(lamports / LAMPORTS_PER_SOL);
-      } catch { /* retry next tick */ }
+      } catch {
+        // Devnet RPC may be rate-limited or unreachable — retry on next poll interval
+      }
     };
     poll();
     const id = setInterval(poll, 10_000);
@@ -113,7 +115,9 @@ export default function Home() {
         const json = await res.json();
         const lamports: number = json?.result?.value ?? 0;
         if (alive) setWalletSol(lamports / LAMPORTS_PER_SOL);
-      } catch { /* retry */ }
+      } catch {
+        // Mainnet RPC may be rate-limited or unreachable — retry on next poll interval
+      }
     };
     poll();
     const id = setInterval(poll, 15_000);
@@ -128,7 +132,9 @@ export default function Home() {
         const data: CycleData = await res.json();
         if (!data.error) { setCycle(data); return; }
       }
-    } catch { /* use fallback */ }
+    } catch {
+      // Static JSON not built yet or fetch failed — derived state uses fallbacks
+    }
     // No valid data — derived state uses fallbacks
   }, []);
 
@@ -143,7 +149,9 @@ export default function Home() {
           const data: MemoryData = await res.json();
           if (!data.error) { setMemory(data); return; }
         }
-      } catch { /* ignore */ }
+      } catch {
+        // Static JSON not built yet or fetch failed — memory display stays empty
+      }
     })();
   }, []);
 
@@ -170,7 +178,9 @@ export default function Home() {
             slot: json?.result?.context?.slot ?? null,
           });
         }
-      } catch { /* retry later */ }
+      } catch {
+        // Devnet RPC unreachable — will retry on next 30s interval
+      }
     };
     check();
     const id = setInterval(check, 30_000);
@@ -221,7 +231,7 @@ export default function Home() {
               }
             }
           } catch {
-            // Skip individual tx failures (rate limits, etc.)
+            // Individual tx fetch failed (rate limit, dropped connection) — skip, continue scanning
           }
         }
 
@@ -230,6 +240,7 @@ export default function Home() {
           setYieldLoading(false);
         }
       } catch {
+        // Bulk yield scan failed — show no yield rather than stale data
         if (!cancelled) {
           setYieldReceived(null);
           setYieldLoading(false);
