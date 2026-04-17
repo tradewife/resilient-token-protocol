@@ -42,7 +42,7 @@ const PLATFORMS: PlatformDef[] = [
 
 // ── Types ───────────────────────────────────────────────────
 
-type LaunchPhase = "form" | "confirming" | "launching" | "rtp_init" | "success" | "error";
+type LaunchPhase = "form" | "launching" | "rtp_init" | "success" | "error";
 
 interface LaunchResult {
   mint: string;
@@ -471,15 +471,6 @@ export default function LaunchPage() {
 
   const canLaunch = connected && !!publicKey && !!projectName && !!tokenSymbol && (platform !== "bags" || !!bagsApiKey);
 
-  const phaseLabel = (p: Platform): { verb: string; noun: string } => {
-    switch (p) {
-      case "rtp": return { verb: "Create Token-2022 + treasury", noun: "mint" };
-      case "pumpfun": return { verb: "Launch bonding curve token", noun: "token" };
-      case "metaplex": return { verb: "Create Genesis launch pool", noun: "launch" };
-      case "bags": return { verb: "Launch fee-sharing token", noun: "token" };
-    }
-  };
-
   // ══════════════════════════════════════════════════════════
   // ── Render ───────────────────────────────────────────────
   // ══════════════════════════════════════════════════════════
@@ -535,7 +526,14 @@ export default function LaunchPage() {
                 color: "inherit", fontFamily: "var(--font-body)",
               }}
             >
-              <div style={{ fontSize: "0.875rem", fontWeight: 500, color: p.color, marginBottom: 6 }}>{p.name}</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                <div style={{ fontSize: "0.875rem", fontWeight: 500, color: p.color }}>{p.name}</div>
+                <span style={{
+                  fontSize: "0.5625rem", fontWeight: 600, letterSpacing: "0.08em",
+                  color: p.color, background: `${p.color}18`,
+                  padding: "2px 5px", borderRadius: 3, textTransform: "uppercase",
+                }}>INSTANT</span>
+              </div>
               <div style={{ fontSize: "0.6875rem", color: "var(--text-tertiary)", lineHeight: 1.45 }}>{p.desc}</div>
               <div style={{ fontSize: "0.625rem", color: "var(--text-muted)", marginTop: 8, fontFamily: "var(--font-mono)", letterSpacing: "0.03em" }}>{p.token}</div>
             </button>
@@ -566,7 +564,7 @@ export default function LaunchPage() {
             Configure your token &rarr;
           </h3>
 
-          <form className="launch-form" onSubmit={(e) => { e.preventDefault(); setPhase("confirming"); }}>
+          <form className="launch-form" onSubmit={(e) => { e.preventDefault(); handleLaunch(); }}>
             {/* ── Shared: name + symbol ── */}
             <div className="form-group">
               <label className="form-label" htmlFor="projectName">Project Name</label>
@@ -739,10 +737,39 @@ export default function LaunchPage() {
               </>
             )}
 
+            {/* ── How it works (mini flow) ── */}
+            <div style={{
+              display: "flex", alignItems: "center", justifyContent: "center", gap: "var(--space-md)",
+              padding: "var(--space-md) 0", borderTop: "1px solid var(--border)", borderBottom: "1px solid var(--border)",
+            }}>
+              {[
+                { icon: "1", label: "Click Launch" },
+                { icon: "→", label: "" },
+                { icon: "2", label: "Phantom signs" },
+                { icon: "→", label: "" },
+                { icon: "3", label: "Token live" },
+              ].map((step, i) => step.label ? (
+                <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+                  <div style={{
+                    width: 24, height: 24, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
+                    background: "var(--surface-2)", color: "var(--text-secondary)", fontSize: "0.6875rem", fontWeight: 600,
+                  }}>{step.icon}</div>
+                  <span style={{ fontSize: "0.6875rem", color: "var(--text-tertiary)" }}>{step.label}</span>
+                </div>
+              ) : (
+                <span key={i} style={{ color: "var(--text-muted)", fontSize: "0.75rem" }}>→</span>
+              ))}
+            </div>
+
             {/* ── Submit ── */}
             <button type="submit" className="btn-launch" disabled={!canLaunch}
-              style={{ opacity: canLaunch ? 1 : 0.5, cursor: canLaunch ? "pointer" : "not-allowed" }}>
-              Continue to Confirm
+              style={{
+                opacity: canLaunch ? 1 : 0.5, cursor: canLaunch ? "pointer" : "not-allowed",
+                background: PLATFORMS.find(p => p.id === platform)?.color,
+                fontSize: "1rem", padding: "14px 32px", fontWeight: 600,
+                letterSpacing: "0.02em",
+              }}>
+              Launch on {PLATFORMS.find(p => p.id === platform)?.name}
             </button>
           </form>
 
@@ -755,57 +782,6 @@ export default function LaunchPage() {
               <strong>Error:</strong> {error}
             </div>
           )}
-        </section>
-      )}
-
-      {/* ════════════════════════════════════════════════════════
-          ── Phase: CONFIRMING ──────────────────────────────────
-          ════════════════════════════════════════════════════════ */}
-      {phase === "confirming" && (
-        <section className="launch-form-section" style={{ textAlign: "center" }}>
-          <h2 style={{ fontSize: "1.25rem", marginBottom: "16px" }}>Confirm Token Launch</h2>
-          <div style={{
-            background: "rgba(0,0,0,0.3)", border: "1px solid var(--border)",
-            borderRadius: "8px", padding: "20px", textAlign: "left",
-            maxWidth: 480, margin: "0 auto 24px",
-          }}>
-            <div style={{ marginBottom: "8px" }}><strong>Platform:</strong> {PLATFORMS.find(p => p.id === platform)?.name}</div>
-            <div style={{ marginBottom: "8px" }}><strong>Name:</strong> {projectName}</div>
-            <div style={{ marginBottom: "8px" }}><strong>Symbol:</strong> {tokenSymbol}</div>
-            {platform === "rtp" && (
-              <>
-                <div style={{ marginBottom: "8px" }}><strong>Supply:</strong> {parseInt(totalSupply).toLocaleString()}</div>
-                <div style={{ marginBottom: "8px" }}><strong>Fee:</strong> {(parseInt(feeBps) / 100).toFixed(1)}%</div>
-              </>
-            )}
-            {platform === "pumpfun" && (
-              <div style={{ marginBottom: "8px" }}><strong>Dev Buy:</strong> {devBuyAmount} SOL</div>
-            )}
-            {platform === "metaplex" && (
-              <>
-                <div style={{ marginBottom: "8px" }}><strong>Token Allocation:</strong> {parseInt(metaSupply).toLocaleString()}</div>
-                <div style={{ marginBottom: "8px" }}><strong>Raise Goal:</strong> {raiseGoal} SOL</div>
-              </>
-            )}
-            {platform === "bags" && (
-              <div style={{ marginBottom: "8px" }}><strong>Initial Buy:</strong> {bagsBuyAmount} SOL</div>
-            )}
-            <div style={{ marginBottom: "8px" }}><strong>Wallet:</strong> {addr}</div>
-            <div><strong>Network:</strong> {platform === "rtp" ? "Solana Devnet" : "Solana Mainnet"}</div>
-          </div>
-          <p style={{ color: "var(--text-secondary)", fontSize: "0.875rem", marginBottom: "24px" }}>
-            {platform === "rtp"
-              ? "Phantom will prompt you to sign 4 transactions: mint creation, treasury init, ATA creation, supply mint."
-              : `Phantom will prompt you to sign the ${phaseLabel(platform).noun} transaction from ${PLATFORMS.find(p => p.id === platform)?.name}.`}
-          </p>
-          <div style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
-            <button className="btn-launch" onClick={handleLaunch}>
-              Sign & Launch
-            </button>
-            <button className="btn-secondary" onClick={reset}>
-              Cancel
-            </button>
-          </div>
         </section>
       )}
 
