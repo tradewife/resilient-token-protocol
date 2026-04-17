@@ -37,8 +37,8 @@ const PLATFORMS: PlatformDef[] = [
   },
   {
     id: "metaplex",
-    name: "Metaplex Genesis",
-    color: "#14F195",
+    name: "Metaplex",
+    color: "#4169E1",
     desc: "Fair launch via Genesis Launch Pool",
     token: "SPL (standard)",
   },
