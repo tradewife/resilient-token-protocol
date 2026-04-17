@@ -1,17 +1,13 @@
 //! Bridge — Python↔Rust typed interface.
 //!
-//! The Trading Wing calls the Python fractal-swarm binary (cycle_report.bin)
-//! through this bridge and receives typed JSON proposals back.
-//!
-//! Week 3: stub binary path, tested with captured/fake JSON output.
-//! Week 4: swap `CYCLE_BIN` to the real PyInstaller binary.
+//! Calls the Python fractal-swarm binary (cycle_report.bin) and receives
+//! typed JSON proposals back.
 
 use serde::{Deserialize, Serialize};
 use std::io::Write as IoWrite;
 use thiserror::Error;
 
 /// Path to the Python fractal-swarm binary.
-/// Week 4: swap to the real PyInstaller output.
 pub const CYCLE_BIN: &str = "cycle_report.bin";
 
 /// Request sent to the Python fractal-swarm binary.
@@ -60,8 +56,7 @@ pub enum BridgeError {
     ParseError(String),
 }
 
-/// Call the Python binary with a typed request and receive a typed response.
-/// Uses `CYCLE_BIN` as the binary path.
+/// Call the Python binary with a typed request.
 pub fn call_bridge(request: &BridgeRequest) -> Result<BridgeResponse, BridgeError> {
     call_bridge_with_bin(CYCLE_BIN, request)
 }
@@ -88,7 +83,6 @@ pub fn call_bridge_with_bin(
             }
         })?;
 
-    // Write request JSON to stdin, then close it.
     if let Some(ref mut stdin) = child.stdin {
         stdin
             .write_all(input.as_bytes())
@@ -96,14 +90,12 @@ pub fn call_bridge_with_bin(
     }
     drop(child.stdin.take());
 
-    // Wait for the subprocess with a 5-minute timeout.
-    // Strategy evaluation should complete in seconds; 5 min is a generous ceiling.
+    // 5-minute timeout — strategy eval should finish in seconds.
     const BRIDGE_TIMEOUT_SECS: u64 = 300;
     let child_id = child.id();
 
     let handle = std::thread::spawn(move || child.wait_with_output());
 
-    // Poll for completion with timeout.
     let timeout = std::time::Duration::from_secs(BRIDGE_TIMEOUT_SECS);
     let start = std::time::Instant::now();
 
@@ -185,7 +177,7 @@ mod tests {
         std::thread::sleep(std::time::Duration::from_millis(5));
     }
 
-    // ── Serialization round-trips ─────────────────────────────────────
+    // Serialization round-trips
 
     #[test]
     fn request_roundtrip() {
@@ -234,7 +226,7 @@ mod tests {
         assert!(serde_json::from_str::<BridgeResponse>("{}").is_err());
     }
 
-    // ── Subprocess error handling ─────────────────────────────────────
+    // Subprocess error handling
 
     #[test]
     fn missing_binary_returns_not_found() {
@@ -250,7 +242,7 @@ mod tests {
         assert!(err.to_string().contains("missing_test_bin"));
     }
 
-    // ── Mock binary tests ─────────────────────────────────────────────
+    // Mock binary tests
 
     /// Generate a unique temp path to avoid parallel test collisions.
     fn unique_tmp(label: &str) -> std::path::PathBuf {
@@ -313,7 +305,7 @@ mod tests {
         assert!(matches!(result, Err(BridgeError::ProcessFailed(_))));
     }
 
-    // ── Constants ─────────────────────────────────────────────────────
+    // Constants
 
     #[test]
     fn cycle_bin_constant_is_swappable() {

@@ -1,41 +1,37 @@
-/* ═══════════════════════════════════════════════════════════════
-   RTP SENTINEL — Design System
-   Palette derived from background image: deep emerald + coral
-   All neutrals tinted toward hue 160 (emerald)
-   OKLCH-based, perceptually uniform
-   ═══════════════════════════════════════════════════════════════ */
+/* RTP SENTINEL — Design System
+   Palette: deep emerald + coral. OKLCH-based, perceptually uniform. */
 
 @import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600&family=Figtree:wght@400;500&display=swap');
 
 :root {
-  /* ── Emerald surfaces (neutrals tinted toward hue 160) ────── */
+  /* Emerald surfaces (neutrals tinted toward hue 160) */
   --void:         oklch(8% 0.025 160);
   --surface-0:    oklch(11% 0.02 160);
   --surface-1:    oklch(14% 0.018 160);
   --surface-2:    oklch(18% 0.015 160);
   --surface-3:    oklch(22% 0.012 160);
 
-  /* ── Text hierarchy ────────────────────────────────────────── */
+  /* Text hierarchy */
   --text-primary:   #e6f0e8;
   --text-secondary: oklch(72% 0.03 160);
   --text-tertiary:  oklch(55% 0.025 160);
   --text-muted:     oklch(42% 0.02 160);
 
-  /* ── Coral accent (from flower image, 10% usage) ──────────── */
+  /* Coral accent (from flower image, 10% usage) */
   --coral:        oklch(75% 0.12 30);
   --coral-muted:  oklch(65% 0.08 30);
   --coral-dim:    oklch(40% 0.06 30);
 
-  /* ── Emerald accent ────────────────────────────────────────── */
+  /* Emerald accent */
   --emerald:      oklch(55% 0.1 160);
   --emerald-dim:  oklch(35% 0.06 160);
 
-  /* ── Borders & overlays ────────────────────────────────────── */
+  /* Borders & overlays */
   --border:       oklch(25% 0.015 160);
   --border-hover: oklch(32% 0.02 160);
   --overlay:      oklch(12% 0.02 160 / 0.7);
 
-  /* ── Spacing (4pt scale) ───────────────────────────────────── */
+  /* Spacing (4pt scale) */
   --space-xs:  4px;
   --space-sm:  8px;
   --space-md:  16px;
@@ -45,13 +41,13 @@
   --space-3xl: 64px;
   --space-4xl: 96px;
 
-  /* ── Type ───────────────────────────────────────────────────── */
+  /* Type */
   --font-display: 'Bricolage Grotesque', system-ui, sans-serif;
   --font-body:    'Figtree', system-ui, sans-serif;
   --font-mono:    'Geist Mono', 'SF Mono', 'Cascadia Code', monospace;
 }
 
-/* ── Reset ────────────────────────────────────────────────────── */
+/* Reset */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 html {
@@ -70,14 +66,14 @@ body {
   overflow-x: hidden;
 }
 
-/* ── Page wrapper ─────────────────────────────────────────────── */
+/* Page wrapper */
 .page {
   max-width: 1440px;
   margin: 0 auto;
   padding: var(--space-xl) var(--space-2xl);
 }
 
-/* ── Top bar ──────────────────────────────────────────────────── */
+/* Top bar */
 .topbar {
   display: flex;
   justify-content: space-between;
@@ -144,7 +140,7 @@ body {
   border-radius: 4px;
 }
 
-/* ── Wallet pill (connected state) ────────────────────────────── */
+/* Wallet pill (connected state) */
 .wallet-pill {
   display: flex;
   align-items: center;
@@ -202,7 +198,7 @@ body {
   cursor: help;
 }
 
-/* ── Hero: asymmetric split ───────────────────────────────────── */
+/* Hero: asymmetric split */
 .hero {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -334,7 +330,7 @@ body {
   font-weight: 500;
 }
 
-/* ── Middle section: 3-col asymmetric ─────────────────────────── */
+/* Middle section: 3-col asymmetric */
 .mid-section {
   display: grid;
   grid-template-columns: 2fr 1.2fr 1fr;
@@ -342,7 +338,7 @@ body {
   margin-bottom: var(--space-4xl);
 }
 
-/* ── Terminal feed ────────────────────────────────────────────── */
+/* Terminal feed */
 .feed {
   background: var(--surface-0);
   border: 1px solid var(--border);
@@ -427,7 +423,7 @@ body {
   color: var(--text-secondary);
 }
 
-/* ── Wing status ──────────────────────────────────────────────── */
+/* Wing status */
 .wings {
   background: var(--surface-0);
   border: 1px solid var(--border);
@@ -481,7 +477,7 @@ body {
   color: var(--emerald);
 }
 
-/* ── Invariants ───────────────────────────────────────────────── */
+/* Invariants */
 .invariants {
   display: flex;
   flex-direction: column;
@@ -520,7 +516,7 @@ body {
   line-height: 1.5;
 }
 
-/* ── Bottom bar: protocol vitals ──────────────────────────────── */
+/* Bottom bar: protocol vitals */
 .vitals {
   display: flex;
   align-items: center;
@@ -565,7 +561,7 @@ body {
   color: var(--coral);
 }
 
-/* ── Liveness badge ────────────────────────────────────────────── */
+/* Liveness badge */
 .liveness-badge {
   font-size: 0.625rem;
   font-weight: 500;
@@ -586,7 +582,7 @@ body {
   background: oklch(25% 0.04 30);
 }
 
-/* ── How it works accordion (C1) ─────────────────────────────── */
+/* How it works accordion (C1) */
 .how-it-works {
   border-top: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
@@ -670,16 +666,16 @@ body {
   color: var(--coral);
 }
 
-/* ── Feed rejected tag ────────────────────────────────────────── */
+/* Feed rejected tag */
 .feed-tag.rejected { color: var(--coral-dim); }
 .feed-tag.cycle { color: var(--text-tertiary); }
 
-/* ── Metric accent ────────────────────────────────────────────── */
+/* Metric accent */
 .metric-value.accent {
   color: var(--coral);
 }
 
-/* ── Scrollbar styling ────────────────────────────────────────── */
+/* Scrollbar styling */
 .feed-body::-webkit-scrollbar {
   width: 4px;
 }
@@ -691,7 +687,7 @@ body {
   border-radius: 2px;
 }
 
-/* ── Responsive ───────────────────────────────────────────────── */
+/* Responsive */
 @media (max-width: 1100px) {
   .mid-section {
     grid-template-columns: 1fr 1fr;
@@ -746,7 +742,7 @@ body {
   }
 }
 
-/* ── Launch page ────────────────────────────────────────────── */
+/* Launch page */
 
 .launch-hero {
   text-align: center;
@@ -876,7 +872,7 @@ body {
   border-color: var(--text-muted);
 }
 
-/* ── Launch result ──────────────────────────────────────────── */
+/* Launch result */
 
 .launch-result-section {
   max-width: 640px;
@@ -969,7 +965,7 @@ body {
   color: var(--text-muted);
 }
 
-/* ── Research page ──────────────────────────────────────────── */
+/* Research page */
 
 .research-section {
   max-width: 800px;
@@ -1161,7 +1157,7 @@ body {
   background: rgba(0, 0, 0, 0.2);
 }
 
-/* ── Docs page ─────────────────────────────────────────────── */
+/* Docs page */
 
 .docs-content {
   max-width: 780px;

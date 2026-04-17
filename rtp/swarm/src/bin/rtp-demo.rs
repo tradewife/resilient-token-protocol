@@ -1,13 +1,5 @@
-//! RTP Swarm — Two-Cycle Demo Binary
-//!
+//! RTP Swarm — Two-Cycle Demo Binary (covers all 5 judge points).
 //! Run with: cargo run --bin rtp-demo
-//!
-//! Demonstrates all 5 judge points:
-//!   1. On-chain constraint rejection (visible log line)
-//!   2. Autonomous operation (8-step pipeline)
-//!   3. Memory persistence (cycle 1 → cycle 2 reference)
-//!   4. Heartbeat redirect (visible log line)
-//!   5. Treasury state (explorer URLs in output)
 
 use rtp_swarm::demo::{print_two_cycle_demo, run_two_cycle_demo};
 

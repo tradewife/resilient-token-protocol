@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 
-// ── Code snippets ────────────────────────────────────────────
+// Code snippets
 
 const CODE_INSTALL = `npm install @resilient-protocol/sdk @solana/web3.js @solana/spl-token @coral-xyz/anchor`;
 
@@ -74,7 +74,7 @@ const CARDS = [
   },
 ];
 
-// ── Copy button ──────────────────────────────────────────────
+// Copy button
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
@@ -108,7 +108,7 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
-// ── Section heading ──────────────────────────────────────────
+// Section heading
 
 function SectionHeading({ children }: { children: React.ReactNode }) {
   return (
@@ -125,7 +125,7 @@ function SectionHeading({ children }: { children: React.ReactNode }) {
   );
 }
 
-// ── Page ─────────────────────────────────────────────────────
+// Page
 
 export default function DocsPage() {
   const { publicKey, connected } = useWallet();
@@ -136,7 +136,7 @@ export default function DocsPage() {
 
   return (
     <div className="page">
-      {/* ── Top bar ────────────────────────────────────────── */}
+      {/* Top bar */}
       <header className="topbar">
         <div className="brand">
           <img className="brand-icon" src="/icon.svg" alt="RTP" />
@@ -173,7 +173,7 @@ export default function DocsPage() {
 
       <div className="docs-content">
 
-        {/* ── Hero ──────────────────────────────────────────── */}
+        {/* Hero */}
         <section className="docs-section" style={{ marginTop: "var(--space-xl)", marginBottom: "var(--space-4xl)" }}>
           <h1 style={{
             fontFamily: "var(--font-display)",
@@ -214,7 +214,7 @@ export default function DocsPage() {
           </div>
         </section>
 
-        {/* ── How It Works ──────────────────────────────────── */}
+        {/* How It Works */}
         <section className="docs-section">
           <SectionHeading>How It Works</SectionHeading>
           <div className="hiw-steps" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "var(--space-xl)", paddingBottom: 0 }}>
@@ -246,7 +246,7 @@ export default function DocsPage() {
           </div>
         </section>
 
-        {/* ── Install ───────────────────────────────────────── */}
+        {/* Install */}
         <section className="docs-section">
           <SectionHeading>Install</SectionHeading>
           <div className="code-block" style={{ position: "relative" }}>
@@ -255,7 +255,7 @@ export default function DocsPage() {
           </div>
         </section>
 
-        {/* ── Quick Start ───────────────────────────────────── */}
+        {/* Quick Start */}
         <section className="docs-section" id="quickstart">
           <SectionHeading>Quick Start</SectionHeading>
 
@@ -308,7 +308,7 @@ export default function DocsPage() {
           </div>
         </section>
 
-        {/* ── Integration Checklist ─────────────────────────── */}
+        {/* Integration Checklist */}
         <section className="docs-section">
           <SectionHeading>Integration Checklist</SectionHeading>
           <div className="docs-checklist">
@@ -348,7 +348,7 @@ export default function DocsPage() {
           </div>
         </section>
 
-        {/* ── What Your Tokens Get ──────────────────────────── */}
+        {/* What Your Tokens Get */}
         <section className="docs-section">
           <SectionHeading>What Your Tokens Get</SectionHeading>
           <div style={{
@@ -386,7 +386,7 @@ export default function DocsPage() {
           </div>
         </section>
 
-        {/* ── API Reference ─────────────────────────────────── */}
+        {/* API Reference */}
         <section className="docs-section">
           <SectionHeading>API Reference</SectionHeading>
 
@@ -499,7 +499,7 @@ export default function DocsPage() {
           </div>
         </section>
 
-        {/* ── Constants ─────────────────────────────────────── */}
+        {/* Constants */}
         <section className="docs-section">
           <SectionHeading>Constants</SectionHeading>
           <div style={{ border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden" }}>
@@ -556,7 +556,7 @@ export default function DocsPage() {
           </div>
         </section>
 
-        {/* ── No RTP Token ──────────────────────────────────── */}
+        {/* No RTP Token */}
         <section className="docs-section">
           <div className="docs-callout">
             <span className="docs-callout-label">No RTP Token</span>
@@ -566,7 +566,7 @@ export default function DocsPage() {
           </div>
         </section>
 
-        {/* ── Footer ────────────────────────────────────────── */}
+        {/* Footer */}
         <footer className="vitals" style={{ marginTop: "var(--space-4xl)" }}>
           <div className="vital">
             <Link href="/" className="vital-link">Dashboard &rarr;</Link>

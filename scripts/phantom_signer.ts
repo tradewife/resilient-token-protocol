@@ -1,52 +1,21 @@
 /**
  * RTP Trading Wing — Phantom ServerSDK Sidecar
  *
- * Creates and signs via Phantom's embedded wallet for the Trading Wing.
- * This is NOT a personal wallet — it's a developer-app-owned identity:
+ * Signs via Phantom's embedded wallet (not a personal wallet — app-owned identity).
+ * Keys live in Phantom's TEE/HSM, never on this machine.
  *
- *   Phantom Portal registration (https://phantom.app/portal):
- *     → PHANTOM_ORG_ID     = developer organization
- *     → PHANTOM_APP_ID     = this app ("RTP Trading Wing")
- *     → PHANTOM_PRIVATE_KEY = service credential for KMS requests
- *
- *   sdk.createWallet("rtp-trading-wing-executor")
- *     → embedded wallet owned by the RTP app
- *     → keys in Phantom's TEE/HSM, never on this machine
- *     → sovereign on-chain identity for the agent
- *     → no human holds the keys
- *
- * Narrative: "Who controls the treasury?"
- *   → No one. The embedded wallet is controlled by program constraints,
- *     not by the developer's personal keys. "Don't rug" enforced at
- *     the key custody level, not just code.
- *
- * UNIFIED SIGNING ARCHITECTURE (all chains through Phantom):
- *   Hyperliquid orders → signMessage/signTransaction (Ethereum mainnet)
- *   Solana treasury CPI → signAndSendTransaction (Solana devnet)
- *   Demo dashboard      → Phantom browser-sdk (Phase 5)
- *
- * Chain support (@phantom/server-sdk v2.0.0):
- *   Solana ✅ (Mainnet, Devnet, Testnet)
- *   Ethereum ✅ (Mainnet, Sepolia)
- *   Base ✅ (Mainnet, Sepolia)
- *   Polygon ✅ (Mainnet, Amoy)
- *   Arbitrum ✅ (One, Sepolia)
- *   Bitcoin ✅ (Mainnet, Testnet)
- *   Sui ✅ (Mainnet, Testnet, Devnet)
- *   Monad ✅ (Mainnet, Testnet)
+ * Unified signing: HL orders (EVM), Solana treasury CPI (Solana), dashboard (browser-sdk).
  *
  * Prerequisites:
- *   1. Register dev app at https://phantom.app/portal
+ *   1. Register at https://phantom.app/portal
  *   2. Fill configs/.env.phantom with PHANTOM_ORG_ID, PHANTOM_APP_ID, PHANTOM_PRIVATE_KEY
  *   3. npm install @phantom/server-sdk dotenv
  *
  * Usage:
  *   ts-node --project scripts/tsconfig.json scripts/phantom_signer.ts status
  *   ts-node --project scripts/tsconfig.json scripts/phantom_signer.ts create-wallet
- *   ts-node --project scripts/tsconfig.json scripts/phantom_signer.ts addresses
  *   ts-node --project scripts/tsconfig.json scripts/phantom_signer.ts sign-sol <base64-tx>
  *   ts-node --project scripts/tsconfig.json scripts/phantom_signer.ts sign-evm <hex-tx>
- *   ts-node --project scripts/tsconfig.json scripts/phantom_signer.ts sign-message <msg>
  */
 
 import { ServerSDK, NetworkId } from "@phantom/server-sdk";

@@ -77,7 +77,7 @@ pub enum Priority {
 /// All possible message payloads, typed and extensible.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Payload {
-    // ── Coordinator-level ──────────────────────────────────────────
+    // Coordinator-level
     /// Coordinator acknowledges a message was received.
     Ack {
         in_reply_to: MessageId,
@@ -88,7 +88,7 @@ pub enum Payload {
         in_reply_to: Option<MessageId>,
     },
 
-    // ── Proposal lifecycle ─────────────────────────────────────────
+    // Proposal lifecycle
     /// A wing submits a proposal for audit before execution.
     Proposal {
         kind: ProposalKind,
@@ -108,7 +108,7 @@ pub enum Payload {
         proposal_id: MessageId,
     },
 
-    // ── Wing health ────────────────────────────────────────────────
+    // Wing health
     /// Heartbeat response from a wing.
     Heartbeat {
         wing: WingId,
@@ -120,7 +120,7 @@ pub enum Payload {
         reason: String,
     },
 
-    // ── Evolve Wing payloads ───────────────────────────────────────
+    // Evolve Wing payloads
     /// Evolve Wing proposes an architecture change.
     EvolveProposal {
         target_wing: WingId,
@@ -141,7 +141,7 @@ pub enum Payload {
         recommendations: Vec<String>,
     },
 
-    // ── Trading Wing payloads ──────────────────────────────────────
+    // Trading Wing payloads
     TradingConfig {
         strategy: String,
         params: serde_json::Value,
@@ -160,13 +160,13 @@ pub enum Payload {
         source: Option<String>,
     },
 
-    // ── Security Wing payloads ─────────────────────────────────────
+    // Security Wing payloads
     SecurityAlert {
         severity: RiskLevel,
         threat: String,
     },
 
-    // ── Knowledge Wing payloads ────────────────────────────────────
+    // Knowledge Wing payloads
     KnowledgeQuery {
         query: String,
         context: Option<String>,
@@ -175,7 +175,7 @@ pub enum Payload {
         results: Vec<String>,
     },
 
-    // ── Generic typed JSON payload ─────────────────────────────────
+    // Generic typed JSON payload
     Raw(serde_json::Value),
 }
 

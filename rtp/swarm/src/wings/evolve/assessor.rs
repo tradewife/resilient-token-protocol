@@ -1,10 +1,6 @@
 //! Assessor — benchmark wing performance, identify bottlenecks and regressions.
-//!
-//! Treasury-native metric:
-//!   (USDC yield / SOL reserves) * (1 - max drawdown) * wing_consistency
-//!
-//! The assessor evaluates all wings and flags those that degrade
-//! beyond the rollback threshold (5%).
+//! Treasury-native metric: (USDC yield / SOL reserves) × (1 - max drawdown) × wing_consistency.
+//! Flags wings that degrade beyond the rollback threshold (5%).
 
 use crate::types::WingId;
 use chrono::{DateTime, Utc};

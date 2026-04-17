@@ -1,11 +1,5 @@
 //! Lifecycle — wing spawn, health-check, and retire.
-//!
-//! Reference: https://github.com/kevinrgu/autoagent
-//!
-//! The lifecycle manager:
-//! - Registers new wings with the Coordinator
-//! - Monitors wing health via heartbeats
-//! - Retires unhealthy wings gracefully
+//! Registers new wings, monitors health via heartbeats, retires unhealthy wings.
 //! - Tracks wing uptime and performance metrics
 
 use crate::types::{HealthStatus, WingId, WingRegistration};

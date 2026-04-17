@@ -1,10 +1,5 @@
 //! Proposer — architecture change proposals for the Evolve Wing.
-//!
-//! Reference: https://github.com/karpathy/autoresearch (Modify/Verify/Keep spec)
-//!
-//! Every change is a diff that goes through the Coordinator and must pass
-//! the Audit Wing. The proposer follows the SPARC methodology:
-//!   Specify -> Pseudocode -> Architect -> Refine -> Complete
+//! All changes are diffs routed through Coordinator, audited by Audit Wing.
 
 use crate::types::{Message, Payload, WingId};
 use chrono::{DateTime, Utc};

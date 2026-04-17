@@ -6,9 +6,7 @@
 
 use serde::{Deserialize, Serialize};
 
-// ═══════════════════════════════════════════════════════════════════════
 //  Hyperliquid Signing Types
-// ═══════════════════════════════════════════════════════════════════════
 
 /// ECDSA signature components for Hyperliquid EIP-712 signing.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -26,9 +24,7 @@ pub struct HlKeyFile {
     pub network: String,
 }
 
-// ═══════════════════════════════════════════════════════════════════════
 //  Yield Reporting
-// ═══════════════════════════════════════════════════════════════════════
 
 /// Yield report data emitted after a confirmed Hyperliquid fill.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -50,9 +46,7 @@ pub struct YieldReportData {
     pub timestamp: String,
 }
 
-// ═══════════════════════════════════════════════════════════════════════
 //  Strategy Configuration
-// ═══════════════════════════════════════════════════════════════════════
 
 /// Active strategy configuration for the Trading Wing.
 ///
@@ -79,9 +73,7 @@ impl Default for StrategyConfig {
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════════
 //  Position Tracking
-// ═══════════════════════════════════════════════════════════════════════
 
 /// Tracks an open position in the Trading Wing's in-memory state.
 ///

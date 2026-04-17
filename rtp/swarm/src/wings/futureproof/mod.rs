@@ -1,7 +1,6 @@
 //! Future-proof Wing — quantum, deprecation, and horizon scanning.
 //!
 //! Monitors existential and technological risks on the horizon.
-//! Week 3: heartbeat with deprecation checks + shutdown ack.
 //! Handles: Heartbeat, Shutdown.
 
 use crate::types::{Message, Payload, WingId};

@@ -59,7 +59,7 @@ export default function ResearchPage() {
 
   return (
     <div className="page">
-      {/* ── Top bar ────────────────────────────────────────── */}
+      {/* Top bar */}
       <header className="topbar">
         <div className="brand">
           <img className="brand-icon" src="/icon.svg" alt="RTP" />
@@ -90,7 +90,7 @@ export default function ResearchPage() {
         </section>
       ) : (
         <>
-          {/* ── Hero ──────────────────────────────────────────── */}
+          {/* Hero */}
           <section className="launch-hero">
             <h1 className="launch-title">Night Shift Research</h1>
             <p className="launch-subtitle">
@@ -98,7 +98,7 @@ export default function ResearchPage() {
             </p>
           </section>
 
-          {/* ── Market state ─────────────────────────────────── */}
+          {/* Market state */}
           <section className="research-section">
             <h2 className="section-title">Market State</h2>
             <div className="research-grid">
@@ -121,7 +121,7 @@ export default function ResearchPage() {
             </div>
           </section>
 
-          {/* ── Production baseline ──────────────────────────── */}
+          {/* Production baseline */}
           <section className="research-section">
             <h2 className="section-title">Production Baseline</h2>
             <table className="research-table">
@@ -146,7 +146,7 @@ export default function ResearchPage() {
             </table>
           </section>
 
-          {/* ── Top candidate highlight ─────────────────────── */}
+          {/* Top candidate highlight */}
           {topCandidate && (
             <section className="research-section highlight-section">
               <div className="highlight-badge">STRONG RECOMMEND</div>
@@ -214,7 +214,7 @@ export default function ResearchPage() {
             </section>
           )}
 
-          {/* ── Other candidates ─────────────────────────────── */}
+          {/* Other candidates */}
           {uniqueCandidates.length > 1 && (
             <section className="research-section">
               <h2 className="section-title">Other Validated Candidates</h2>
@@ -247,7 +247,7 @@ export default function ResearchPage() {
             </section>
           )}
 
-          {/* ── Full report ──────────────────────────────────── */}
+          {/* Full report */}
           {data._report && (
             <section className="research-section">
               <h2 className="section-title">Full Report</h2>
@@ -259,7 +259,7 @@ export default function ResearchPage() {
         </>
       )}
 
-      {/* ── Footer ──────────────────────────────────────────── */}
+      {/* Footer */}
       <footer className="vitals">
         <div className="vital">
           <span className="vital-value">{data?.symbols.length ?? "—"} symbols</span>

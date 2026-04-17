@@ -1,30 +1,10 @@
 //! Memory promotion — the compression ladder from working to core.
 //!
-//! Reads HeartbeatSignal + Evaluation output and decides what gets written
-//! to persistent memory, at what tier, and with what confidence.
-//!
-//! ## Compression ladder (Prologue-style, four tiers)
-//!
-//! ```text
-//! working    → scratchpad, every cycle, overwritten freely
-//! project    → task context, survives a session, promoted on Consolidate
-//! overview   → cross-cycle strategy insights, promoted on sustained improvement
-//! core       → durable protocol truths, promoted only with human confirmation
-//! ```
-//!
-//! ## Promotion rules
-//!
-//! 1. Every evaluate() call → WorkingMemory entry.
-//! 2. Consolidation heartbeat → eligible WorkingMemory promoted to ProjectMemory.
-//! 3. Redirect heartbeat → RedirectEvent written to ProjectMemory immediately.
-//! 4. N consecutive positive tsi_delta cycles → OverviewMemory from ProjectMemory.
-//! 5. Core is append-only, human-confirmed — never autonomous.
-//!
-//! ## Persistence
-//!
-//! Files under `memory/{working,project,overview,core}/`, JSON format,
-//! atomic writes (write temp, rename). Working memory capped at 100 entries
-//! — consolidation is the natural garbage collector.
+//! Four tiers: working → project → overview → core.
+//! Working: scratchpad every cycle. Project: survives a session, promoted on Consolidate.
+//! Overview: cross-cycle insights on sustained improvement. Core: human-confirmed only.
+//! Persistence: JSON files under `memory/{working,project,overview,core}/`, atomic writes.
+//! Working memory capped at 100 entries — consolidation is the garbage collector.
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -35,9 +15,7 @@ use std::path::{Path, PathBuf};
 use crate::evaluator::{Evaluation, SecondaryMetrics};
 use crate::heartbeat::{HeartbeatSignal, HeartbeatType, RecommendedAction};
 
-// ---------------------------------------------------------------------------
 // Constants
-// ---------------------------------------------------------------------------
 
 /// Maximum working memory entries before pruning.
 /// Matches the evaluator's TSI history cap.
@@ -54,9 +32,7 @@ pub const DEFAULT_OVERVIEW_IMPROVEMENT_CYCLES: usize = 5;
 /// Default memory directory (relative to working directory or repo root).
 pub const DEFAULT_MEMORY_DIR: &str = "memory";
 
-// ---------------------------------------------------------------------------
 // Memory tiers
-// ---------------------------------------------------------------------------
 
 /// Working memory — the scratchpad. Written every cycle, freely overwritten.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -170,9 +146,7 @@ pub struct CoreMemory {
     pub confirmed_by: String,
 }
 
-// ---------------------------------------------------------------------------
 // Promotion result
-// ---------------------------------------------------------------------------
 
 /// Result of processing a heartbeat signal — what was written and promoted.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -195,9 +169,7 @@ pub enum ProjectMemoryOrRedirect {
     Redirect(RedirectEvent),
 }
 
-// ---------------------------------------------------------------------------
 // Configuration
-// ---------------------------------------------------------------------------
 
 /// Configuration for memory promotion. All thresholds are configurable.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -223,9 +195,7 @@ impl Default for MemoryConfig {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Memory promotion engine
-// ---------------------------------------------------------------------------
 
 /// The memory promotion engine.
 ///
@@ -277,7 +247,7 @@ impl MemoryPromotion {
         Self::new(config, false)
     }
 
-    // ── Main entry point ──────────────────────────────────────────────
+    // Main entry point
 
     /// Process an evaluation cycle. Writes working memory, then checks
     /// for consolidation or redirect promotion.
@@ -345,7 +315,7 @@ impl MemoryPromotion {
         }
     }
 
-    // ── Working memory ────────────────────────────────────────────────
+    // Working memory
 
     /// Write a working memory entry. Always called, every cycle.
     /// Returns true if written successfully.
@@ -381,7 +351,7 @@ impl MemoryPromotion {
         before - self.working.len()
     }
 
-    // ── Project memory ────────────────────────────────────────────────
+    // Project memory
 
     /// Consolidate eligible working memory entries into a project summary.
     ///
@@ -459,7 +429,7 @@ impl MemoryPromotion {
         }
     }
 
-    // ── Overview memory ───────────────────────────────────────────────
+    // Overview memory
 
     /// Track consecutive positive tsi_delta for overview promotion.
     fn track_improvement(&mut self, tsi_delta: f64) {
@@ -547,7 +517,7 @@ impl MemoryPromotion {
         Some(overview)
     }
 
-    // ── Core memory (human-only) ──────────────────────────────────────
+    // Core memory (human-only)
 
     /// Promote an overview memory entry to core.
     ///
@@ -581,7 +551,7 @@ impl MemoryPromotion {
         core
     }
 
-    // ── Queries ───────────────────────────────────────────────────────
+    // Queries
 
     /// Get all working memory entries.
     pub fn working(&self) -> &[WorkingMemory] {
@@ -625,7 +595,7 @@ impl MemoryPromotion {
         self.consecutive_improvement_count
     }
 
-    // ── Persistence ───────────────────────────────────────────────────
+    // Persistence
 
     /// Ensure memory directories exist.
     fn ensure_dirs(base: &Path) {
@@ -691,7 +661,7 @@ impl MemoryPromotion {
         Self::atomic_write(&path, &json)
     }
 
-    // ── Helpers ───────────────────────────────────────────────────────
+    // Helpers
 
     /// Find the most frequent recommended action in a set of working entries.
     fn dominant_action(entries: &[&WorkingMemory]) -> RecommendedAction {
@@ -707,16 +677,14 @@ impl MemoryPromotion {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Tests
-// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::evaluator::{Evaluation, ProtocolPhase, SecondaryMetrics};
 
-    // ── Helpers ─────────────────────────────────────────────────────────
+    // Helpers
 
     fn test_config() -> MemoryConfig {
         MemoryConfig {
@@ -861,7 +829,7 @@ mod tests {
         mp.process(&eval, &signal)
     }
 
-    // ── Working memory ──────────────────────────────────────────────────
+    // Working memory
 
     #[test]
     fn working_written_every_cycle() {
@@ -922,7 +890,7 @@ mod tests {
         assert!(w.secondary_snapshot.strategy_yield.is_some());
     }
 
-    // ── Project memory: consolidation ───────────────────────────────────
+    // Project memory: consolidation
 
     #[test]
     fn consolidation_promotes_eligible_working() {
@@ -1012,7 +980,7 @@ mod tests {
         assert!(result.project_created.is_none());
     }
 
-    // ── Project memory: redirect events ─────────────────────────────────
+    // Project memory: redirect events
 
     #[test]
     fn redirect_writes_event_immediately() {
@@ -1085,7 +1053,7 @@ mod tests {
         assert_eq!(events[0].trigger, RedirectTrigger::Terminal);
     }
 
-    // ── Overview memory ─────────────────────────────────────────────────
+    // Overview memory
 
     #[test]
     fn overview_promoted_on_sustained_improvement() {
@@ -1196,7 +1164,7 @@ mod tests {
         assert_eq!(mp.overview().len(), 2); // Second overview.
     }
 
-    // ── Core memory (human-only) ────────────────────────────────────────
+    // Core memory (human-only)
 
     #[test]
     fn promote_to_core_requires_human() {
@@ -1224,7 +1192,7 @@ mod tests {
         assert_eq!(core.source_overview_id, overview.id);
     }
 
-    // ── Pruning ─────────────────────────────────────────────────────────
+    // Pruning
 
     #[test]
     fn pruning_removes_consolidated_entries() {
@@ -1250,7 +1218,7 @@ mod tests {
         assert!(mp.working().iter().all(|w| w.tsi >= 0.6));
     }
 
-    // ── Confidence scoring ──────────────────────────────────────────────
+    // Confidence scoring
 
     #[test]
     fn project_confidence_factors_degraded_ratio() {
@@ -1277,7 +1245,7 @@ mod tests {
         assert!(pm.confidence < 1.3); // Reduced from pure avg_tsi.
     }
 
-    // ── Atomic write ────────────────────────────────────────────────────
+    // Atomic write
 
     #[test]
     fn atomic_write_creates_file() {
@@ -1291,7 +1259,7 @@ mod tests {
         assert!(!path.with_extension("tmp").exists()); // Temp file cleaned up.
     }
 
-    // ── Display traits ──────────────────────────────────────────────────
+    // Display traits
 
     #[test]
     fn redirect_trigger_display() {
@@ -1300,7 +1268,7 @@ mod tests {
         assert_eq!(format!("{}", RedirectTrigger::Terminal), "terminal");
     }
 
-    // ── Full lifecycle ──────────────────────────────────────────────────
+    // Full lifecycle
 
     #[test]
     fn full_memory_lifecycle() {

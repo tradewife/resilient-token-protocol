@@ -1,16 +1,5 @@
-//! End-to-end demo loop.
-//!
-//! Wires the full message flow:
-//!   1. Trading Wing proposes a strategy
-//!   2. Coordinator routes to Audit Wing for tribunal review
-//!   3. Audit Wing approves (Byzantine consensus)
-//!   4. Coordinator sends ExecutePermit to Trading Wing
-//!   5. Trading Wing executes via bridge → YieldReport
-//!   6. Knowledge Wing stores yield data
-//!   7. Security Wing monitors for anomalies
-//!   8. Futureproof Wing checks deprecation status
-//!
-//! This demonstrates the complete swarm coordination pipeline.
+//! End-to-end demo loop — 8-step swarm coordination pipeline:
+//! propose → route → audit → approve → execute → yield → knowledge → security.
 
 use crate::coordinator::Coordinator;
 use crate::evaluator::{BridgeMetrics, OnChainState, PriceOracle, ProtocolPhase};
@@ -397,13 +386,9 @@ pub fn print_demo_result(result: &DemoResult) {
     println!("└─────────────────────────────────────────────────┘");
 }
 
-// ---------------------------------------------------------------------------
 // Two-cycle demo — covers all 5 judge points
-// ---------------------------------------------------------------------------
 
-// ---------------------------------------------------------------------------
 // Hyperliquid live round-trip (BUY → fill → SELL → fill → PnL → treasury)
-// ---------------------------------------------------------------------------
 
 /// Result of a live HL round-trip trade.
 #[derive(Debug)]

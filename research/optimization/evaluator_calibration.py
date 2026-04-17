@@ -34,7 +34,7 @@ from research.optimization.per_symbol_optimizer import (
 )
 
 
-# ── Param space for random sampling ──
+# Param space for random sampling
 PARAM_RANGES = {
     "signal_threshold": [0.25, 0.30, 0.35, 0.40, 0.45, 0.50],
     "min_alignment": [2, 3],

@@ -1,13 +1,5 @@
-//! Rollback — revert changes that degrade performance beyond threshold.
-//!
-//! Reference: https://github.com/chrisworsey55/atlas-gic (Darwinian loop)
-//!
-//! If a change degrades performance > 5%, revert within minutes.
-//! The rollback mechanism:
-//!   1. Monitor post-change performance via Assessor
-//!   2. Compare against baseline (pre-change score)
-//!   3. If degradation > threshold, queue rollback
-//!   4. Execute rollback and notify all wings
+//! Rollback — revert changes that degrade performance beyond threshold (> 5%).
+//! Monitors post-change performance via Assessor, compares against baseline, reverts if needed.
 
 use crate::types::{Message, Payload, TrackedChange, WingId};
 use crate::wings::evolve::proposer::Proposer;

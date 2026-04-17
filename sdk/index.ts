@@ -29,7 +29,7 @@ import {
   Account,
 } from "@solana/spl-token";
 
-// ── Constants ────────────────────────────────────────────────
+// Constants
 
 /** The RTP treasury Anchor program (deployed on devnet). */
 export const RTP_PROGRAM_ID = new PublicKey(
@@ -42,7 +42,7 @@ export const RTP_DEVNET_RPC = "https://api.devnet.solana.com";
 /** Mainnet RPC endpoint. */
 export const RTP_MAINNET_RPC = "https://api.mainnet-beta.solana.com";
 
-// ── PDA Seeds ────────────────────────────────────────────────
+// PDA Seeds
 
 const SEED_TREASURY = Buffer.from("treasury");
 const SEED_VAULT = Buffer.from("vault");
@@ -61,7 +61,7 @@ function deriveVaultPDA(mint: PublicKey): [PublicKey, number] {
   );
 }
 
-// ── IDL (bundled inline — no runtime file dependency) ────────
+// IDL (bundled inline — no runtime file dependency)
 
 import { RAW_IDL } from "./idl";
 
@@ -77,7 +77,7 @@ function loadPatchedIdl(): Idl {
   return idl;
 }
 
-// ── Types ────────────────────────────────────────────────────
+// Types
 
 export interface RTPTokenConfig {
   name: string;
@@ -158,7 +158,7 @@ function walletToAnchorWallet(adapter: WalletAdapter) {
   };
 }
 
-// ── Helpers ──────────────────────────────────────────────────
+// Helpers
 
 /** Send a pre-signed transaction via sendRawTransaction (correct for WalletAdapter). */
 async function sendSignedTx(
@@ -199,7 +199,7 @@ async function sendTx(
   }
 }
 
-// ── Implementation ───────────────────────────────────────────
+// Implementation
 
 /**
  * Create a Token-2022 mint with transfer fees routing to a per-mint

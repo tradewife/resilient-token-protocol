@@ -1,11 +1,7 @@
 //! Soulguard — enforces soulcontract.md invariants on every message.
 //!
-//! No wing can execute an action that violates an active constraint.
-//! If a message violates the soulcontract, it is rejected before any
-//! wing sees it. The Audit Wing logs every compliance check.
-//!
-//! Uses SoulcontractSpec (parsed from soulcontract.md) as the source of
-//! truth, not hardcoded strings. Supports drift detection.
+//! Blocks violations before any wing sees them. Uses parsed SoulcontractSpec
+//! (not hardcoded strings). Supports drift detection.
 
 use super::soulcontract_spec::{DriftReport, SoulcontractSpec};
 use crate::types::{AuditLogEntry, Message, Payload, ProposalKind, WingId};
@@ -104,15 +100,8 @@ impl Soulguard {
     }
 
     /// Reload the spec from disk (e.g. after a human-signed amendment).
-    //
-    // PRODUCTION TODO (Invariant 7):
-    // reload() currently accepts any well-formed SoulcontractSpec from disk without
-    // verifying a human signature. In production, this function should accept a
-    // detached ed25519 signature over the spec file bytes and verify it against a
-    // trusted authority pubkey stored at initialization. Until then, filesystem
-    // write access is a sufficient (though not cryptographic) access control.
-    // See: BUILD_PLAN_v3.md Invariant 7, docs/SECURITY_AUDIT_2026-04-07.md
-    // Demo path: reload() is never called during demo execution — not demo-blocking.
+    // TODO: In production, verify a detached ed25519 signature over the spec
+    // file bytes against a trusted authority pubkey. See SECURITY_AUDIT_2026-04-07.
     pub async fn reload(&self, path: &std::path::Path) -> Result<(), String> {
         let spec = SoulcontractSpec::from_file(path)?;
         let threshold = spec.rollback_threshold;

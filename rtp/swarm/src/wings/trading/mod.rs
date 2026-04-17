@@ -1,15 +1,8 @@
 //! Trading Wing — strategy research, validation, assessment, and execution.
+//! Trading Wing — strategy research, validation, assessment, and execution.
 //!
-//! Handles TradingConfig, Proposal, ExecutePermit, YieldReport, and Heartbeat.
-//! Uses bridge.rs to call the Python fractal-swarm binary for strategy evaluation.
-//! The bridge returns walk-forward analysis results (projected yield), not live trades.
-//!
-//! ## Hyperliquid Integration
-//!
-//! When `execution_venue: "hyperliquid"` is set in the proposal config, the
-//! Trading Wing places real orders on Hyperliquid testnet via REST API, signed
-//! with the ETH keypair at `configs/hl_testnet_key.json` using EIP-191.
-//!
+//! When `execution_venue: "hyperliquid"` is set, places real orders on HL testnet
+//! via REST API signed with the ETH keypair at `configs/hl_testnet_key.json`.
 //! In-memory state: last proposal, last assessment, execution count.
 
 use crate::bridge::{self, BridgeRequest};
@@ -1178,9 +1171,7 @@ pub fn devnet_fund_from_hl_oracle(sol_amount: f64) -> Result<f64, String> {
     devnet_fund_stub(sol_amount, price)
 }
 
-// ═══════════════════════════════════════════════════════════════════════
 //  Trading Wing
-// ═══════════════════════════════════════════════════════════════════════
 
 /// In-memory state for the Trading Wing.
 #[derive(Debug)]
@@ -1210,9 +1201,8 @@ impl TradingWing {
         }
     }
 
-    /// Handle an incoming message.
-    /// Returns `Some(response)` for every payload type — unhandled types return
-    /// `Payload::Error` so dropped messages are visible (I-1 fix).
+    /// Handle an incoming message. Unhandled types return `Payload::Error`
+    /// so dropped messages are visible in logs.
     pub fn handle_message(&self, msg: &Message) -> Option<Message> {
         match &msg.payload {
             Payload::TradingConfig { strategy, params } => {

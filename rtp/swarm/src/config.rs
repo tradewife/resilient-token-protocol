@@ -1,11 +1,5 @@
-//! Encrypted configuration management.
-//!
-//! Protects strategy parameters with AES-256-GCM encryption so they're not
-//! visible in the binary or on disk. Build-time key derivation from an
-//! environment variable (`RTP_CONFIG_KEY`).
-//!
-//! **Production**: Set `RTP_CONFIG_KEY` to a hex-encoded 256-bit key (64 hex chars).
-//! **Development**: If no key is set, configs are stored/loaded in plaintext.
+//! Config encryption — AES-256-GCM protection for strategy parameters.
+//! Set `RTP_CONFIG_KEY` (64 hex chars) for encryption; plaintext otherwise.
 
 use aes_gcm::{
     AeadCore, Aes256Gcm, Nonce,
@@ -217,7 +211,7 @@ impl ConfigEncryption {
         Ok(())
     }
 
-    // ── Private helpers ──────────────────────────────────────────────
+    // Private helpers
 
     fn config_path(&self, name: &str) -> PathBuf {
         self.configs_dir.join(format!("{}.json", name))

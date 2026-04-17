@@ -1,11 +1,5 @@
-//! Audit Wing — soulcontract enforcement and compliance.
-//!
-//! Implements the red-team-tribunal pattern: 3-agent adversarial review
-//! (Skeptic + User Proxy + Optimizer) with configurable consensus mechanisms
-//! (Majority, Weighted, Byzantine).
-//!
-//! Reference: red-team-tribunal skill — 3-agent adversarial review is the
-//! Audit Wing's core pattern. Every wing proposal must pass tribunal review.
+//! Audit Wing — 3-agent adversarial tribunal (Skeptic + User Proxy + Optimizer).
+//! Supports Majority, Weighted, and Byzantine consensus. Every proposal must pass tribunal.
 
 use crate::types::{Message, Payload, ProposalKind, RiskLevel, WingId};
 use serde::{Deserialize, Serialize};

@@ -1,15 +1,5 @@
-//! RTP Swarm — Devnet Loop Daemon
-//!
-//! Run with: cargo run --bin rtp-daemon
-//!
-//! Single-cycle autonomous daemon. Designed to be called on a schedule
-//! (GitHub Actions cron every 6h). Each invocation:
-//!   1. Loads last cycle config (or defaults)
-//!   2. Runs one orchestrator cycle
-//!   3. Proposes strategy mutations (LLM or fallback)
-//!   4. Applies accepted mutations to config
-//!   5. Writes cycle output to data/devnet-cycles/{timestamp}/
-//!   6. Exits 0
+//! RTP Swarm — Devnet Loop Daemon (single-cycle, designed for 6h cron).
+//! Loads config → runs one cycle → proposes mutations → writes output to data/devnet-cycles/.
 
 use chrono::Utc;
 use rtp_swarm::wings::evolve::{

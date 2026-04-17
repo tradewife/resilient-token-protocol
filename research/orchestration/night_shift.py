@@ -47,7 +47,7 @@ from research.optimization.per_symbol_optimizer import (
     compute_metrics,
 )
 
-# ─── Paths ────────────────────────────────────────────────────────────────────
+# Paths
 
 ROOT = os.path.join(os.path.dirname(__file__), "..", "..")
 DATA_DIR = os.path.join(ROOT, "data", "ohlcv")
@@ -55,7 +55,7 @@ RESULTS_DIR = os.path.join(ROOT, "data", "night_results")
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), "night_config.json")
 PRODUCTION_CONFIG_PATH = os.path.join(ROOT, "knowledge_base", "production_config.json")
 
-# ─── Config Loader ────────────────────────────────────────────────────────────
+# Config Loader
 
 def load_config(config_path: Optional[str] = None) -> dict:
     """Load night_config.json if it exists."""
@@ -66,7 +66,7 @@ def load_config(config_path: Optional[str] = None) -> dict:
     return {}
 
 
-# ─── Defaults ─────────────────────────────────────────────────────────────────
+# Defaults
 
 DEFAULT_SYMBOLS = ["BTC/USDT", "ETH/USDT", "SOL/USDT", "BNB/USDT"]
 
@@ -118,14 +118,14 @@ DARWINIAN_CONFIG = {
 }
 
 
-# ─── Logging ──────────────────────────────────────────────────────────────────
+# Logging
 
 def log(msg: str):
     ts = datetime.now(timezone.utc).strftime("%H:%M:%S")
     print(f"[{ts}] {msg}", flush=True)
 
 
-# ─── WFA: Expanding-Window Folds ─────────────────────────────────────────────
+# WFA: Expanding-Window Folds
 
 @dataclass
 class Fold:
@@ -199,7 +199,7 @@ def create_folds(total_bars: int, num_folds: int, test_fold_days: int,
     return folds
 
 
-# ─── Fast Evaluation ─────────────────────────────────────────────────────────
+# Fast Evaluation
 
 @dataclass
 class FoldMetrics:
@@ -346,7 +346,7 @@ def evaluate_candidate(df: pd.DataFrame, folds: List[Fold], params: Dict,
         for reason, count in f["oos_exit_reasons"].items():
             all_exits[reason] += count
 
-    # ── Overfitting Layer 1: IS-OOS Gap ──
+    # Overfitting Layer 1: IS-OOS Gap
     if avg_is_sharpe == 0 and avg_is_pnl == 0:
         # IS was skipped (coarse pass) — can't compute gap
         overfitting_score = 0.0
@@ -360,7 +360,7 @@ def evaluate_candidate(df: pd.DataFrame, folds: List[Fold], params: Dict,
     is_coarse_only = num_folds_evaluated < 3
     overfitting_score = max(0, overfitting_score)  # OOS > IS isn't overfitting
 
-    # ── Overfitting Layer 3: Parameter Sensitivity (Fragility) ──
+    # Overfitting Layer 3: Parameter Sensitivity (Fragility)
     fragility = 0.0
     if compute_fragility and avg_oos_sharpe > 0.1:  # Only compute for promising candidates
         for param_name, param_val in params.items():
@@ -376,7 +376,7 @@ def evaluate_candidate(df: pd.DataFrame, folds: List[Fold], params: Dict,
                     sensitivity = abs(perturbed_sharpe - avg_oos_sharpe) / abs(avg_oos_sharpe)
                     fragility = max(fragility, sensitivity)
 
-    # ── Survivor Score ──
+    # Survivor Score
     of_penalty = 1.0 - min(overfitting_score, 1.0)
     dd_factor = 1.0 / (1.0 + avg_oos_dd / 100)
     trade_factor = min(avg_oos_trades / max(of_config.get("min_trades_per_fold", 10), 1), 1.0)
@@ -386,7 +386,7 @@ def evaluate_candidate(df: pd.DataFrame, folds: List[Fold], params: Dict,
     fragility_penalty = 1.0 / (1.0 + fragility)
     survivor_score = avg_oos_sharpe * oos_consistency * of_penalty * dd_factor * trade_factor * fragility_penalty
 
-    # ── Rejection check (only IS-OOS gap and consistency — fragility is now a penalty) ──
+    # Rejection check (only IS-OOS gap and consistency — fragility is now a penalty)
     rejected = False
     rejection_reason = ""
     if overfitting_score > of_config.get("max_is_oos_gap", 0.5):
@@ -434,7 +434,7 @@ def evaluate_candidate(df: pd.DataFrame, folds: List[Fold], params: Dict,
     )
 
 
-# ─── Grid Search ──────────────────────────────────────────────────────────────
+# Grid Search
 
 def grid_combos(grid: Dict) -> List[Dict]:
     """Generate all combinations from a param grid."""
@@ -586,7 +586,7 @@ def darwinian_evolution(df: pd.DataFrame, folds: List[Fold], symbol: str,
     return unique[:pop_size * 2]
 
 
-# ─── BB Mean Reversion Strategy (Fast Evaluator) ──────────────────────────────
+# BB Mean Reversion Strategy (Fast Evaluator)
 
 BB_GRID = {
     "rsi_oversold": [25, 28, 30, 33],
@@ -721,7 +721,7 @@ def run_bb_grid_search(df: pd.DataFrame, folds: List[Fold], symbol: str,
     return results
 
 
-# ─── Experiment Runner ────────────────────────────────────────────────────────
+# Experiment Runner
 
 def run_experiments(df: pd.DataFrame, folds: List[Fold], symbol: str,
                    experiments: List[Dict], of_config: Dict) -> List[CandidateResult]:
@@ -768,7 +768,7 @@ def run_experiments(df: pd.DataFrame, folds: List[Fold], symbol: str,
     return results
 
 
-# ─── Post-Run Auto-Validation ────────────────────────────────────────────────
+# Post-Run Auto-Validation
 
 def auto_validate_top_candidates(all_results: Dict[str, List[CandidateResult]],
                                   output_dir: str, top_n: int = 3) -> str:
@@ -971,7 +971,7 @@ def auto_validate_top_candidates(all_results: Dict[str, List[CandidateResult]],
     return val_path
 
 
-# ─── Regime Analysis ─────────────────────────────────────────────────────────
+# Regime Analysis
 
 def compute_adx(df: pd.DataFrame, period: int = 14) -> pd.Series:
     """Compute ADX using Wilder's smoothing."""
@@ -1035,7 +1035,7 @@ def regime_analysis(dfs: Dict[str, pd.DataFrame], adx_threshold: float = 25.0) -
     return result
 
 
-# ─── Data Loading ─────────────────────────────────────────────────────────────
+# Data Loading
 
 def load_data(symbols: List[str]) -> Dict[str, pd.DataFrame]:
     """Load OHLCV data and compute indicators for all symbols."""
@@ -1095,7 +1095,7 @@ def fetch_fresh_data(symbols: List[str]) -> bool:
         return False
 
 
-# ─── Report Generation ───────────────────────────────────────────────────────
+# Report Generation
 
 def generate_report(
     all_results: Dict[str, List[CandidateResult]],
@@ -1122,7 +1122,7 @@ def generate_report(
     w(f"**Aggregation:** Median OOS Sharpe, per-fold Sharpe winsorized at ±100")
     w(f"")
 
-    # ── Market State ──
+    # Market State
     w(f"## Market State")
     w(f"")
     w(f"| Symbol | Regime | ADX | ADX Trend | Vol %ile | 30d Return |")
@@ -1142,7 +1142,7 @@ def generate_report(
             w(f"  {pair}: {corr_val:.2f}")
     w(f"")
 
-    # ── Production Baseline ──
+    # Production Baseline
     w(f"## Production Baseline (Current Config)")
     w(f"")
     w(f"| Symbol | OOS Sharpe | OOS PF | OOS WR | Consistency | MaxDD | Survivor |")
@@ -1165,7 +1165,7 @@ def generate_report(
               f"{prod_result.survivor_score:.2f} |")
     w(f"")
 
-    # ── Top 10 Candidates ──
+    # Top 10 Candidates
     w(f"## Top 10 Candidates (Ranked by Survivor Score)")
     w(f"")
     w(f"*Only candidates validated on 5+ WFA folds are shown.*")
@@ -1241,7 +1241,7 @@ def generate_report(
 
         shown += 1
 
-    # ── Overfitting Warnings ──
+    # Overfitting Warnings
     w(f"## Overfitting Warnings")
     w(f"")
     rejected = [r for r in validated_candidates if r.rejected]
@@ -1257,7 +1257,7 @@ def generate_report(
         w(f"No overfitting warnings — all top candidates passed filters.")
     w(f"")
 
-    # ── Per-Symbol Fold Detail ──
+    # Per-Symbol Fold Detail
     w(f"## Per-Symbol WFA Fold Detail")
     w(f"")
     for sym, results in all_results.items():
@@ -1290,7 +1290,7 @@ def generate_report(
                   f"{fd['oos_pnl']:+.2f}% | {fd['oos_trades']} {check} |")
         w(f"")
 
-    # ── Action Items ──
+    # Action Items
     w(f"## Action Items")
     w(f"")
     action_num = 0
@@ -1370,7 +1370,7 @@ def generate_report(
     return report_path
 
 
-# ─── Main Night Shift ────────────────────────────────────────────────────────
+# Main Night Shift
 
 def run_night_shift(
     symbols: List[str],
@@ -1388,7 +1388,7 @@ def run_night_shift(
         log(f"Config: {config_path or CONFIG_PATH}")
     log(f"{'='*70}")
 
-    # ── Phase 1: Data ──
+    # Phase 1: Data
     log(f"\n── Phase 1: Data ──")
     fetch = config.get("schedule", {}).get("fetch_fresh_data", True)
     if not skip_fetch and fetch:
@@ -1402,7 +1402,7 @@ def run_night_shift(
         log(f"FATAL: No data loaded. Exiting.")
         sys.exit(1)
 
-    # ── Phase 2: WFA Folds ──
+    # Phase 2: WFA Folds
     log(f"\n── Phase 2: Expanding-Window WFA ──")
     # Use minimum data length across symbols for consistent folds
     min_bars = min(len(df) for df in dfs.values())
@@ -1412,7 +1412,7 @@ def run_night_shift(
         log(f"  Fold {f.fold_num}: train=[{f.train_start_idx}:{f.train_end_idx}] "
             f"({f.train_hours}h) test=[{f.test_start_idx}:{f.test_end_idx}] ({f.test_hours}h)")
 
-    # ── Phase 2b: Evaluate Production Baseline on all folds ──
+    # Phase 2b: Evaluate Production Baseline on all folds
     all_results = {}  # initialize before grid search fills it
     log(f"\n── Phase 2b: Production Baseline ──")
     for symbol in dfs:
@@ -1426,7 +1426,7 @@ def run_night_shift(
             log(f"  {symbol}: OOS Sharpe={cr.oos_sharpe:+.2f} "
                 f"consistency={cr.oos_consistency:.0%} survivor={cr.survivor_score:.2f}")
 
-    # ── Phase 3: Grid Search ──
+    # Phase 3: Grid Search
     log(f"\n── Phase 3: Coarse Grid Search ──")
     # NOTE: all_results already has production baselines from Phase 2b — extend, don't overwrite
     for symbol in dfs:
@@ -1435,14 +1435,14 @@ def run_night_shift(
         results = coarse_grid_search(dfs[symbol], folds, symbol, OVERFITTING_CONFIG)
         all_results[symbol].extend(results)
 
-    # ── Phase 3b: Fine Refinement ──
+    # Phase 3b: Fine Refinement
     log(f"\n── Phase 3b: Fine Refinement ──")
     for symbol, results in all_results.items():
         top_n = sorted(results, key=lambda r: r.survivor_score, reverse=True)[:100]
         fine_results = fine_refinement(dfs[symbol], folds, symbol, top_n, OVERFITTING_CONFIG)
         all_results[symbol].extend(fine_results)
 
-    # ── Phase 4: Darwinian ──
+    # Phase 4: Darwinian
     log(f"\n── Phase 4: Darwinian Evolution ──")
     for symbol, results in all_results.items():
         survivors = darwinian_evolution(
@@ -1451,7 +1451,7 @@ def run_night_shift(
         )
         all_results[symbol].extend(survivors)
 
-    # ── Phase 4b: BB Mean Reversion Grid Search ──
+    # Phase 4b: BB Mean Reversion Grid Search
     log(f"\n── Phase 4b: BB Mean Reversion ──")
     for symbol in dfs:
         bb_results = run_bb_grid_search(dfs[symbol], folds, symbol, OVERFITTING_CONFIG)
@@ -1459,7 +1459,7 @@ def run_night_shift(
             all_results[symbol] = []
         all_results[symbol].extend(bb_results)
 
-    # ── Phase 4c: Custom Experiments ──
+    # Phase 4c: Custom Experiments
     experiments = config.get("experiments", [])
     if experiments:
         log(f"\n── Phase 4c: Custom Experiments ({len(experiments)}) ──")
@@ -1469,21 +1469,21 @@ def run_night_shift(
     else:
         log(f"\n── Phase 4c: No experiments configured (add to night_config.json) ──")
 
-    # ── Phase 5: Regime Analysis ──
+    # Phase 5: Regime Analysis
     log(f"\n── Phase 5: Regime Analysis ──")
     regime = regime_analysis(dfs)
 
-    # ── Phase 6: Report ──
+    # Phase 6: Report
     log(f"\n── Phase 6: Morning Report ──")
     run_time = time.time() - start_time
     report_path = generate_report(all_results, regime, folds, run_time, RESULTS_DIR)
     log(f"Report saved to {report_path}")
 
-    # ── Phase 7: Auto-Validation ──
+    # Phase 7: Auto-Validation
     val_top = config.get("validation", {}).get("top_candidates", 3)
     val_path = auto_validate_top_candidates(all_results, RESULTS_DIR, top_n=val_top)
 
-    # ── Summary ──
+    # Summary
     final_time = time.time() - start_time
     log(f"\n{'='*70}")
     log(f"NIGHT SHIFT COMPLETE — {final_time:.0f}s")
@@ -1538,7 +1538,7 @@ def run_night_shift(
         json.dump(full_data, f, indent=2, default=str)
     log(f"  Full results: {json_path}")
 
-    # ── Phase 8: Discrepancy Detection (self-awareness) ──
+    # Phase 8: Discrepancy Detection (self-awareness)
     log(f"\n── Phase 8: Discrepancy Detection ──")
     try:
         from research.validation.discrepancy_detector import detect_discrepancies, update_flag_history, generate_recommendation
@@ -1580,7 +1580,7 @@ def run_night_shift(
         log(f"  Discrepancy detection skipped: {e}")
 
 
-# ─── CLI ─────────────────────────────────────────────────────────────────────
+# CLI
 
 def bridge_mode():
     """Bridge mode: read BridgeRequest JSON from stdin, write BridgeResponse JSON to stdout.

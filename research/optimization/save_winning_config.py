@@ -32,7 +32,7 @@ else:
         StrategyPerformance: Any = None
 
 
-# ─── Winning configuration ───────────────────────────────────────────────────
+# Winning configuration
 # Tested across R2–R6 backtest rounds on 5 symbols × 365 days of real Binance data.
 
 WINNING_CONFIGS = {
@@ -106,7 +106,7 @@ WINNING_CONFIGS = {
     },
 }
 
-# ─── Signal weights used by the strategy ────────────────────────────────────
+# Signal weights used by the strategy
 SIGNAL_WEIGHTS = {
     "multi_tf_trend_alignment": 0.4,
     "mean_reversion": 0.3,

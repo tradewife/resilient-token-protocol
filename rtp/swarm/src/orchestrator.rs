@@ -1,32 +1,11 @@
 //! Orchestrator — the daemon loop that wires the autonomous runtime.
 //!
-//! The orchestrator is the Symphony-style long-running process that ties
-//! together the evaluator, heartbeat, and memory promotion layers into
-//! a single autonomous loop. It does NOT make strategy decisions — it
-//! dispatches on heartbeat signals and delegates to hooks.
+//! Ties together evaluator, heartbeat, and memory promotion into a single
+//! loop. Dispatches on heartbeat signals, delegates to hooks. Does NOT make
+//! strategy decisions itself.
 //!
-//! ## Architecture
-//!
-//! ```text
-//! TreasuryFetcher ──→ OnChainState
-//! BridgeFetcher   ──→ Option<BridgeMetrics>
-//!                          │
-//!                     Evaluator
-//!                          │
-//!                     HeartbeatEngine
-//!                          │
-//!                     MemoryPromotion
-//!                          │
-//!                   dispatch on signal
-//!                    │  │  │  │
-//!               Continue Consolidate Redirect Halt
-//! ```
-//!
-//! ## Integration seam
-//!
-//! Treasury and bridge fetching are behind traits. Production wires in
-//! real Solana RPC and bridge binary. Demo uses mock fetchers with
-//! scripted state sequences.
+//! Treasury and bridge fetching are behind traits — production uses real
+//! Solana RPC, demo uses mock fetchers.
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -40,16 +19,12 @@ use crate::evaluator::{BridgeMetrics, Evaluation, Evaluator, OnChainState, Price
 use crate::heartbeat::{HeartbeatEngine, HeartbeatSignal, HeartbeatType, RecommendedAction};
 use crate::memory_promotion::{MemoryConfig, MemoryPromotion};
 
-// ---------------------------------------------------------------------------
 // Type aliases
-// ---------------------------------------------------------------------------
 
 /// Hook called after every orchestrator cycle completes.
 type CycleHook = Box<dyn Fn(&HeartbeatSignal, &Evaluation) + Send + Sync>;
 
-// ---------------------------------------------------------------------------
 // Constants
-// ---------------------------------------------------------------------------
 
 /// Default poll interval for demo mode (1 second).
 pub const DEFAULT_POLL_INTERVAL_MS: u64 = 1000;
@@ -60,9 +35,7 @@ pub const PRODUCTION_POLL_INTERVAL_MS: u64 = 30_000;
 /// Maximum consecutive halts before terminal escalation.
 pub const DEFAULT_MAX_CONSECUTIVE_HALTS: usize = 3;
 
-// ---------------------------------------------------------------------------
 // Fetcher traits — integration seam for Solana RPC and bridge binary
-// ---------------------------------------------------------------------------
 
 /// Fetches on-chain treasury state. Production: Solana RPC via getAccountInfo.
 /// Demo: MockTreasuryFetcher with scripted state.
@@ -76,9 +49,7 @@ pub trait BridgeFetcher: Send + Sync {
     fn fetch(&self) -> Result<Option<BridgeMetrics>, String>;
 }
 
-// ---------------------------------------------------------------------------
 // Mock fetchers (for tests and demo)
-// ---------------------------------------------------------------------------
 
 /// A scripted sequence of treasury states for testing.
 pub struct MockTreasuryFetcher {
@@ -145,9 +116,7 @@ impl BridgeFetcher for MockBridgeFetcher {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Hooks — called by the orchestrator on signal dispatch
-// ---------------------------------------------------------------------------
 
 /// Hook functions called by the orchestrator. Set to no-ops by default.
 /// Override for strategy pivoting, alerting, human escalation, etc.
@@ -170,9 +139,7 @@ impl Default for Hooks {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Configuration
-// ---------------------------------------------------------------------------
 
 /// Full orchestrator configuration. Every parameter is configurable.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -207,9 +174,7 @@ impl Default for OrchestratorConfig {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Status — queryable at any time
-// ---------------------------------------------------------------------------
 
 /// Runtime status of the orchestrator. Safe to read from any thread.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -237,9 +202,7 @@ impl Default for OrchestratorStatus {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Cycle result — returned after each cycle
-// ---------------------------------------------------------------------------
 
 /// Result of a single orchestrator cycle.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -254,9 +217,7 @@ pub struct CycleResult {
     pub terminal: bool,
 }
 
-// ---------------------------------------------------------------------------
 // Orchestrator
-// ---------------------------------------------------------------------------
 
 /// The autonomous protocol runtime.
 ///
@@ -387,7 +348,7 @@ impl Orchestrator {
         &self.memory
     }
 
-    // ── Core loop ────────────────────────────────────────────────────
+    // Core loop
 
     /// Run a single orchestrator cycle.
     ///
@@ -553,7 +514,7 @@ impl Orchestrator {
         }
     }
 
-    // ── Dispatch ─────────────────────────────────────────────────────
+    // Dispatch
 
     /// Dispatch on the heartbeat signal's recommended action.
     fn dispatch(&self, signal: &HeartbeatSignal, evaluation: &Evaluation) {
@@ -574,7 +535,7 @@ impl Orchestrator {
         (self.hooks.on_cycle_complete)(signal, evaluation);
     }
 
-    // ── Status management ────────────────────────────────────────────
+    // Status management
 
     fn update_status(&self, _signal: &HeartbeatSignal, result: &CycleResult) {
         let mut status = self.lock_status();
@@ -592,7 +553,7 @@ impl Orchestrator {
         }
     }
 
-    // ── Structured logging ───────────────────────────────────────────
+    // Structured logging
 
     fn log_cycle(&self, result: &CycleResult, signal: &HeartbeatSignal) {
         match result.recommended_action {
@@ -629,16 +590,14 @@ impl Orchestrator {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Tests
-// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::evaluator::{OnChainState, ProtocolPhase};
 
-    // ── Helpers ─────────────────────────────────────────────────────────
+    // Helpers
 
     fn test_config() -> OrchestratorConfig {
         OrchestratorConfig {
@@ -719,7 +678,7 @@ mod tests {
         }
     }
 
-    // ── Continue path ───────────────────────────────────────────────────
+    // Continue path
 
     #[test]
     fn full_loop_continue_path() {
@@ -741,7 +700,7 @@ mod tests {
         }
     }
 
-    // ── Redirect path ───────────────────────────────────────────────────
+    // Redirect path
 
     #[test]
     fn full_loop_redirect_path() {
@@ -776,7 +735,7 @@ mod tests {
         assert_eq!(last.heartbeat_type, HeartbeatType::Redirect);
     }
 
-    // ── Halt path ───────────────────────────────────────────────────────
+    // Halt path
 
     #[test]
     fn full_loop_halt_path() {
@@ -805,7 +764,7 @@ mod tests {
         );
     }
 
-    // ── Halt counter resets on recovery ─────────────────────────────────
+    // Halt counter resets on recovery
 
     #[test]
     fn halt_counter_resets_on_recovery() {
@@ -840,7 +799,7 @@ mod tests {
         assert_eq!(status.consecutive_halts, 0);
     }
 
-    // ── run_for_cycles terminates correctly ──────────────────────────────
+    // run_for_cycles terminates correctly
 
     #[test]
     fn run_for_cycles_terminates_correctly() {
@@ -860,7 +819,7 @@ mod tests {
         assert_eq!(status.cycles_run, 10);
     }
 
-    // ── Consolidation fires at interval ──────────────────────────────────
+    // Consolidation fires at interval
 
     #[test]
     fn consolidation_fires_at_interval() {
@@ -882,7 +841,7 @@ mod tests {
         assert_eq!(consolidations, vec![3, 6, 9]);
     }
 
-    // ── Status reflects current state ────────────────────────────────────
+    // Status reflects current state
 
     #[test]
     fn status_reflects_current_state() {
@@ -909,7 +868,7 @@ mod tests {
         assert!(status.last_cycle_at.is_some());
     }
 
-    // ── Shutdown signal ──────────────────────────────────────────────────
+    // Shutdown signal
 
     #[test]
     fn shutdown_stops_loop() {
@@ -924,7 +883,7 @@ mod tests {
         assert!(results.is_empty(), "Should stop immediately on shutdown");
     }
 
-    // ── Memory promotion integration ─────────────────────────────────────
+    // Memory promotion integration
 
     #[test]
     fn memory_promotion_fires_on_consolidation() {
@@ -950,7 +909,7 @@ mod tests {
         );
     }
 
-    // ── Degraded mode ────────────────────────────────────────────────────
+    // Degraded mode
 
     #[test]
     fn degraded_mode_when_bridge_offline() {
@@ -979,7 +938,7 @@ mod tests {
         assert!(results.iter().any(|r| r.degraded));
     }
 
-    // ── Hooks fire correctly ─────────────────────────────────────────────
+    // Hooks fire correctly
 
     #[test]
     fn redirect_hook_fires() {
@@ -1018,7 +977,7 @@ mod tests {
         );
     }
 
-    // ── Cycle complete hook fires every cycle ────────────────────────────
+    // Cycle complete hook fires every cycle
 
     #[test]
     fn cycle_complete_hook_fires_every_cycle() {
@@ -1044,7 +1003,7 @@ mod tests {
         assert_eq!(cycle_count.load(Ordering::Relaxed), 5);
     }
 
-    // ── Oracle integration ───────────────────────────────────────────────
+    // Oracle integration
 
     #[test]
     fn oracle_affects_evaluation() {
@@ -1061,7 +1020,7 @@ mod tests {
         assert!(results[0].tsi > 0.0);
     }
 
-    // ── Full autonomous lifecycle (integration) ──────────────────────────
+    // Full autonomous lifecycle (integration)
 
     #[test]
     fn full_autonomous_lifecycle() {

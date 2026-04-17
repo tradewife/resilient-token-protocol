@@ -1,7 +1,4 @@
 //! SoulcontractSpec — machine-readable representation of soulcontract.md.
-//!
-//! Parses soulcontract.md at runtime into structured constraints.
-//! The Soulguard validates against this parsed spec, not hardcoded strings.
 //! Drift detection compares parsed spec against Soulguard's active rules.
 
 use serde::{Deserialize, Serialize};

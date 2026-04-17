@@ -1,38 +1,25 @@
 //! Heartbeat — coordination primitive between evaluator and swarm.
 //!
-//! The heartbeat is the CORAL-style trigger that translates evaluator
-//! output into actionable signals for the rest of the swarm.
+//! Translates evaluator output into actionable signals:
+//! - **PerIteration**: after every `evaluate()` call (default rhythm)
+//! - **Consolidation**: every N iterations — periodic memory compression
+//! - **Redirect**: stagnation or terminal state — strategy pivot or halt
 //!
-//! ## Three heartbeat types (from CORAL §3.3)
-//!
-//! - **PerIteration**: fires after every `evaluate()` call. Default rhythm.
-//! - **Consolidation**: fires every N iterations. Triggers periodic memory
-//!   compression and cross-cycle insight extraction.
-//! - **Redirect**: fires when the evaluator detects stagnation or a terminal
-//!   state. Triggers strategy pivot, knowledge surfacing, or halt.
-//!
-//! ## Key constraint
-//!
-//! The heartbeat does NOT make strategy decisions. It only signals.
-//! The orchestrator decides what to do with the signal.
+//! The heartbeat only signals; the orchestrator decides what to do.
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 use crate::evaluator::{Evaluation, HealthCheck};
 
-// ---------------------------------------------------------------------------
 // Constants
-// ---------------------------------------------------------------------------
 
 /// Default number of iterations between consolidation heartbeats.
 /// CORAL recommends periodic (not per-iteration) consolidation.
 /// With a 30-second heartbeat interval, this means consolidation every 5 minutes.
 pub const DEFAULT_CONSOLIDATION_INTERVAL: usize = 10;
 
-// ---------------------------------------------------------------------------
 // Heartbeat type
-// ---------------------------------------------------------------------------
 
 /// Why this heartbeat fired. Downstream consumers pattern-match on this
 /// without needing to know evaluator internals.
@@ -56,9 +43,7 @@ impl std::fmt::Display for HeartbeatType {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Recommended action
-// ---------------------------------------------------------------------------
 
 /// What the heartbeat recommends the orchestrator do next.
 ///
@@ -90,9 +75,7 @@ impl std::fmt::Display for RecommendedAction {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Heartbeat signal
-// ---------------------------------------------------------------------------
 
 /// The signal produced by every heartbeat. Contains everything downstream
 /// consumers (memory_promotion, orchestrator, dashboard) need without
@@ -119,9 +102,7 @@ pub struct HeartbeatSignal {
     pub timestamp: DateTime<Utc>,
 }
 
-// ---------------------------------------------------------------------------
 // Configuration
-// ---------------------------------------------------------------------------
 
 /// Configuration for the heartbeat engine. All parameters are configurable
 /// at construction. Defaults are sensible for a 30-second heartbeat interval.
@@ -141,9 +122,7 @@ impl Default for HeartbeatConfig {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Heartbeat engine
-// ---------------------------------------------------------------------------
 
 /// The heartbeat engine — translates evaluator output into signals.
 ///
@@ -273,7 +252,7 @@ impl HeartbeatEngine {
         self.config.consolidation_interval
     }
 
-    // ── Internal ─────────────────────────────────────────────────────
+    // Internal
 
     /// True if this cycle is a consolidation cycle.
     ///
@@ -288,16 +267,14 @@ impl HeartbeatEngine {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Tests
-// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::evaluator::{Evaluation, HealthCheck, ProtocolPhase, SecondaryMetrics};
 
-    // ── Helpers ─────────────────────────────────────────────────────────
+    // Helpers
 
     fn healthy_evaluation(tsi: f64) -> Evaluation {
         Evaluation {
@@ -404,7 +381,7 @@ mod tests {
         }
     }
 
-    // ── PerIteration ─────────────────────────────────────────────────────
+    // PerIteration
 
     #[test]
     fn first_cycle_is_per_iteration() {
@@ -441,7 +418,7 @@ mod tests {
         assert_eq!(signal.recommended_action, RecommendedAction::Continue);
     }
 
-    // ── Consolidation ────────────────────────────────────────────────────
+    // Consolidation
 
     #[test]
     fn consolidation_fires_at_interval() {
@@ -497,7 +474,7 @@ mod tests {
         }
     }
 
-    // ── Redirect: stagnation ─────────────────────────────────────────────
+    // Redirect: stagnation
 
     #[test]
     fn redirect_on_stagnation() {
@@ -532,7 +509,7 @@ mod tests {
         assert_eq!(signal.heartbeat_type, HeartbeatType::Redirect);
     }
 
-    // ── Redirect/Halt: TSI = 0 (safety short-circuit) ───────────────────
+    // Redirect/Halt: TSI = 0 (safety short-circuit)
 
     #[test]
     fn zero_tsi_produces_redirect_not_continue() {
@@ -561,7 +538,7 @@ mod tests {
         assert_eq!(signal.heartbeat_type, HeartbeatType::Redirect);
     }
 
-    // ── Halt: terminal state ─────────────────────────────────────────────
+    // Halt: terminal state
 
     #[test]
     fn terminal_state_produces_halt() {
@@ -593,7 +570,7 @@ mod tests {
         assert!(signal.stagnating); // Terminal implies stagnant in our health check.
     }
 
-    // ── Degraded mode ────────────────────────────────────────────────────
+    // Degraded mode
 
     #[test]
     fn degraded_flag_propagates() {
@@ -620,7 +597,7 @@ mod tests {
         assert_eq!(signal.heartbeat_type, HeartbeatType::Redirect);
     }
 
-    // ── TSI delta tracking ───────────────────────────────────────────────
+    // TSI delta tracking
 
     #[test]
     fn tsi_delta_computed_across_cycles() {
@@ -648,7 +625,7 @@ mod tests {
         assert!((s3.tsi_delta - 0.8).abs() < 0.001);
     }
 
-    // ── Cycle tracking ───────────────────────────────────────────────────
+    // Cycle tracking
 
     #[test]
     fn cycle_monotonically_increases() {
@@ -660,7 +637,7 @@ mod tests {
         }
     }
 
-    // ── Recovery transitions ─────────────────────────────────────────────
+    // Recovery transitions
 
     #[test]
     fn recovery_from_redirect_to_continue() {
@@ -689,7 +666,7 @@ mod tests {
         assert_eq!(s2.recommended_action, RecommendedAction::Continue);
     }
 
-    // ── Display traits ───────────────────────────────────────────────────
+    // Display traits
 
     #[test]
     fn heartbeat_type_display() {
@@ -706,7 +683,7 @@ mod tests {
         assert_eq!(format!("{}", RecommendedAction::Halt), "halt");
     }
 
-    // ── Edge cases ───────────────────────────────────────────────────────
+    // Edge cases
 
     #[test]
     fn consolidation_interval_zero_never_consolidates() {
@@ -729,7 +706,7 @@ mod tests {
         assert_eq!(signal.recommended_action, RecommendedAction::Continue);
     }
 
-    // ── Integration-like: full lifecycle sequence ────────────────────────
+    // Integration-like: full lifecycle sequence
 
     #[test]
     fn full_lifecycle_sequence() {

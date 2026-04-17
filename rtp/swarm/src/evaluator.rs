@@ -1,28 +1,14 @@
 //! Evaluator — protocol-level survival scoring.
 //!
-//! The evaluator defines what "winning" means for the agent swarm.
-//! It computes the Treasury Survival Index (TSI), a single scalar that
-//! drives memory promotion, heartbeat triggers, stagnation detection,
-//! and improvement claims.
-//!
-//! Spec: EVALUATOR.md
-//!
-//! ## Layers
-//!
-//! - **Assessor** (`wings/evolve/assessor.rs`): scores individual wings
-//! - **Evaluator** (this file): scores the protocol as a whole
-//!
-//! The evaluator consumes on-chain treasury state + bridge outputs and
-//! produces TSI + secondary metrics. It does NOT enforce hard constraints
-//! (that's the Anchor program and Soulguard) — it checks that enforcement
-//! is working and flags terminal states.
+//! Computes the Treasury Survival Index (TSI), a scalar that drives memory
+//! promotion, heartbeat triggers, stagnation detection, and improvement claims.
+//! Consumes on-chain state + bridge outputs, produces TSI + secondary metrics.
+//! Does NOT enforce hard constraints (that's the Anchor program + Soulguard).
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-// ---------------------------------------------------------------------------
 // Constants
-// ---------------------------------------------------------------------------
 
 /// Hard cap on drawdown — a strategy hitting 20% is failed, not degraded.
 /// Matches soulcontract Core Value #5: "yield generation must never risk
@@ -39,9 +25,7 @@ pub const DEFAULT_TERMINAL_ZERO_COUNT: usize = 2;
 /// Default consecutive bridge failures before entering safe mode.
 pub const DEFAULT_BRIDGE_FAILURE_LIMIT: usize = 6;
 
-// ---------------------------------------------------------------------------
 // Input structs
-// ---------------------------------------------------------------------------
 
 /// On-chain treasury state, read via `getAccountInfo(treasury_pda)`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -84,9 +68,7 @@ pub struct PriceOracle {
     pub price_usdc: f64,
 }
 
-// ---------------------------------------------------------------------------
 // Output struct
-// ---------------------------------------------------------------------------
 
 /// Complete evaluation result — everything the dashboard and downstream
 /// systems need from a single evaluation cycle.
@@ -140,9 +122,7 @@ pub struct SecondaryMetrics {
     pub folds_validated: Option<u32>,
 }
 
-// ---------------------------------------------------------------------------
 // Stagnation / failure tracking
-// ---------------------------------------------------------------------------
 
 /// Result of stagnation and terminal-state checks.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -161,9 +141,7 @@ pub struct HealthCheck {
     pub consecutive_bridge_failures: usize,
 }
 
-// ---------------------------------------------------------------------------
 // Evaluator
-// ---------------------------------------------------------------------------
 
 /// The protocol-level evaluator.
 ///
@@ -248,7 +226,7 @@ impl Evaluator {
         self.price_oracle = None;
     }
 
-    // ── Core scoring ──────────────────────────────────────────────────
+    // Core scoring
 
     /// Compute the Treasury Survival Index.
     ///
@@ -271,7 +249,7 @@ impl Evaluator {
             None => state.min_runway_balance as f64,
         };
 
-        // ── Step 1: Safety (short-circuit if runway breached) ──────
+        // Step 1: Safety (short-circuit if runway breached)
         //
         // If vault is at or below the runway floor, the system cannot
         // pay for itself. TSI = 0 regardless of anything else.
@@ -280,18 +258,18 @@ impl Evaluator {
             // Short-circuit: runway breached. No need to compute further.
             (0.0, 0.0, 0.0, bridge.is_none())
         } else {
-            // ── Step 2: Growth ──────────────────────────────────────
+            // Step 2: Growth
             // ln(vault / runway_floor) — log-compressed so a $200k vault
             // isn't 4× "better" than $50k in a way that drowns safety.
             let growth = (vault_usdc / runway_usdc).ln();
 
-            // ── Step 3: Safety ──────────────────────────────────────
+            // Step 3: Safety
             // Drawdown from bridge if available, otherwise assume safe
             // (conservative: no penalty without evidence).
             let drawdown = bridge.map(|b| b.max_drawdown).unwrap_or(0.0);
             let safety = (1.0 - drawdown / MAX_DRAWDOWN).clamp(0.0, 1.0);
 
-            // ── Step 4: Reliability ─────────────────────────────────
+            // Step 4: Reliability
             let (reliability, bridge_degraded) = match bridge {
                 Some(b) => {
                     // Reset bridge failure counter on success.
@@ -311,7 +289,7 @@ impl Evaluator {
 
         let tsi = growth * safety * reliability;
 
-        // ── Secondary metrics ──────────────────────────────────────
+        // Secondary metrics
         let fee_rate = self.compute_fee_rate(state, &now);
         let total_distributed = state.total_distributed_holders
             + state.total_distributed_dev
@@ -369,7 +347,7 @@ impl Evaluator {
         self.evaluate(state, None)
     }
 
-    // ── Stagnation / terminal detection ────────────────────────────
+    // Stagnation / terminal detection
 
     /// Check whether the protocol is stagnant, terminal, or bridge-failed.
     ///
@@ -414,7 +392,7 @@ impl Evaluator {
         self.consecutive_zeros >= self.terminal_zero_count
     }
 
-    // ── Internal helpers ───────────────────────────────────────────
+    // Internal helpers
 
     /// Update TSI history and counters after an evaluation.
     fn update_history(&mut self, tsi: f64, state: &OnChainState, now: DateTime<Utc>) {
@@ -480,9 +458,7 @@ impl Evaluator {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Standalone scoring function (for testing / embedding without state)
-// ---------------------------------------------------------------------------
 
 /// Compute TSI from raw inputs without maintaining state.
 ///
@@ -507,9 +483,7 @@ pub fn compute_tsi(
     growth * safety * reliability
 }
 
-// ---------------------------------------------------------------------------
 // Tests
-// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {
@@ -539,7 +513,7 @@ mod tests {
         }
     }
 
-    // ── Standalone compute_tsi ────────────────────────────────────────
+    // Standalone compute_tsi
 
     #[test]
     fn compute_tsi_healthy() {
@@ -583,7 +557,7 @@ mod tests {
         assert_eq!(tsi, 0.0);
     }
 
-    // ── Full Evaluator ────────────────────────────────────────────────
+    // Full Evaluator
 
     #[test]
     fn evaluate_healthy() {
@@ -681,7 +655,7 @@ mod tests {
         assert!(!result.oracle_degraded);
     }
 
-    // ── Stagnation detection ──────────────────────────────────────────
+    // Stagnation detection
 
     #[test]
     fn stagnant_after_threshold_declining() {
@@ -757,7 +731,7 @@ mod tests {
         assert!(!evaluator.is_stagnant());
     }
 
-    // ── Terminal state detection ───────────────────────────────────────
+    // Terminal state detection
 
     #[test]
     fn terminal_after_consecutive_zeros() {
@@ -787,7 +761,7 @@ mod tests {
         assert!(!evaluator.is_terminal()); // Counter reset on non-zero TSI.
     }
 
-    // ── Bridge failure tracking ────────────────────────────────────────
+    // Bridge failure tracking
 
     #[test]
     fn bridge_failed_after_limit() {
@@ -828,7 +802,7 @@ mod tests {
         assert!(!health.bridge_failed);
     }
 
-    // ── Secondary metrics ─────────────────────────────────────────────
+    // Secondary metrics
 
     #[test]
     fn secondary_metrics_populated() {
@@ -873,7 +847,7 @@ mod tests {
         assert!((result.secondary.price_floor_distance - 1.2).abs() < 0.01);
     }
 
-    // ── History management ─────────────────────────────────────────────
+    // History management
 
     #[test]
     fn history_capped_at_100() {
@@ -888,7 +862,7 @@ mod tests {
         assert_eq!(evaluator.tsi_history().len(), 100);
     }
 
-    // ── Oracle ─────────────────────────────────────────────────────────
+    // Oracle
 
     #[test]
     fn oracle_set_and_clear() {
@@ -925,7 +899,7 @@ mod tests {
         );
     }
 
-    // ── Health check composite ─────────────────────────────────────────
+    // Health check composite
 
     #[test]
     fn health_check_all_healthy() {

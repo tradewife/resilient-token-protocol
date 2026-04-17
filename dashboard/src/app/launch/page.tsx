@@ -22,7 +22,7 @@ import {
 const PROGRAM_ID_SHORT = RTP_PROGRAM_ID.toBase58();
 const CLUSTER = "devnet";
 
-// ── Platform types ──────────────────────────────────────────
+// Platform types
 
 type Platform = "rtp" | "metaplex" | "pumpfun" | "bags";
 
@@ -41,7 +41,7 @@ const PLATFORMS: PlatformDef[] = [
   { id: "bags", name: "Bags.fm", color: "#B8A9E8", desc: "Fee sharing on Meteora DLMM", token: "SPL (Meteora DLMM)" },
 ];
 
-// ── Types ───────────────────────────────────────────────────
+// Types
 
 type LaunchPhase = "form" | "launching" | "rtp_init" | "success" | "error";
 
@@ -54,7 +54,7 @@ interface LaunchResult {
   vaultPDA?: string;
 }
 
-// ── Helpers ─────────────────────────────────────────────────
+// Helpers
 
 async function sendAndConfirm(
   connection: Connection,
@@ -76,7 +76,7 @@ function setStored(key: string, val: string) {
   if (typeof window !== "undefined") localStorage.setItem(key, val);
 }
 
-// ── Upload metadata JSON to Pinata (optional) ──────────────
+// Upload metadata JSON to Pinata (optional)
 
 async function uploadMetadataToPinata(jwt: string, metadata: object): Promise<string | null> {
   try {
@@ -95,7 +95,7 @@ async function uploadMetadataToPinata(jwt: string, metadata: object): Promise<st
   }
 }
 
-// ── Pump.fun launch ────────────────────────────────────────
+// Pump.fun launch
 
 async function launchPumpFun({
   connection, wallet, name, symbol, imageUrl, description, website, twitter, telegram, devBuyAmount,
@@ -159,7 +159,7 @@ async function launchPumpFun({
   };
 }
 
-// ── Metaplex Genesis launch (REST) ─────────────────────────
+// Metaplex Genesis launch (REST)
 
 async function launchMetaplex({
   connection, wallet, name, symbol, imageUrl, description, supply, raiseGoal,
@@ -223,7 +223,7 @@ async function launchMetaplex({
   };
 }
 
-// ── Bags.fm launch (REST + API key) ────────────────────────
+// Bags.fm launch (REST + API key)
 
 async function launchBags({
   connection, wallet, apiKey, name, symbol, imageUrl, description,
@@ -292,7 +292,7 @@ async function launchBags({
   };
 }
 
-// ── Copy button ─────────────────────────────────────────────
+// Copy button
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
@@ -313,16 +313,14 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
-// ════════════════════════════════════════════════════════════
-// ── Main page ──────────────────────────────────────────────
-// ════════════════════════════════════════════════════════════
+// Main page
 
 export default function LaunchPage() {
   const { publicKey, connected, signTransaction } = useWallet();
   const { connection } = useConnection();
   const { setVisible } = useWalletModal();
 
-  // ── State ────────────────────────────────────────────────
+  // State
   const [platform, setPlatform] = useState<Platform>("rtp");
   const [phase, setPhase] = useState<LaunchPhase>("form");
   const [result, setResult] = useState<LaunchResult | null>(null);
@@ -375,7 +373,7 @@ export default function LaunchPage() {
     setStatusMsg("");
   };
 
-  // ── Main launch handler ──────────────────────────────────
+  // Main launch handler
 
   const handleLaunch = useCallback(async () => {
     if (!wallet || !publicKey) return;
@@ -481,13 +479,11 @@ export default function LaunchPage() {
 
   const canLaunch = connected && !!publicKey && !!projectName && !!tokenSymbol && (platform !== "bags" || !!bagsApiKey);
 
-  // ══════════════════════════════════════════════════════════
-  // ── Render ───────────────────────────────────────────────
-  // ══════════════════════════════════════════════════════════
+  // Render
 
   return (
     <div className="page">
-      {/* ── Top bar ──────────────────────────────────────────── */}
+      {/* Top bar */}
       <header className="topbar">
         <div className="brand">
           <img className="brand-icon" src="/icon.svg" alt="RTP" />
@@ -512,7 +508,7 @@ export default function LaunchPage() {
         </div>
       </header>
 
-      {/* ── Hero ─────────────────────────────────────────────── */}
+      {/* Hero */}
       <section className="launch-hero">
         <h1 className="launch-title">Instant Token Deploy</h1>
         <p className="launch-subtitle">
@@ -521,7 +517,7 @@ export default function LaunchPage() {
         </p>
       </section>
 
-      {/* ── Platform selector ────────────────────────────────── */}
+      {/* Platform selector */}
       <section style={{ maxWidth: 720, margin: "0 auto var(--space-2xl)", padding: "0 var(--space-lg)" }}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "var(--space-md)" }}>
           {PLATFORMS.map((p) => (
@@ -551,7 +547,7 @@ export default function LaunchPage() {
         </div>
       </section>
 
-      {/* ── Wallet connect prompt ────────────────────────────── */}
+      {/* Wallet connect prompt */}
       {!connected && (phase === "form" || phase === "error") && (
         <section className="launch-form-section" style={{ textAlign: "center", padding: "48px 24px" }}>
           <p style={{ color: "var(--text-secondary)", marginBottom: "24px", fontSize: "1.1rem" }}>
@@ -561,9 +557,7 @@ export default function LaunchPage() {
         </section>
       )}
 
-      {/* ════════════════════════════════════════════════════════
-          ── Phase: FORM ────────────────────────────────────────
-          ════════════════════════════════════════════════════════ */}
+      {/* Phase: FORM */}
       {connected && (phase === "form" || phase === "error") && (
         <section className="launch-form-section">
           <h3 style={{
@@ -795,9 +789,7 @@ export default function LaunchPage() {
         </section>
       )}
 
-      {/* ════════════════════════════════════════════════════════
-          ── Phase: LAUNCHING / RTP_INIT ────────────────────────
-          ════════════════════════════════════════════════════════ */}
+      {/* Phase: LAUNCHING / RTP_INIT */}
       {(phase === "launching" || phase === "rtp_init") && (
         <section className="launch-form-section" style={{ textAlign: "center", padding: "64px 24px" }}>
           <div style={{ fontSize: "2rem", marginBottom: "16px" }}>{phase === "rtp_init" ? "🏗" : "⏳"}</div>
@@ -821,9 +813,7 @@ export default function LaunchPage() {
         </section>
       )}
 
-      {/* ════════════════════════════════════════════════════════
-          ── Phase: SUCCESS ─────────────────────────────────────
-          ════════════════════════════════════════════════════════ */}
+      {/* Phase: SUCCESS */}
       {phase === "success" && result && (
         <section className="launch-result-section">
           <div className="launch-success">
@@ -931,7 +921,7 @@ export default function LaunchPage() {
         </section>
       )}
 
-      {/* ── Footer ──────────────────────────────────────────── */}
+      {/* Footer */}
       <footer className="vitals">
         <div className="vital">
           <span className="vital-value">No RTP Token</span>

@@ -1,18 +1,8 @@
 //! Evolve Wing — the only wing that can modify how other wings work.
 //!
-//! Every change is a diff that goes through the Coordinator and must pass
-//! the Audit Wing. The Evolve Wing follows the Darwinian loop:
-//!   Propose -> Assess baseline -> Apply -> Monitor -> Keep or Rollback
-//!
-//! Reference: https://github.com/chrisworsey55/atlas-gic (Darwinian loop)
-//!
-//! LLM PROVIDER NOTE:
-//! Currently: Zai API (OpenAI-compatible, glm-5-turbo)
-//! Near-term: GLM-5.1 open weights on same interface
-//! Production: Self-hosted on decentralised compute (Akash/Hyperbolic)
-//! Zero code change required to swap — only LLM_API_BASE_URL + LLM_MODEL
-//! in configs/.env.swarm. This is intentional: the swarm does not trust
-//! any single AI provider.
+//! Darwinian loop: Propose → Assess → Apply → Monitor → Keep or Rollback.
+//! All changes are diffs routed through Coordinator, audited by Audit Wing.
+//! LLM provider is swappable via LLM_API_BASE_URL + LLM_MODEL in configs/.env.swarm.
 
 pub mod assessor;
 pub mod proposer;
@@ -25,7 +15,7 @@ use rollback::RollbackManager;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-// ── LLM-powered strategy proposer ──────────────────────────────────────
+// LLM-powered strategy proposer
 
 /// A single parameter mutation proposed by the LLM proposer.
 ///
@@ -505,7 +495,7 @@ mod tests {
         assert_eq!(msg.from, WingId::Evolve);
     }
 
-    // ── LLM proposer tests ────────────────────────────────────────────
+    // LLM proposer tests
 
     #[test]
     fn deterministic_fallback_returns_three_mutations() {

@@ -1,11 +1,5 @@
 //! Router — typed message routing between wings with topology and fault tolerance.
-//!
-//! Reference: https://github.com/revfactory/harness
-//! Skills: swarm-orchestration (topology), hive-mind-advanced (queen-worker)
-//!
-//! Topology modes:
-//!   - Hub: Central Coordinator routes all messages (default, current RTP model)
-//!   - Mesh: Wings can discover and message each other through Coordinator
+//! Hub topology (default): Central Coordinator routes all messages.
 //!   - Hierarchical: Queen (Coordinator) delegates to sub-coordinators
 //!
 //! Fault tolerance:

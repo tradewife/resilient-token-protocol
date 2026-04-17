@@ -273,7 +273,7 @@ export default function Home() {
 
   return (
     <div className="page">
-      {/* ── Top bar ────────────────────────────────────────── */}
+      {/* Top bar */}
       <header className="topbar">
         <div className="brand">
           <img className="brand-icon" src="/icon.svg" alt="RTP" />
@@ -304,7 +304,7 @@ export default function Home() {
         </div>
       </header>
 
-      {/* ── Hero: image + treasury overview ─────────────────── */}
+      {/* Hero: image + treasury overview */}
       <section className="hero">
         <div className="hero-image-wrap">
           <img
@@ -365,7 +365,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ── Mid section: feed + wings + invariants ──────────── */}
+      {/* Mid section: feed + wings + invariants */}
       <section className="mid-section">
         <div className="feed">
           <div className="feed-header">
@@ -420,7 +420,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ── How it works accordion (C1) ─────────────────────── */}
+      {/* How it works accordion (C1) */}
       <section className="how-it-works">
         <button
           className="hiw-toggle"
@@ -481,7 +481,7 @@ export default function Home() {
         )}
       </section>
 
-      {/* ── Bottom vitals ──────────────────────────────────── */}
+      {/* Bottom vitals */}
       <footer className="vitals">
         <div className="vital">
           <span className="vital-value">
@@ -541,7 +541,7 @@ export default function Home() {
   );
 }
 
-/* ── Helpers ────────────────────────────────────────────────── */
+/* Helpers */
 
 function buildFeedFromCycle(c: CycleData): Array<{ ts: string; tag: string; msg: string }> {
   const lines: Array<{ ts: string; tag: string; msg: string }> = [];

@@ -1,12 +1,7 @@
-//! The Coordinator — message bus for the RTP swarm.
+//! Coordinator — central message bus of the swarm.
 //!
-//! Wings never talk to each other. Everything goes through the Coordinator.
-//! Every message passes through a multi-stage quality gate before routing.
-//!
-//! Pipeline (compound-engineering pattern):
-//!   Stage 1: Soulguard (soulcontract enforcement)
-//!   Stage 2: Router (typed routing with fault tolerance)
-//!   Stage 3: Audit Wing review (consensus tribunal for proposals)
+//! Wings never talk to each other directly. All messages pass through a
+//! quality gate: Soulguard → Router → Audit Wing review (for proposals).
 
 pub mod lifecycle;
 pub mod router;
@@ -269,8 +264,6 @@ mod integration_tests {
         let report = coord.detect_spec_drift().await;
         assert!(report.in_sync);
     }
-
-    // ── Week 3: New wing integration tests ─────────────────────────────
 
     #[tokio::test]
     async fn all_six_wings_registered() {
