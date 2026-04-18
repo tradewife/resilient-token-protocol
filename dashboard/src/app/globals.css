@@ -727,6 +727,9 @@ body {
     font-size: 0.8125rem;
     letter-spacing: 0.1em;
   }
+  .brand-icon {
+    transform: translateY(6px);
+  }
   .topbar-actions {
     gap: var(--space-sm);
   }
