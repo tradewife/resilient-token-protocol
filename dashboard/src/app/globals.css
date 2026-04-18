@@ -728,7 +728,8 @@ body {
     letter-spacing: 0.1em;
   }
   .brand-icon {
-    transform: translateY(6px);
+    transform: none;
+    align-self: center;
   }
   .topbar-actions {
     gap: var(--space-sm);
