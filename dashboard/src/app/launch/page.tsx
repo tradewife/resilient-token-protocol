@@ -603,8 +603,8 @@ export default function LaunchPage() {
       </section>
 
       {/* Platform selector */}
-      <section style={{ maxWidth: 720, margin: "0 auto var(--space-2xl)", padding: "0 var(--space-lg)" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "var(--space-md)" }}>
+      <section className="platform-selector-wrap">
+        <div className="platform-grid">
           {PLATFORMS.map((p) => (
             <button
               key={p.id}
