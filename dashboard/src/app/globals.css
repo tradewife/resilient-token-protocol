@@ -708,6 +708,9 @@ body {
   }
 }
 
+/* Hamburger hidden on desktop */
+.hamburger { display: none; }
+
 @media (max-width: 810px) {
   .page {
     padding: var(--space-lg) var(--space-md);
@@ -852,11 +855,6 @@ body {
     border-radius: 3px;
     margin-left: auto;
   }
-}
-
-/* Hamburger hidden on desktop */
-.hamburger {
-  display: none;
 }
 
 /* Launch page */
