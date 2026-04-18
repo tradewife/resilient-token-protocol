@@ -46,6 +46,7 @@ export const RTP_MAINNET_RPC = "https://api.mainnet-beta.solana.com";
 
 const SEED_TREASURY = Buffer.from("treasury");
 const SEED_VAULT = Buffer.from("vault");
+const SEED_ADOPTER = Buffer.from("adopter");
 
 function deriveTreasuryPDA(mint: PublicKey): [PublicKey, number] {
   return PublicKey.findProgramAddressSync(
@@ -57,6 +58,13 @@ function deriveTreasuryPDA(mint: PublicKey): [PublicKey, number] {
 function deriveVaultPDA(mint: PublicKey): [PublicKey, number] {
   return PublicKey.findProgramAddressSync(
     [SEED_TREASURY, mint.toBuffer(), SEED_VAULT],
+    RTP_PROGRAM_ID,
+  );
+}
+
+function deriveAdopterPDA(mint: PublicKey): [PublicKey, number] {
+  return PublicKey.findProgramAddressSync(
+    [SEED_ADOPTER, mint.toBuffer()],
     RTP_PROGRAM_ID,
   );
 }
@@ -506,4 +514,145 @@ export async function withdrawAndRedistribute(
     }
     throw err;
   }
+}
+
+// ---------------------------------------------------------------------------
+// Beta Adopter Functions
+// ---------------------------------------------------------------------------
+
+export interface AdopterState {
+  tokenMint: string;
+  feesContributed: number;
+  adoptedAt: number;
+  lastDepositAt: number;
+  depositCount: number;
+  betaExpiresAt: number;  // 0 = permanent, >0 = unix timestamp
+  betaEnded: boolean;
+  isBeta: boolean;
+}
+
+/**
+ * Register a beta adopter with an automatic expiry timestamp.
+ * After the expiry, hydrate_swarm refuses to fund strategies for this adopter.
+ *
+ * @param connection - Solana RPC connection
+ * @param payer - Keypair or WalletAdapter signing the transaction
+ * @param mintAddress - The token mint to register as a beta adopter
+ * @param betaExpiresAt - Unix timestamp when the beta expires (must be in the future)
+ */
+export async function registerAdopterBeta(
+  connection: Connection,
+  payer: Keypair | WalletAdapter,
+  mintAddress: string | PublicKey,
+  betaExpiresAt: number,
+): Promise<{ signature: string; adopterPDA: string }> {
+  const mint = typeof mintAddress === "string" ? new PublicKey(mintAddress) : mintAddress;
+  const [treasuryPDA] = deriveTreasuryPDA(mint);
+  const [adopterPDA] = deriveAdopterPDA(mint);
+  const payerPubkey = payer instanceof Keypair ? payer.publicKey : payer.publicKey!;
+
+  const idl = loadPatchedIdl();
+  const provider = new AnchorProvider(
+    connection,
+    payer instanceof Keypair ? kpWallet(payer) : walletToAnchorWallet(payer),
+    { commitment: "confirmed" },
+  );
+  const program = new Program(idl, provider);
+
+  const tx = await program.methods
+    .registerAdopterBeta(mint, new BN(betaExpiresAt))
+    .accounts({
+      adopterRecord: adopterPDA,
+      treasury: treasuryPDA,
+      authority: payerPubkey,
+      systemProgram: SystemProgram.programId,
+    })
+    .transaction();
+
+  const signature = await sendTx(connection, tx, payer);
+
+  return { signature, adopterPDA: adopterPDA.toBase58() };
+}
+
+/**
+ * End a beta adopter's RTP participation early.
+ * Only callable by the treasury authority. Sets beta_ended = true.
+ * Yield already generated stays with the project.
+ *
+ * @param connection - Solana RPC connection
+ * @param payer - Keypair or WalletAdapter (must be treasury authority)
+ * @param mintAddress - The token mint whose beta to end
+ */
+export async function endBeta(
+  connection: Connection,
+  payer: Keypair | WalletAdapter,
+  mintAddress: string | PublicKey,
+): Promise<{ signature: string }> {
+  const mint = typeof mintAddress === "string" ? new PublicKey(mintAddress) : mintAddress;
+  const [treasuryPDA] = deriveTreasuryPDA(mint);
+  const [adopterPDA] = deriveAdopterPDA(mint);
+
+  const idl = loadPatchedIdl();
+  const provider = new AnchorProvider(
+    connection,
+    payer instanceof Keypair ? kpWallet(payer) : walletToAnchorWallet(payer),
+    { commitment: "confirmed" },
+  );
+  const program = new Program(idl, provider);
+
+  const tx = await program.methods
+    .endBeta()
+    .accounts({
+      adopterRecord: adopterPDA,
+      treasury: treasuryPDA,
+      authority: provider.wallet.publicKey,
+    })
+    .transaction();
+
+  const signature = await sendTx(connection, tx, payer);
+
+  return { signature };
+}
+
+/**
+ * Fetch the on-chain adopter record for a given mint.
+ * Read-only — no transactions, no signing required.
+ * Returns default state if the adopter record doesn't exist.
+ */
+export async function fetchAdopterState(
+  connection: Connection,
+  mintAddress: string | PublicKey,
+): Promise<AdopterState> {
+  const mint = typeof mintAddress === "string" ? new PublicKey(mintAddress) : mintAddress;
+  const [adopterPDA] = deriveAdopterPDA(mint);
+
+  const idl = loadPatchedIdl();
+  const coder = new BorshCoder(idl);
+
+  const accountInfo = await connection.getAccountInfo(adopterPDA);
+  if (!accountInfo) {
+    return {
+      tokenMint: mint.toBase58(),
+      feesContributed: 0,
+      adoptedAt: 0,
+      lastDepositAt: 0,
+      depositCount: 0,
+      betaExpiresAt: 0,
+      betaEnded: false,
+      isBeta: false,
+    };
+  }
+
+  const adopter = coder.accounts.decode("AdopterRecord", accountInfo.data);
+
+  return {
+    tokenMint: adopter.tokenMint.toBase58(),
+    feesContributed: Number(adopter.feesContributedLamports),
+    adoptedAt: Number(adopter.adoptedAt),
+    lastDepositAt: Number(adopter.lastDepositTs),
+    depositCount: Number(adopter.depositCount),
+    betaExpiresAt: Number(adopter.betaExpiresAt),
+    betaEnded: adopter.betaEnded,
+    isBeta: Number(adopter.betaExpiresAt) > 0,
+  };
 }

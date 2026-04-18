@@ -8,7 +8,9 @@
 use crate::bridge::{self, BridgeRequest};
 use crate::types::{Message, Payload, WingId};
 pub mod types;
+pub mod phantom_mcp;
 pub use types::{HlKeyFile, HlSignature, PositionState, StrategyConfig, YieldReportData};
+pub use phantom_mcp::PhantomMcpClient;
 use solana_sdk::signer::Signer;
 use std::sync::Mutex;
 use std::sync::MutexGuard;
@@ -1171,6 +1173,69 @@ pub fn devnet_fund_from_hl_oracle(sol_amount: f64) -> Result<f64, String> {
     devnet_fund_stub(sol_amount, price)
 }
 
+// ── Phantom MCP Bridge ──────────────────────────────────────────────
+
+/// Run the full MCP bridge flow: swap SOL → USDC → deposit to HL.
+///
+/// This is the production bridge path using Phantom MCP server for
+/// fee-free swaps and Relay cross-chain bridging to Hyperliquid.
+///
+/// Returns a summary of the quotes obtained. Actual execution requires
+/// `execute: true` in the MCP tool calls (funded wallet needed).
+pub fn mcp_bridge_flow(sol_amount: f64) -> Result<serde_json::Value, String> {
+    let mut mcp = phantom_mcp::PhantomMcpClient::new()?;
+
+    // Step 1: Quote swap SOL → USDC.
+    let swap = mcp.quote_sol_to_usdc(sol_amount)?;
+    let buy_usdc_raw: f64 = swap.buy_amount.parse().unwrap_or(0.0);
+    let buy_usdc = buy_usdc_raw / 1_000_000.0; // USDC has 6 decimals
+    println!(
+        "[MCP BRIDGE] Step 1 — Swap quote: {:.4} SOL → {:.6} USDC (impact {:.4}%)",
+        sol_amount,
+        buy_usdc,
+        swap.price_impact * 100.0
+    );
+
+    // Step 2: Quote deposit to HL.
+    let deposit = mcp.quote_deposit_to_hl(sol_amount)?;
+    let hl_usdc_raw: f64 = deposit.buy_amount_usdc.parse().unwrap_or(0.0);
+    let hl_usdc = hl_usdc_raw / 100_000_000.0; // HL USDC has 8 decimals
+    println!(
+        "[MCP BRIDGE] Step 2 — HL deposit quote: {:.4} SOL → {:.6} USDC on HL (via {})",
+        sol_amount, hl_usdc, deposit.relay_id
+    );
+
+    // Step 3: Check HL account.
+    let account = mcp.get_perps_account()?;
+    println!(
+        "[MCP BRIDGE] Step 3 — HL account: value={}, available={}",
+        account.account_value, account.available_balance
+    );
+
+    // Step 4: Check positions.
+    let positions = mcp.get_perps_positions()?;
+    let pos_count = positions.as_array().map(|a| a.len()).unwrap_or(0);
+    println!("[MCP BRIDGE] Step 4 — Open positions: {}", pos_count);
+
+    Ok(serde_json::json!({
+        "swap": {
+            "sol_amount": sol_amount,
+            "usdc_amount": buy_usdc,
+            "price_impact": swap.price_impact,
+        },
+        "deposit": {
+            "hl_usdc": hl_usdc,
+            "fees_lamports": deposit.fees_total_lamports,
+            "relay": deposit.relay_id,
+        },
+        "hl_account": {
+            "value": account.account_value,
+            "available": account.available_balance,
+        },
+        "positions": pos_count,
+    }))
+}
+
 //  Trading Wing
 
 /// In-memory state for the Trading Wing.
@@ -1255,10 +1320,80 @@ impl TradingWing {
                     (symbol, config)
                 };
 
-                // HL execution path
-                let use_hl =
-                    config.get("execution_venue").and_then(|v| v.as_str()) == Some("hyperliquid");
+                // Determine execution venue.
+                let venue = config
+                    .get("execution_venue")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("bridge");
+                let use_hl = venue == "hyperliquid" || venue == "phantom_mcp";
+                let use_mcp_bridge = venue == "phantom_mcp";
 
+                // ── MCP bridge: swap SOL → USDC, deposit to HL ─────────
+                // When execution_venue is "phantom_mcp", the Phantom MCP
+                // server handles the Solana swap (fee-free) and cross-chain
+                // bridge to Hyperliquid before the Rust EIP-712 HL order.
+                if use_mcp_bridge {
+                    let mcp_sol = config
+                        .get("mcp_bridge_sol")
+                        .and_then(|v| v.as_f64())
+                        .unwrap_or(0.5);
+
+                    match phantom_mcp::PhantomMcpClient::new() {
+                        Ok(mut mcp) => {
+                            // Step 1: Quote swap SOL → USDC.
+                            match mcp.quote_sol_to_usdc(mcp_sol) {
+                                Ok(quote) => {
+                                    let buy_usdc: f64 = quote.buy_amount.parse().unwrap_or(0.0) / 1_000_000.0;
+                                    println!(
+                                        "[MCP BRIDGE] Swap quote: {:.4} SOL → {:.4} USDC (impact {:.4}%)",
+                                        mcp_sol,
+                                        buy_usdc,
+                                        quote.price_impact * 100.0
+                                    );
+                                }
+                                Err(e) => {
+                                    println!("[MCP BRIDGE] Swap quote failed (non-fatal): {}", e);
+                                }
+                            }
+
+                            // Step 2: Quote deposit to HL via Relay.
+                            match mcp.quote_deposit_to_hl(mcp_sol) {
+                                Ok(dep) => {
+                                    let usdc: f64 =
+                                        dep.buy_amount_usdc.parse().unwrap_or(0.0) / 100_000_000.0;
+                                    println!(
+                                        "[MCP BRIDGE] HL deposit quote: {:.4} SOL → {:.4} USDC on HL (via {})",
+                                        mcp_sol, usdc, dep.relay_id
+                                    );
+                                }
+                                Err(e) => {
+                                    println!("[MCP BRIDGE] HL deposit quote failed (non-fatal): {}", e);
+                                }
+                            }
+
+                            // Step 3: Check HL perps account.
+                            match mcp.get_perps_account() {
+                                Ok(acct) => {
+                                    println!(
+                                        "[MCP BRIDGE] HL perps account: value={}, available={}",
+                                        acct.account_value, acct.available_balance
+                                    );
+                                }
+                                Err(e) => {
+                                    println!("[MCP BRIDGE] HL account check failed (non-fatal): {}", e);
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            println!(
+                                "[MCP BRIDGE] Phantom MCP client unavailable (non-fatal): {}",
+                                e
+                            );
+                        }
+                    }
+                }
+
+                // HL execution path (EIP-712 signed orders on HL testnet).
                 if use_hl {
                     let is_buy = config
                         .get("is_buy")

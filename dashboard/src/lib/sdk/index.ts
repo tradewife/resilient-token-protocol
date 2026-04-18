@@ -46,6 +46,7 @@ export const RTP_MAINNET_RPC = "https://api.mainnet-beta.solana.com";
 
 const SEED_TREASURY = Buffer.from("treasury");
 const SEED_VAULT = Buffer.from("vault");
+const SEED_ADOPTER = Buffer.from("adopter");
 
 function deriveTreasuryPDA(mint: PublicKey): [PublicKey, number] {
   return PublicKey.findProgramAddressSync(
@@ -57,6 +58,13 @@ function deriveTreasuryPDA(mint: PublicKey): [PublicKey, number] {
 function deriveVaultPDA(mint: PublicKey): [PublicKey, number] {
   return PublicKey.findProgramAddressSync(
     [SEED_TREASURY, mint.toBuffer(), SEED_VAULT],
+    RTP_PROGRAM_ID,
+  );
+}
+
+function deriveAdopterPDA(mint: PublicKey): [PublicKey, number] {
+  return PublicKey.findProgramAddressSync(
+    [SEED_ADOPTER, mint.toBuffer()],
     RTP_PROGRAM_ID,
   );
 }
@@ -506,4 +514,122 @@ export async function withdrawAndRedistribute(
     }
     throw err;
   }
+}
+
+// ---------------------------------------------------------------------------
+// Beta Adopter Functions
+// ---------------------------------------------------------------------------
+
+export interface AdopterState {
+  tokenMint: string;
+  feesContributed: number;
+  adoptedAt: number;
+  lastDepositAt: number;
+  depositCount: number;
+  betaExpiresAt: number;  // 0 = permanent, >0 = unix timestamp
+  betaEnded: boolean;
+  isBeta: boolean;
+}
+
+export async function registerAdopterBeta(
+  connection: Connection,
+  payer: WalletAdapter,
+  mintAddress: string | PublicKey,
+  betaExpiresAt: number,
+): Promise<{ signature: string; adopterPDA: string }> {
+  const mint = typeof mintAddress === "string" ? new PublicKey(mintAddress) : mintAddress;
+  const [treasuryPDA] = deriveTreasuryPDA(mint);
+  const [adopterPDA] = deriveAdopterPDA(mint);
+  const payerPubkey = payer.publicKey!;
+
+  const idl = loadPatchedIdl();
+  const provider = new AnchorProvider(
+    connection,
+    walletToAnchorWallet(payer),
+    { commitment: "confirmed" },
+  );
+  const program = new Program(idl, provider);
+
+  const tx = await program.methods
+    .registerAdopterBeta(mint, new BN(betaExpiresAt))
+    .accounts({
+      adopterRecord: adopterPDA,
+      treasury: treasuryPDA,
+      authority: payerPubkey,
+      systemProgram: SystemProgram.programId,
+    })
+    .transaction();
+
+  const signature = await sendTx(connection, tx, payer);
+
+  return { signature, adopterPDA: adopterPDA.toBase58() };
+}
+
+export async function endBeta(
+  connection: Connection,
+  payer: WalletAdapter,
+  mintAddress: string | PublicKey,
+): Promise<{ signature: string }> {
+  const mint = typeof mintAddress === "string" ? new PublicKey(mintAddress) : mintAddress;
+  const [treasuryPDA] = deriveTreasuryPDA(mint);
+  const [adopterPDA] = deriveAdopterPDA(mint);
+
+  const idl = loadPatchedIdl();
+  const provider = new AnchorProvider(
+    connection,
+    walletToAnchorWallet(payer),
+    { commitment: "confirmed" },
+  );
+  const program = new Program(idl, provider);
+
+  const tx = await program.methods
+    .endBeta()
+    .accounts({
+      adopterRecord: adopterPDA,
+      treasury: treasuryPDA,
+      authority: provider.wallet.publicKey,
+    })
+    .transaction();
+
+  const signature = await sendTx(connection, tx, payer);
+
+  return { signature };
+}
+
+export async function fetchAdopterState(
+  connection: Connection,
+  mintAddress: string | PublicKey,
+): Promise<AdopterState> {
+  const mint = typeof mintAddress === "string" ? new PublicKey(mintAddress) : mintAddress;
+  const [adopterPDA] = deriveAdopterPDA(mint);
+
+  const idl = loadPatchedIdl();
+  const coder = new BorshCoder(idl);
+
+  const accountInfo = await connection.getAccountInfo(adopterPDA);
+  if (!accountInfo) {
+    return {
+      tokenMint: mint.toBase58(),
+      feesContributed: 0,
+      adoptedAt: 0,
+      lastDepositAt: 0,
+      depositCount: 0,
+      betaExpiresAt: 0,
+      betaEnded: false,
+      isBeta: false,
+    };
+  }
+
+  const adopter = coder.accounts.decode("AdopterRecord", accountInfo.data);
+
+  return {
+    tokenMint: adopter.tokenMint.toBase58(),
+    feesContributed: Number(adopter.feesContributedLamports),
+    adoptedAt: Number(adopter.adoptedAt),
+    lastDepositAt: Number(adopter.lastDepositTs),
+    depositCount: Number(adopter.depositCount),
+    betaExpiresAt: Number(adopter.betaExpiresAt),
+    betaEnded: adopter.betaEnded,
+    isBeta: Number(adopter.betaExpiresAt) > 0,
+  };
 }

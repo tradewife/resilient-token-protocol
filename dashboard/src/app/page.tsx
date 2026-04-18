@@ -365,6 +365,37 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Colosseum Beta CTA */}
+      <section style={{
+        maxWidth: "48rem", margin: "0 auto", padding: "1.5rem 1.5rem 0",
+      }}>
+        <div style={{
+          background: "linear-gradient(135deg, rgba(255,107,107,0.12), rgba(255,107,107,0.04))",
+          border: "1px solid rgba(255,107,107,0.3)", borderLeft: "4px solid var(--coral, #ff6b6b)",
+          borderRadius: "0.75rem", padding: "1.25rem 1.5rem",
+          display: "flex", alignItems: "center", gap: "1.5rem", flexWrap: "wrap",
+        }}>
+          <div style={{ flex: "1 1 20rem" }}>
+            <div style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "0.25rem", color: "var(--coral, #ff6b6b)" }}>
+              Colosseum Builders — Try RTP Free
+            </div>
+            <div style={{ fontSize: "0.8125rem", color: "var(--text-secondary, #999)" }}>
+              Your trading fees work for you until May 18. The swarm researches, validates, and executes yield strategies
+              on Hyperliquid. After May 18, fees return to normal. Yield stays with you.
+            </div>
+          </div>
+          <Link href="/launch" style={{
+            display: "inline-flex", alignItems: "center", gap: "0.5rem",
+            padding: "0.625rem 1.25rem", borderRadius: "0.5rem",
+            background: "var(--coral, #ff6b6b)", color: "#fff",
+            fontWeight: 600, fontSize: "0.875rem", textDecoration: "none",
+            whiteSpace: "nowrap",
+          }}>
+            Launch Token →
+          </Link>
+        </div>
+      </section>
+
       {/* Mid section: feed + wings + invariants */}
       <section className="mid-section">
         <div className="feed">

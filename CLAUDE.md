@@ -50,8 +50,9 @@ Trading Wing (Rust, DONE)
 
 ### Signing Architecture
 - **HL order signing**: ETH keypair directly (`configs/hl_testnet_key.json`), EIP-712
+- **MCP bridge signing**: Phantom MCP server subprocess (`@phantom/mcp-server`) — fee-free swaps, Relay cross-chain bridge to HL
 - **Solana CPI signing**: Phantom KMS (production) → local devnet keypair (demo)
-- **Signing cascade**: Phantom KMS → `~/.config/solana/id.json` → manual fallback
+- **Signing cascade**: Phantom MCP → Phantom KMS → `~/.config/solana/id.json` → manual fallback
 
 ---
 
@@ -59,7 +60,7 @@ Trading Wing (Rust, DONE)
 
 This repo has three layers:
 1. **Proven Python fractal-swarm** (shipping) — backtesting, optimization, paper trading
-2. **Rust swarm + Solana treasury** (built, 306 tests) — 6-wing architecture, Coordinator, soulcontract
+2. **Rust swarm + Solana treasury** (built, 307 tests) — 6-wing architecture, Coordinator, soulcontract
 3. **Hyperliquid execution** (done — devnet verified) — Trading Wing → HL testnet → yield → treasury PDA
 
 ---
@@ -113,8 +114,9 @@ python -m research.data.download_ohlcv
 cd rtp/swarm && cargo build --release
 cd rtp/swarm && cargo test
 cd rtp/swarm && cargo run --bin rtp-daemon    # single devnet cycle
-cd rtp/swarm && cargo run --bin rtp-demo      # full 8-step demo
+cd rtp/swarm && cargo run --bin rtp-demo      # full 8-step demo + MCP bridge
 cd rtp/swarm && cargo test --lib trading::tests
+cd rtp/swarm && cargo test --lib trading::phantom_mcp::tests  # MCP integration
 cd rtp/swarm && cargo test --lib audit::tests
 cd rtp/swarm && cargo test --test coordinator_integration
 ```
@@ -177,8 +179,9 @@ cd rtp/programs/rtp-treasury && anchor deploy --provider.cluster devnet
 | `rtp/swarm/src/coordinator/soulguard.rs` | Enforce soulcontract on every message |
 | `rtp/swarm/src/coordinator/soulcontract_spec.rs` | Parse SOULCONTRACT.md → structured constraints + drift detection |
 | `rtp/swarm/src/coordinator/lifecycle.rs` | Wing spawn, health-check, retire |
-| `rtp/swarm/src/wings/trading/mod.rs` | **Trading Wing — HL execution, PnL tracking, apply_mutations** |
+| `rtp/swarm/src/wings/trading/mod.rs` | **Trading Wing — HL execution, PnL tracking, apply_mutations, MCP bridge** |
 | `rtp/swarm/src/wings/trading/types.rs` | Trading types — HlSignature, StrategyConfig, PositionState, TradingWing |
+| `rtp/swarm/src/wings/trading/phantom_mcp.rs` | **Phantom MCP client — subprocess MCP server, fee-free swaps, HL bridge, perps reads** |
 | `rtp/swarm/src/bin/rtp-daemon.rs` | **Devnet loop daemon — single-cycle, 6h cron, LLM evolution** |
 | `rtp/swarm/src/wings/security/mod.rs` | Threat detection, rate-limiting, suspicious-proposal detection |
 | `rtp/swarm/src/wings/evolve/` | Assessor, proposer, rollback (complete, tested) |
@@ -227,7 +230,7 @@ is never compiled for the mainnet binary.
 # Run tests with devnet stub (310 tests):
 cd rtp/swarm && cargo test --lib --features devnet
 
-# Run without devnet stub (306 tests, production config):
+# Run without devnet stub (307 tests, production config):
 cd rtp/swarm && cargo test --lib
 ```
 

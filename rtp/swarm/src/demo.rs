@@ -523,6 +523,33 @@ pub fn run_hl_round_trip() -> HlRoundTripResult {
     }
 }
 
+/// Run the Phantom MCP bridge demo: swap quote → HL deposit quote → account check.
+///
+/// This demonstrates the MCP integration path where Phantom handles:
+///   - Fee-free SOL → USDC swaps via Jupiter/OKX/DFlow routing
+///   - Cross-chain bridge to Hyperliquid via Relay
+///   - HL perps account management
+///
+/// Requires an authenticated MCP session at ~/.phantom-mcp/session.json.
+pub fn run_mcp_bridge_demo(sol_amount: f64) -> Result<serde_json::Value, String> {
+    println!("════════════════════════════════════════════════════════");
+    println!("[MCP BRIDGE DEMO] Phantom MCP → Swap → Bridge → HL");
+    println!("════════════════════════════════════════════════════════");
+
+    let result = crate::wings::trading::mcp_bridge_flow(sol_amount)?;
+
+    println!("════════════════════════════════════════════════════════");
+    println!("[MCP BRIDGE DEMO] Complete. Summary:");
+    if let Some(obj) = result.as_object() {
+        for (k, v) in obj {
+            println!("  {}: {}", k, serde_json::to_string_pretty(v).unwrap_or_default());
+        }
+    }
+    println!("════════════════════════════════════════════════════════");
+
+    Ok(result)
+}
+
 /// Simulates the Anchor program's BelowThreshold rejection for evolve_phase.
 /// Proves the on-chain constraint exists in the deployed program.
 pub fn simulate_below_threshold_withdrawal() -> Result<(), String> {

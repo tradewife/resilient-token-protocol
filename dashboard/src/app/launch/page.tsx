@@ -14,13 +14,19 @@ import {
 import {
   createRTPToken,
   fetchTreasuryState,
+  registerAdopterBeta,
+  fetchAdopterState,
   RTP_PROGRAM_ID,
   type RTPTokenResult,
   type TreasuryState,
+  type AdopterState,
 } from "../../lib/sdk";
 
 const PROGRAM_ID_SHORT = RTP_PROGRAM_ID.toBase58();
 const CLUSTER = "devnet";
+
+/** Beta expiry: May 18 2026 23:59 UTC — one week after Colosseum hackathon deadline. */
+const BETA_EXPIRES_AT = Math.floor(new Date("2026-05-18T23:59:59Z").getTime() / 1000);
 
 // Platform types
 
@@ -326,6 +332,7 @@ export default function LaunchPage() {
   const [result, setResult] = useState<LaunchResult | null>(null);
   const [rtpResult, setRtpResult] = useState<RTPTokenResult | null>(null);
   const [treasuryState, setTreasuryState] = useState<TreasuryState | null>(null);
+  const [adopterState, setAdopterState] = useState<AdopterState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [statusMsg, setStatusMsg] = useState("");
 
@@ -336,6 +343,7 @@ export default function LaunchPage() {
   // RTP-specific
   const [totalSupply, setTotalSupply] = useState("1000000000");
   const [feeBps, setFeeBps] = useState("200");
+  const [betaMode, setBetaMode] = useState(true);
 
   // Metaplex-specific
   const [metaSupply, setMetaSupply] = useState("500000000");
@@ -369,6 +377,7 @@ export default function LaunchPage() {
     setResult(null);
     setRtpResult(null);
     setTreasuryState(null);
+    setAdopterState(null);
     setError(null);
     setStatusMsg("");
   };
@@ -397,6 +406,14 @@ export default function LaunchPage() {
             mint: rtp.mint, signature: rtp.signature, explorerUrl: rtp.explorerUrl,
             platform: "rtp", treasuryPDA: rtp.treasuryPDA, vaultPDA: rtp.vaultPDA,
           };
+          if (betaMode) {
+            setStatusMsg("Registering beta adopter (expires May 18)...");
+            try {
+              await registerAdopterBeta(connection, wallet, rtp.mint, BETA_EXPIRES_AT);
+            } catch (e: unknown) {
+              console.warn("[Launch] Beta adopter registration failed:", e instanceof Error ? e.message : String(e));
+            }
+          }
           break;
         }
 
@@ -463,8 +480,14 @@ export default function LaunchPage() {
           const state = await fetchTreasuryState(connection, mint);
           setTreasuryState(state);
         } catch (e: unknown) {
-          // Treasury state not yet available on-chain (may take a slot to confirm)
           console.warn("[Launch] Treasury state fetch failed:", e instanceof Error ? e.message : String(e));
+        }
+        try {
+          const mint = launchResult.treasuryPDA ? launchResult.mint : rtpResult?.mint || launchResult.mint;
+          const adopter = await fetchAdopterState(connection, mint);
+          setAdopterState(adopter);
+        } catch (e: unknown) {
+          console.warn("[Launch] Adopter state fetch failed:", e instanceof Error ? e.message : String(e));
         }
       }, 3000);
 
@@ -473,7 +496,7 @@ export default function LaunchPage() {
       setPhase("error");
     }
   }, [wallet, publicKey, signTransaction, connection, platform,
-    projectName, tokenSymbol, totalSupply, feeBps, imageUrl, description,
+    projectName, tokenSymbol, totalSupply, feeBps, betaMode, imageUrl, description,
     website, twitter, telegram, devBuyAmount, metaSupply, raiseGoal,
     bagsApiKey, bagsBuyAmount, feeClaimers, rtpResult]);
 
@@ -602,6 +625,25 @@ export default function LaunchPage() {
                   The transfer fee destination is a per-mint vault PDA derived from the program ID
                   (<code>{PROGRAM_ID_SHORT.slice(0, 8)}...{PROGRAM_ID_SHORT.slice(-4)}</code>).
                   Each token gets its own treasury. Executed entirely in-browser on devnet.
+                </div>
+                <div className="form-group" style={{ marginTop: "0.75rem" }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
+                    <input type="checkbox" checked={betaMode} onChange={(e) => setBetaMode(e.target.checked)}
+                      style={{ width: "1rem", height: "1rem", accentColor: "var(--coral)" }} />
+                    <span style={{ fontSize: "0.875rem" }}>
+                      <strong>Colosseum Beta</strong> — free until May 18
+                    </span>
+                  </label>
+                  {betaMode && (
+                    <div style={{
+                      marginTop: "0.4rem", padding: "0.5rem 0.75rem", borderRadius: "0.5rem",
+                      background: "var(--surface, rgba(255,255,255,0.05))", fontSize: "0.8rem",
+                      border: "1px solid var(--coral, #ff6b6b)", borderLeft: "3px solid var(--coral, #ff6b6b)",
+                    }}>
+                      Trading fees work for you until May 18 23:59 UTC. After that, the swarm stops
+                      managing your treasury and fees return to normal. Yield generated during beta stays with you.
+                    </div>
+                  )}
                 </div>
               </>
             )}
@@ -892,6 +934,32 @@ export default function LaunchPage() {
                 <div><span style={{ color: "var(--text-secondary)" }}>Vault Balance:</span> {treasuryState.vaultBalance}</div>
                 <div><span style={{ color: "var(--text-secondary)" }}>Fees Withdrawn:</span> {treasuryState.totalFeesWithdrawn}</div>
                 <div><span style={{ color: "var(--text-secondary)" }}>Runway Floor:</span> {treasuryState.minRunwayBalance}</div>
+              </div>
+            </div>
+          )}
+
+          {/* Adopter state (if loaded) */}
+          {adopterState && (
+            <div style={{
+              background: adopterState.isBeta ? "rgba(255,107,107,0.08)" : "rgba(0,0,0,0.3)",
+              border: `1px solid ${adopterState.isBeta ? "var(--coral, #ff6b6b)" : "var(--border)"}`,
+              borderLeft: adopterState.isBeta ? "3px solid var(--coral, #ff6b6b)" : undefined,
+              borderRadius: "8px", padding: "16px", marginBottom: "24px",
+            }}>
+              <h3 style={{ fontSize: "0.875rem", color: "var(--coral)", marginBottom: "12px" }}>
+                {adopterState.isBeta ? "Beta Adopter" : "Permanent Adopter"}
+              </h3>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", fontSize: "0.8125rem" }}>
+                <div><span style={{ color: "var(--text-secondary)" }}>Status:</span>{" "}
+                  {adopterState.betaEnded ? "Ended" : adopterState.isBeta ? "Active beta" : "Permanent"}
+                </div>
+                <div><span style={{ color: "var(--text-secondary)" }}>Deposits:</span> {adopterState.depositCount}</div>
+                {adopterState.isBeta && !adopterState.betaEnded && (
+                  <div style={{ gridColumn: "1 / -1" }}>
+                    <span style={{ color: "var(--text-secondary)" }}>Expires:</span>{" "}
+                    {new Date(adopterState.betaExpiresAt * 1000).toISOString().slice(0, 10)}
+                  </div>
+                )}
               </div>
             </div>
           )}
