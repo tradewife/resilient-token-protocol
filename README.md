@@ -509,7 +509,7 @@ The Trading Wing's research layer is shipping today. Everything else is scaffold
 | Treasury Program (Anchor: deposit, distribute, hydrate, evolve) | — | Solana | **Built** (audit remediated) |
 | soulcontract.md (constitutional governance layer) | — | Governance | **Defined** |
 | Python ↔ Rust Bridge (typed JSON, bridge-mode subprocess) | Trading | Both | **Built** |
-| Coordinator (soulguard + router + lifecycle) | — | Rust | **Built** (306 tests) |
+| Coordinator (soulguard + router + lifecycle) | — | Rust | **Built** (307 tests) |
 | Evolve Wing (assessor + proposer + rollback) | Evolve | Rust | **Built** |
 | Audit Wing (3-agent tribunal, Byzantine consensus) | Audit | Rust | **Built** |
 | Trading Wing (bridge-backed execution, in-memory state) | Trading | Rust | **Built** |
@@ -608,7 +608,7 @@ Treasury program audit-remediated. All 6 wings built. Coordinator with full qual
 - ✅ Python ↔ Rust typed bridge (`rtp/swarm/src/bridge.rs`)
 - ✅ End-to-end demo loop (`rtp/swarm/src/demo.rs`, 8-step pipeline)
 - ✅ Autonomous devnet loop (`rtp-daemon` binary, 6h CI cron, LLM mutations)
-- ✅ Test suite: 306 tests, 0 failures, 0 clippy warnings (anchor: 34 passing).
+- ✅ Test suite: 307 tests, 0 failures, 0 clippy warnings (anchor: 34 passing).
 
 ### Phase 2: End-to-End Integration + Full Loop
 

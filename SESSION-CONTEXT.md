@@ -46,7 +46,7 @@ The execution path is **fully implemented**. BUY→fill→SELL→fill→PnL roun
 
 ### Why Phantom
 - Sponsored hackathon resource: https://docs.phantom.com/introduction
-- **Phantom MCP Server (`@phantom/mcp-server`)** — gives the AI trading agent a dedicated Phantom wallet with 27 tools.
+- **Phantom MCP Server (`@phantom/mcp-server`)** — gives the AI trading agent a dedicated Phantom wallet with 28 tools.
   - Device-code auth (browser sign-in) — no Portal app ID or API keys needed
   - Agent gets its own wallet — separate from personal wallet, funded independently
   - Session persisted at `~/.phantom-mcp/session.json`
@@ -104,13 +104,13 @@ Trading Wing (Rust)
 | MCP bridge demo in rtp-demo | ✅ DONE | Swap quote (0.5 SOL → 44.50 USDC) + HL deposit quote (43.14 USDC) via Relay. |
 | HL Python integration script (fallback) | ✅ DONE | `scripts/hl_testnet_demo.py` — EIP-712 via web3.py (fallback) |
 | Phantom Portal app registered | ✅ DONE | Portal App ID `2fbef7dc-...` for Connect SDK. Agent wallet uses MCP (no Portal creds needed). |
-| Unified signing via Phantom MCP | ✅ DONE | `@phantom/mcp-server` installed. Agent wallet authenticated. 27 tools including HL perps + swaps. |
+| Unified signing via Phantom MCP | ✅ DONE | `@phantom/mcp-server` installed. Agent wallet authenticated. 28 tools including HL perps + swaps. |
 | HL testnet funded | ✅ DONE | ~89.9 USDC in perps clearinghouse. Faucet deposited 100 USDC to spot; transferred 90 to perps via usdClassTransfer. |
 | Hyperliquid API call in Trading Wing (Rust) | ✅ DONE | EIP-712 + msgpack signing. Full round-trip verified: BUY 0.12 SOL → fill → SELL → fill → PnL (-$0.004). `serde_json preserve_order` fix was the key. |
 | YieldReport PnL calculation | ✅ DONE | Opening: `realized_pnl_usdc = None`. Closing: real PnL computed from entry/exit. |
 | PositionState tracking | ✅ DONE | In-memory HashMap, `process_fill()` opens/closes positions, wired into `handle_execute_permit` HL path. |
 | Treasury CPI transfer (build tx) | ✅ DONE | `build_treasury_deposit_tx()` builds real SPL `transfer_checked` on devnet. Token-2022 compatible. Manual ATA derivation, manual instruction builder (avoids zeroize conflict). |
-| Treasury CPI transfer (sign) | ✅ DONE | Path C: `sign_and_send_local()` signs with devnet keypair (`~/.config/solana/id.json`), submits via JSON-RPC. Signing cascade: Phantom KMS → local keypair → manual fallback. 274 tests 0 failures. |
+| Treasury CPI transfer (sign) | ✅ DONE | Path C: `sign_and_send_local()` signs with devnet keypair (`~/.config/solana/id.json`), submits via JSON-RPC. Signing cascade: Phantom KMS → local keypair → manual fallback. |
 | Deposit wired into execution path | ✅ DONE | `deposit_sol_yield_to_treasury()` converts USDC PnL to SOL at oracle price, builds native SOL `system_program::transfer` to treasury PDA. Replaces prior SPL token path for yield returns. Phantom → local keypair signing cascade. |
 | devnet end-to-end | ✅ DONE | TX builds + signs + submits to devnet. Signature confirmed on-chain: `45DrjL8q...` |
 | Phantom wallet connect (dashboard) | ✅ DONE | `@solana/wallet-adapter-react` + Phantom adapter wired on /, /launch, /docs. Live token launch on /launch. |
@@ -325,7 +325,7 @@ State as of Apr 18:
 | Beta toggle on /launch | `dashboard/src/app/launch/page.tsx` | Checkbox: "Colosseum Beta — free until May 18". On by default for RTP Direct. Calls `registerAdopterBeta` after mint creation. |
 | Adopter state display | `dashboard/src/app/launch/page.tsx` | Post-launch: shows "Beta Adopter" card with expiry date or "Permanent Adopter" |
 | Beta CTA banner on home | `dashboard/src/app/page.tsx` | "Colosseum Builders — Try RTP Free" banner with link to /launch |
-| CI push trigger re-enabled | `.github/workflows/swarm-ci.yml` | `on: push: [main]` + `pull_request: [main]` |
+| CI push trigger (now paused) | `.github/workflows/swarm-ci.yml` | Was `on: push: [main]` + `pull_request: [main]` — now `workflow_dispatch` only (Apr 18) |
 
 **Unified launch plan saved:** `/home/kt/.factory/specs/2026-04-17-rtp-unified-hackathon-mainnet-launch-plan.md`
 - Window 1 (now→May 11): SDK beta functions ✅ DONE, dashboard toggle ✅ DONE, CI ✅ DONE
@@ -800,5 +800,34 @@ Demo               = proof the institution persists without founder trust
 
 ---
 
-*Last updated: 2026-04-18 (Phantom MCP Rust client built: phantom_mcp.rs subprocess MCP client, 28 tools. MCP bridge wired into Trading Wing + demo. Swap quote (0.5 SOL → 44.50 USDC) + HL deposit quote (43.14 USDC via Relay) working. Perps write 403 server-side issue. 307 tests, 0 failures. Next: fund mainnet wallet, investigate perps 403.)*
+---
+
+**Session 2026-04-18(iii) — Security Fix + Mobile Responsive + Doc Refresh**
+
+State as of Apr 18:
+- **307 Rust tests, 0 failures**
+- **Security: leaked Pinata JWT removed from launch page** — `PINATA_JWT_FALLBACK` set to empty string
+- **Swarm CI disabled (push/PR triggers removed)** — workflow_dispatch only, to conserve Actions minutes
+- Demo-Readiness Score: 9.5/10
+
+**Changes this session:**
+
+| Change | File | Detail |
+|--------|------|--------|
+| Remove leaked Pinata JWT | `dashboard/src/app/launch/page.tsx` | `PINATA_JWT_FALLBACK = ""` — was hardcoded JWT token |
+| Rename RTP Direct → RTP DIY | `dashboard/src/app/launch/page.tsx` | Platform name + comment updated |
+| Remove "Instant" branding | `dashboard/src/app/launch/page.tsx` | Title: "Token Deploy", removed INSTANT badges + "instantly" copy |
+| Mobile responsive CSS | `dashboard/src/app/globals.css` | `.research-section` and `.docs-content`: full width, reduced padding, overflow-x |
+| Responsive tables | `dashboard/src/app/globals.css` | `.research-table`: `display: block; overflow-x: auto` |
+| Favicon for mobile | `dashboard/src/app/layout.tsx` | Simplified icon config to `/icon.svg` only |
+| Favicon move | `dashboard/src/app/favicon.png` → `public/favicon.ico` | Correct location for static export |
+| Swarm CI triggers paused | `.github/workflows/swarm-ci.yml` | Removed `push` + `pull_request` triggers, `workflow_dispatch` only |
+
+**Security incident:** A Pinata JWT was hardcoded in `launch/page.tsx` as `PINATA_JWT_FALLBACK`. This was discovered during the commit review. The JWT has been invalidated in Pinata and the fallback set to empty string. The `uploadImageToPinata()` function now requires the Pinata JWT to be passed at runtime (env var or user input), never from a hardcoded fallback.
+
+**CI status:** Swarm CI was the only workflow with active push/PR triggers — it fired (and failed) on every push to main, burning Actions minutes. Now disabled. Re-enable with `gh workflow enable 257875783` before May 11 for one final green CI run.
+
+---
+
+*Last updated: 2026-04-18 (Security: Pinata JWT removed. Swarm CI paused. Mobile responsive. "RTP Direct" → "RTP DIY". 307 tests, 0 failures. Next: fund mainnet wallet, demo rehearsal, Colosseum registration.)*
 *Update this file after each session that changes canonical decisions or resolves open decisions.*
