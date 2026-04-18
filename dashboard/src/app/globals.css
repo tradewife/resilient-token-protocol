@@ -711,7 +711,33 @@ body {
 @media (max-width: 810px) {
   .page {
     padding: var(--space-lg) var(--space-md);
+    max-width: 100%;
+    box-sizing: border-box;
   }
+
+  /* Topbar: collapse nav, show hamburger-friendly layout */
+  .topbar {
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+    padding-bottom: var(--space-lg);
+  }
+  .brand-name {
+    font-size: 0.8125rem;
+    letter-spacing: 0.1em;
+  }
+  .topbar-actions {
+    width: 100%;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+  }
+  .topbar-actions .btn-connect:not(.wallet-pill .btn-connect) {
+    display: none;
+  }
+  .topbar-actions .network-badge {
+    display: none;
+  }
+
   .hero {
     grid-template-columns: 1fr;
     min-height: auto;
@@ -739,6 +765,16 @@ body {
   }
   .hiw-steps {
     grid-template-columns: 1fr;
+  }
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+  .launch-form-section {
+    padding: 0;
+  }
+  .form-input {
+    max-width: 100%;
+    box-sizing: border-box;
   }
 }
 
@@ -768,8 +804,10 @@ body {
 
 .launch-form-section {
   max-width: 560px;
+  width: 100%;
   margin: 0 auto var(--space-4xl);
-  padding: 0 var(--space-lg);
+  padding: 0 var(--space-md);
+  box-sizing: border-box;
 }
 
 .launch-form {
