@@ -2,9 +2,9 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
-import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 import { PublicKey, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import Link from "next/link";
+import Topbar from "./Topbar";
 
 const TREASURY_PDA = "FNQbK1Vw77aT7qM1EMSmeEPDGizSNhX4rkkYBKQNFotF";
 const DEVNET_RPC = "https://api.devnet.solana.com";
@@ -67,9 +67,8 @@ interface LivenessData {
 }
 
 export default function Home() {
-  const { publicKey, connected, disconnect } = useWallet();
+  const { publicKey, connected } = useWallet();
   const { connection } = useConnection();
-  const { setVisible } = useWalletModal();
 
   const [treasurySol, setTreasurySol] = useState<number | null>(null);
   const [walletSol, setWalletSol] = useState<number | null>(null);
@@ -254,7 +253,6 @@ export default function Home() {
   // ── Derived state ──
   const tBal = treasurySol !== null ? treasurySol.toFixed(4) : "—";
   const uBal = walletSol !== null ? walletSol.toFixed(4) : null;
-  const addr = publicKey ? `${publicKey.toBase58().slice(0, 4)}...${publicKey.toBase58().slice(-4)}` : null;
 
   const cycleCount = 7; // from devnet-cycles directory
   const lastRun = cycle?.cycle_id
@@ -274,35 +272,7 @@ export default function Home() {
   return (
     <div className="page">
       {/* Top bar */}
-      <header className="topbar">
-        <div className="brand">
-          <img className="brand-icon" src="/icon.svg" alt="RTP" />
-          <span className="brand-name">RESILIENT TOKEN PROTOCOL</span>
-        </div>
-        <div className="topbar-actions">
-          <span className="network-badge">Devnet</span>
-          <Link href="/docs" className="btn-connect" style={{ textDecoration: "none", fontSize: "0.8125rem", padding: "6px 14px" }}>
-            Docs
-          </Link>
-          <Link href="/launch" className="btn-connect" style={{ textDecoration: "none", fontSize: "0.8125rem", padding: "6px 14px" }}>
-            Platform Demo
-          </Link>
-          <Link href="/research" className="btn-connect" style={{ textDecoration: "none", fontSize: "0.8125rem", padding: "6px 14px" }}>
-            Research
-          </Link>
-          {connected && publicKey ? (
-            <div className="wallet-pill">
-              <span className="wallet-indicator" />
-              <span className="wallet-addr">{addr}</span>
-              <button className="btn-disconnect" onClick={disconnect} title="Disconnect">&times;</button>
-            </div>
-          ) : (
-            <button className="btn-connect" onClick={() => setVisible(true)}>
-              Connect Wallet
-            </button>
-          )}
-        </div>
-      </header>
+      <Topbar activePage="dashboard" />
 
       {/* Hero: image + treasury overview */}
       <section className="hero">
@@ -362,37 +332,6 @@ export default function Home() {
               )}
             </div>
           )}
-        </div>
-      </section>
-
-      {/* Colosseum Beta CTA */}
-      <section style={{
-        maxWidth: "48rem", margin: "0 auto", padding: "1.5rem 1.5rem 0",
-      }}>
-        <div style={{
-          background: "linear-gradient(135deg, rgba(255,107,107,0.12), rgba(255,107,107,0.04))",
-          border: "1px solid rgba(255,107,107,0.3)", borderLeft: "4px solid var(--coral, #ff6b6b)",
-          borderRadius: "0.75rem", padding: "1.25rem 1.5rem",
-          display: "flex", alignItems: "center", gap: "1.5rem", flexWrap: "wrap",
-        }}>
-          <div style={{ flex: "1 1 20rem" }}>
-            <div style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "0.25rem", color: "var(--coral, #ff6b6b)" }}>
-              Colosseum Builders — Try RTP Free
-            </div>
-            <div style={{ fontSize: "0.8125rem", color: "var(--text-secondary, #999)" }}>
-              Your trading fees work for you until May 18. The swarm researches, validates, and executes yield strategies
-              on Hyperliquid. After May 18, fees return to normal. Yield stays with you.
-            </div>
-          </div>
-          <Link href="/launch" style={{
-            display: "inline-flex", alignItems: "center", gap: "0.5rem",
-            padding: "0.625rem 1.25rem", borderRadius: "0.5rem",
-            background: "var(--coral, #ff6b6b)", color: "#fff",
-            fontWeight: 600, fontSize: "0.875rem", textDecoration: "none",
-            whiteSpace: "nowrap",
-          }}>
-            Launch Token →
-          </Link>
         </div>
       </section>
 

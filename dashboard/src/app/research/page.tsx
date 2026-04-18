@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
+import Topbar from "../Topbar";
 
 interface NightData {
   _date: string;
@@ -59,29 +60,7 @@ export default function ResearchPage() {
 
   return (
     <div className="page">
-      {/* Top bar */}
-      <header className="topbar">
-        <div className="brand">
-          <img className="brand-icon" src="/icon.svg" alt="RTP" />
-          <Link href="/" className="brand-name" style={{ textDecoration: "none", color: "inherit" }}>
-            RESILIENT TOKEN PROTOCOL
-          </Link>
-        </div>
-        <div className="topbar-actions">
-          <Link href="/docs" className="btn-connect" style={{ textDecoration: "none", fontSize: "0.8125rem", padding: "6px 14px" }}>
-            Docs
-          </Link>
-          <Link href="/launch" className="btn-connect" style={{ textDecoration: "none", fontSize: "0.8125rem", padding: "6px 14px" }}>
-            Platform Demo
-          </Link>
-          <Link href="/research" className="btn-connect" style={{ textDecoration: "none", fontSize: "0.8125rem", padding: "6px 14px" }}>
-            Research
-          </Link>
-          <Link href="/" className="btn-connect" style={{ textDecoration: "none", fontSize: "0.8125rem", padding: "6px 14px" }}>
-            Dashboard
-          </Link>
-        </div>
-      </header>
+      <Topbar activePage="research" />
 
       {!data ? (
         <section className="launch-hero">

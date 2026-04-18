@@ -715,10 +715,9 @@ body {
     box-sizing: border-box;
   }
 
-  /* Topbar: collapse nav, show hamburger-friendly layout */
+  /* Topbar: hamburger on mobile */
   .topbar {
-    flex-wrap: wrap;
-    gap: var(--space-sm);
+    position: relative;
     padding-bottom: var(--space-lg);
   }
   .brand-name {
@@ -726,15 +725,10 @@ body {
     letter-spacing: 0.1em;
   }
   .topbar-actions {
-    width: 100%;
-    justify-content: flex-end;
-    flex-wrap: wrap;
     gap: var(--space-sm);
   }
-  .topbar-actions .btn-connect:not(.wallet-pill .btn-connect) {
-    display: none;
-  }
-  .topbar-actions .network-badge {
+  /* Hide nav links on mobile — they live in the dropdown */
+  .topbar-actions .nav-link {
     display: none;
   }
 
@@ -776,6 +770,93 @@ body {
     max-width: 100%;
     box-sizing: border-box;
   }
+
+  /* Hamburger button — mobile only */
+  .hamburger {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    width: 32px;
+    height: 32px;
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    cursor: pointer;
+    padding: 0;
+    gap: 4px;
+  }
+  .hamburger span {
+    display: block;
+    width: 14px;
+    height: 1.5px;
+    background: var(--text-secondary);
+    border-radius: 1px;
+    transition: transform 0.2s, opacity 0.2s;
+  }
+  .hamburger.open span:nth-child(1) {
+    transform: translateY(5.5px) rotate(45deg);
+  }
+  .hamburger.open span:nth-child(2) {
+    opacity: 0;
+  }
+  .hamburger.open span:nth-child(3) {
+    transform: translateY(-5.5px) rotate(-45deg);
+  }
+
+  /* Dropdown menu */
+  .mobile-menu {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    left: 0;
+    background: var(--surface-0);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: var(--space-sm);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    z-index: 100;
+    box-shadow: 0 12px 32px rgba(0,0,0,0.4);
+  }
+  .mobile-menu a,
+  .mobile-menu button {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: var(--space-sm) var(--space-md);
+    font-family: var(--font-body);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    background: none;
+    border: none;
+    border-radius: 6px;
+    text-decoration: none;
+    cursor: pointer;
+    transition: background 0.12s, color 0.12s;
+  }
+  .mobile-menu a:hover,
+  .mobile-menu button:hover {
+    background: var(--surface-2);
+    color: var(--text-primary);
+  }
+  .mobile-menu .menu-badge {
+    font-size: 0.625rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--emerald);
+    background: oklch(20% 0.04 160);
+    padding: 2px 6px;
+    border-radius: 3px;
+    margin-left: auto;
+  }
+}
+
+/* Hamburger hidden on desktop */
+.hamburger {
+  display: none;
 }
 
 /* Launch page */

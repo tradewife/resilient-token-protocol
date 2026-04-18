@@ -21,6 +21,7 @@ import {
   type TreasuryState,
   type AdopterState,
 } from "../../lib/sdk";
+import Topbar from "../Topbar";
 
 const PROGRAM_ID_SHORT = RTP_PROGRAM_ID.toBase58();
 const CLUSTER = "devnet";
@@ -569,29 +570,7 @@ export default function LaunchPage() {
   return (
     <div className="page">
       {/* Top bar */}
-      <header className="topbar">
-        <div className="brand">
-          <img className="brand-icon" src="/icon.svg" alt="RTP" />
-          <Link href="/" className="brand-name" style={{ textDecoration: "none", color: "inherit" }}>
-            RESILIENT TOKEN PROTOCOL
-          </Link>
-        </div>
-        <div className="topbar-actions">
-          <span className="network-badge">Devnet</span>
-          <Link href="/docs" className="btn-connect" style={{ textDecoration: "none", fontSize: "0.8125rem", padding: "6px 14px" }}>Docs</Link>
-          <Link href="/launch" className="btn-connect" style={{ textDecoration: "none", fontSize: "0.8125rem", padding: "6px 14px", borderColor: "var(--coral-dim)", color: "var(--coral)" }}>Platform Demo</Link>
-          <Link href="/research" className="btn-connect" style={{ textDecoration: "none", fontSize: "0.8125rem", padding: "6px 14px" }}>Research</Link>
-          <Link href="/" className="btn-connect" style={{ textDecoration: "none", fontSize: "0.8125rem", padding: "6px 14px" }}>Dashboard</Link>
-          {connected && publicKey ? (
-            <div className="wallet-pill">
-              <span className="wallet-indicator" />
-              <span className="wallet-addr">{addr}</span>
-            </div>
-          ) : (
-            <button className="btn-connect" onClick={() => setVisible(true)}>Connect Wallet</button>
-          )}
-        </div>
-      </header>
+      <Topbar activePage="launch" />
 
       {/* Hero */}
       <section className="launch-hero">

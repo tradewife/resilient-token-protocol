@@ -3,7 +3,7 @@
 import React, { useState, useCallback } from "react";
 import Link from "next/link";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { useWalletModal } from "@solana/wallet-adapter-react-ui";
+import Topbar from "../Topbar";
 
 // Code snippets
 
@@ -128,48 +128,9 @@ function SectionHeading({ children }: { children: React.ReactNode }) {
 // Page
 
 export default function DocsPage() {
-  const { publicKey, connected } = useWallet();
-  const { setVisible } = useWalletModal();
-  const addr = publicKey
-    ? `${publicKey.toBase58().slice(0, 4)}...${publicKey.toBase58().slice(-4)}`
-    : null;
-
   return (
     <div className="page">
-      {/* Top bar */}
-      <header className="topbar">
-        <div className="brand">
-          <img className="brand-icon" src="/icon.svg" alt="RTP" />
-          <Link href="/" className="brand-name" style={{ textDecoration: "none", color: "inherit" }}>
-            RESILIENT TOKEN PROTOCOL
-          </Link>
-        </div>
-        <div className="topbar-actions">
-          <span className="network-badge">Devnet</span>
-          <Link href="/docs" className="btn-connect" style={{ textDecoration: "none", fontSize: "0.8125rem", padding: "6px 14px", borderColor: "var(--coral-dim)", color: "var(--coral)" }}>
-            Docs
-          </Link>
-          <Link href="/launch" className="btn-connect" style={{ textDecoration: "none", fontSize: "0.8125rem", padding: "6px 14px" }}>
-            Platform Demo
-          </Link>
-          <Link href="/research" className="btn-connect" style={{ textDecoration: "none", fontSize: "0.8125rem", padding: "6px 14px" }}>
-            Research
-          </Link>
-          <Link href="/" className="btn-connect" style={{ textDecoration: "none", fontSize: "0.8125rem", padding: "6px 14px" }}>
-            Dashboard
-          </Link>
-          {connected && publicKey ? (
-            <div className="wallet-pill">
-              <span className="wallet-indicator" />
-              <span className="wallet-addr">{addr}</span>
-            </div>
-          ) : (
-            <button className="btn-connect" onClick={() => setVisible(true)}>
-              Connect Wallet
-            </button>
-          )}
-        </div>
-      </header>
+      <Topbar activePage="docs" />
 
       <div className="docs-content">
 
