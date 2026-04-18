@@ -101,6 +101,28 @@ async function uploadMetadataToPinata(jwt: string, metadata: object): Promise<st
   }
 }
 
+async function uploadImageToPinata(file: File): Promise<string | null> {
+  const jwt = getStored("rtp_pinata_jwt") || PINATA_JWT_FALLBACK;
+  if (!jwt) return null;
+  try {
+    const formData = new FormData();
+    formData.append("file", file);
+    const res = await fetch("https://api.pinata.cloud/pinning/pinFileToIPFS", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${jwt}` },
+      body: formData,
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return `https://ipfs.io/ipfs/${data.IpfsHash}`;
+  } catch (e: unknown) {
+    console.warn("[Launch] Pinata image upload failed:", e instanceof Error ? e.message : String(e));
+    return null;
+  }
+}
+
+const PINATA_JWT_FALLBACK = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySW5mb3JtYXRpb24iOnsiaWQiOiJjZmU1NWZhNi0yYzcwLTQ0NzMtOGYwMS01MTM5ODAxNWVhMWMiLCJlbWFpbCI6ImthdGVqY29vcGVyLmF0ZWxpZXJAZ21haWwuY29tIiwiZW1haWxfdmVyaWZpZWQiOnRydWUsInBpbl9wb2xpY3kiOnsicmVnaW9ucyI6W3siZGVzaXJlZFJlcGxpY2F0aW9uQ291bnQiOjEsImlkIjoiRlJBMSJ9LHsiZGVzaXJlZFJlcGxpY2F0aW9uQ291bnQiOjEsImlkIjoiTllDMSJ9XSwidmVyc2lvbiI6MX0sIm1mYV9lbmFibGVkIjpmYWxzZSwic3RhdHVzIjoiQUNUSVZFIn0sImF1dGhlbnRpY2F0aW9uVHlwZSI6InNjb3BlZEtleSIsInNjb3BlZEtleUtleSI6IjcwZGQxZThiYzBhYzljMTg1ZGE5Iiwic2NvcGVkS2V5U2VjcmV0IjoiZTg2MmU1MmMyMTgyMzI3MTZkZTgwYjkyMjI2ZmQ4YjVkOTIxOTAxZWQ2ZDM4MTk5YjVkYmNhZTMyNWYxYzc3NyIsImV4cCI6MTgwODAwMzY0Mn0.-hv7_nN6PvDh_YmK6M7j7AnFvblYg0ZhuXQT4C-h7VY";
+
 // Pump.fun launch
 
 async function launchPumpFun({
@@ -352,6 +374,9 @@ export default function LaunchPage() {
   // Pump.fun / Bags shared
   const [description, setDescription] = useState("");
   const [imageUrl, setImageUrl] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
+  const [dragOver, setDragOver] = useState(false);
   const [website, setWebsite] = useState("");
   const [twitter, setTwitter] = useState("");
   const [telegram, setTelegram] = useState("");
@@ -381,6 +406,43 @@ export default function LaunchPage() {
     setError(null);
     setStatusMsg("");
   };
+
+  const handleImageUpload = async (file: File) => {
+    if (!file.type.startsWith("image/")) { setUploadError("Please select an image file"); return; }
+    if (file.size > 10 * 1024 * 1024) { setUploadError("Max 10MB"); return; }
+    setUploading(true);
+    setUploadError("");
+    try {
+      const url = await uploadImageToPinata(file);
+      if (url) { setImageUrl(url); } else { setUploadError("Upload failed — try pasting a URL instead"); }
+    } catch { setUploadError("Upload failed"); }
+    setUploading(false);
+  };
+
+  const onDrop = (e: React.DragEvent) => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files[0]; if (f) handleImageUpload(f); };
+  const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => { const f = e.target.files?.[0]; if (f) handleImageUpload(f); };
+
+  const imageUploadWidget = (id: string) => (
+    <div className="form-group">
+      <label className="form-label">Token Image</label>
+      <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+        {imageUrl ? (
+          <img src={imageUrl} alt="" style={{ width: 40, height: 40, borderRadius: "0.375rem", objectFit: "cover", flexShrink: 0 }} />
+        ) : (
+          <div style={{ width: 40, height: 40, borderRadius: "0.375rem", background: "rgba(255,255,255,0.05)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.25rem", opacity: 0.3 }}>+</div>
+        )}
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+          <label htmlFor={id} style={{ fontSize: "0.8125rem", cursor: "pointer", color: "var(--coral)", textDecoration: "underline", textUnderlineOffset: "2px" }}>
+            {uploading ? "Uploading..." : imageUrl ? "Change image" : "Choose image"}
+          </label>
+          <input id={id} type="file" accept="image/*" style={{ display: "none" }} onChange={onFileChange} />
+          {imageUrl && <span style={{ fontSize: "0.7rem", opacity: 0.4, wordBreak: "break-all" }}>ipfs://{imageUrl.split("/").pop()}</span>}
+        </div>
+      </div>
+      {uploadError && <div style={{ color: "var(--coral)", fontSize: "0.75rem", marginTop: "0.25rem" }}>{uploadError}</div>}
+      <input className="form-input" type="url" placeholder="Or paste image URL" value={imageUrl && !imageUrl.startsWith("https://ipfs.io") ? imageUrl : ""} onChange={(e) => e.target.value && setImageUrl(e.target.value)} style={{ marginTop: "0.5rem", fontSize: "0.8125rem" }} />
+    </div>
+  );
 
   // Main launch handler
 
@@ -668,11 +730,7 @@ export default function LaunchPage() {
                   <input id="raiseGoal" className="form-input" type="number" min="250" step="1"
                     value={raiseGoal} onChange={(e) => setRaiseGoal(e.target.value)} required />
                 </div>
-                <div className="form-group">
-                  <label className="form-label" htmlFor="metaImg">Token Image URL</label>
-                  <input id="metaImg" className="form-input" type="url" placeholder="https://example.com/token.png"
-                    value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} />
-                </div>
+                {imageUploadWidget("imgUpload-metaplex")}
                 <div className="form-group">
                   <label className="form-label" htmlFor="metaDesc">Description</label>
                   <input id="metaDesc" className="form-input" type="text" placeholder="Token description"
@@ -693,11 +751,7 @@ export default function LaunchPage() {
                   <input id="pfDesc" className="form-input" type="text" placeholder="Token description for Pump.fun"
                     value={description} onChange={(e) => setDescription(e.target.value)} />
                 </div>
-                <div className="form-group">
-                  <label className="form-label" htmlFor="pfImg">Image URL</label>
-                  <input id="pfImg" className="form-input" type="url" placeholder="https://example.com/token.png"
-                    value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} />
-                </div>
+                {imageUploadWidget("imgUpload-pumpfun")}
                 <div className="form-row">
                   <div className="form-group">
                     <label className="form-label" htmlFor="pfWeb">Website</label>
@@ -746,11 +800,7 @@ export default function LaunchPage() {
                   <input id="bagsDesc" className="form-input" type="text" placeholder="Token description"
                     value={description} onChange={(e) => setDescription(e.target.value)} />
                 </div>
-                <div className="form-group">
-                  <label className="form-label" htmlFor="bagsImg">Image URL</label>
-                  <input id="bagsImg" className="form-input" type="url" placeholder="https://example.com/token.png"
-                    value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} />
-                </div>
+                {imageUploadWidget("imgUpload-bags")}
                 <div className="form-row">
                   <div className="form-group">
                     <label className="form-label" htmlFor="bagsWeb">Website</label>

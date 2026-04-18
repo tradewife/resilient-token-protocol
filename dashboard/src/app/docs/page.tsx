@@ -199,17 +199,11 @@ export default function DocsPage() {
             not promises.
           </p>
           <div style={{ display: "flex", gap: "var(--space-md)", flexWrap: "wrap" }}>
-            <a
-              href="https://github.com/tradewife/resilient-token-protocol/blob/main/sdk/index.ts"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn-launch"
-              style={{ textDecoration: "none" }}
-            >
-              View on GitHub &rarr;
+            <a href="#quickstart" className="btn-launch" style={{ textDecoration: "none" }}>
+              Read the SDK &rarr;
             </a>
             <a href="#quickstart" className="btn-secondary" style={{ textDecoration: "none" }}>
-              Read the SDK &rarr;
+              Quick Start &rarr;
             </a>
           </div>
         </section>
@@ -571,17 +565,6 @@ export default function DocsPage() {
           <div className="vital">
             <Link href="/" className="vital-link">Dashboard &rarr;</Link>
             <span className="vital-label">Home</span>
-          </div>
-          <div className="vital">
-            <a
-              className="vital-link"
-              href="https://github.com/tradewife/resilient-token-protocol"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              GitHub &rarr;
-            </a>
-            <span className="vital-label">Source</span>
           </div>
           <div className="vital">
             <span className="vital-value" style={{ fontSize: "0.8125rem" }}>

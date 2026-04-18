@@ -551,13 +551,13 @@ export default function Home() {
         <div className="vital">
           <a
             className="vital-link"
-            href="https://github.com/tradewife/resilient-token-protocol/blob/main/rtp/programs/rtp-treasury/tests/treasury.ts#L777"
+            href="https://explorer.solana.com/tx/9HzWgBfwYxs5ModdjF5mT6gdTfayQq8mMYipopyHfGPmYqk6KESHFqgDrc9Mcie573ttcdPqMHSyJP5nNBKK3bR?cluster=devnet"
             target="_blank"
             rel="noopener noreferrer"
           >
-            BelowThreshold test ↗
+            BelowThreshold rejected ↗
           </a>
-          <span className="vital-label">Anchor Test</span>
+          <span className="vital-label">Constraint Rejection</span>
         </div>
         <a
           className="vital-link"
