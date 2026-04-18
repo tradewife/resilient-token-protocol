@@ -1116,8 +1116,11 @@ body {
 
 .research-section {
   max-width: 800px;
+  width: 100%;
+  box-sizing: border-box;
   margin: 0 auto var(--space-2xl);
-  padding: 0 var(--space-lg);
+  padding: 0 var(--space-md);
+  overflow-x: hidden;
 }
 
 .section-title {
@@ -1167,6 +1170,8 @@ body {
   border-collapse: collapse;
   font-size: 0.875rem;
   font-variant-numeric: tabular-nums;
+  display: block;
+  overflow-x: auto;
 }
 
 .research-table th {
@@ -1308,8 +1313,11 @@ body {
 
 .docs-content {
   max-width: 780px;
+  width: 100%;
+  box-sizing: border-box;
   margin: 0 auto;
-  padding: 0 var(--space-lg);
+  padding: 0 var(--space-md);
+  overflow-x: hidden;
 }
 
 .docs-section {

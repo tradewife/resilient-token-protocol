@@ -6,10 +6,7 @@ export const metadata: Metadata = {
   title: "Resilient Token Protocol",
   description: "Autonomous treasury protocol — governed by code, not trust.",
   icons: {
-    icon: [
-      { url: "/icon.svg", type: "image/svg+xml" },
-      { url: "/favicon.ico", sizes: "any" },
-    ],
+    icon: "/icon.svg",
     apple: "/apple-touch-icon.png",
   },
 };

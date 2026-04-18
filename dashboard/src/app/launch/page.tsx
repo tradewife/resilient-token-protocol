@@ -42,7 +42,7 @@ interface PlatformDef {
 }
 
 const PLATFORMS: PlatformDef[] = [
-  { id: "rtp", name: "RTP Direct", color: "var(--coral)", desc: "Token-2022 with TransferFeeConfig", token: "Token-2022" },
+  { id: "rtp", name: "RTP DIY", color: "var(--coral)", desc: "Token-2022 with TransferFeeConfig", token: "Token-2022" },
   { id: "metaplex", name: "Metaplex", color: "#4169E1", desc: "Fair launch via Genesis Launch Pool", token: "SPL (standard)" },
   { id: "pumpfun", name: "Pump.fun", color: "#00d18c", desc: "Bonding curve memecoin launch", token: "SPL (bonding curve)" },
   { id: "bags", name: "Bags.fm", color: "#B8A9E8", desc: "Fee sharing on Meteora DLMM", token: "SPL (Meteora DLMM)" },
@@ -122,7 +122,7 @@ async function uploadImageToPinata(file: File): Promise<string | null> {
   }
 }
 
-const PINATA_JWT_FALLBACK = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySW5mb3JtYXRpb24iOnsiaWQiOiJjZmU1NWZhNi0yYzcwLTQ0NzMtOGYwMS01MTM5ODAxNWVhMWMiLCJlbWFpbCI6ImthdGVqY29vcGVyLmF0ZWxpZXJAZ21haWwuY29tIiwiZW1haWxfdmVyaWZpZWQiOnRydWUsInBpbl9wb2xpY3kiOnsicmVnaW9ucyI6W3siZGVzaXJlZFJlcGxpY2F0aW9uQ291bnQiOjEsImlkIjoiRlJBMSJ9LHsiZGVzaXJlZFJlcGxpY2F0aW9uQ291bnQiOjEsImlkIjoiTllDMSJ9XSwidmVyc2lvbiI6MX0sIm1mYV9lbmFibGVkIjpmYWxzZSwic3RhdHVzIjoiQUNUSVZFIn0sImF1dGhlbnRpY2F0aW9uVHlwZSI6InNjb3BlZEtleSIsInNjb3BlZEtleUtleSI6IjcwZGQxZThiYzBhYzljMTg1ZGE5Iiwic2NvcGVkS2V5U2VjcmV0IjoiZTg2MmU1MmMyMTgyMzI3MTZkZTgwYjkyMjI2ZmQ4YjVkOTIxOTAxZWQ2ZDM4MTk5YjVkYmNhZTMyNWYxYzc3NyIsImV4cCI6MTgwODAwMzY0Mn0.-hv7_nN6PvDh_YmK6M7j7AnFvblYg0ZhuXQT4C-h7VY";
+const PINATA_JWT_FALLBACK = "";
 
 // Pump.fun launch
 
@@ -574,7 +574,7 @@ export default function LaunchPage() {
 
       {/* Hero */}
       <section className="launch-hero">
-        <h1 className="launch-title">Instant Token Deploy</h1>
+        <h1 className="launch-title">Token Deploy</h1>
         <p className="launch-subtitle">
           Choose your launch platform. Click Launch, sign with Phantom, token is live on-chain.
           RTP treasury is initialized automatically for every token.
@@ -598,11 +598,6 @@ export default function LaunchPage() {
             >
               <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
                 <div style={{ fontSize: "0.875rem", fontWeight: 500, color: p.color }}>{p.name}</div>
-                <span style={{
-                  fontSize: "0.5625rem", fontWeight: 600, letterSpacing: "0.08em",
-                  color: p.color, background: `${p.color}18`,
-                  padding: "2px 5px", borderRadius: 3, textTransform: "uppercase",
-                }}>INSTANT</span>
               </div>
               <div style={{ fontSize: "0.6875rem", color: "var(--text-tertiary)", lineHeight: 1.45 }}>{p.desc}</div>
               <div style={{ fontSize: "0.625rem", color: "var(--text-muted)", marginTop: 8, fontFamily: "var(--font-mono)", letterSpacing: "0.03em" }}>{p.token}</div>
@@ -615,7 +610,7 @@ export default function LaunchPage() {
       {!connected && (phase === "form" || phase === "error") && (
         <section className="launch-form-section" style={{ textAlign: "center", padding: "48px 24px" }}>
           <p style={{ color: "var(--text-secondary)", marginBottom: "24px", fontSize: "1.1rem" }}>
-            Connect your Phantom wallet to launch a token instantly.
+            Connect your Phantom wallet to launch a token.
           </p>
           <button className="btn-launch" onClick={() => setVisible(true)}>Connect Phantom Wallet</button>
         </section>
@@ -645,7 +640,7 @@ export default function LaunchPage() {
                 value={tokenSymbol} onChange={(e) => setTokenSymbol(e.target.value.toUpperCase())} required />
             </div>
 
-            {/* ── RTP Direct fields ── */}
+            {/* ── RTP DIY fields ── */}
             {platform === "rtp" && (
               <>
                 <div className="form-row">
