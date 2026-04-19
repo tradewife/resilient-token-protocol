@@ -456,7 +456,7 @@ export default function Home() {
       {/* Validated strategy proof */}
       <section style={{
         padding: "var(--space-xl) 0", borderTop: "1px solid var(--border)",
-        display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-xl)",
+        display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: "var(--space-xl)",
         alignItems: "start",
       }}>
         <div>

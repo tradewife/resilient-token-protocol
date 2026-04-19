@@ -669,10 +669,23 @@ body {
 /* Feed rejected tag */
 .feed-tag.rejected { color: var(--coral-dim); }
 .feed-tag.cycle { color: var(--text-tertiary); }
+.feed-tag.memory { color: var(--emerald-dim); }
 
 /* Metric accent */
 .metric-value.accent {
   color: var(--coral);
+}
+
+/* Devnet demo button hover */
+button:hover[style*="border: 1px solid var(--emerald)"] {
+  background: oklch(20% 0.04 160) !important;
+}
+
+/* Responsive validated strategy grid */
+@media (max-width: 810px) {
+  section > div[style*="grid-template-columns: 1fr 1fr"] {
+    grid-template-columns: 1fr !important;
+  }
 }
 
 /* Scrollbar styling */
