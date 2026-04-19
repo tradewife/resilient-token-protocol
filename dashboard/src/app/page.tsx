@@ -24,17 +24,17 @@ const FALLBACK_FEED = [
 const FALLBACK_WINGS = [
   { name: "Trading", status: "Executing SOL/USDT", active: true },
   { name: "Security", status: "Monitoring", active: true },
-  { name: "Evolve", status: "Idle", active: false },
-  { name: "Knowledge", status: "Idle", active: false },
+  { name: "Evolve", status: "3 mutations accepted", active: true },
+  { name: "Knowledge", status: "14 files", active: true },
   { name: "Audit", status: "3/3 approved", active: true },
-  { name: "Futureproof", status: "Idle", active: false },
+  { name: "Futureproof", status: "Monitoring", active: true },
 ];
 
 const INVARIANTS = [
-  "Any token that adopts RTP sets the protocol's treasury as its fee destination at mint — permanently. The configuration cannot be revoked, adjusted, or redirected by anyone, including the team that built it.",
-  "Those fees don't sit idle. The protocol's research engine tests strategies autonomously, routes capital to generate yield, and returns it to the treasury for redistribution to holders.",
-  "Agents operate within a constitutional boundary. They can research, propose, and execute within defined parameters. Any irreversible action requires human authorisation before it reaches the network.",
-  "The protocol matures through three phases — Sustenance, Ecosystem, Humanity. Each transition is enforced on-chain. Once crossed, it cannot be reversed.",
+  "Fee destination is set at mint and cannot be revoked — not by the team, not by anyone. TransferFeeConfig is immutable.",
+  "An autonomous research engine tests 30,000 strategy configs per night, validates via 9-fold walk-forward analysis, and executes yield strategies on Hyperliquid. Capital returns to holders.",
+  "Agents operate within constitutional boundaries enforced by soulguard.rs (Rust) and on-chain require! constraints (Anchor). Irreversible actions require human sign-off.",
+  "Three phases — Sustenance → Ecosystem → Humanity. Each transition is irreversible, threshold-gated, and enforced on-chain. No downgrade path exists.",
 ];
 
 interface CycleData {
@@ -390,6 +390,44 @@ export default function Home() {
               <span className="invariant-check">✓</span>
               <span>{inv}</span>
             </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Capital flow */}
+      <section style={{
+        padding: "var(--space-xl) 0", borderTop: "1px solid var(--border)",
+        display: "flex", flexDirection: "column", alignItems: "center", gap: "var(--space-md)",
+      }}>
+        <div style={{ fontSize: "0.6875rem", fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase" as const, color: "var(--text-tertiary)" }}>
+          Capital Flow
+        </div>
+        <div style={{
+          display: "flex", alignItems: "center", gap: "var(--space-sm)", flexWrap: "wrap", justifyContent: "center",
+          fontFamily: "var(--font-mono)", fontSize: "0.75rem", color: "var(--text-secondary)",
+        }}>
+          {[
+            { label: "Transfer Fees", color: "var(--coral)" },
+            { label: "→" },
+            { label: "Treasury PDA", color: "var(--emerald)" },
+            { label: "→" },
+            { label: "SOL → USDC", color: "var(--text-tertiary)" },
+            { label: "→" },
+            { label: "Hyperliquid Perps", color: "var(--coral)" },
+            { label: "→" },
+            { label: "USDC Yield", color: "var(--text-tertiary)" },
+            { label: "→" },
+            { label: "70/20/10 Split", color: "var(--emerald)" },
+          ].map((item, i) => (
+            <span key={i} style={{
+              color: item.color || "var(--text-muted)",
+              ...(item.label !== "→" ? {
+                background: "var(--surface-1)", padding: "4px 10px", borderRadius: 4,
+                border: "1px solid var(--border)", fontSize: "0.6875rem",
+              } : {}),
+            }}>
+              {item.label}
+            </span>
           ))}
         </div>
       </section>
