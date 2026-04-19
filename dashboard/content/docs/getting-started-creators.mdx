@@ -1,33 +1,58 @@
 ---
 title: Getting Started — Token Creators
-description: Enable an RTP treasury for your token with one click.
+description: Get an RTP treasury for your token — launch from our site or register an existing token.
 ---
 
-## For Token Creators
+## Two Paths
 
-If your launchpad supports RTP, enabling the treasury is one click. No code, no wallet setup, no SDK installation required.
+Two ways to get an RTP treasury for your token: launch from our site, or register an existing token.
 
-### How It Works For You
+### Path A: Launch From RTP
 
-1. **Launch your token** on a supported platform (Pump.fun, Bags.fm, or Raydium)
-2. **Enable RTP** — your launchpad adds an "Enable RTP Treasury" button during or after launch
-3. **That's it** — trading fees begin flowing to your token's treasury vault PDA
-4. **Swarm activates** — the autonomous swarm monitors the treasury and executes strategies when capital is sufficient
-5. **Yield flows back** — generated yield is redistributed: 70% to holders, 20% to you (project dev), 10% to ecosystem
+Use the [RTP launch page](/launch). Pick your platform, fill in token details, sign with Phantom. The token goes live on-chain and the RTP treasury is initialized automatically.
 
-### What You Get
+1. **Pick a platform** — Pump.fun, Bags.fm, or Raydium LaunchLab
+2. **Fill in token details** — name, symbol, image, description
+3. **Sign with Phantom** — one transaction creates the token on-chain
+4. **RTP treasury auto-initializes** — treasury PDA, vault PDA, and adopter record created
 
-- **Program-enforced treasury** — no one can sign funds away from the PDA vault (not even the team)
-- **Autonomous yield** — strategies validated on 30,000 configs/night, executed on Hyperliquid (USDC-margined)
-- **On-chain redistribution** — the 70/20/10 split happens automatically when yield exceeds the runway threshold
-- **Phase evolution** — as the treasury grows, it evolves: Sustenance → Ecosystem → Humanity Fund
+### Path B: Register An Existing Token
 
-### Supported Platforms
+Already have a token on Pump.fun, Bags.fm, or Raydium? Register it with RTP programmatically:
 
-| Platform | Best For | Fee Routing | Guide |
-|----------|----------|-------------|-------|
-| Pump.fun | Memecoins, community tokens | Creator fees → keeper claims to PDA | [Pump.fun](/docs/integration/pump-fun) |
-| Bags.fm | Creator-focused tokens, fee sharing | Multi-claimer fee split to PDA | [Bags.fm](/docs/integration/bags-fm) |
-| Raydium | DeFi tokens, AMM LP bootstrap | Creator redirect to PDA | [Raydium](/docs/integration/raydium) |
+```typescript
+import { registerWithRTP } from "@resilient-protocol/sdk";
+import { Connection, PublicKey } from "@solana/web3.js";
+
+const connection = new Connection("https://api.mainnet-beta.solana.com");
+const result = await registerWithRTP(connection, wallet, {
+  mint: new PublicKey("YourExistingMintAddress"),
+  platform: "pumpfun",  // or "bags" or "raydium"
+  name: "My Token",
+  symbol: "MTK",
+});
+
+// result.treasuryPDA — your token's treasury
+// result.vaultPDA — where fees accumulate
+```
+
+## After Registration: What Happens
+
+1. **Fees accumulate** — trading fees flow into your treasury vault PDA
+2. **Swarm activates** — autonomous strategies execute on Hyperliquid (USDC-margined, no SOL liquidation risk)
+3. **Yield returns** — generated yield flows back to the treasury PDA
+4. **Redistribution** — 70% to holders, 20% to project dev, 10% to ecosystem (enforced on-chain)
+
+## Fee Routing Per Platform
+
+Trading fees must reach the RTP treasury vault. The mechanism differs per platform:
+
+| Platform | Can route to RTP? | Changeable? | How |
+|----------|-------------------|-------------|-----|
+| Pump.fun | Yes | Once only | One-time fee redirect to treasury PDA. RTP keeper claims from deployer wallet. |
+| Bags.fm | Yes | Anytime | Set treasury PDA as fee claimer. Update claimers anytime via admin API. |
+| Raydium | Yes | Limited | Creator fees go to pool_creator wallet. Forward to RTP manually or via platform redirect. |
+
+> **Pump.fun One-Time Redirect** — Pump.fun allows only **one** post-launch fee redirect per token. If you redirect to the RTP treasury PDA, that's your one shot. After redirecting, the RTP keeper handles claiming and forwarding automatically.
 
 > **No RTP Token Required** — RTP is infrastructure, not a token. You keep your own token. RTP wraps it with treasury functionality.

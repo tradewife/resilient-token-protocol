@@ -102,34 +102,55 @@ const DOC_GROUPS: DocGroup[] = [
         title: "Getting Started — Token Creators",
         content: (
           <>
-            <p>If your launchpad supports RTP, enabling the treasury is one click. No code, no wallet setup, no SDK installation required.</p>
+            <p>Two ways to get an RTP treasury for your token: launch from our site, or register an existing token.</p>
 
-            <h3>How It Works For You</h3>
+            <h3>Path A: Launch From RTP</h3>
+            <p>Use the <a href="/launch" style={{ color: "var(--coral)" }}>RTP launch page</a>. Pick your platform, fill in token details, sign with Phantom. The token goes live on-chain and the RTP treasury is initialized automatically.</p>
             <ol>
-              <li><strong>Launch your token</strong> on a supported platform (Pump.fun, Bags.fm, or Raydium)</li>
-              <li><strong>Enable RTP</strong> — your launchpad adds an &quot;Enable RTP Treasury&quot; button during or after launch</li>
-              <li><strong>That&apos;s it</strong> — trading fees begin flowing to your token&apos;s treasury vault PDA</li>
-              <li><strong>Swarm activates</strong> — the autonomous swarm monitors the treasury and executes strategies when capital is sufficient</li>
-              <li><strong>Yield flows back</strong> — generated yield is redistributed: 70% to holders, 20% to you (project dev), 10% to ecosystem</li>
+              <li><strong>Pick a platform</strong> — Pump.fun, Bags.fm, or Raydium LaunchLab</li>
+              <li><strong>Fill in token details</strong> — name, symbol, image, description</li>
+              <li><strong>Sign with Phantom</strong> — one transaction creates the token on-chain</li>
+              <li><strong>RTP treasury auto-initializes</strong> — treasury PDA, vault PDA, and adopter record created</li>
             </ol>
 
-            <h3>What You Get</h3>
-            <ul>
-              <li><strong>Program-enforced treasury</strong> — no one can sign funds away from the PDA vault (not even the team)</li>
-              <li><strong>Autonomous yield</strong> — strategies validated on 30,000 configs/night, executed on Hyperliquid (USDC-margined)</li>
-              <li><strong>On-chain redistribution</strong> — the 70/20/10 split happens automatically when yield exceeds the runway threshold</li>
-              <li><strong>Phase evolution</strong> — as the treasury grows, it evolves: Sustenance → Ecosystem → Humanity Fund</li>
-            </ul>
+            <h3>Path B: Register An Existing Token</h3>
+            <p>Already have a token on Pump.fun, Bags.fm, or Raydium? Register it with RTP programmatically:</p>
+            <CodeBlock>{`import { registerWithRTP } from "@resilient-protocol/sdk";
+import { Connection, PublicKey } from "@solana/web3.js";
 
-            <h3>Supported Platforms</h3>
+const connection = new Connection("https://api.mainnet-beta.solana.com");
+const result = await registerWithRTP(connection, wallet, {
+  mint: new PublicKey("YourExistingMintAddress"),
+  platform: "pumpfun",  // or "bags" or "raydium"
+  name: "My Token",
+  symbol: "MTK",
+});
+
+// result.treasuryPDA — your token's treasury
+// result.vaultPDA — where fees accumulate`}</CodeBlock>
+
+            <h3>After Registration: What Happens</h3>
+            <ol>
+              <li><strong>Fees accumulate</strong> — trading fees flow into your treasury vault PDA</li>
+              <li><strong>Swarm activates</strong> — autonomous strategies execute on Hyperliquid (USDC-margined, no SOL liquidation risk)</li>
+              <li><strong>Yield returns</strong> — generated yield flows back to the treasury PDA</li>
+              <li><strong>Redistribution</strong> — 70% to holders, 20% to project dev, 10% to ecosystem (enforced on-chain)</li>
+            </ol>
+
+            <h3>Fee Routing Per Platform</h3>
+            <p>Trading fees must reach the RTP treasury vault. The mechanism differs per platform:</p>
             <Table
-              headers={["Platform", "Best For", "Fee Routing", "Guide"]}
+              headers={["Platform", "Can route to RTP?", "Changeable?", "How"]}
               rows={[
-                ["Pump.fun", "Memecoins, community tokens", "Creator fees → keeper claims to PDA", "<a href='#pump-fun'>Pump.fun</a>"],
-                ["Bags.fm", "Creator-focused tokens, fee sharing", "Multi-claimer fee split to PDA", "<a href='#bags-fm'>Bags.fm</a>"],
-                ["Raydium", "DeFi tokens, AMM LP bootstrap", "Creator redirect to PDA", "<a href='#raydium'>Raydium</a>"],
+                ["Pump.fun", "Yes", "Once only", "One-time fee redirect to treasury PDA. RTP keeper claims from deployer wallet."],
+                ["Bags.fm", "Yes", "Anytime", "Set treasury PDA as fee claimer. Update claimers anytime via admin API."],
+                ["Raydium", "Yes", "Limited", "Creator fees go to pool_creator wallet. Forward to RTP manually or via platform redirect."],
               ]}
             />
+
+            <Callout type="info" title="Pump.fun One-Time Redirect">
+              <p>Pump.fun allows only <strong>one</strong> post-launch fee redirect per token. If you redirect to the RTP treasury PDA, that&apos;s your one shot — make it count. After redirecting, the RTP keeper handles claiming and forwarding automatically.</p>
+            </Callout>
 
             <Callout type="tip" title="No RTP Token Required">
               <p>RTP is infrastructure, not a token. You keep your own token. RTP wraps it with treasury functionality.</p>
