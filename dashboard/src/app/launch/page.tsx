@@ -553,11 +553,25 @@ export default function LaunchPage() {
 
       {/* Hero */}
       <section className="launch-hero">
-        <h1 className="launch-title">Token Deploy</h1>
+        <h1 className="launch-title">Launch a Token with a Treasury</h1>
         <p className="launch-subtitle">
-          Choose your launch platform. Click Launch, sign with Phantom, token is live on-chain.
-          RTP treasury is initialized automatically for every token.
+          Pick a platform. Sign with Phantom. Your token goes live and its RTP treasury initializes automatically —
+          fees compound, yield returns to holders, enforced on-chain. One transaction.
         </p>
+        <div style={{ display: "flex", gap: "var(--space-lg)", justifyContent: "center", marginTop: "var(--space-md)", flexWrap: "wrap" }}>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontSize: "1.25rem", fontWeight: 600, color: "var(--coral)" }}>70/20/10</div>
+            <div style={{ fontSize: "0.6875rem", color: "var(--text-tertiary)" }}>Redistribution split</div>
+          </div>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontSize: "1.25rem", fontWeight: 600, color: "var(--coral)" }}>Per-mint</div>
+            <div style={{ fontSize: "0.6875rem", color: "var(--text-tertiary)" }}>Treasury PDA</div>
+          </div>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontSize: "1.25rem", fontWeight: 600, color: "var(--coral)" }}>On-chain</div>
+            <div style={{ fontSize: "0.6875rem", color: "var(--text-tertiary)" }}>Constraint enforcement</div>
+          </div>
+        </div>
       </section>
 
       {/* Platform selector */}
@@ -588,10 +602,29 @@ export default function LaunchPage() {
       {/* Wallet connect prompt */}
       {!connected && (phase === "form" || phase === "error") && (
         <section className="launch-form-section" style={{ textAlign: "center", padding: "48px 24px" }}>
-          <p style={{ color: "var(--text-secondary)", marginBottom: "24px", fontSize: "1.1rem" }}>
-            Connect your Phantom wallet to launch a token.
-          </p>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "var(--space-md)", marginBottom: "var(--space-xl)", flexWrap: "wrap" }}>
+            {[
+              { num: "1", label: "Connect Wallet" },
+              { num: "2", label: "Configure Token" },
+              { num: "3", label: "Sign & Launch" },
+            ].map((step, i) => (
+              <React.Fragment key={i}>
+                {i > 0 && <span style={{ color: "var(--text-muted)", fontSize: "0.75rem" }}>→</span>}
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div style={{
+                    width: 24, height: 24, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
+                    background: i === 0 ? "var(--coral)" : "var(--surface-2)", color: i === 0 ? "#fff" : "var(--text-secondary)",
+                    fontSize: "0.6875rem", fontWeight: 600,
+                  }}>{step.num}</div>
+                  <span style={{ fontSize: "0.8125rem", color: i === 0 ? "var(--text-primary)" : "var(--text-tertiary)" }}>{step.label}</span>
+                </div>
+              </React.Fragment>
+            ))}
+          </div>
           <button className="btn-launch" onClick={() => setVisible(true)}>Connect Phantom Wallet</button>
+          <p style={{ color: "var(--text-muted)", marginTop: "var(--space-md)", fontSize: "0.75rem" }}>
+            Your token launches on the selected platform. RTP treasury is initialized in the same session.
+          </p>
         </section>
       )}
 
