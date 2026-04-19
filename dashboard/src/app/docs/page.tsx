@@ -91,6 +91,42 @@ const DOC_GROUPS: DocGroup[] = [
               <li><strong>Redistribution</strong> — 70% to holders, 20% to project dev, 10% to ecosystem (enforced on-chain)</li>
             </ol>
 
+            <h3>Architecture</h3>
+            <div style={{
+              background: "var(--surface-0)", border: "1px solid var(--border)", borderRadius: 8,
+              padding: "var(--space-lg)", fontFamily: "var(--font-mono)", fontSize: "0.75rem",
+              lineHeight: 1.7, color: "var(--text-secondary)", overflowX: "auto",
+            }}>
+              <pre style={{ margin: 0, whiteSpace: "pre" }}>{`┌──────────────────────────────────────────────────────┐
+│              ON-CHAIN (Solana / Anchor)               │
+│  Treasury PDA: fees → yield → redistribute           │
+│  8 instructions · PDA-owned · CPI-only transfers      │
+├──────────────────────────────────────────────────────┤
+│              SWARM RUNTIME (Rust · 307 tests)         │
+│  Coordinator → message bus → 6 wings                  │
+│  Trading → Hyperliquid perps → USDC yield → PDA       │
+│  Security · Evolve · Knowledge · Audit · Futureproof  │
+├──────────────────────────────────────────────────────┤
+│              RESEARCH LAYER (Python)                   │
+│  Night Shift: 30K configs → WFA → Darwinian           │
+│  Validated: SOL/USDT Sharpe +3.96, 9/9 consistency    │
+└──────────────────────────────────────────────────────┘
+  Signing: Phantom MCP (agent wallet) + EIP-712 (HL)
+  Bridge:  SOL → USDC (Phantom) → HL → USDC yield → SOL → PDA`}</pre>
+            </div>
+
+            <h3>Why RTP, Not a Multisig or Yield Aggregator?</h3>
+            <Table
+              headers={["Dimension", "Squads Multisig", "Yield Aggregator", "RTP"]}
+              rows={[
+                ["Who controls funds?", "Multi-sig signers (humans)", "Smart contract (immutable)", "PDA + constitutional agent swarm"],
+                ["Can funds be rug-pulled?", "Yes — signers can approve any tx", "No — but no active yield either", "No — PDA has no private key, agents bounded by on-chain constraints"],
+                ["Who executes yield?", "Manual / no one", "Preset AMM logic", "Autonomous 6-wing swarm with validated strategies"],
+                ["Trust model", "Trust the signers", "Trust the contract", "Trust the program + audit the agent trail"],
+                ["Adaptation", "None", "None", "Nightly research (30K configs), LLM evolution, memory persistence"],
+              ]}
+            />
+
             <h3>What&apos;s Been Built</h3>
             <Table
               headers={["Component", "Status", "Detail"]}
@@ -429,87 +465,24 @@ await raydium.launchpad.updatePlatformCpCreator({
         title: "Enterprise API (Planned)",
         content: (
           <>
-            <Callout type="warning" title="Planned Feature">
-              <p>The Enterprise API is in development. This section documents the planned API surface for platform integrators. Endpoints and schemas may change before launch.</p>
+            <Callout type="warning" title="Planned Feature — Not Yet Available">
+              <p>The Enterprise API is a planned REST API for launchpads that prefer not to run chain operations themselves. It will offer the same functionality as the SDK via simple HTTP calls: <code>POST /v1/adopt</code>, <code>POST /v1/fee-route</code>, <code>GET /v1/treasury/:mint</code>, <code>POST /v1/crank</code>.</p>
+              <p style={{ marginTop: 8 }}>Today, use the <a href="#sdk-reference" style={{ color: "var(--coral)" }}>TypeScript SDK</a> for direct integration. It&apos;s three functions: <code>registerWithRTP</code>, <code>fetchTreasuryState</code>, <code>withdrawAndRedistribute</code>.</p>
             </Callout>
 
-            <p>The RTP Enterprise API lets launchpads offer RTP treasury infrastructure to their token creators via a simple REST API. Your platform adds an &quot;Enable RTP Treasury&quot; button, and the Enterprise API handles PDA creation, fee routing configuration, and treasury state queries — no SDK installation or Solana wallet management required on your end.</p>
-
-            <h3>How It Works</h3>
-            <ol>
-              <li><strong>Your platform</strong> adds an &quot;Enable RTP Treasury&quot; option for token creators</li>
-              <li><strong>Token creator clicks enable</strong> — your frontend calls the Enterprise API</li>
-              <li><strong>Enterprise API</strong> creates the treasury PDA, vault PDA, and adopter record on-chain</li>
-              <li><strong>Enterprise API</strong> configures fee routing to the treasury PDA</li>
-              <li><strong>RTP swarm</strong> begins monitoring the treasury and executing yield strategies</li>
-              <li><strong>Yield flows back</strong> — 70% to holders, 20% to project dev, 10% to ecosystem</li>
-            </ol>
-
-            <Callout type="info" title="Base URL">
-              <p><code>https://api.resilientprotocol.com</code> (planned)</p>
-            </Callout>
-
-            <h3>Authentication</h3>
-            <CodeBlock language="http">{`Authorization: Bearer rtp_live_abc123...`}</CodeBlock>
-            <p>API keys are issued per launchpad. Contact the RTP team to register for early access.</p>
-
-            <h3>Planned Endpoints</h3>
-
-            <h4>POST /v1/adopt</h4>
-            <p>Registers a token with RTP. Creates treasury PDA, vault PDA, and adopter record on-chain.</p>
-            <CodeBlock language="json">{`{
-  "mint": "EPjFWdd5...",
-  "platform": "pumpfun",
-  "name": "Community Token",
-  "symbol": "CMTY",
-  "holdersWallet": "ABCx...1234",
-  "projectDevWallet": "ABCx...1234",
-  "ecosystemWallet": "ABCx...1234"
-}`}</CodeBlock>
-            <p><strong>Response:</strong></p>
-            <CodeBlock language="json">{`{
-  "treasuryPDA": "FNQbK1Vw...",
-  "vaultPDA": "9xRWo1N4...",
-  "adopterPDA": "7zSW...",
-  "signature": "5Kq8...",
-  "explorerUrl": "https://explorer.solana.com/tx/..."
-}`}</CodeBlock>
-
-            <h4>POST /v1/fee-route</h4>
-            <p>Configures platform-specific fee routing to the RTP treasury.</p>
-
-            <h4>GET /v1/treasury/:mint</h4>
-            <p>Reads on-chain treasury state. No authentication required.</p>
-
-            <h4>POST /v1/crank</h4>
-            <p>Triggers the permissionless crank: withdraw fees + redistribute if above threshold.</p>
-
-            <h3>Planned Error Codes</h3>
             <Table
-              headers={["Code", "Meaning"]}
-              rows={[
-                ["400", "Invalid request body or missing fields"],
-                ["401", "Missing or invalid API key"],
-                ["404", "Token not registered with RTP"],
-                ["409", "Token already registered"],
-                ["500", "On-chain transaction failed"],
-              ]}
-            />
-
-            <h3>SDK vs Enterprise API</h3>
-            <Table
-              headers={["Feature", "SDK (Direct)", "Enterprise API"]}
+              headers={["Feature", "SDK (Available Now)", "Enterprise API (Planned)"]}
               rows={[
                 ["Signing", "Your wallet", "RTP-managed"],
                 ["Chain ops", "Your infra", "RTP infra"],
                 ["Latency", "Direct", "~200ms overhead"],
-                ["Setup", "More code", "HTTP calls"],
+                ["Setup", "npm install", "HTTP calls"],
                 ["Best for", "Full control", "Simple integration"],
               ]}
             />
 
             <Callout type="info" title="Want Early Access?">
-              <p>The Enterprise API is designed for launchpads that want to offer RTP treasury features without running Solana infrastructure. Reach out to the RTP team to discuss integration.</p>
+              <p>Reach out to the RTP team to discuss Enterprise API integration.</p>
             </Callout>
           </>
         ),
