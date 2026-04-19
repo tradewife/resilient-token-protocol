@@ -10,7 +10,19 @@ import {
   Transaction,
   Keypair,
   PublicKey,
+  SystemProgram,
+  LAMPORTS_PER_SOL,
 } from "@solana/web3.js";
+import {
+  TOKEN_2022_PROGRAM_ID,
+  ExtensionType,
+  getMintLen,
+  createInitializeMintInstruction,
+  createInitializeTransferFeeConfigInstruction,
+  createMintToInstruction,
+  createAssociatedTokenAccountInstruction,
+  getAssociatedTokenAddressSync,
+} from "@solana/spl-token";
 import {
   registerWithRTP,
   fetchTreasuryState,
@@ -447,6 +459,95 @@ export default function LaunchPage() {
     </div>
   );
 
+  // Devnet demo: create Token-2022 mint + treasury PDA in one flow
+  const handleDevnetDemo = useCallback(async () => {
+    if (!wallet || !publicKey) return;
+    setPhase("launching");
+    setError(null);
+    setStatusMsg("Creating Token-2022 mint on devnet...");
+
+    try {
+      const devnetConn = new Connection("https://api.devnet.solana.com", "confirmed");
+      const mintKeypair = Keypair.generate();
+
+      // Step 1: Create Token-2022 mint with TransferFeeConfig
+      const mintLen = getMintLen([ExtensionType.TransferFeeConfig]);
+      const lamports = await devnetConn.getMinimumBalanceForRentExemption(mintLen);
+
+      const { blockhash, lastValidBlockHeight } = await devnetConn.getLatestBlockhash();
+
+      const createMintTx = new Transaction({
+        blockhash,
+        lastValidBlockHeight,
+        feePayer: publicKey,
+      });
+
+      createMintTx.add(
+        SystemProgram.createAccount({
+          fromPubkey: publicKey,
+          newAccountPubkey: mintKeypair.publicKey,
+          space: mintLen,
+          lamports,
+          programId: TOKEN_2022_PROGRAM_ID,
+        }),
+      );
+      createMintTx.add(
+        createInitializeTransferFeeConfigInstruction(
+          publicKey, publicKey, publicKey, 100, BigInt(50000),
+          TOKEN_2022_PROGRAM_ID,
+        ),
+      );
+      createMintTx.add(
+        createInitializeMintInstruction(
+          mintKeypair.publicKey, 6, publicKey, null,
+          TOKEN_2022_PROGRAM_ID,
+        ),
+      );
+      createMintTx.partialSign(mintKeypair);
+      const signedMint = await wallet.signTransaction(createMintTx);
+      const mintSig = await devnetConn.sendRawTransaction(signedMint.serialize(), { skipPreflight: false });
+      await devnetConn.confirmTransaction({ signature: mintSig, blockhash, lastValidBlockHeight }, "confirmed");
+
+      setStatusMsg("Mint created. Initializing RTP treasury...");
+
+      // Step 2: Register with RTP (creates treasury PDA + vault + adopter)
+      const rtp = await registerWithRTP(devnetConn, wallet, {
+        mint: mintKeypair.publicKey,
+        platform: "pumpfun",
+        name: projectName || "Demo Token",
+        symbol: tokenSymbol || "DEMO",
+      });
+
+      const launchResult: LaunchResult = {
+        mint: mintKeypair.publicKey.toBase58(),
+        signature: mintSig,
+        explorerUrl: `https://explorer.solana.com/tx/${mintSig}?cluster=devnet`,
+        platform: "pumpfun",
+        treasuryPDA: rtp.treasuryPDA,
+        vaultPDA: rtp.vaultPDA,
+      };
+      setResult(launchResult);
+      setRtpResult(rtp);
+      setPhase("success");
+
+      // Fetch treasury state
+      setTimeout(async () => {
+        try {
+          const state = await fetchTreasuryState(devnetConn, launchResult.mint);
+          setTreasuryState(state);
+        } catch { /* best effort */ }
+        try {
+          const adopter = await fetchAdopterState(devnetConn, launchResult.mint);
+          setAdopterState(adopter);
+        } catch { /* best effort */ }
+      }, 2000);
+
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
+      setPhase("error");
+    }
+  }, [wallet, publicKey, projectName, tokenSymbol]);
+
   // Main launch handler
 
   const handleLaunch = useCallback(async () => {
@@ -555,8 +656,8 @@ export default function LaunchPage() {
       <section className="launch-hero">
         <h1 className="launch-title">Launch a Token with a Treasury</h1>
         <p className="launch-subtitle">
-          Pick a platform. Sign with Phantom. Your token goes live and its RTP treasury initializes automatically —
-          fees compound, yield returns to holders, enforced on-chain. One transaction.
+          Pick a platform, sign with Phantom, and your token goes live with an RTP treasury.
+          Fees compound, yield returns to holders, enforced on-chain. One transaction.
         </p>
         <div style={{ display: "flex", gap: "var(--space-lg)", justifyContent: "center", marginTop: "var(--space-md)", flexWrap: "wrap" }}>
           <div style={{ textAlign: "center" }}>
@@ -572,6 +673,21 @@ export default function LaunchPage() {
             <div style={{ fontSize: "0.6875rem", color: "var(--text-tertiary)" }}>Constraint enforcement</div>
           </div>
         </div>
+        {connected && (phase === "form" || phase === "error") && (
+          <div style={{ marginTop: "var(--space-lg)", display: "flex", justifyContent: "center" }}>
+            <button
+              onClick={handleDevnetDemo}
+              style={{
+                background: "transparent", border: "1px solid var(--emerald)", borderRadius: 6,
+                padding: "10px 24px", color: "var(--emerald)", fontSize: "0.8125rem", fontWeight: 500,
+                cursor: "pointer", fontFamily: "var(--font-body)",
+                transition: "background 0.15s",
+              }}
+            >
+              Demo on Devnet — Create test token + treasury in one click
+            </button>
+          </div>
+        )}
       </section>
 
       {/* Platform selector */}
