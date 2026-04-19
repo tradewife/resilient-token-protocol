@@ -305,20 +305,41 @@ export default function Home() {
           <div className="hero-metrics">
             <div className="metric">
               <span className="metric-value accent">307</span>
-              <span className="metric-label">Rust Tests Passing</span>
+              <span className="metric-label">Tests Passing</span>
             </div>
             <div className="metric">
               <span className="metric-value accent">{cycleCount}</span>
               <span className="metric-label">Autonomous Cycles</span>
             </div>
             <div className="metric">
-              <span className="metric-value accent">8/8</span>
-              <span className="metric-label">On-Chain Steps</span>
+              <span className="metric-value accent">{cycle?.memory_file_count ?? memory?.fileCount ?? 14}</span>
+              <span className="metric-label">Memory Files</span>
             </div>
             <div className="metric">
-              <span className="metric-value">{lastRun}</span>
-              <span className="metric-label">Last Run</span>
+              <span className="metric-value">+118%</span>
+              <span className="metric-label">Validated PnL</span>
             </div>
+          </div>
+
+          {/* CTA row */}
+          <div style={{ display: "flex", gap: "var(--space-md)", marginTop: "var(--space-sm)" }}>
+            <Link href="/launch" style={{
+              display: "inline-flex", alignItems: "center", gap: 6,
+              background: "var(--coral)", color: "#fff", borderRadius: 6,
+              padding: "10px 20px", fontSize: "0.875rem", fontWeight: 500,
+              textDecoration: "none", transition: "opacity 0.15s",
+            }}>
+              Try it live →
+            </Link>
+            <Link href="/docs" style={{
+              display: "inline-flex", alignItems: "center", gap: 6,
+              background: "var(--surface-2)", color: "var(--text-secondary)", borderRadius: 6,
+              padding: "10px 20px", fontSize: "0.875rem", fontWeight: 500,
+              textDecoration: "none", border: "1px solid var(--border)",
+              transition: "border-color 0.15s",
+            }}>
+              Read the docs
+            </Link>
           </div>
 
           {connected && publicKey && (
@@ -432,6 +453,63 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Validated strategy proof */}
+      <section style={{
+        padding: "var(--space-xl) 0", borderTop: "1px solid var(--border)",
+        display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-xl)",
+        alignItems: "start",
+      }}>
+        <div>
+          <div style={{ fontSize: "0.6875rem", fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase" as const, color: "var(--text-tertiary)", marginBottom: "var(--space-md)" }}>
+            Validated Strategy — SOL/USDT
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-md)" }}>
+            {[
+              { label: "OOS Sharpe", value: "+3.96" },
+              { label: "PnL", value: "+118.3%" },
+              { label: "Consistency", value: "9/9 folds" },
+              { label: "Trades", value: "429" },
+              { label: "Survivor Score", value: "2.69" },
+              { label: "Fragility", value: "0.29" },
+            ].map((s, i) => (
+              <div key={i} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                <span style={{
+                  fontFamily: "var(--font-display)", fontSize: "1.125rem", fontWeight: 400,
+                  color: i < 2 ? "var(--coral)" : "var(--text-primary)", fontVariantNumeric: "tabular-nums",
+                }}>
+                  {s.value}
+                </span>
+                <span style={{ fontSize: "0.6875rem", color: "var(--text-muted)", letterSpacing: "0.06em", textTransform: "uppercase" }}>
+                  {s.label}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div>
+          <div style={{ fontSize: "0.6875rem", fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase" as const, color: "var(--text-tertiary)", marginBottom: "var(--space-md)" }}>
+            What We Built
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-sm)" }}>
+            {[
+              { label: "Anchor program", detail: "8 on-chain instructions, PDA-owned treasury, deployed to devnet" },
+              { label: "Rust swarm runtime", detail: "6-wing architecture, Coordinator message bus, 307 tests passing" },
+              { label: "Hyperliquid execution", detail: "EIP-712 signed orders, BUY→fill→SELL→fill round-trip verified" },
+              { label: "Phantom integration", detail: "MCP agent wallet for swaps + bridging, Connect SDK for dashboard" },
+              { label: "TypeScript SDK", detail: "registerWithRTP, fetchTreasuryState, withdrawAndRedistribute" },
+            ].map((item, i) => (
+              <div key={i} style={{
+                padding: "var(--space-sm) var(--space-md)",
+                background: "var(--surface-0)", border: "1px solid var(--border)", borderRadius: 6,
+              }}>
+                <span style={{ fontSize: "0.8125rem", color: "var(--text-primary)", fontWeight: 500 }}>{item.label}</span>
+                <span style={{ fontSize: "0.75rem", color: "var(--text-tertiary)", marginLeft: "var(--space-sm)" }}>{item.detail}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* How it works accordion (C1) */}
       <section className="how-it-works">
         <button
@@ -504,7 +582,7 @@ export default function Home() {
               </span>
             )}
           </span>
-          <span className="vital-label">Program ID</span>
+          <span className="vital-label">Program ID (Devnet)</span>
         </div>
         <div className="vital">
           <span className="vital-value">FNQbK1...otF</span>
@@ -525,9 +603,9 @@ export default function Home() {
             target="_blank"
             rel="noopener noreferrer"
           >
-            Rejection proof ↗
+            Redistribution tx ↗
           </a>
-          <span className="vital-label">Constraint Rejection</span>
+          <span className="vital-label">On-Chain Proof</span>
         </div>
         <a
           className="vital-link"
@@ -535,7 +613,7 @@ export default function Home() {
           target="_blank"
           rel="noopener noreferrer"
         >
-          GitHub ↗
+          Source on GitHub ↗
         </a>
         <a
           className="vital-link"
@@ -543,8 +621,15 @@ export default function Home() {
           target="_blank"
           rel="noopener noreferrer"
         >
-          View on Explorer ↗
+          Solana Explorer ↗
         </a>
+        <span style={{
+          fontSize: "0.625rem", fontWeight: 500, letterSpacing: "0.08em", textTransform: "uppercase",
+          color: "var(--emerald)", background: "oklch(20% 0.04 160)",
+          padding: "3px 8px", borderRadius: 3,
+        }}>
+          Phantom Sponsored
+        </span>
       </footer>
     </div>
   );
