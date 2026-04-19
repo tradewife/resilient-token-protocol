@@ -75,7 +75,7 @@ export default function Home() {
   const [cycle, setCycle] = useState<CycleData | null>(null);
   const [memory, setMemory] = useState<MemoryData | null>(null);
   const [liveness, setLiveness] = useState<LivenessData | null>(null);
-  const [showHowItWorks, setShowHowItWorks] = useState(false);
+  const [showHowItWorks, setShowHowItWorks] = useState(true);
   const [yieldReceived, setYieldReceived] = useState<number | null>(null);
   const [yieldLoading, setYieldLoading] = useState(false);
 
@@ -284,12 +284,16 @@ export default function Home() {
         </div>
 
         <div className="hero-content">
-          <span className="hero-label">EVOLVING ALGORITHMS · COMPOUND CREATOR FEES</span>
+          <span className="hero-label">SOLANA-NATIVE · AUTONOMOUS YIELD · ON-CHAIN ENFORCED</span>
           <h1 className="hero-title">
-            From the Trenches
+            Every token gets a
             <br />
-            we will Bloom
+            program-enforced treasury
           </h1>
+          <p className="hero-subtitle" style={{ maxWidth: 600, color: "var(--fg2, #aaa)", fontSize: "0.95rem", lineHeight: 1.6, margin: "0.5rem 0 0" }}>
+            Transfer fees compound. An autonomous swarm generates yield on Hyperliquid.
+            Returns flow to holders — 70/20/10 split, enforced on-chain. No RTP token. Pure infrastructure.
+          </p>
 
           <div className="hero-balance">
             <span className="hero-balance-value">{tBal} SOL</span>
@@ -300,20 +304,20 @@ export default function Home() {
 
           <div className="hero-metrics">
             <div className="metric">
-              <span className="metric-value">{tBal}</span>
-              <span className="metric-label">TREASURY SOL</span>
+              <span className="metric-value accent">307</span>
+              <span className="metric-label">Rust Tests Passing</span>
             </div>
             <div className="metric">
               <span className="metric-value accent">{cycleCount}</span>
               <span className="metric-label">Autonomous Cycles</span>
             </div>
             <div className="metric">
-              <span className="metric-value">{lastRun}</span>
-              <span className="metric-label">Last Run</span>
+              <span className="metric-value accent">8/8</span>
+              <span className="metric-label">On-Chain Steps</span>
             </div>
             <div className="metric">
-              <span className="metric-value">{memory?.fileCount ?? "—"}</span>
-              <span className="metric-label">Memory Files</span>
+              <span className="metric-value">{lastRun}</span>
+              <span className="metric-label">Last Run</span>
             </div>
           </div>
 
@@ -341,7 +345,7 @@ export default function Home() {
           <div className="feed-header">
             <span className="feed-title">Swarm Activity</span>
             <span className="feed-status">
-              {cycle ? "Live Data" : "Demo Replay"}
+              {cycle ? "Live Data" : "Recent Activity"}
             </span>
           </div>
           <div className="feed-body">
@@ -487,17 +491,14 @@ export default function Home() {
           </a>
           <span className="vital-label">Constraint Rejection</span>
         </div>
-        <div className="vital">
-          <a
-            className="vital-link"
-            href="https://explorer.solana.com/tx/9HzWgBfwYxs5ModdjF5mT6gdTfayQq8mMYipopyHfGPmYqk6KESHFqgDrc9Mcie573ttcdPqMHSyJP5nNBKK3bR?cluster=devnet"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            BelowThreshold rejected ↗
-          </a>
-          <span className="vital-label">Constraint Rejection</span>
-        </div>
+        <a
+          className="vital-link"
+          href="https://github.com/tradewife/resilient-token-protocol"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          GitHub ↗
+        </a>
         <a
           className="vital-link"
           href={`https://explorer.solana.com/address/${TREASURY_PDA}?cluster=devnet`}
