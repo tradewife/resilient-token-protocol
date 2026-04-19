@@ -1,13 +1,24 @@
 ---
-title: MPC API Reference
-description: The RTP MPC server handles on-chain operations for launchpads that prefer not to run chain ops themselves.
+title: Enterprise API (Planned)
+description: The RTP Enterprise API lets launchpads offer RTP treasury infrastructure to their token creators via a simple REST API.
 ---
+
+> **Planned Feature** — The Enterprise API is in development. This section documents the planned API surface for platform integrators. Endpoints and schemas may change before launch.
 
 ## Overview
 
-The RTP MPC (Multi-Party Computation) server is a managed service that handles all Solana on-chain operations for your launchpad. Instead of calling the SDK directly, you send HTTP requests to the MPC server, which manages wallet signing, transaction construction, and on-chain submission.
+The RTP Enterprise API lets launchpads offer RTP treasury infrastructure to their token creators via a simple REST API. Your platform adds an "Enable RTP Treasury" button, and the Enterprise API handles PDA creation, fee routing configuration, and treasury state queries — no SDK installation or Solana wallet management required on your end.
 
-**Base URL:** `https://mpc.resilientprotocol.com`
+### How It Works
+
+1. **Your platform** adds an "Enable RTP Treasury" option for token creators
+2. **Token creator clicks enable** — your frontend calls the Enterprise API
+3. **Enterprise API** creates the treasury PDA, vault PDA, and adopter record on-chain
+4. **Enterprise API** configures fee routing to the treasury PDA
+5. **RTP swarm** begins monitoring the treasury and executing yield strategies
+6. **Yield flows back** — 70% to holders, 20% to project dev, 10% to ecosystem
+
+**Base URL:** `https://api.resilientprotocol.com` (planned)
 
 ## Authentication
 
@@ -189,15 +200,16 @@ Ends a beta adopter's RTP participation. Only callable by the treasury authority
 | Standard | 60 | 10,000 |
 | Enterprise | 600 | Unlimited |
 
-## SDK vs MPC Comparison
+## SDK vs Enterprise API
 
-| Feature | SDK (Direct) | MPC Server |
-|---------|-------------|------------|
-| Signing | Your wallet | MPC-managed wallet |
+| Feature | SDK (Direct) | Enterprise API |
+|---------|-------------|----------------|
+| Signing | Your wallet | RTP-managed |
 | Chain ops | Your infra | RTP infra |
 | Latency | Direct | ~200ms overhead |
 | Cost | Gas only | Gas + service fee |
 | Control | Full | Delegated |
 | Setup | More code | HTTP calls |
+| Best for | Full control | Simple integration |
 
-Use the SDK if you want full control over signing and chain operations. Use the MPC server if you prefer a simple HTTP API without managing wallets or Solana connections.
+Use the SDK if you want full control over signing and chain operations. Use the Enterprise API if you prefer a simple HTTP API without managing wallets or Solana connections.

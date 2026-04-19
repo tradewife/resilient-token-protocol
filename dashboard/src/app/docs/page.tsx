@@ -71,50 +71,79 @@ const DOC_GROUPS: DocGroup[] = [
         title: "What is RTP?",
         content: (
           <>
-            <p>RTP (Resilient Token Protocol) is Solana-native, self-funding treasury infrastructure that any launchpad integrates with a single function call. Token trading fees route to a program-owned treasury vault, and an autonomous swarm generates yield — returning it to the project and its holders. Forever.</p>
+            <p>RTP (Resilient Token Protocol) gives every token a program-enforced treasury vault on Solana. Trading fees accumulate in the vault, an autonomous swarm generates yield on Hyperliquid, and yield flows back to holders, developers, and ecosystem — 70/20/10 split, enforced on-chain. Forever.</p>
             <p>There is no RTP token. RTP is infrastructure.</p>
 
             <h3>Why This Is Different</h3>
             <ul>
-              <li><strong>Constitutional governance</strong> — soulcontract enforced in Rust AND on-chain (Anchor program)</li>
-              <li><strong>Self-funding economics</strong> — treasury generates its own yield via Hyperliquid perps, with irreversible phase evolution</li>
-              <li><strong>Proven research engine</strong> — 30,000 configs tested per night, 9-fold walk-forward validation</li>
-              <li><strong>On-chain constraint proof</strong> — the Anchor program deliberately rejects invalid transactions</li>
+              <li><strong>Constitutional governance</strong> — soulcontract enforced in Rust AND on-chain (Anchor program). No one — not even the team — can override the rules.</li>
+              <li><strong>Self-funding economics</strong> — treasury generates its own yield via Hyperliquid perps, with irreversible phase evolution (Sustenance → Ecosystem → Humanity)</li>
+              <li><strong>Proven research engine</strong> — 30,000 strategy configs tested per night, 9-fold walk-forward validation, Darwinian evolution</li>
+              <li><strong>On-chain constraint proof</strong> — the Anchor program deliberately rejects invalid transactions. Constraint rejection IS the demo.</li>
               <li><strong>Hyperliquid execution</strong> — EIP-712 signed orders from Rust, fills on HL, USDC yield deposited to Solana PDA</li>
             </ul>
 
             <h3>How It Works</h3>
             <ol>
               <li><strong>Fees arrive</strong> — trading fees from the token flow to the per-mint treasury vault PDA</li>
-              <li><strong>Swarm trades</strong> — the autonomous swarm executes validated strategies on Hyperliquid</li>
+              <li><strong>Swarm trades</strong> — the autonomous swarm executes validated strategies on Hyperliquid (USDC-margined, no SOL liquidation risk)</li>
               <li><strong>Yield returns</strong> — generated yield flows back to the treasury PDA</li>
               <li><strong>Redistribution</strong> — 70% to holders, 20% to project dev, 10% to ecosystem (enforced on-chain)</li>
             </ol>
 
-            <h3>Quick Start</h3>
-            <CodeBlock>{`npm install @resilient-protocol/sdk @solana/web3.js`}</CodeBlock>
-            <CodeBlock>{`import { registerWithRTP } from "@resilient-protocol/sdk";
-import { Connection, PublicKey } from "@solana/web3.js";
-
-const connection = new Connection("https://api.mainnet-beta.solana.com");
-const mintAddress = new PublicKey("..."); // your token's mint
-
-const result = await registerWithRTP(connection, wallet, {
-  mint: mintAddress,
-  platform: "pumpfun",
-  name: "My Token",
-  symbol: "MTK",
-});
-
-// result.treasuryPDA, result.vaultPDA, result.adopterPDA`}</CodeBlock>
+            <Callout type="tip" title="Token Creator or Platform?">
+              <p>If your launchpad supports RTP, enabling the treasury takes one click. See <a href="#getting-started-creators" style={{ color: "var(--coral)" }}>Getting Started for Token Creators</a>. If you&apos;re a platform integrating RTP as a feature, see <a href="#getting-started-platforms" style={{ color: "var(--coral)" }}>Getting Started for Platforms</a>.</p>
+            </Callout>
           </>
         ),
       },
       {
-        slug: "getting-started",
-        title: "Getting Started",
+        slug: "getting-started-creators",
+        title: "Getting Started — Token Creators",
         content: (
           <>
+            <p>If your launchpad supports RTP, enabling the treasury is one click. No code, no wallet setup, no SDK installation required.</p>
+
+            <h3>How It Works For You</h3>
+            <ol>
+              <li><strong>Launch your token</strong> on a supported platform (Pump.fun, Bags.fm, or Raydium)</li>
+              <li><strong>Enable RTP</strong> — your launchpad adds an &quot;Enable RTP Treasury&quot; button during or after launch</li>
+              <li><strong>That&apos;s it</strong> — trading fees begin flowing to your token&apos;s treasury vault PDA</li>
+              <li><strong>Swarm activates</strong> — the autonomous swarm monitors the treasury and executes strategies when capital is sufficient</li>
+              <li><strong>Yield flows back</strong> — generated yield is redistributed: 70% to holders, 20% to you (project dev), 10% to ecosystem</li>
+            </ol>
+
+            <h3>What You Get</h3>
+            <ul>
+              <li><strong>Program-enforced treasury</strong> — no one can sign funds away from the PDA vault (not even the team)</li>
+              <li><strong>Autonomous yield</strong> — strategies validated on 30,000 configs/night, executed on Hyperliquid (USDC-margined)</li>
+              <li><strong>On-chain redistribution</strong> — the 70/20/10 split happens automatically when yield exceeds the runway threshold</li>
+              <li><strong>Phase evolution</strong> — as the treasury grows, it evolves: Sustenance → Ecosystem → Humanity Fund</li>
+            </ul>
+
+            <h3>Supported Platforms</h3>
+            <Table
+              headers={["Platform", "Best For", "Fee Routing", "Guide"]}
+              rows={[
+                ["Pump.fun", "Memecoins, community tokens", "Creator fees → keeper claims to PDA", "<a href='#pump-fun'>Pump.fun</a>"],
+                ["Bags.fm", "Creator-focused tokens, fee sharing", "Multi-claimer fee split to PDA", "<a href='#bags-fm'>Bags.fm</a>"],
+                ["Raydium", "DeFi tokens, AMM LP bootstrap", "Creator redirect to PDA", "<a href='#raydium'>Raydium</a>"],
+              ]}
+            />
+
+            <Callout type="tip" title="No RTP Token Required">
+              <p>RTP is infrastructure, not a token. You keep your own token. RTP wraps it with treasury functionality.</p>
+            </Callout>
+          </>
+        ),
+      },
+      {
+        slug: "getting-started-platforms",
+        title: "Getting Started — Platforms",
+        content: (
+          <>
+            <p>This guide is for launchpads and token deployment platforms integrating RTP as a feature they offer to token creators.</p>
+
             <h3>Prerequisites</h3>
             <ul>
               <li>A Solana launchpad or token deployment platform</li>
@@ -158,6 +187,10 @@ const result = await registerWithRTP(connection, wallet, {
 
 const state = await fetchTreasuryState(connection, mintAddress);
 // state.phase, state.vaultBalance, state.totalFeesWithdrawn`}</CodeBlock>
+
+            <Callout type="info" title="Enterprise API (Planned)">
+              <p>If you prefer not to run chain operations yourself, the Enterprise API will offer the same functionality via a simple REST API. See <a href="#enterprise-api" style={{ color: "var(--coral)" }}>Enterprise API</a> for the planned surface.</p>
+            </Callout>
           </>
         ),
       },
@@ -351,24 +384,44 @@ await raydium.launchpad.updatePlatformCpCreator({
           </>
         ),
       },
+    ],
+  },
+  {
+    label: "Enterprise",
+    items: [
       {
-        slug: "mpc-api",
-        title: "MPC API Reference",
+        slug: "enterprise-api",
+        title: "Enterprise API (Planned)",
         content: (
           <>
-            <p>The RTP MPC (Multi-Party Computation) server is a managed service that handles all Solana on-chain operations for launchpads that prefer not to run chain ops themselves. Send HTTP requests instead of calling the SDK directly.</p>
+            <Callout type="warning" title="Planned Feature">
+              <p>The Enterprise API is in development. This section documents the planned API surface for platform integrators. Endpoints and schemas may change before launch.</p>
+            </Callout>
+
+            <p>The RTP Enterprise API lets launchpads offer RTP treasury infrastructure to their token creators via a simple REST API. Your platform adds an &quot;Enable RTP Treasury&quot; button, and the Enterprise API handles PDA creation, fee routing configuration, and treasury state queries — no SDK installation or Solana wallet management required on your end.</p>
+
+            <h3>How It Works</h3>
+            <ol>
+              <li><strong>Your platform</strong> adds an &quot;Enable RTP Treasury&quot; option for token creators</li>
+              <li><strong>Token creator clicks enable</strong> — your frontend calls the Enterprise API</li>
+              <li><strong>Enterprise API</strong> creates the treasury PDA, vault PDA, and adopter record on-chain</li>
+              <li><strong>Enterprise API</strong> configures fee routing to the treasury PDA</li>
+              <li><strong>RTP swarm</strong> begins monitoring the treasury and executing yield strategies</li>
+              <li><strong>Yield flows back</strong> — 70% to holders, 20% to project dev, 10% to ecosystem</li>
+            </ol>
 
             <Callout type="info" title="Base URL">
-              <p><code>https://mpc.resilientprotocol.com</code></p>
+              <p><code>https://api.resilientprotocol.com</code> (planned)</p>
             </Callout>
 
             <h3>Authentication</h3>
             <CodeBlock language="http">{`Authorization: Bearer rtp_live_abc123...`}</CodeBlock>
+            <p>API keys are issued per launchpad. Contact the RTP team to register for early access.</p>
 
-            <h3>Endpoints</h3>
+            <h3>Planned Endpoints</h3>
 
             <h4>POST /v1/adopt</h4>
-            <p>Registers a token with RTP. Creates treasury PDA, vault PDA, and adopter record.</p>
+            <p>Registers a token with RTP. Creates treasury PDA, vault PDA, and adopter record on-chain.</p>
             <CodeBlock language="json">{`{
   "mint": "EPjFWdd5...",
   "platform": "pumpfun",
@@ -396,7 +449,7 @@ await raydium.launchpad.updatePlatformCpCreator({
             <h4>POST /v1/crank</h4>
             <p>Triggers the permissionless crank: withdraw fees + redistribute if above threshold.</p>
 
-            <h3>Error Codes</h3>
+            <h3>Planned Error Codes</h3>
             <Table
               headers={["Code", "Meaning"]}
               rows={[
@@ -408,16 +461,21 @@ await raydium.launchpad.updatePlatformCpCreator({
               ]}
             />
 
-            <h3>SDK vs MPC Comparison</h3>
+            <h3>SDK vs Enterprise API</h3>
             <Table
-              headers={["Feature", "SDK (Direct)", "MPC Server"]}
+              headers={["Feature", "SDK (Direct)", "Enterprise API"]}
               rows={[
-                ["Signing", "Your wallet", "MPC-managed wallet"],
+                ["Signing", "Your wallet", "RTP-managed"],
                 ["Chain ops", "Your infra", "RTP infra"],
                 ["Latency", "Direct", "~200ms overhead"],
                 ["Setup", "More code", "HTTP calls"],
+                ["Best for", "Full control", "Simple integration"],
               ]}
             />
+
+            <Callout type="info" title="Want Early Access?">
+              <p>The Enterprise API is designed for launchpads that want to offer RTP treasury features without running Solana infrastructure. Reach out to the RTP team to discuss integration.</p>
+            </Callout>
           </>
         ),
       },
@@ -428,9 +486,11 @@ await raydium.launchpad.updatePlatformCpCreator({
     items: [
       {
         slug: "sdk-reference",
-        title: "SDK API Reference",
+        title: "SDK Reference (For Platforms)",
         content: (
           <>
+            <p>The <code>@resilient-protocol/sdk</code> TypeScript package is for launchpads and platforms integrating RTP directly. If you&apos;re a token creator, your launchpad handles this — see <a href="#getting-started-creators" style={{ color: "var(--coral)" }}>Getting Started for Token Creators</a>.</p>
+
             <h3>Installation</h3>
             <CodeBlock>{`npm install @resilient-protocol/sdk @solana/web3.js @solana/spl-token @coral-xyz/anchor`}</CodeBlock>
 

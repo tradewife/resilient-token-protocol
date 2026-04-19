@@ -32,12 +32,12 @@ The platform sends fees to the deployer wallet. An RTP keeper service periodical
 
 **Platforms:** Pump.fun (creator fees to deployer)
 
-## MPC Server (Managed Service)
+## Enterprise API (Planned)
 
-For launchpads that prefer not to run chain operations themselves, RTP provides an MPC (Multi-Party Computation) server that handles all on-chain interactions:
+For launchpads that prefer not to run chain operations themselves, RTP will offer an Enterprise API that handles all on-chain interactions via REST:
 
 ```
-Launchpad ──POST /v1/adopt──▸ RTP MPC Server ──▸ Solana
+Launchpad ──POST /v1/adopt──▸ RTP Enterprise API ──▸ Solana
                               │
                               ├── Derives treasury PDA
                               ├── Initializes treasury
@@ -45,7 +45,7 @@ Launchpad ──POST /v1/adopt──▸ RTP MPC Server ──▸ Solana
                               └── Configures fee routing
 ```
 
-See the [MPC API Reference](/docs/integration/mpc-api) for the full endpoint documentation.
+> **Planned Feature** — The Enterprise API is in development. See the [Enterprise API Reference](/docs/integration/mpc-api) for the planned endpoint documentation.
 
 ## Platform Selection Guide
 

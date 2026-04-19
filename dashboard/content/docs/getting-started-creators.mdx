@@ -1,0 +1,33 @@
+---
+title: Getting Started — Token Creators
+description: Enable an RTP treasury for your token with one click.
+---
+
+## For Token Creators
+
+If your launchpad supports RTP, enabling the treasury is one click. No code, no wallet setup, no SDK installation required.
+
+### How It Works For You
+
+1. **Launch your token** on a supported platform (Pump.fun, Bags.fm, or Raydium)
+2. **Enable RTP** — your launchpad adds an "Enable RTP Treasury" button during or after launch
+3. **That's it** — trading fees begin flowing to your token's treasury vault PDA
+4. **Swarm activates** — the autonomous swarm monitors the treasury and executes strategies when capital is sufficient
+5. **Yield flows back** — generated yield is redistributed: 70% to holders, 20% to you (project dev), 10% to ecosystem
+
+### What You Get
+
+- **Program-enforced treasury** — no one can sign funds away from the PDA vault (not even the team)
+- **Autonomous yield** — strategies validated on 30,000 configs/night, executed on Hyperliquid (USDC-margined)
+- **On-chain redistribution** — the 70/20/10 split happens automatically when yield exceeds the runway threshold
+- **Phase evolution** — as the treasury grows, it evolves: Sustenance → Ecosystem → Humanity Fund
+
+### Supported Platforms
+
+| Platform | Best For | Fee Routing | Guide |
+|----------|----------|-------------|-------|
+| Pump.fun | Memecoins, community tokens | Creator fees → keeper claims to PDA | [Pump.fun](/docs/integration/pump-fun) |
+| Bags.fm | Creator-focused tokens, fee sharing | Multi-claimer fee split to PDA | [Bags.fm](/docs/integration/bags-fm) |
+| Raydium | DeFi tokens, AMM LP bootstrap | Creator redirect to PDA | [Raydium](/docs/integration/raydium) |
+
+> **No RTP Token Required** — RTP is infrastructure, not a token. You keep your own token. RTP wraps it with treasury functionality.
