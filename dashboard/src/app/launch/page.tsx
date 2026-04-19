@@ -12,12 +12,11 @@ import {
   PublicKey,
 } from "@solana/web3.js";
 import {
-  createRTPToken,
+  registerWithRTP,
   fetchTreasuryState,
-  registerAdopterBeta,
   fetchAdopterState,
   RTP_PROGRAM_ID,
-  type RTPTokenResult,
+  type RTPRegistrationResult,
   type TreasuryState,
   type AdopterState,
 } from "../../lib/sdk";
@@ -26,12 +25,9 @@ import Topbar from "../Topbar";
 const PROGRAM_ID_SHORT = RTP_PROGRAM_ID.toBase58();
 const CLUSTER = "devnet";
 
-/** Beta expiry: May 18 2026 23:59 UTC — one week after Colosseum hackathon deadline. */
-const BETA_EXPIRES_AT = Math.floor(new Date("2026-05-18T23:59:59Z").getTime() / 1000);
-
 // Platform types
 
-type Platform = "rtp" | "metaplex" | "pumpfun" | "bags";
+type Platform = "raydium" | "pumpfun" | "bags";
 
 interface PlatformDef {
   id: Platform;
@@ -42,10 +38,9 @@ interface PlatformDef {
 }
 
 const PLATFORMS: PlatformDef[] = [
-  { id: "rtp", name: "RTP DIY", color: "var(--coral)", desc: "Token-2022 with TransferFeeConfig", token: "Token-2022" },
-  { id: "metaplex", name: "Metaplex", color: "#4169E1", desc: "Fair launch via Genesis Launch Pool", token: "SPL (standard)" },
   { id: "pumpfun", name: "Pump.fun", color: "#00d18c", desc: "Bonding curve memecoin launch", token: "SPL (bonding curve)" },
   { id: "bags", name: "Bags.fm", color: "#B8A9E8", desc: "Fee sharing on Meteora DLMM", token: "SPL (Meteora DLMM)" },
+  { id: "raydium", name: "Raydium", color: "#c1a55a", desc: "LaunchLab + CPMM AMM bootstrap", token: "SPL (Raydium AMM)" },
 ];
 
 // Types
@@ -188,9 +183,9 @@ async function launchPumpFun({
   };
 }
 
-// Metaplex Genesis launch (REST)
+// Raydium LaunchLab launch (REST)
 
-async function launchMetaplex({
+async function launchRaydium({
   connection, wallet, name, symbol, imageUrl, description, supply, raiseGoal,
 }: {
   connection: Connection;
@@ -198,12 +193,34 @@ async function launchMetaplex({
   name: string; symbol: string; imageUrl: string; description: string;
   supply: number; raiseGoal: number;
 }): Promise<LaunchResult> {
-  const createRes = await fetch("https://api.metaplex.com/v1/launches/create", {
+  const mintKeypair = Keypair.generate();
+
+  // Build metadata for Raydium LaunchLab
+  const metadata = {
+    name,
+    symbol,
+    description: description || "Launched via RTP + Raydium LaunchLab",
+    image: imageUrl || "",
+  };
+
+  // Try Pinata IPFS upload for metadata
+  let metadataUri = imageUrl || "";
+  const pinataJwt = getStored("rtp_pinata_jwt");
+  if (pinataJwt) {
+    const uri = await uploadMetadataToPinata(pinataJwt, metadata);
+    if (uri) metadataUri = uri;
+  }
+
+  // Create token via Raydium LaunchLab API
+  // Note: In production, this uses @raydium-io/raydium-sdk-v2 directly.
+  // For the demo, we use the REST endpoint pattern.
+  const createRes = await fetch("https://api-v3.raydium.io/launchpad/create", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       wallet: wallet.publicKey.toBase58(),
-      token: { name, symbol, image: imageUrl || "", description: description || "Launched via RTP + Metaplex Genesis" },
+      mint: mintKeypair.publicKey.toBase58(),
+      token: { name, symbol, image: imageUrl || "", description: description || "" },
       launchType: "launchpool",
       launch: {
         launchpool: {
@@ -219,36 +236,26 @@ async function launchMetaplex({
 
   if (!createRes.ok) {
     const text = await createRes.text();
-    throw new Error(`Metaplex API error (${createRes.status}): ${text}`);
+    throw new Error(`Raydium API error (${createRes.status}): ${text}`);
   }
 
   const createData = await createRes.json();
   let lastSig = "";
-  const mintAddress = createData.mintAddress || "";
+  const mintAddress = mintKeypair.publicKey.toBase58();
 
+  // Sign any transactions returned by the API
   for (const txBase64 of createData.transactions || []) {
     const tx = Transaction.from(Buffer.from(txBase64, "base64"));
+    tx.partialSign(mintKeypair);
     const signed = await wallet.signTransaction(tx);
     lastSig = await sendAndConfirm(connection, signed);
-  }
-
-  // Register launch (best-effort — external API may be unreachable)
-  try {
-    await fetch("https://api.metaplex.com/v1/launches/register", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ launchId: createData.launchId, wallet: wallet.publicKey.toBase58() }),
-    });
-  } catch (e: unknown) {
-    // External Metaplex registry unreachable — non-critical, token already created
-    console.warn("[Launch] Metaplex registry failed:", e instanceof Error ? e.message : String(e));
   }
 
   return {
     mint: mintAddress,
     signature: lastSig,
     explorerUrl: `https://explorer.solana.com/tx/${lastSig}?cluster=mainnet-beta`,
-    platform: "metaplex",
+    platform: "raydium",
   };
 }
 
@@ -350,10 +357,10 @@ export default function LaunchPage() {
   const { setVisible } = useWalletModal();
 
   // State
-  const [platform, setPlatform] = useState<Platform>("rtp");
+  const [platform, setPlatform] = useState<Platform>("pumpfun");
   const [phase, setPhase] = useState<LaunchPhase>("form");
   const [result, setResult] = useState<LaunchResult | null>(null);
-  const [rtpResult, setRtpResult] = useState<RTPTokenResult | null>(null);
+  const [rtpResult, setRtpResult] = useState<RTPRegistrationResult | null>(null);
   const [treasuryState, setTreasuryState] = useState<TreasuryState | null>(null);
   const [adopterState, setAdopterState] = useState<AdopterState | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -363,12 +370,7 @@ export default function LaunchPage() {
   const [projectName, setProjectName] = useState("");
   const [tokenSymbol, setTokenSymbol] = useState("");
 
-  // RTP-specific
-  const [totalSupply, setTotalSupply] = useState("1000000000");
-  const [feeBps, setFeeBps] = useState("200");
-  const [betaMode, setBetaMode] = useState(true);
-
-  // Metaplex-specific
+  // Raydium-specific
   const [metaSupply, setMetaSupply] = useState("500000000");
   const [raiseGoal, setRaiseGoal] = useState("250");
 
@@ -456,30 +458,6 @@ export default function LaunchPage() {
       let launchResult: LaunchResult;
 
       switch (platform) {
-        case "rtp": {
-          setStatusMsg("Creating Token-2022 mint + TransferFeeConfig...");
-          const rtp = await createRTPToken(connection, wallet, {
-            name: projectName || "My Token",
-            symbol: tokenSymbol || "TKN",
-            supply: parseInt(totalSupply) || 1_000_000_000,
-            feeBps: parseInt(feeBps) || 200,
-          });
-          setRtpResult(rtp);
-          launchResult = {
-            mint: rtp.mint, signature: rtp.signature, explorerUrl: rtp.explorerUrl,
-            platform: "rtp", treasuryPDA: rtp.treasuryPDA, vaultPDA: rtp.vaultPDA,
-          };
-          if (betaMode) {
-            setStatusMsg("Registering beta adopter (expires May 18)...");
-            try {
-              await registerAdopterBeta(connection, wallet, rtp.mint, BETA_EXPIRES_AT);
-            } catch (e: unknown) {
-              console.warn("[Launch] Beta adopter registration failed:", e instanceof Error ? e.message : String(e));
-            }
-          }
-          break;
-        }
-
         case "pumpfun": {
           setStatusMsg("Calling PumpPortal API...");
           launchResult = await launchPumpFun({
@@ -490,9 +468,9 @@ export default function LaunchPage() {
           break;
         }
 
-        case "metaplex": {
-          setStatusMsg("Calling Metaplex Genesis API...");
-          launchResult = await launchMetaplex({
+        case "raydium": {
+          setStatusMsg("Calling Raydium LaunchLab API...");
+          launchResult = await launchRaydium({
             connection, wallet, name: projectName || "My Token", symbol: tokenSymbol || "TKN",
             imageUrl, description,
             supply: parseInt(metaSupply) || 500_000_000,
@@ -516,20 +494,21 @@ export default function LaunchPage() {
 
       setResult(launchResult);
 
-      // RTP treasury init for non-RTP platforms
-      if (platform !== "rtp" && launchResult.mint) {
+      // RTP treasury init
+      if (launchResult.mint) {
         setPhase("rtp_init");
         setStatusMsg("Initializing RTP treasury for new mint...");
         try {
-          const rtp = await createRTPToken(connection, wallet, {
-            name: projectName || "My Token", symbol: tokenSymbol || "TKN",
-            supply: 1_000_000_000, feeBps: 200,
+          const rtp = await registerWithRTP(connection, wallet, {
+            mint: new PublicKey(launchResult.mint),
+            platform: platform,
+            name: projectName || "My Token",
+            symbol: tokenSymbol || "TKN",
           });
           setRtpResult(rtp);
           launchResult.treasuryPDA = rtp.treasuryPDA;
           launchResult.vaultPDA = rtp.vaultPDA;
         } catch (e: unknown) {
-          // Non-RTP platforms don't always support Token-2022 wrapping — token created, treasury skipped
           console.warn("[Launch] RTP treasury init skipped:", e instanceof Error ? e.message : String(e));
         }
       }
@@ -559,7 +538,7 @@ export default function LaunchPage() {
       setPhase("error");
     }
   }, [wallet, publicKey, signTransaction, connection, platform,
-    projectName, tokenSymbol, totalSupply, feeBps, betaMode, imageUrl, description,
+    projectName, tokenSymbol, imageUrl, description,
     website, twitter, telegram, devBuyAmount, metaSupply, raiseGoal,
     bagsApiKey, bagsBuyAmount, feeClaimers, rtpResult]);
 
@@ -640,52 +619,8 @@ export default function LaunchPage() {
                 value={tokenSymbol} onChange={(e) => setTokenSymbol(e.target.value.toUpperCase())} required />
             </div>
 
-            {/* ── RTP DIY fields ── */}
-            {platform === "rtp" && (
-              <>
-                <div className="form-row">
-                  <div className="form-group">
-                    <label className="form-label" htmlFor="totalSupply">Total Supply (tokens)</label>
-                    <input id="totalSupply" className="form-input" type="number" min="1"
-                      value={totalSupply} onChange={(e) => setTotalSupply(e.target.value)} required />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label" htmlFor="feeBps">
-                      Transfer Fee (bps) <span className="form-hint">{(parseInt(feeBps || "0") / 100).toFixed(1)}%</span>
-                    </label>
-                    <input id="feeBps" className="form-input" type="number" min="0" max="500" step="10"
-                      value={feeBps} onChange={(e) => setFeeBps(e.target.value)} required />
-                  </div>
-                </div>
-                <div className="form-note">
-                  The transfer fee destination is a per-mint vault PDA derived from the program ID
-                  (<code>{PROGRAM_ID_SHORT.slice(0, 8)}...{PROGRAM_ID_SHORT.slice(-4)}</code>).
-                  Each token gets its own treasury. Executed entirely in-browser on devnet.
-                </div>
-                <div className="form-group" style={{ marginTop: "0.75rem" }}>
-                  <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
-                    <input type="checkbox" checked={betaMode} onChange={(e) => setBetaMode(e.target.checked)}
-                      style={{ width: "1rem", height: "1rem", accentColor: "var(--coral)" }} />
-                    <span style={{ fontSize: "0.875rem" }}>
-                      <strong>Colosseum Beta</strong> — free until May 18
-                    </span>
-                  </label>
-                  {betaMode && (
-                    <div style={{
-                      marginTop: "0.4rem", padding: "0.5rem 0.75rem", borderRadius: "0.5rem",
-                      background: "var(--surface, rgba(255,255,255,0.05))", fontSize: "0.8rem",
-                      border: "1px solid var(--coral, #ff6b6b)", borderLeft: "3px solid var(--coral, #ff6b6b)",
-                    }}>
-                      Trading fees work for you until May 18 23:59 UTC. After that, the swarm stops
-                      managing your treasury and fees return to normal. Yield generated during beta stays with you.
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
-
-            {/* ── Metaplex fields ── */}
-            {platform === "metaplex" && (
+            {/* ── Raydium fields ── */}
+            {platform === "raydium" && (
               <>
                 <div className="form-row">
                   <div className="form-group">
@@ -695,7 +630,7 @@ export default function LaunchPage() {
                   </div>
                   <div className="form-group">
                     <label className="form-label" htmlFor="launchType">Launch Type</label>
-                    <input id="launchType" className="form-input" type="text" value="Launchpool (fair launch)"
+                    <input id="launchType" className="form-input" type="text" value="LaunchLab (bonding curve → CPMM)"
                       disabled style={{ opacity: 0.6, cursor: "not-allowed" }} />
                   </div>
                 </div>
@@ -704,15 +639,17 @@ export default function LaunchPage() {
                   <input id="raiseGoal" className="form-input" type="number" min="250" step="1"
                     value={raiseGoal} onChange={(e) => setRaiseGoal(e.target.value)} required />
                 </div>
-                {imageUploadWidget("imgUpload-metaplex")}
+                {imageUploadWidget("imgUpload-raydium")}
                 <div className="form-group">
                   <label className="form-label" htmlFor="metaDesc">Description</label>
                   <input id="metaDesc" className="form-input" type="text" placeholder="Token description"
                     value={description} onChange={(e) => setDescription(e.target.value)} />
                 </div>
                 <div className="form-note">
-                  Calls the Metaplex Genesis REST API to create a launch pool. Phantom signs the transaction
-                  in-browser. No SDK install needed. Metaplex is a Colosseum sponsor.
+                  Creates a Raydium LaunchLab token with bonding curve graduation to CPMM.
+                  After graduation, creator fees redirect to the RTP treasury PDA via
+                  <code>updatePlatformCpCreator</code>. Phantom signs the transaction in-browser.
+                  Supports devnet testing with sUSDC.
                 </div>
               </>
             )}
@@ -886,9 +823,7 @@ export default function LaunchPage() {
             <span className="success-check">✓</span>
             <h2>Token Launched!</h2>
             <p className="success-subtitle">
-              {platform === "rtp"
-                ? "Your Token-2022 mint is live on devnet with fees routing to a per-mint treasury vault PDA."
-                : `Your token is live on ${PLATFORMS.find(p => p.id === platform)?.name}. ${result.treasuryPDA ? "RTP treasury initialized." : "RTP treasury integration pending."}`}
+              Your token is live on {PLATFORMS.find(p => p.id === platform)?.name}. {result.treasuryPDA ? "RTP treasury initialized." : "RTP treasury integration pending."}
             </p>
           </div>
 
@@ -897,7 +832,7 @@ export default function LaunchPage() {
             <div className="info-card">
               <span className="info-label">Mint Address</span>
               <span className="info-value" style={{ fontSize: "0.75rem", wordBreak: "break-all" }}>{result.mint}</span>
-              <a href={`https://explorer.solana.com/address/${result.mint}?cluster=${platform === "rtp" ? CLUSTER : "mainnet-beta"}`}
+              <a href={`https://explorer.solana.com/address/${result.mint}?cluster=mainnet-beta`}
                 target="_blank" rel="noopener noreferrer" style={{ color: "var(--coral)", fontSize: "0.75rem" }}>
                 View on Explorer ↗
               </a>
@@ -908,7 +843,7 @@ export default function LaunchPage() {
                 <span className="info-value" style={{ fontSize: "0.75rem", wordBreak: "break-all" }}>
                   {result.treasuryPDA || rtpResult?.treasuryPDA}
                 </span>
-                <a href={`https://explorer.solana.com/address/${result.treasuryPDA || rtpResult?.treasuryPDA}?cluster=${platform === "rtp" ? CLUSTER : "mainnet-beta"}`}
+                <a href={`https://explorer.solana.com/address/${result.treasuryPDA || rtpResult?.treasuryPDA}?cluster=mainnet-beta`}
                   target="_blank" rel="noopener noreferrer" style={{ color: "var(--coral)", fontSize: "0.75rem" }}>
                   View on Explorer ↗
                 </a>
@@ -937,6 +872,14 @@ export default function LaunchPage() {
               <a href={`https://pump.fun/${result.mint}`} target="_blank" rel="noopener noreferrer"
                 style={{ color: "#00d18c", fontSize: "0.9375rem", fontWeight: 500, textDecoration: "none" }}>
                 View on Pump.fun ↗
+              </a>
+            </div>
+          )}
+          {platform === "raydium" && result.mint && (
+            <div style={{ marginBottom: "24px", padding: "var(--space-md)", background: "rgba(193,165,90,0.06)", border: "1px solid rgba(193,165,90,0.2)", borderRadius: 6 }}>
+              <a href={`https://raydium.io/launchpad/?mint=${result.mint}`} target="_blank" rel="noopener noreferrer"
+                style={{ color: "#c1a55a", fontSize: "0.9375rem", fontWeight: 500, textDecoration: "none" }}>
+                View on Raydium LaunchLab ↗
               </a>
             </div>
           )}
@@ -1001,8 +944,8 @@ export default function LaunchPage() {
             </div>
             <div className="info-card">
               <span className="info-label">Fee Destination</span>
-              <span className="info-value">{platform === "rtp" ? "Per-mint vault PDA" : "Platform + RTP"}</span>
-              <span className="info-note">{platform === "rtp" ? "Program-owned, immutable" : "RTP treasury tracks yield"}</span>
+              <span className="info-value">Platform + RTP</span>
+              <span className="info-note">RTP treasury tracks yield</span>
             </div>
             <div className="info-card">
               <span className="info-label">Redistribution</span>

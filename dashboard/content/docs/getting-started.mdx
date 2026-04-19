@@ -1,0 +1,103 @@
+---
+title: Getting Started
+description: Integrate RTP into your launchpad in three steps.
+---
+
+## Prerequisites
+
+- A Solana launchpad or token deployment platform
+- Node.js 18+
+- `@solana/web3.js` v1.98+
+- A Phantom wallet (for signing transactions)
+
+## Installation
+
+```bash
+npm install @resilient-protocol/sdk @solana/web3.js @solana/spl-token @coral-xyz/anchor
+```
+
+## Three-Step Integration
+
+### Step 1: Register the token with RTP
+
+After your platform creates a token mint, call `registerWithRTP` to create the per-mint treasury infrastructure:
+
+```typescript
+import { registerWithRTP } from "@resilient-protocol/sdk";
+import { Connection } from "@solana/web3.js";
+import { useWallet, useConnection } from "@solana/wallet-adapter-react";
+
+function LaunchButton({ mintAddress }) {
+  const { publicKey, signTransaction } = useWallet();
+  const { connection } = useConnection();
+
+  const handleRegister = async () => {
+    const result = await registerWithRTP(connection, { publicKey, signTransaction }, {
+      mint: new PublicKey(mintAddress),
+      platform: "pumpfun",
+      name: "My Token",
+      symbol: "MTK",
+      holdersWallet: publicKey,
+      projectDevWallet: publicKey,
+      ecosystemWallet: publicKey,
+    });
+
+    console.log("Treasury PDA:", result.treasuryPDA);
+    console.log("Vault PDA:", result.vaultPDA);
+    console.log("Adopter PDA:", result.adopterPDA);
+  };
+
+  return <button onClick={handleRegister}>Enable RTP Treasury</button>;
+}
+```
+
+This creates:
+- **Treasury PDA** — the on-chain treasury state account for this mint
+- **Vault PDA** — the token account that receives trading fees
+- **Adopter Record** — registration of the token as an RTP adopter
+
+### Step 2: Configure fee routing
+
+Fees must route from the launch platform to the RTP treasury vault. The mechanism differs per platform:
+
+| Platform | Fee Routing Method | Guide |
+|----------|-------------------|-------|
+| Pump.fun | Creator fees to deployer wallet → RTP keeper claims | [Pump.fun Integration](/docs/integration/pump-fun) |
+| Bags.fm | Multi-claimer fee share with treasury PDA | [Bags.fm Integration](/docs/integration/bags-fm) |
+| Raydium | `updatePlatformCpCreator` → treasury PDA | [Raydium Integration](/docs/integration/raydium) |
+
+### Step 3: Display treasury state (optional)
+
+Show your users that RTP is active:
+
+```typescript
+import { fetchTreasuryState } from "@resilient-protocol/sdk";
+
+const state = await fetchTreasuryState(connection, mintAddress);
+// state.phase — "Sustenance" | "Ecosystem" | "Humanity"
+// state.vaultBalance — current treasury balance
+// state.totalFeesWithdrawn — lifetime fees processed
+```
+
+## What Happens After Registration
+
+Once a token is registered with RTP:
+
+1. **Fees accumulate** — trading fees build up in the treasury vault
+2. **Swarm activates** — the autonomous swarm monitors the treasury and executes strategies when capital is sufficient
+3. **Yield generates** — strategies run on Hyperliquid (USDC-margined perps), generating yield
+4. **Redistribution triggers** — when yield exceeds the runway threshold, 70/20/10 split happens automatically on-chain
+5. **Phase evolves** — as the treasury grows, it evolves through Sustenance → Ecosystem → Humanity phases
+
+## Architecture Overview
+
+```
+Token Launch Platform
+  └── Trading fees → Treasury Vault PDA (Solana)
+        └── RTP Swarm monitors vault
+              └── Executes strategies on Hyperliquid
+                    └── Yield returns → Treasury PDA
+                          └── 70% holders / 20% dev / 10% ecosystem
+```
+
+Read the full [Architecture](/docs/architecture/treasury-pda) docs for details.

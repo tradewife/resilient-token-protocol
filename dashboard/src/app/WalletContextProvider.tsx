@@ -7,7 +7,9 @@ import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
 
 import "@solana/wallet-adapter-react-ui/styles.css";
 
-const DEVNET_RPC = "https://api.devnet.solana.com";
+// Use mainnet for platform launches (Pump.fun, Bags.fm, Raydium).
+// The dashboard still reads devnet treasury state directly via fetchTreasuryState.
+const RPC_ENDPOINT = "https://api.mainnet-beta.solana.com";
 
 function AutoConnectHandler({ children }: { children: React.ReactNode }) {
   const { wallet, connected, connect } = useWallet();
@@ -31,7 +33,7 @@ export function WalletContextProvider({ children }: { children: React.ReactNode 
   );
 
   return (
-    <ConnectionProvider endpoint={DEVNET_RPC}>
+    <ConnectionProvider endpoint={RPC_ENDPOINT}>
       <WalletProvider wallets={wallets} autoConnect={false} onError={() => {}}>
         <WalletModalProvider>
           <AutoConnectHandler>{children}</AutoConnectHandler>

@@ -1,0 +1,251 @@
+---
+title: SDK Reference
+description: Complete API reference for the @resilient-protocol/sdk package.
+---
+
+## Installation
+
+```bash
+npm install @resilient-protocol/sdk @solana/web3.js @solana/spl-token @coral-xyz/anchor
+```
+
+## Exports
+
+### Constants
+
+```typescript
+import { RTP_PROGRAM_ID, RTP_DEVNET_RPC, RTP_MAINNET_RPC } from "@resilient-protocol/sdk";
+
+RTP_PROGRAM_ID  // PublicKey("8rt6yiBnRTyHy8F69jUd7exWwwShUs4Eokeq41auo2RB")
+RTP_DEVNET_RPC  // "https://api.devnet.solana.com"
+RTP_MAINNET_RPC // "https://api.mainnet-beta.solana.com"
+```
+
+### Types
+
+#### `RTPRegistrationConfig`
+
+```typescript
+interface RTPRegistrationConfig {
+  /** The token mint to register with RTP */
+  mint: PublicKey;
+  /** The platform the token was launched on */
+  platform: "pumpfun" | "bags" | "raydium";
+  /** Token display name */
+  name: string;
+  /** Token ticker symbol */
+  symbol: string;
+  /** Wallet receiving 70% holder distributions (default: payer) */
+  holdersWallet?: PublicKey;
+  /** Wallet receiving 20% dev distributions (default: payer) */
+  projectDevWallet?: PublicKey;
+  /** Wallet receiving 10% ecosystem distributions (default: payer) */
+  ecosystemWallet?: PublicKey;
+  /** Minimum runway balance in token lamports (default: 10_000_000) */
+  minRunwayBalance?: number;
+}
+```
+
+#### `RTPRegistrationResult`
+
+```typescript
+interface RTPRegistrationResult {
+  /** The mint address (base58) */
+  mint: string;
+  /** Transaction signature of the registration */
+  signature: string;
+  /** Solana Explorer link */
+  explorerUrl: string;
+  /** Per-mint treasury state account */
+  treasuryPDA: string;
+  /** Token account receiving fees */
+  vaultPDA: string;
+  /** Adopter registration account */
+  adopterPDA: string;
+}
+```
+
+#### `TreasuryState`
+
+```typescript
+interface TreasuryState {
+  mint: string;
+  phase: "Sustenance" | "Ecosystem" | "Humanity";
+  vaultBalance: number;
+  totalFeesWithdrawn: number;
+  totalDistributedHolders: number;
+  totalDistributedDev: number;
+  totalDistributedEcosystem: number;
+  totalHydration: number;
+  totalFeesReceived: number;
+  minRunwayBalance: number;
+}
+```
+
+#### `AdopterState`
+
+```typescript
+interface AdopterState {
+  tokenMint: string;
+  feesContributed: number;
+  adoptedAt: number;
+  lastDepositAt: number;
+  depositCount: number;
+  betaExpiresAt: number; // 0 = permanent
+  betaEnded: boolean;
+  isBeta: boolean;
+}
+```
+
+#### `WalletAdapter`
+
+```typescript
+interface WalletAdapter {
+  publicKey: PublicKey | null;
+  signTransaction<T extends Transaction | VersionedTransaction>(tx: T): Promise<T>;
+}
+```
+
+### Functions
+
+#### `registerWithRTP()`
+
+Registers an existing token mint with the RTP protocol. Creates the treasury PDA, vault PDA, and adopter record.
+
+```typescript
+async function registerWithRTP(
+  connection: Connection,
+  payer: Keypair | WalletAdapter,
+  config: RTPRegistrationConfig,
+): Promise<RTPRegistrationResult>;
+```
+
+**Parameters:**
+- `connection` — Solana RPC connection (devnet or mainnet)
+- `payer` — Keypair or wallet adapter for signing transactions
+- `config` — Registration configuration (see `RTPRegistrationConfig`)
+
+**Returns:** `Promise<RTPRegistrationResult>`
+
+**On-chain operations:**
+1. Derives treasury PDA from mint
+2. Derives vault PDA from mint
+3. Calls Anchor `initialize` instruction (creates treasury account)
+4. Creates vault token account
+5. Registers adopter record
+
+**Errors:**
+- Throws if the treasury already exists for this mint
+- Throws if the connection is to an unsupported cluster
+
+---
+
+#### `fetchTreasuryState()`
+
+Read-only. Fetches the on-chain treasury state for a given mint. No signing required.
+
+```typescript
+async function fetchTreasuryState(
+  connection: Connection,
+  mintAddress: string | PublicKey,
+): Promise<TreasuryState>;
+```
+
+**Returns:** Treasury state with all balances converted from lamports to UI units. Returns zeros if the treasury doesn't exist yet.
+
+---
+
+#### `withdrawAndRedistribute()`
+
+Permissionless crank. Withdraws accumulated fees from the mint into the treasury vault, then triggers the 70/20/10 redistribution if above the runway threshold.
+
+```typescript
+async function withdrawAndRedistribute(
+  connection: Connection,
+  payer: Keypair | WalletAdapter,
+  mintAddress: string | PublicKey,
+): Promise<{ withdrawSig: string; redistributeSig?: string }>;
+```
+
+**Returns:**
+- `withdrawSig` — always present (fee withdrawal completed)
+- `redistributeSig` — only present if vault balance exceeded the redistribution threshold
+
+**Errors:**
+- `BelowThreshold` (code 6000) — vault doesn't have enough for redistribution. This is expected and not an error condition — fees were still withdrawn.
+
+---
+
+#### `fetchAdopterState()`
+
+Read-only. Fetches the adopter record for a token.
+
+```typescript
+async function fetchAdopterState(
+  connection: Connection,
+  mintAddress: string | PublicKey,
+): Promise<AdopterState>;
+```
+
+---
+
+#### `registerAdopterBeta()`
+
+Registers a beta adopter with an expiry timestamp. After expiry, `hydrate_swarm` refuses to fund strategies.
+
+```typescript
+async function registerAdopterBeta(
+  connection: Connection,
+  payer: Keypair | WalletAdapter,
+  mintAddress: string | PublicKey,
+  betaExpiresAt: number, // Unix timestamp
+): Promise<{ signature: string; adopterPDA: string }>;
+```
+
+---
+
+#### `endBeta()`
+
+Ends a beta adopter's participation. Only callable by the treasury authority.
+
+```typescript
+async function endBeta(
+  connection: Connection,
+  payer: Keypair | WalletAdapter,
+  mintAddress: string | PublicKey,
+): Promise<{ signature: string }>;
+```
+
+## PDA Derivation
+
+The SDK derives PDAs deterministically from the mint address:
+
+```typescript
+// Treasury PDA
+PublicKey.findProgramAddressSync(
+  [Buffer.from("treasury"), mint.toBuffer()],
+  RTP_PROGRAM_ID,
+);
+
+// Vault PDA
+PublicKey.findProgramAddressSync(
+  [Buffer.from("treasury"), mint.toBuffer(), Buffer.from("vault")],
+  RTP_PROGRAM_ID,
+);
+
+// Adopter PDA
+PublicKey.findProgramAddressSync(
+  [Buffer.from("adopter"), mint.toBuffer()],
+  RTP_PROGRAM_ID,
+);
+```
+
+## Program ID
+
+The RTP treasury program is deployed at:
+
+```
+8rt6yiBnRTyHy8F69jUd7exWwwShUs4Eokeq41auo2RB
+```
+
+[View on Solana Explorer (devnet)](https://explorer.solana.com/address/8rt6yiBnRTyHy8F69jUd7exWwwShUs4Eokeq41auo2RB?cluster=devnet)

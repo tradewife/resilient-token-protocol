@@ -1,6 +1,6 @@
 // @resilient-protocol/sdk
 // The launchpad integration SDK for the Resilient Token Protocol.
-// Three functions: createRTPToken, fetchTreasuryState, withdrawAndRedistribute.
+// Core functions: registerWithRTP, fetchTreasuryState, withdrawAndRedistribute.
 
 import { AnchorProvider, BorshCoder, Program, Idl } from "@coral-xyz/anchor";
 import { BN } from "@coral-xyz/anchor";
@@ -87,24 +87,38 @@ function loadPatchedIdl(): Idl {
 
 // Types
 
-export interface RTPTokenConfig {
+export interface RTPRegistrationConfig {
+  /** The token mint to register with RTP */
+  mint: PublicKey;
+  /** The platform the token was launched on */
+  platform: "pumpfun" | "bags" | "raydium";
+  /** Token display name */
   name: string;
+  /** Token ticker symbol */
   symbol: string;
-  supply: number;              // in tokens (not lamports)
-  feeBps: number;              // transfer fee in basis points, e.g. 200 = 2%
-  decimals?: number;           // default 6
-  holdersWallet?: PublicKey;   // default: payer
-  projectDevWallet?: PublicKey; // default: payer
-  ecosystemWallet?: PublicKey; // default: payer
-  minRunwayBalance?: number;   // default: 10_000_000 (10 tokens, 6 dec)
+  /** Wallet receiving 70% holder distributions (default: payer) */
+  holdersWallet?: PublicKey;
+  /** Wallet receiving 20% dev distributions (default: payer) */
+  projectDevWallet?: PublicKey;
+  /** Wallet receiving 10% ecosystem distributions (default: payer) */
+  ecosystemWallet?: PublicKey;
+  /** Minimum runway balance in token lamports (default: 10_000_000) */
+  minRunwayBalance?: number;
 }
 
-export interface RTPTokenResult {
-  mint: string;           // base58 mint address
-  signature: string;      // mint creation tx signature
-  explorerUrl: string;    // devnet explorer link
-  treasuryPDA: string;    // the treasury state account address
-  vaultPDA: string;       // the treasury vault token account address
+export interface RTPRegistrationResult {
+  /** The mint address (base58) */
+  mint: string;
+  /** Transaction signature of the registration */
+  signature: string;
+  /** Solana Explorer link */
+  explorerUrl: string;
+  /** Per-mint treasury state account */
+  treasuryPDA: string;
+  /** Token account receiving fees */
+  vaultPDA: string;
+  /** Adopter registration account */
+  adopterPDA: string;
 }
 
 /** Minimal wallet adapter interface — compatible with @solana/wallet-adapter-react.
@@ -210,83 +224,48 @@ async function sendTx(
 // Implementation
 
 /**
- * Create a Token-2022 mint with transfer fees routing to a per-mint
- * treasury vault PDA, and initialize the RTP treasury program.
+ * Register an existing token mint with the RTP protocol.
+ * Creates the per-mint treasury PDA, vault PDA, and adopter record on-chain.
  *
- * This is the single integration point for launchpads.
+ * This is the single integration point for launchpads — call it after
+ * your platform has created the token mint.
  */
-export async function createRTPToken(
+export async function registerWithRTP(
   connection: Connection,
   payer: Keypair | WalletAdapter,
-  config: RTPTokenConfig,
-): Promise<RTPTokenResult> {
-  const decimals = config.decimals ?? 6;
+  config: RTPRegistrationConfig,
+): Promise<RTPRegistrationResult> {
   const payerPubkey = payer instanceof Keypair ? payer.publicKey : payer.publicKey!;
-
-  // Mint keypair — launchpad controls the mint authority
-  const mintKeypair = Keypair.generate();
-  const mintPubkey = mintKeypair.publicKey;
+  const mintPubkey = config.mint;
 
   // Derive per-mint PDAs
   const [treasuryPDA] = deriveTreasuryPDA(mintPubkey);
   const [vaultPDA] = deriveVaultPDA(mintPubkey);
-
-  // Cap fee at 500 bps (5%)
-  const feeBps = Math.min(config.feeBps, 500);
-
-  // Calculate mint account space
-  const mintLen = getMintLen([ExtensionType.TransferFeeConfig]);
-  const lamports = await connection.getMinimumBalanceForRentExemption(mintLen);
-
-  // ── Transaction 1: Create Token-2022 mint with TransferFeeConfig ──
-
-  const transaction = new Transaction();
-
-  transaction.add(
-    SystemProgram.createAccount({
-      fromPubkey: payerPubkey,
-      newAccountPubkey: mintPubkey,
-      space: mintLen,
-      lamports,
-      programId: TOKEN_2022_PROGRAM_ID,
-    }),
-  );
-
-  // Maximum fee ceiling in token lamports. Matches devnet-demo pattern.
-  // 1B lamports = 1000 tokens at 6 decimals — caps per-transfer fee at a reasonable level.
-  const maxFee = BigInt(config.supply) * BigInt(10 ** decimals) / BigInt(10);
-
-  // Fee destination = treasury vault PDA for this specific mint
-  transaction.add(
-    createInitializeTransferFeeConfigInstruction(
-      mintPubkey,
-      payerPubkey,                  // fee config authority
-      treasuryPDA,                  // withdraw_withheld_authority = Treasury PDA
-      feeBps,
-      maxFee,
-      TOKEN_2022_PROGRAM_ID,
-    ),
-  );
-
-  transaction.add(
-    createInitializeMintInstruction(
-      mintPubkey,
-      decimals,
-      payerPubkey,   // mint authority
-      payerPubkey,   // freeze authority
-      TOKEN_2022_PROGRAM_ID,
-    ),
-  );
-
-  let signature: string;
-  signature = await sendTx(connection, transaction, payer, [mintKeypair]);
-
-  // ── Initialize treasury + mint supply ──
+  const [adopterPDA] = deriveAdopterPDA(mintPubkey);
 
   const holdersWallet = config.holdersWallet ?? payerPubkey;
   const projectDevWallet = config.projectDevWallet ?? payerPubkey;
   const ecosystemWallet = config.ecosystemWallet ?? payerPubkey;
   const minRunwayBalance = config.minRunwayBalance ?? 10_000_000;
+
+  // Read mint decimals from on-chain
+  let decimals = 6;
+  try {
+    const mintInfo = await getMint(connection, mintPubkey, "confirmed", TOKEN_2022_PROGRAM_ID);
+    decimals = mintInfo.decimals;
+  } catch {
+    // Token-2022 fetch may fail for standard SPL tokens — try standard program
+    try {
+      const mintInfo = await getMint(connection, mintPubkey, "confirmed");
+      decimals = mintInfo.decimals;
+    } catch {
+      // Use default 6 decimals
+    }
+  }
+
+  // Detect token program for this mint
+  const mintAccount = await connection.getAccountInfo(mintPubkey);
+  const tokenProgram = mintAccount?.owner || TOKEN_2022_PROGRAM_ID;
 
   // Build the initialize instruction via Anchor
   const idl = loadPatchedIdl();
@@ -297,6 +276,7 @@ export async function createRTPToken(
   );
   const program = new Program(idl, provider);
 
+  // Step 1: Initialize treasury
   const initTx = await program.methods
     .initialize(new BN(minRunwayBalance))
     .accounts({
@@ -307,40 +287,30 @@ export async function createRTPToken(
       projectDevWallet,
       ecosystemWallet,
       authority: payerPubkey,
-      tokenProgram: TOKEN_2022_PROGRAM_ID,
+      tokenProgram,
       systemProgram: SystemProgram.programId,
     })
     .transaction();
 
-  await sendTx(connection, initTx, payer);
+  const signature = await sendTx(connection, initTx, payer);
 
-  // Create ATA and mint initial supply
-  const supplyLamports = BigInt(config.supply) * BigInt(10 ** decimals);
-  const ata = getAssociatedTokenAddressSync(mintPubkey, payerPubkey, false, TOKEN_2022_PROGRAM_ID);
-
-  // Check if ATA exists, create if not
-  let ataInfo: Account | null = null;
+  // Step 2: Register adopter
   try {
-    ataInfo = await getAccount(connection, ata, "confirmed", TOKEN_2022_PROGRAM_ID);
-  } catch (e: unknown) {
-    // ATA doesn't exist yet — expected for new mints, create it
-    const msg = e instanceof Error ? e.message : String(e);
-    if (!msg.includes("could not find account")) {
-      console.warn("[RTP SDK] Unexpected ATA fetch error:", msg);
-    }
-    const createAtaIx = createAssociatedTokenAccountInstruction(
-      payerPubkey, ata, payerPubkey, mintPubkey, TOKEN_2022_PROGRAM_ID,
-    );
-    const ataTx = new Transaction().add(createAtaIx);
-    await sendTx(connection, ataTx, payer);
-  }
+    const adopterTx = await program.methods
+      .registerAdopter(mintPubkey)
+      .accounts({
+        adopterRecord: adopterPDA,
+        treasury: treasuryPDA,
+        authority: payerPubkey,
+        systemProgram: SystemProgram.programId,
+      })
+      .transaction();
 
-  // Mint initial supply (raw Token-2022 instruction works for both Keypair and WalletAdapter)
-  const mintToIx = createMintToInstruction(
-    mintPubkey, ata, payerPubkey, supplyLamports, [], TOKEN_2022_PROGRAM_ID,
-  );
-  const mintTx = new Transaction().add(mintToIx);
-  await sendTx(connection, mintTx, payer);
+    await sendTx(connection, adopterTx, payer);
+  } catch (e: unknown) {
+    // Adopter registration is best-effort — treasury is the critical path
+    console.warn("[RTP SDK] Adopter registration skipped:", e instanceof Error ? e.message : String(e));
+  }
 
   const cluster = connection.rpcEndpoint.includes("devnet") ? "devnet" : "mainnet-beta";
 
@@ -350,6 +320,7 @@ export async function createRTPToken(
     explorerUrl: `https://explorer.solana.com/tx/${signature}?cluster=${cluster}`,
     treasuryPDA: treasuryPDA.toBase58(),
     vaultPDA: vaultPDA.toBase58(),
+    adopterPDA: adopterPDA.toBase58(),
   };
 }
 
@@ -531,21 +502,30 @@ export interface AdopterState {
   isBeta: boolean;
 }
 
+/**
+ * Register a beta adopter with an automatic expiry timestamp.
+ * After the expiry, hydrate_swarm refuses to fund strategies for this adopter.
+ *
+ * @param connection - Solana RPC connection
+ * @param payer - Keypair or WalletAdapter signing the transaction
+ * @param mintAddress - The token mint to register as a beta adopter
+ * @param betaExpiresAt - Unix timestamp when the beta expires (must be in the future)
+ */
 export async function registerAdopterBeta(
   connection: Connection,
-  payer: WalletAdapter,
+  payer: Keypair | WalletAdapter,
   mintAddress: string | PublicKey,
   betaExpiresAt: number,
 ): Promise<{ signature: string; adopterPDA: string }> {
   const mint = typeof mintAddress === "string" ? new PublicKey(mintAddress) : mintAddress;
   const [treasuryPDA] = deriveTreasuryPDA(mint);
   const [adopterPDA] = deriveAdopterPDA(mint);
-  const payerPubkey = payer.publicKey!;
+  const payerPubkey = payer instanceof Keypair ? payer.publicKey : payer.publicKey!;
 
   const idl = loadPatchedIdl();
   const provider = new AnchorProvider(
     connection,
-    walletToAnchorWallet(payer),
+    payer instanceof Keypair ? kpWallet(payer) : walletToAnchorWallet(payer),
     { commitment: "confirmed" },
   );
   const program = new Program(idl, provider);
@@ -565,9 +545,18 @@ export async function registerAdopterBeta(
   return { signature, adopterPDA: adopterPDA.toBase58() };
 }
 
+/**
+ * End a beta adopter's RTP participation early.
+ * Only callable by the treasury authority. Sets beta_ended = true.
+ * Yield already generated stays with the project.
+ *
+ * @param connection - Solana RPC connection
+ * @param payer - Keypair or WalletAdapter (must be treasury authority)
+ * @param mintAddress - The token mint whose beta to end
+ */
 export async function endBeta(
   connection: Connection,
-  payer: WalletAdapter,
+  payer: Keypair | WalletAdapter,
   mintAddress: string | PublicKey,
 ): Promise<{ signature: string }> {
   const mint = typeof mintAddress === "string" ? new PublicKey(mintAddress) : mintAddress;
@@ -577,7 +566,7 @@ export async function endBeta(
   const idl = loadPatchedIdl();
   const provider = new AnchorProvider(
     connection,
-    walletToAnchorWallet(payer),
+    payer instanceof Keypair ? kpWallet(payer) : walletToAnchorWallet(payer),
     { commitment: "confirmed" },
   );
   const program = new Program(idl, provider);
@@ -596,6 +585,11 @@ export async function endBeta(
   return { signature };
 }
 
+/**
+ * Fetch the on-chain adopter record for a given mint.
+ * Read-only — no transactions, no signing required.
+ * Returns default state if the adopter record doesn't exist.
+ */
 export async function fetchAdopterState(
   connection: Connection,
   mintAddress: string | PublicKey,

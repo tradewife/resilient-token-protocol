@@ -17,6 +17,10 @@
     "@solana/wallet-adapter-react-ui": "^0.9.39",
     "@solana/wallet-adapter-wallets": "^0.19.38",
     "@solana/web3.js": "^1.98.4",
+    "@types/mdx": "^2.0.13",
+    "fumadocs-core": "^16.7.16",
+    "fumadocs-mdx": "^14.3.0",
+    "fumadocs-ui": "^16.7.16",
     "next": "16.2.3",
     "react": "19.2.4",
     "react-dom": "19.2.4"

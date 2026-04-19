@@ -1,0 +1,203 @@
+---
+title: MPC API Reference
+description: The RTP MPC server handles on-chain operations for launchpads that prefer not to run chain ops themselves.
+---
+
+## Overview
+
+The RTP MPC (Multi-Party Computation) server is a managed service that handles all Solana on-chain operations for your launchpad. Instead of calling the SDK directly, you send HTTP requests to the MPC server, which manages wallet signing, transaction construction, and on-chain submission.
+
+**Base URL:** `https://mpc.resilientprotocol.com`
+
+## Authentication
+
+All requests require an API key in the `Authorization` header:
+
+```
+Authorization: Bearer rtp_live_abc123...
+```
+
+API keys are issued per launchpad. Contact the RTP team to register.
+
+## Endpoints
+
+### Register a Token
+
+```http
+POST /v1/adopt
+```
+
+Registers a token with RTP. Creates the treasury PDA, vault PDA, and adopter record on-chain.
+
+**Request:**
+
+```json
+{
+  "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+  "platform": "pumpfun",
+  "name": "Community Token",
+  "symbol": "CMTY",
+  "holdersWallet": "ABCx...1234",
+  "projectDevWallet": "ABCx...1234",
+  "ecosystemWallet": "ABCx...1234",
+  "feeRouting": {
+    "type": "keeper",
+    "deployerWallet": "ABCx...1234"
+  }
+}
+```
+
+**Response:**
+
+```json
+{
+  "treasuryPDA": "FNQbK1Vw77aT7qM1EMSmeEPDGizSNhX4rkkYBKQNFotF",
+  "vaultPDA": "9xRWo1N4xjyUN3fbmRpUVwP4WQcEPakdECThyx93CxkR",
+  "adopterPDA": "7zSW...abcd",
+  "signature": "5Kq8...xyz",
+  "explorerUrl": "https://explorer.solana.com/tx/5Kq8...xyz?cluster=mainnet-beta"
+}
+```
+
+### Configure Fee Routing
+
+```http
+POST /v1/fee-route
+```
+
+Configures platform-specific fee routing to the RTP treasury. Platform-specific logic handled server-side.
+
+**Request:**
+
+```json
+{
+  "mint": "EPjFWdd5...",
+  "platform": "bags",
+  "config": {
+    "feeClaimers": [
+      { "user": "FNQbK1Vw77aT7qM1EMSmeEPDGizSNhX4rkkYBKQNFotF", "userBps": 7000 },
+      { "user": "ABCx...1234", "userBps": 3000 }
+    ]
+  }
+}
+```
+
+**Response:**
+
+```json
+{
+  "signature": "3HzW...def",
+  "feeShareConfigured": true,
+  "claimers": 2
+}
+```
+
+### Get Treasury State
+
+```http
+GET /v1/treasury/:mint
+```
+
+Reads the on-chain treasury state for a token. No authentication required.
+
+**Response:**
+
+```json
+{
+  "mint": "EPjFWdd5...",
+  "phase": "Sustenance",
+  "vaultBalance": 1250.5,
+  "totalFeesWithdrawn": 3200.0,
+  "totalDistributedHolders": 2240.0,
+  "totalDistributedDev": 640.0,
+  "totalDistributedEcosystem": 320.0,
+  "totalHydration": 180.0,
+  "minRunwayBalance": 10.0
+}
+```
+
+### Trigger Crank
+
+```http
+POST /v1/crank
+```
+
+Triggers the permissionless crank: withdraw fees + redistribute if above threshold.
+
+**Request:**
+
+```json
+{
+  "mint": "EPjFWdd5..."
+}
+```
+
+**Response:**
+
+```json
+{
+  "withdrawSig": "4Kq8...abc",
+  "redistributeSig": "5Kq8...def",
+  "distributed": {
+    "holders": 224.0,
+    "dev": 64.0,
+    "ecosystem": 32.0
+  }
+}
+```
+
+### End Beta
+
+```http
+POST /v1/beta/end
+```
+
+Ends a beta adopter's RTP participation. Only callable by the treasury authority.
+
+**Request:**
+
+```json
+{
+  "mint": "EPjFWdd5..."
+}
+```
+
+**Response:**
+
+```json
+{
+  "signature": "6Kq8...ghi",
+  "betaEnded": true
+}
+```
+
+## Error Codes
+
+| Code | Meaning |
+|------|---------|
+| `400` | Invalid request body or missing fields |
+| `401` | Missing or invalid API key |
+| `404` | Token not registered with RTP |
+| `409` | Token already registered |
+| `500` | On-chain transaction failed |
+
+## Rate Limits
+
+| Plan | Requests/min | Requests/day |
+|------|-------------|-------------|
+| Free | 10 | 100 |
+| Standard | 60 | 10,000 |
+| Enterprise | 600 | Unlimited |
+
+## SDK vs MPC Comparison
+
+| Feature | SDK (Direct) | MPC Server |
+|---------|-------------|------------|
+| Signing | Your wallet | MPC-managed wallet |
+| Chain ops | Your infra | RTP infra |
+| Latency | Direct | ~200ms overhead |
+| Cost | Gas only | Gas + service fee |
+| Control | Full | Delegated |
+| Setup | More code | HTTP calls |
+
+Use the SDK if you want full control over signing and chain operations. Use the MPC server if you prefer a simple HTTP API without managing wallets or Solana connections.
