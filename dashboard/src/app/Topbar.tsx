@@ -11,7 +11,7 @@ interface TopbarProps {
 
 const NAV_ITEMS = [
   { href: "/", label: "Dashboard", key: "dashboard" },
-  { href: "/launch", label: "Platform Demo", key: "launch" },
+  { href: "/launch", label: "Launch", key: "launch" },
   { href: "/research", label: "Research", key: "research" },
   { href: "/docs", label: "Docs", key: "docs" },
 ] as const;

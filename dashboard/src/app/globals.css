@@ -724,8 +724,8 @@ body {
     padding-bottom: var(--space-lg);
   }
   .brand-name {
-    font-size: 0.8125rem;
-    letter-spacing: 0.1em;
+    font-size: 0.75rem;
+    letter-spacing: 0.08em;
   }
   .brand-icon {
     transform: none;
@@ -734,8 +734,11 @@ body {
   .topbar-actions {
     gap: var(--space-sm);
   }
-  /* Hide nav links on mobile — they live in the dropdown */
+  /* Hide nav links + network badge on mobile — they live in the dropdown */
   .topbar-actions .nav-link {
+    display: none;
+  }
+  .topbar-actions .network-badge {
     display: none;
   }
 
