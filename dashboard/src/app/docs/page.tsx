@@ -76,11 +76,11 @@ const DOC_GROUPS: DocGroup[] = [
 
             <h3>Why This Is Different</h3>
             <ul>
-              <li><strong>Constitutional governance</strong> — soulcontract enforced in Rust AND on-chain (Anchor program). No one — not even the team — can override the rules.</li>
-              <li><strong>Self-funding economics</strong> — treasury generates its own yield via Hyperliquid perps, with irreversible phase evolution (Sustenance → Ecosystem → Humanity)</li>
-              <li><strong>Proven research engine</strong> — 30,000 strategy configs tested per night, 9-fold walk-forward validation, Darwinian evolution</li>
-              <li><strong>On-chain constraint proof</strong> — the Anchor program deliberately rejects invalid transactions. Constraint rejection IS the demo.</li>
-              <li><strong>Hyperliquid execution</strong> — EIP-712 signed orders from Rust, fills on HL, USDC yield deposited to Solana PDA</li>
+              <li><strong>Constitutional governance</strong> — soulcontract enforced in Rust AND on-chain (Anchor program). No one — not even the team — can override the rules. This is not a promise — it&apos;s a <code>require!</code> constraint.</li>
+              <li><strong>Self-funding economics</strong> — treasury generates its own yield via Hyperliquid perps, with irreversible phase evolution (Sustenance → Ecosystem → Humanity). No VC dependency.</li>
+              <li><strong>Proven research engine</strong> — 30,000 strategy configs tested per night, 9-fold walk-forward validation, Darwinian evolution. Not a backtest screenshot — out-of-sample results across 9 independent time windows.</li>
+              <li><strong>Real execution</strong> — EIP-712 signed orders from Rust, fills on Hyperliquid testnet, USDC yield deposited to Solana treasury PDA. BUY→fill→SELL→fill→PnL round-trip verified.</li>
+              <li><strong>307 Rust tests, 0 failures</strong> — 6-wing swarm architecture with Security, Audit, Evolve, Knowledge, and Futureproof wings. Not a wrapper around an API — a real multi-agent system.</li>
             </ul>
 
             <h3>How It Works</h3>
@@ -90,6 +90,20 @@ const DOC_GROUPS: DocGroup[] = [
               <li><strong>Yield returns</strong> — generated yield flows back to the treasury PDA</li>
               <li><strong>Redistribution</strong> — 70% to holders, 20% to project dev, 10% to ecosystem (enforced on-chain)</li>
             </ol>
+
+            <h3>What&apos;s Been Built</h3>
+            <Table
+              headers={["Component", "Status", "Detail"]}
+              rows={[
+                ["Anchor treasury program", "✅ Deployed (devnet)", "8/8 on-chain steps completed including redistribution"],
+                ["Rust swarm runtime", "✅ 307 tests passing", "6 wings: Trading, Security, Evolve, Knowledge, Audit, Futureproof"],
+                ["Hyperliquid execution", "✅ Round-trip verified", "BUY→fill→SELL→fill→PnL from Rust, EIP-712 signed"],
+                ["Treasury yield deposit", "✅ On-chain confirmed", "USDC yield → SOL → treasury PDA via CPI transfer"],
+                ["Autonomous daemon", "✅ 7 cycles completed", "6h cron, LLM-driven strategy evolution, auditable trail"],
+                ["SDK", "✅ Shipped", "<code>@resilient-protocol/sdk</code> — one function call to register any token"],
+                ["Dashboard", "✅ Live", "<a href='https://resilientprotocol.xyz' style='color: var(--coral)'>resilientprotocol.xyz</a> — live treasury state, wallet connect"],
+              ]}
+            />
 
             <Callout type="tip" title="Token Creator or Platform?">
               <p>If your launchpad supports RTP, enabling the treasury takes one click. See <a href="#getting-started-creators" style={{ color: "var(--coral)" }}>Getting Started for Token Creators</a>. If you&apos;re a platform integrating RTP as a feature, see <a href="#getting-started-platforms" style={{ color: "var(--coral)" }}>Getting Started for Platforms</a>.</p>
