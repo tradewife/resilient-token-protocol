@@ -10,28 +10,30 @@ npm install @resilient-protocol/sdk @solana/web3.js @solana/spl-token @coral-xyz
 
 ## Quick Start
 
-### 1. Create a token with an autonomous treasury
+### 1. Register your token with an autonomous treasury
 
 ```typescript
-import { createRTPToken, RTP_PROGRAM_ID } from "@resilient-protocol/sdk";
-import { Connection, Keypair } from "@solana/web3.js";
+import { registerWithRTP, RTP_PROGRAM_ID } from "@resilient-protocol/sdk";
+import { Connection, Keypair, PublicKey } from "@solana/web3.js";
 
 const connection = new Connection("https://api.devnet.solana.com");
 const payer = Keypair.generate(); // your launchpad's keypair
 
-const result = await createRTPToken(connection, payer, {
+const result = await registerWithRTP(connection, payer, {
+  mint: new PublicKey("YourTokenMint111111111111111111111111111111"),
+  platform: "pumpfun",              // "pumpfun" | "bags" | "raydium"
   name: "Community Token",
   symbol: "CMTY",
-  supply: 1_000_000_000,
-  feeBps: 200,             // 2% transfer fee → treasury vault
   holdersWallet: payer.publicKey,    // optional, defaults to payer
   projectDevWallet: payer.publicKey, // optional, defaults to payer
   ecosystemWallet: payer.publicKey,  // optional, defaults to payer
+  minRunwayBalance: 10_000_000,      // optional, defaults to 10_000_000
 });
 
 console.log("Mint:", result.mint);
 console.log("Treasury PDA:", result.treasuryPDA);
 console.log("Vault PDA:", result.vaultPDA);
+console.log("Adopter PDA:", result.adopterPDA);
 console.log("Explorer:", result.explorerUrl);
 ```
 
@@ -70,7 +72,7 @@ if (redistributeSig) console.log("Redistributed:", redistributeSig);
 
 ## Integration Checklist
 
-1. **Replace `createMint()` with `createRTPToken()`** — same inputs, but your token now has an autonomous treasury
+1. **Call `registerWithRTP()` after your platform creates the mint** — your token now has an autonomous treasury
 2. **Store the returned `treasuryPDA`** alongside your token record in your database
 3. **(Optional)** Add `fetchTreasuryState()` to your token detail page to show treasury health
 

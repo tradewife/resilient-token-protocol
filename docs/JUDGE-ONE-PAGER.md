@@ -20,6 +20,8 @@
 | Treasury PDA | Per-mint — demo: `FNQbK1Vw77aT7qM1EMSmeEPDGizSNhX4rkkYBKQNFotF` |
 | Explorer | [View on Solana Explorer](https://explorer.solana.com/address/FNQbK1Vw77aT7qM1EMSmeEPDGizSNhX4rkkYBKQNFotF?cluster=devnet) |
 | Redistribution TX | [View transaction](https://explorer.solana.com/tx/9HzWgBfwYxs5ModdjF5mT6gdTfayQq8mMYipopyHfGPmYqk6KESHFqgDrc9Mcie573ttcdPqMHSyJP5nNBKK3bR?cluster=devnet) |
+| Dashboard | https://resilientprotocol.xyz |
+| SDK | `@resilient-protocol/sdk` — one function call to register any token |
 
 ## Quick Demo
 
@@ -29,7 +31,7 @@
 
 ## Key Metrics
 
-- **306** Rust tests passing
+- **307** Rust tests passing
 - **6** swarm wings (Trading, Security, Evolve, Knowledge, Audit, Futureproof)
 - **30K** strategy configs evaluated per symbol per night
 - **9-fold** walk-forward validation

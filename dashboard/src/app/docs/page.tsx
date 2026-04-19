@@ -793,7 +793,7 @@ PublicKey.findProgramAddressSync(
             </ul>
 
             <Callout type="info" title="Full Audit">
-              <p><a href="https://github.com/tradewife/resilient-token-protocol/blob/main/docs/SECURITY_AUDIT_2026-04-07.md" target="_blank" rel="noopener noreferrer" style={{ color: "var(--coral)" }}>Read the full security audit (18 findings)</a></p>
+              <p><a href="https://github.com/tradewife/resilient-token-protocol/blob/main/docs/AUDIT-COPILOT-WK-1.md" target="_blank" rel="noopener noreferrer" style={{ color: "var(--coral)" }}>Read the security audit report</a></p>
             </Callout>
           </>
         ),
