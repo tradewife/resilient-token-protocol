@@ -497,7 +497,7 @@ export default function Home() {
               { label: "Rust swarm runtime", detail: "6 wings (Trading, Security, Evolve, Knowledge, Audit, Futureproof), Coordinator message bus, 307 tests" },
               { label: "Hyperliquid execution", detail: "Phantom MCP bridges SOL↔USDC. EIP-712 signed perps on HL testnet. BUY→fill→SELL→fill round-trip verified from Rust." },
               { label: "Per-token isolation", detail: "Each token gets its own Treasury PDA + vault. Same strategy, isolated capital. No shared pool — one exploit can't drain all adopters." },
-              { label: "TypeScript SDK", detail: "registerWithRTP, fetchTreasuryState, withdrawAndRedistribute, registerAdopterBeta, fetchAdopterState" },
+              { label: "TypeScript SDK", detail: "One function call to register any token with RTP. Launchpads integrate in minutes — no chain ops to run." },
             ].map((item, i) => (
               <div key={i} style={{
                 padding: "var(--space-sm) var(--space-md)",
