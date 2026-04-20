@@ -244,7 +244,7 @@ is not set, so the mainnet binary remains clean.
 
 1. **PDA owns treasury** — no private key risk
 2. **Per-token isolation** — each mint gets its own Treasury PDA + vault, no shared pool, no honeypot
-3. **SPL TransferFeeConfig immutable from mint** — fees cannot be revoked
+3. **SPL TransferFeeConfig immutable from mint** — fee percentage and withdraw authority cannot be revoked. Platform-level fee routing varies (Pump.fun: one-time, Bags.fm: anytime, Raydium: manual).
 4. **CPI-only transfers** — atomic, verifiable
 5. **Agent proposes, human approves irreversible actions**
 6. **No SOL liquidation** — USDC-only yield flows; Hyperliquid positions are USDC-margined

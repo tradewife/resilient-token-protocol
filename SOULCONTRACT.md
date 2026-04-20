@@ -11,7 +11,7 @@ Amendments require a human signature and a 24-hour monitoring window before taki
 
 1. **PDA owns treasury** — no private key risk. The treasury is controlled exclusively by the program-derived address.
 2. **Per-token isolation** — each adopting mint gets its own Treasury PDA and vault (`seeds: ["treasury", mint]`). No shared pool exists. One token's exploit cannot affect another's reserves.
-3. **TransferFeeConfig immutable** — fee configuration cannot be revoked after mint. Token adopters are protected.
+3. **TransferFeeConfig immutable** — fee percentage and withdraw authority cannot be revoked after mint. Platform-level fee routing varies: Pump.fun allows one-time redirect, Bags.fm supports anytime updates, Raydium requires manual forwarding.
 4. **CPI-only transfers** — all on-chain token movements are atomic and verifiable.
 5. **Agent proposes, human approves** — irreversible actions require explicit human sign-off.
 6. **No SOL liquidation** — SOL reserves are never sold on the open market. The Phantom bridge converts SOL↔USDC trustlessly; the treasury never sells SOL to fund operations. Hyperliquid positions are USDC-margined. SOL on the treasury PDA is never at risk of liquidation.

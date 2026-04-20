@@ -156,7 +156,7 @@ Treasury program deployed and operational on Solana devnet (Apr 11 2026).
 │  Invariants (enforced on-chain):                                │
 │  ├── PDA owns treasury (no private key risk)                    │
 │  ├── Per-token isolation — each mint gets its own PDA + vault   │
-│  ├── SPL TransferFeeConfig (fees immutable from mint)           │
+│  ├── SPL TransferFeeConfig (fee % immutable from mint)          │
 │  ├── CPI-only transfers (atomic, verifiable)                    │
 │  ├── SOL never liquidated — bridged via Phantom, never sold     │
 │  ├── Agent can propose, human must approve irreversible actions │
@@ -387,7 +387,11 @@ Phase transitions are **irreversible** — enforced on-chain. The protocol grows
 
 ## Fee Routing
 
-Any Solana token project can adopt RTP by enabling `TransferFeeConfig` on their mint and setting the Treasury PDA as the fee recipient. From that point, every trade on their token auto-routes a fee to the swarm. The fee config is immutable once set — it cannot be revoked.
+Any Solana token project can adopt RTP by enabling `TransferFeeConfig` on their mint and setting the Treasury PDA as the fee recipient. The fee percentage and withdraw authority are immutable once set on the mint — but the mechanism for routing platform creator fees (SOL) to the treasury varies:
+
+- **Pump.fun**: one-time post-launch fee redirect to treasury PDA
+- **Bags.fm**: multi-claimer fee sharing, updateable anytime via API
+- **Raydium**: creator fees go to pool_creator wallet, forwarded to RTP
 
 ```
 Token project adopts RTP
@@ -408,7 +412,7 @@ Single asset on-chain, trustless conversion, fully auditable.
 
 **Why projects adopt**: Their fees don't just sit in a wallet — the swarm puts them to work. Yield flows back to the project and its holders automatically. No trust required. The community's SOL is never sold.
 
-**Rug-proof by design**: SPL TransferFeeConfig is immutable once minted. PDA owns treasury (no private key). All transfers via CPI (atomic, verifiable). Mint authority renounced post-launch.
+**Rug-proof by design**: SPL TransferFeeConfig fee percentage is immutable once minted. PDA owns treasury (no private key). All transfers via CPI (atomic, verifiable). Platform fee routing is separate — Pump.fun allows one redirect, Bags.fm is updateable, Raydium is manual.
 
 ### Per-Token Isolation — No Shared Pool, No Honeypot
 

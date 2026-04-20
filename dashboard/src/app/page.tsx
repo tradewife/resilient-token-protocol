@@ -31,7 +31,7 @@ const FALLBACK_WINGS = [
 ];
 
 const INVARIANTS = [
-  "Fee destination is set at mint and cannot be revoked — not by the team, not by anyone. TransferFeeConfig is immutable.",
+  "TransferFeeConfig is immutable once set on the mint — the fee percentage and withdraw authority cannot be revoked. Platform fee routing varies: Pump.fun (one-time redirect), Bags.fm (anytime), Raydium (manual forward).",
   "Every token gets its own treasury PDA — no shared pool, no honeypot. One token's loss cannot affect another's reserves.",
   "An autonomous research engine tests 30,000 strategy configs per night, validates via 9-fold walk-forward analysis, and executes yield strategies on Hyperliquid. Capital returns to holders.",
   "Agents operate within constitutional boundaries enforced by soulguard.rs (Rust) and on-chain require! constraints (Anchor). Irreversible actions require human sign-off.",
