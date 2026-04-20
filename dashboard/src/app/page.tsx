@@ -286,7 +286,7 @@ export default function Home() {
 
         <div className="hero-content">
           <div className="hero-copy">
-            <span className="hero-label">SOLANA-NATIVE · AUTONOMOUS YIELD · ON-CHAIN ENFORCED</span>
+            <span className="hero-label">SOLANA-NATIVE · AUTONOMOUS YIELD <span className="hero-label-desktop">· SELF-FUNDING</span></span>
             <h1 className="hero-title">
               Every token gets a
               <br />
