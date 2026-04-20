@@ -64,11 +64,11 @@ if (redistributeSig) console.log("Redistributed:", redistributeSig);
 
 ## What Your Token Gets
 
-- **Transfer fees route to a program-owned vault** — not a wallet anyone controls
+- **Transfer fees route to a program-owned vault** — not a wallet anyone controls. TransferFeeConfig fee % is immutable once set on the mint. Platform fee routing varies (Pump.fun: one-time, Bags.fm: anytime, Raydium: manual).
 - **An agent swarm trades yield strategies on Hyperliquid nightly** — validated by backtesting + WFA
 - **Yield returns to the treasury** → redistributed 70/20/10 on-chain (holders / dev / ecosystem)
 - **Phase evolution**: Sustenance → Ecosystem → Humanity (irreversible, threshold-gated)
-- **The program enforces constraints** — no rug is possible by design
+- **The program enforces constraints** — PDA owns treasury, no private key risk. TransferFeeConfig fee % cannot be revoked.
 
 ## Integration Checklist
 

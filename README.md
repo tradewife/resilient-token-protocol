@@ -143,7 +143,7 @@ Treasury program deployed and operational on Solana devnet (Apr 11 2026).
 │                    ON-CHAIN (Solana / Anchor)                    │
 │                                                                 │
 │  RTP Treasury Program                                           │
-│  ├── Receive fees (TransferFeeConfig from adopting token projects) │
+│  ├── Receive fees — TransferFeeConfig (withheld) + platform creator fees (SOL)  │
 │  ├── Strategy lifecycle (register → update → suspend/retire)    │
 │  ├── Hydration gate (only Live strategies receive funding)      │
 │  ├── Phantom bridge: SOL → USDC (fund HL working capital)     │
@@ -396,14 +396,17 @@ Any Solana token project can adopt RTP by enabling `TransferFeeConfig` on their 
 ```
 Token project adopts RTP
   │
-  ├── Enable TransferFeeConfig on mint (immutable)
-  │       └── Every trade → fee (SOL) → Treasury PDA
+  ├── Enable TransferFeeConfig on mint (fee % + withdraw authority immutable)
+  │       └── Every trade → withheld fee → Treasury PDA vault
   │
   ├── pump.fun (most common)
-  │       └── 0.25% PumpSwap fee → 0.05% creator fee (SOL) → Treasury PDA
+  │       └── 0.25% PumpSwap fee → 0.05% creator fee (SOL) → Treasury PDA (one-time redirect)
   │
-  └── Any Solana token
-          └── Custom fee % set at mint → routes to Treasury PDA
+  ├── Bags.fm
+  │       └── Multi-claimer fee sharing → Treasury PDA (updateable anytime)
+  │
+  └── Raydium
+          └── Creator fees → pool_creator wallet → forward to Treasury PDA (manual)
 
 SOL reserves held in treasury PDA. Phantom bridge converts SOL→USDC to fund
 Hyperliquid positions. USDC yield converts back to SOL via Phantom bridge.
@@ -458,7 +461,7 @@ AdopterRecord_A             AdopterRecord_B             AdopterRecord_C
                      │ TOKEN PROJECT TRADING FEES  │
                      │ (pump.fun, or any token)    │
                      └──────────┬─────────────────┘
-                                │ TransferFeeConfig (immutable, SOL)
+                                │ Creator fees (SOL) — platform-dependent routing
                                 ▼
                      ┌──────────▼─────────────────┐
                      │     SOLANA TREASURY PDA     │
@@ -680,7 +683,7 @@ cargo run --bin rtp-daemon
 
 ### Demo Flow (3 minutes)
 
-1. "A token project adopts RTP — TransferFeeConfig set, fees auto-route to the treasury"
+1. "A token project adopts RTP — creator fees (SOL) route to a per-mint treasury PDA"
 2. "This is our night shift — it tested 30,000 strategy configs last night, fully autonomous"
 3. "Here's the best one — +118% PnL, 78% consistency, 9 independent validation folds"
 4. "The Trading Wing proposes deployment — the Audit Wing checks it against the soulcontract"
