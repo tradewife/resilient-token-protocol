@@ -77,6 +77,7 @@ const DOC_GROUPS: DocGroup[] = [
             <h3>Why This Is Different</h3>
             <ul>
               <li><strong>Constitutional governance</strong> — soulcontract enforced in Rust AND on-chain (Anchor program). No one — not even the team — can override the rules. This is not a promise — it&apos;s a <code>require!</code> constraint.</li>
+              <li><strong>Per-token isolation</strong> — every token gets its own Treasury PDA and vault. No shared pool means no honeypot. One token&apos;s bad trade cannot affect another&apos;s reserves. The swarm copy-trades the same validated strategy across all tokens with isolated capital.</li>
               <li><strong>Self-funding economics</strong> — treasury generates its own yield via Hyperliquid perps, with irreversible phase evolution (Sustenance → Ecosystem → Humanity). No VC dependency.</li>
               <li><strong>Proven research engine</strong> — 30,000 strategy configs tested per night, 9-fold walk-forward validation, Darwinian evolution. Not a backtest screenshot — out-of-sample results across 9 independent time windows.</li>
               <li><strong>Real execution</strong> — EIP-712 signed orders from Rust, fills on Hyperliquid testnet, USDC yield deposited to Solana treasury PDA. BUY→fill→SELL→fill→PnL round-trip verified.</li>
@@ -85,9 +86,9 @@ const DOC_GROUPS: DocGroup[] = [
 
             <h3>How It Works</h3>
             <ol>
-              <li><strong>Fees arrive</strong> — trading fees from the token flow to the per-mint treasury vault PDA</li>
-              <li><strong>Swarm trades</strong> — the autonomous swarm executes validated strategies on Hyperliquid (USDC-margined, no SOL liquidation risk)</li>
-              <li><strong>Yield returns</strong> — generated yield flows back to the treasury PDA</li>
+              <li><strong>Fees arrive</strong> — creator fees (SOL) from the token flow to its own per-mint treasury vault PDA — isolated from every other token</li>
+              <li><strong>Swarm trades</strong> — the autonomous swarm executes validated strategies on Hyperliquid (USDC-margined, no SOL liquidation risk). Each token&apos;s capital is traded independently.</li>
+              <li><strong>Yield returns</strong> — generated yield flows back to that token&apos;s own treasury PDA</li>
               <li><strong>Redistribution</strong> — 70% to holders, 20% to project dev, 10% to ecosystem (enforced on-chain)</li>
             </ol>
 
@@ -100,7 +101,7 @@ const DOC_GROUPS: DocGroup[] = [
               <pre style={{ margin: 0, whiteSpace: "pre" }}>{`┌──────────────────────────────────────────────────────┐
 │              ON-CHAIN (Solana / Anchor)               │
 │  Treasury PDA: fees → yield → redistribute           │
-│  8 instructions · PDA-owned · CPI-only transfers      │
+│  14 instructions · PDA-owned · CPI-only transfers     │
 ├──────────────────────────────────────────────────────┤
 │              SWARM RUNTIME (Rust · 307 tests)         │
 │  Coordinator → message bus → 6 wings                  │
@@ -122,6 +123,7 @@ const DOC_GROUPS: DocGroup[] = [
                 ["Who controls funds?", "Multi-sig signers (humans)", "Smart contract (immutable)", "PDA + constitutional agent swarm"],
                 ["Can funds be rug-pulled?", "Yes — signers can approve any tx", "No — but no active yield either", "No — PDA has no private key, agents bounded by on-chain constraints"],
                 ["Who executes yield?", "Manual / no one", "Preset AMM logic", "Autonomous 6-wing swarm with validated strategies"],
+                ["Exploit blast radius?", "All funds in one wallet", "All funds in one contract", "Per-token isolated PDA — one exploit cannot drain all adopters"],
                 ["Trust model", "Trust the signers", "Trust the contract", "Trust the program + audit the agent trail"],
                 ["Adaptation", "None", "None", "Nightly research (30K configs), LLM evolution, memory persistence"],
               ]}
@@ -131,7 +133,7 @@ const DOC_GROUPS: DocGroup[] = [
             <Table
               headers={["Component", "Status", "Detail"]}
               rows={[
-                ["Anchor treasury program", "✅ Deployed (devnet)", "8/8 on-chain steps completed including redistribution"],
+                ["Anchor treasury program", "✅ Deployed (devnet)", "Per-token isolation, 14 instructions, redistribution verified"],
                 ["Rust swarm runtime", "✅ 307 tests passing", "6 wings: Trading, Security, Evolve, Knowledge, Audit, Futureproof"],
                 ["Hyperliquid execution", "✅ Round-trip verified", "BUY→fill→SELL→fill→PnL from Rust, EIP-712 signed"],
                 ["Treasury yield deposit", "✅ On-chain confirmed", "USDC yield → SOL → treasury PDA via CPI transfer"],
@@ -603,9 +605,14 @@ PublicKey.findProgramAddressSync(
             <ul>
               <li><strong>PDA Ownership</strong> — no private key exists. No one can sign funds away from the treasury.</li>
               <li><strong>CPI-Only Transfers</strong> — all token movements are Cross-Program Invocations, atomic and verifiable.</li>
-              <li><strong>Per-Mint Isolation</strong> — each token gets its own treasury, vault, and adopter record.</li>
+              <li><strong>Per-Mint Isolation</strong> — each token gets its own Treasury PDA, vault, and adopter record. Seeds: <code>[&quot;treasury&quot;, mint]</code>. One token&apos;s reserves are invisible to every other token&apos;s PDA.</li>
               <li><strong>Deterministic Derivation</strong> — anyone can derive the PDA from the mint address.</li>
+              <li><strong>No shared pool</strong> — there is no single treasury holding all tokens&apos; fees. Each PDA is its own isolated vault. This eliminates the honeypot risk: exploiting one treasury does not expose any other.</li>
             </ul>
+
+            <Callout type="tip" title="Why Per-Token Isolation Matters">
+              <p>Aggregating many tokens&apos; fees into a shared pool creates a high-value target. Per-token PDAs mean each treasury is independently secured. The swarm copy-trades the same validated strategy across all tokens with isolated capital — same alpha, zero cross-contamination.</p>
+            </Callout>
 
             <h3>Trust Model</h3>
             <h4>Authority-Gated Actions</h4>
@@ -654,6 +661,7 @@ PublicKey.findProgramAddressSync(
 
             <h3>Capital Safety</h3>
             <ul>
+              <li><strong>Per-token isolation</strong> — each token&apos;s fees and yield are in a separate PDA. No cross-contamination between tokens.</li>
               <li><strong>USDC-margined only</strong> — Hyperliquid positions use USDC, not SOL. SOL is never at risk of liquidation.</li>
               <li><strong>Max 20% position size</strong> — no single trade risks more than 20% of treasury reserves</li>
               <li><strong>Fee-only capital</strong> — the swarm only trades with fee revenue, never with user deposits</li>
@@ -755,6 +763,7 @@ PublicKey.findProgramAddressSync(
               headers={["Layer", "Mechanism", "Scope"]}
               rows={[
                 ["On-chain", "Anchor constraints, PDA authority checks", "All fund movements"],
+                ["Isolation", "Per-token Treasury PDA + vault — no shared pool", "Exploit containment"],
                 ["Runtime", "soulguard.rs validates against invariants", "All swarm operations"],
                 ["Execution", "Trading Wing position limits", "Capital deployment"],
                 ["Governance", "soulcontract.md — constitutional invariants", "All protocol changes"],
@@ -764,6 +773,7 @@ PublicKey.findProgramAddressSync(
             <h3>On-Chain Invariants</h3>
             <ol>
               <li><strong>PDA owns treasury</strong> — no private key can sign funds away</li>
+              <li><strong>Per-token isolation</strong> — each mint has its own PDA + vault. No shared pool.</li>
               <li><strong>CPI-only transfers</strong> — all movements are atomic, program-controlled</li>
               <li><strong>Phase transitions irreversible</strong> — Sustenance → Ecosystem → Humanity</li>
               <li><strong>Self-hydration gated</strong> — ops funding only if sustenance &gt; 90-day runway</li>

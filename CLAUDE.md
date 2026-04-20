@@ -243,15 +243,16 @@ is not set, so the mainnet binary remains clean.
 ## Key Invariants (enforced on-chain)
 
 1. **PDA owns treasury** — no private key risk
-2. **SPL TransferFeeConfig immutable from mint** — fees cannot be revoked
-3. **CPI-only transfers** — atomic, verifiable
-4. **Agent proposes, human approves irreversible actions**
-5. **No SOL liquidation** — USDC-only yield flows; Hyperliquid positions are USDC-margined
-6. **Phase transitions irreversible** — Sustenance → Ecosystem → Humanity
-7. **Soulcontract amendments require human signature + 24h monitoring**
-8. **Auto-rollback if performance degrades > 5% post-amendment**
-9. **Self-hydration only if sustenance bucket > 90-day runway**
-10. **Research code remains reviewable while collaboration is active**
+2. **Per-token isolation** — each mint gets its own Treasury PDA + vault, no shared pool, no honeypot
+3. **SPL TransferFeeConfig immutable from mint** — fees cannot be revoked
+4. **CPI-only transfers** — atomic, verifiable
+5. **Agent proposes, human approves irreversible actions**
+6. **No SOL liquidation** — USDC-only yield flows; Hyperliquid positions are USDC-margined
+7. **Phase transitions irreversible** — Sustenance → Ecosystem → Humanity
+8. **Soulcontract amendments require human signature + 24h monitoring**
+9. **Auto-rollback if performance degrades > 5% post-amendment**
+10. **Self-hydration only if sustenance bucket > 90-day runway**
+11. **Research code remains reviewable while collaboration is active**
 
 ## Trust Model — Permissionless Recording, Authority-Gated Actions
 
@@ -312,7 +313,7 @@ If you change anything in `_compute_score()` or `simulate_trades()`, run `evalua
 
 | Symbol | Production PnL | Optimized PnL | Consistency | Trades |
 |--------|---------------|--------------|-------------|--------|
-| SOL/USDT | +36.9% | **+118.3%** | 78% | 429 |
+| SOL/USDT | +36.9% | **+118.3%** | 78% → **100%** (optimized) | 429 |
 | BNB/USDT | +49.6% | — | 67% | 178 |
 | ETH/USDT | +48.1% | — | 78% | 155 |
 | BTC/USDT | +17.5% | — | 67% | 153 |
@@ -332,6 +333,7 @@ This is the config the Trading Wing targets on Hyperliquid.
 - **Devnet loop**: `devnet-loop.yml` — cron every 6h + manual dispatch, runs rtp-daemon, commits cycle output
 - **Binance geo-blocked on GitHub runners** — OHLCV data in `data/ohlcv/`, fetch defaults to `false`
 - **All workflow push/PR triggers currently paused** (workflow_dispatch only) to conserve Actions minutes. Re-enable `swarm-ci.yml` push trigger before May 11 submission for one final green CI run.
+- **Dashboard deployment is manual** — `deploy-dashboard.yml` push triggers are commented out. After merging dashboard changes, run `gh workflow run deploy-dashboard.yml --ref main` to deploy to GitHub Pages (resilientprotocol.xyz). The site does NOT auto-deploy on push.
 
 ---
 

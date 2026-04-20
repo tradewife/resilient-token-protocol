@@ -50,9 +50,9 @@ interface PlatformDef {
 }
 
 const PLATFORMS: PlatformDef[] = [
-  { id: "pumpfun", name: "Pump.fun", color: "#00d18c", desc: "Bonding curve memecoin launch", token: "SPL (bonding curve)" },
-  { id: "bags", name: "Bags.fm", color: "#B8A9E8", desc: "Fee sharing on Meteora DLMM", token: "SPL (Meteora DLMM)" },
-  { id: "raydium", name: "Raydium", color: "#c1a55a", desc: "LaunchLab + CPMM AMM bootstrap", token: "SPL (Raydium AMM)" },
+  { id: "pumpfun", name: "Pump.fun", color: "#00d18c", desc: "Bonding curve memecoin launch (mainnet)", token: "SPL (bonding curve)" },
+  { id: "bags", name: "Bags.fm", color: "#B8A9E8", desc: "Fee sharing on Meteora DLMM (mainnet)", token: "SPL (Meteora DLMM)" },
+  { id: "raydium", name: "Raydium", color: "#c1a55a", desc: "LaunchLab + CPMM AMM bootstrap (mainnet)", token: "SPL (Raydium AMM)" },
 ];
 
 // Types

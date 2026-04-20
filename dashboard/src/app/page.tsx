@@ -32,6 +32,7 @@ const FALLBACK_WINGS = [
 
 const INVARIANTS = [
   "Fee destination is set at mint and cannot be revoked — not by the team, not by anyone. TransferFeeConfig is immutable.",
+  "Every token gets its own treasury PDA — no shared pool, no honeypot. One token's loss cannot affect another's reserves.",
   "An autonomous research engine tests 30,000 strategy configs per night, validates via 9-fold walk-forward analysis, and executes yield strategies on Hyperliquid. Capital returns to holders.",
   "Agents operate within constitutional boundaries enforced by soulguard.rs (Rust) and on-chain require! constraints (Anchor). Irreversible actions require human sign-off.",
   "Three phases — Sustenance → Ecosystem → Humanity. Each transition is irreversible, threshold-gated, and enforced on-chain. No downgrade path exists.",
@@ -428,15 +429,15 @@ export default function Home() {
           fontFamily: "var(--font-mono)", fontSize: "0.75rem", color: "var(--text-secondary)",
         }}>
           {[
-            { label: "Creator Fees", color: "var(--coral)" },
+            { label: "Creator Fees (SOL)", color: "var(--coral)" },
             { label: "→" },
             { label: "Treasury PDA", color: "var(--emerald)" },
             { label: "→" },
             { label: "SOL → USDC", color: "var(--text-tertiary)" },
             { label: "→" },
-            { label: "Phantom Perps", color: "var(--coral)" },
+            { label: "HL Perps", color: "var(--coral)" },
             { label: "→" },
-            { label: "SOL Yield", color: "var(--text-tertiary)" },
+            { label: "USDC → SOL", color: "var(--text-tertiary)" },
             { label: "→" },
             { label: "70/20/10 Split", color: "var(--emerald)" },
           ].map((item, i) => (
@@ -492,9 +493,10 @@ export default function Home() {
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-sm)" }}>
             {[
-              { label: "Anchor program", detail: "14 on-chain instructions — fee collection, 70/20/10 redistribution, strategy lifecycle, phase evolution. Deployed to devnet." },
+              { label: "Anchor program", detail: "14 on-chain instructions — fee collection, 70/20/10 redistribution, strategy lifecycle, phase evolution. Per-token treasury isolation. Deployed to devnet." },
               { label: "Rust swarm runtime", detail: "6 wings (Trading, Security, Evolve, Knowledge, Audit, Futureproof), Coordinator message bus, 307 tests" },
-              { label: "Phantom perps execution", detail: "ETH keypair signs EIP-712 orders on HL testnet. BUY→fill→SELL→fill round-trip verified from Rust." },
+              { label: "Hyperliquid execution", detail: "Phantom MCP bridges SOL↔USDC. EIP-712 signed perps on HL testnet. BUY→fill→SELL→fill round-trip verified from Rust." },
+              { label: "Per-token isolation", detail: "Each token gets its own Treasury PDA + vault. Same strategy, isolated capital. No shared pool — one exploit can't drain all adopters." },
               { label: "TypeScript SDK", detail: "registerWithRTP, fetchTreasuryState, withdrawAndRedistribute, registerAdopterBeta, fetchAdopterState" },
             ].map((item, i) => (
               <div key={i} style={{
@@ -524,7 +526,7 @@ export default function Home() {
               <span className="hiw-num">1</span>
               <div className="hiw-content">
                 <p className="hiw-text">
-                  Token adopts RTP. Creator fees route to a per-mint treasury PDA — the vault address is baked into the mint and cannot be changed.
+                  Token adopts RTP. Creator fees route to a per-mint treasury PDA — each token gets its own isolated vault. No shared pool, no honeypot.
                 </p>
                 <a
                   className="hiw-link"

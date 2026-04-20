@@ -10,15 +10,16 @@ Amendments require a human signature and a 24-hour monitoring window before taki
 ## Constitutional Invariants
 
 1. **PDA owns treasury** — no private key risk. The treasury is controlled exclusively by the program-derived address.
-2. **TransferFeeConfig immutable** — fee configuration cannot be revoked after mint. Token adopters are protected.
-3. **CPI-only transfers** — all on-chain token movements are atomic and verifiable.
-4. **Agent proposes, human approves** — irreversible actions require explicit human sign-off.
-5. **No SOL liquidation** — SOL reserves are never sold on the open market. The Phantom bridge converts SOL↔USDC trustlessly; the treasury never sells SOL to fund operations. Hyperliquid positions are USDC-margined. SOL on the treasury PDA is never at risk of liquidation.
-6. **Phase transitions irreversible** — Sustenance → Ecosystem → Humanity. No downgrade path.
-7. **Soulcontract amendments require human signature + 24h monitoring** — no autonomous self-modification of governance.
-8. **Auto-rollback on degradation** — if performance drops > 5% post-amendment, rollback is automatic.
-9. **Self-hydration gated on runway** — ops funding only if sustenance bucket covers > 90-day runway.
-10. **Strategies remain black-boxed** — the yield brain is a competitive moat; strategy configs and research internals are not exposed on-chain or in public interfaces.
+2. **Per-token isolation** — each adopting mint gets its own Treasury PDA and vault (`seeds: ["treasury", mint]`). No shared pool exists. One token's exploit cannot affect another's reserves.
+3. **TransferFeeConfig immutable** — fee configuration cannot be revoked after mint. Token adopters are protected.
+4. **CPI-only transfers** — all on-chain token movements are atomic and verifiable.
+5. **Agent proposes, human approves** — irreversible actions require explicit human sign-off.
+6. **No SOL liquidation** — SOL reserves are never sold on the open market. The Phantom bridge converts SOL↔USDC trustlessly; the treasury never sells SOL to fund operations. Hyperliquid positions are USDC-margined. SOL on the treasury PDA is never at risk of liquidation.
+7. **Phase transitions irreversible** — Sustenance → Ecosystem → Humanity. No downgrade path.
+8. **Soulcontract amendments require human signature + 24h monitoring** — no autonomous self-modification of governance.
+9. **Auto-rollback on degradation** — if performance drops > 5% post-amendment, rollback is automatic.
+10. **Self-hydration gated on runway** — ops funding only if sustenance bucket covers > 90-day runway.
+11. **Strategies remain black-boxed** — the yield brain is a competitive moat; strategy configs and research internals are not exposed on-chain or in public interfaces.
 
 ---
 
@@ -38,17 +39,17 @@ SOL in → USDC (Phantom bridge) → trade on Hyperliquid → USDC yield → SOL
 
 | Step | Asset | Location | Mechanism |
 |------|-------|----------|-----------|
-| 1. Fees arrive | Token | Treasury vault PDA (Solana) | TransferFeeConfig — per-mint vault receives withheld fees |
+| 1. Fees arrive | SOL | Treasury PDA (Solana) | Platform creator fees (Pump.fun, Bags.fm, Raydium) → treasury PDA |
 | 2. Fund trading | SOL → USDC | Phantom bridge (mainnet) | Trustless swap at oracle price, 0.3% fee |
 | 3. Execute strategies | USDC | HL clearinghouse | USDC-margined perps, EIP-712 signed |
 | 4. Yield returns | USDC → SOL | Phantom bridge (mainnet) | Trustless swap at oracle price |
-| 5. Redistribute | Token | Treasury vault PDA | 70% holders / 20% dev / 10% ecosystem (on-chain) |
+| 5. Redistribute | SOL | Treasury PDA | 70% holders / 20% dev / 10% ecosystem (on-chain) |
 
 ### Why This Model
 
 - **Per-mint isolation**: each adopting token has its own treasury PDA and vault. Judges can verify any token's treasury balance on Solana Explorer.
 - **USDC only in-flight**: Hyperliquid positions are USDC-margined. SOL is never at risk of liquidation on HL.
-- **Trustless conversion**: the Phantom bridge handles SOL↔USDC without custodial risk. The swarm never holds USDC off-chain.
+- **Trustless conversion**: the Phantom MCP handles SOL↔USDC without custodial risk. The swarm never holds USDC off-chain.
 - **Auditable**: every step produces an on-chain signature or API receipt. The full cycle is visible in demo output.
 
 ### Devnet Note
@@ -69,7 +70,7 @@ These apply specifically to the Hyperliquid perps execution path:
 - **USDC-margined only**: no cross-margin, no SOL-margined positions
 - **Soulguard-gated**: every ExecutePermit payload is validated by soulguard.rs before the Hyperliquid API call is made
 - **Audit Wing approval required** for new strategy configs before first live execution
-- **Phantom signing only**: no raw private key usage; all order signing via Phantom Connect agentic wallet flow
+- **Phantom signing in production**: all order signing via Phantom Connect agentic wallet flow. Demo path uses EIP-712 keypair for HL testnet and local keypair for devnet CPI — production path is Phantom MCP exclusively.
 
 ### Strategy Lifecycle Governance (Automated)
 

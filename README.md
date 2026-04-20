@@ -71,10 +71,12 @@ Most "autonomous agent" projects are marketing wrappers around a simple bot. RTP
 
 | Symbol | Production PnL | Optimized PnL | Consistency | Trades |
 |--------|---------------|--------------|-------------|--------|
-| SOL/USDT | +36.9% | **+118.3%** | 78% | 429 |
+| SOL/USDT | +36.9% | **+118.3%** | 78% → **100%** (optimized) | 429 |
 | BNB/USDT | +49.6% | — | 67% | 178 |
 | ETH/USDT | +48.1% | — | 78% | 155 |
 | BTC/USDT | +17.5% | — | 67% | 153 |
+
+*Production = baseline config; Optimized = Survivor 2.69 config (9/9 folds profitable, OOS Sharpe +3.96).*
 
 This is not a backtest screenshot. These are out-of-sample walk-forward results through a fee-aware simulator with 429 real trades across 9 independent time windows.
 
@@ -93,20 +95,20 @@ npm install @resilient-protocol/sdk @solana/web3.js @solana/spl-token @coral-xyz
 ```
 
 ```typescript
-import { createRTPToken } from "@resilient-protocol/sdk";
-import { Connection, Keypair } from "@solana/web3.js";
+import { registerWithRTP } from "@resilient-protocol/sdk";
+import { Connection, Keypair, PublicKey } from "@solana/web3.js";
 
 const connection = new Connection("https://api.devnet.solana.com");
 const payer = Keypair.generate(); // or use a WalletAdapter from @solana/wallet-adapter-react
 
-const result = await createRTPToken(connection, payer, {
+const result = await registerWithRTP(connection, payer, {
+  mint: new PublicKey("YourExistingMintAddress"),
+  platform: "pumpfun",
   name: "Community Token",
   symbol: "CMTY",
-  supply: 1_000_000_000,
-  feeBps: 200,  // 2% transfer fee → treasury vault
 });
 
-// result.mint, result.treasuryPDA, result.vaultPDA
+// result.mint, result.treasuryPDA, result.vaultPDA, result.adopterPDA
 ```
 
 For browser wallets (e.g. Phantom), pass the wallet adapter directly — no keypair needed:
@@ -116,10 +118,10 @@ import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 const { publicKey, signTransaction } = useWallet();
 const { connection } = useConnection();
 
-const result = await createRTPToken(connection, { publicKey, signTransaction }, config);
+const result = await registerWithRTP(connection, { publicKey, signTransaction }, config);
 ```
 
-Three functions — that's the entire SDK: `createRTPToken()`, `fetchTreasuryState()`, `withdrawAndRedistribute()`. See [sdk/README.md](sdk/README.md) for details.
+Core functions: `registerWithRTP()`, `fetchTreasuryState()`, `withdrawAndRedistribute()`, `registerAdopterBeta()`, `fetchAdopterState()`. See [sdk/README.md](sdk/README.md) for details.
 
 ## Live on Devnet
 
@@ -153,6 +155,7 @@ Treasury program deployed and operational on Solana devnet (Apr 11 2026).
 │                                                                 │
 │  Invariants (enforced on-chain):                                │
 │  ├── PDA owns treasury (no private key risk)                    │
+│  ├── Per-token isolation — each mint gets its own PDA + vault   │
 │  ├── SPL TransferFeeConfig (fees immutable from mint)           │
 │  ├── CPI-only transfers (atomic, verifiable)                    │
 │  ├── SOL never liquidated — bridged via Phantom, never sold     │
@@ -407,37 +410,42 @@ Single asset on-chain, trustless conversion, fully auditable.
 
 **Rug-proof by design**: SPL TransferFeeConfig is immutable once minted. PDA owns treasury (no private key). All transfers via CPI (atomic, verifiable). Mint authority renounced post-launch.
 
-### Multi-Token Attribution (Phase 2 Architecture)
+### Per-Token Isolation — No Shared Pool, No Honeypot
 
-RTP is designed to serve multiple token projects simultaneously. Fee attribution
-uses a proportional model: each adopter's share of generated yield equals their
-proportion of total fees contributed to the treasury.
+Every token that adopts RTP gets its **own isolated treasury** — a separate PDA, vault, and adopter record. There is no shared pool. One token's trading loss cannot affect another's reserves.
 
 ```
-AdopterRecord PDA (per token mint)
-seeds: ["adopter", token_mint]
-├── fees_contributed_lamports ← incremented on every fee deposit
-└── deposit_count
-
-Treasury (shared)
-└── total_fees_received_lamports ← sum of all adopter contributions
-
-At redistribution:
-  adopter_yield_share = (fees_contributed / total_fees_received) × yield_pool
-
-TokenA contributed 600 SOL → receives 60% of yield pool
-TokenB contributed 400 SOL → receives 40% of yield pool
-
-Each adopter's yield share is then distributed to that token's holders
-via a balance snapshot at redistribution time.
+Token A adopts RTP          Token B adopts RTP          Token C adopts RTP
+      │                           │                           │
+Treasury PDA_A              Treasury PDA_B              Treasury PDA_C
+Vault PDA_A                 Vault PDA_B                 Vault PDA_C
+AdopterRecord_A             AdopterRecord_B             AdopterRecord_C
+      │                           │                           │
+  SOL fees_A                 SOL fees_B                 SOL fees_C
+      │                           │                           │
+  Swap to USDC_A             Swap to USDC_B             Swap to USDC_C
+      │                           │                           │
+  HL trade (same             HL trade (same             HL trade (same
+  strategy, isolated         strategy, isolated         strategy, isolated
+  capital)                   capital)                   capital)
+      │                           │                           │
+  Yield_A → SOL_A            Yield_B → SOL_B            Yield_C → SOL_C
+      │                           │                           │
+  70/20/10 split_A           70/20/10 split_B           70/20/10 split_C
 ```
 
-**On-chain proof:** `register_adopter` and `record_fee_deposit` instructions
-are live on devnet. The `AdopterRecord` PDA is queryable for any registered
-token mint. See `scripts/compute_adopter_yield_share.ts` for the attribution formula.
+**On-chain proof:** `register_adopter` and `record_fee_deposit` instructions are live on devnet. Each token's `AdopterRecord` PDA (`seeds: ["adopter", token_mint]`) tracks its own fees independently. The `Treasury` PDA (`seeds: ["treasury", mint]`) is per-mint. See `scripts/compute_adopter_yield_share.ts` for the attribution formula.
 
-**Phase 1 (current demo):** Single adopter, single treasury, full redistribution cycle proven on devnet.
-**Phase 2:** Factory pattern — `initialize_vault` per adopter, per-adopter yield isolation.
+**Why isolated treasuries, not a shared pool:**
+- **Exploit isolation** — if one token's strategy fails or is exploited, only that token's treasury is affected. Other tokens are untouched.
+- **No honeypot** — aggregating many tokens' fees into one pool creates a high-value target. Per-token PDAs distribute risk.
+- **Transparent attribution** — each token's yield is directly verifiable on its own PDA via Solana Explorer. No pro-rata math required.
+- **No cross-subsidization** — Token A's losses cannot eat Token B's reserves.
+
+**The swarm copy-trades the same validated strategy across all tokens.** One research engine (Night Shift, 30K configs) discovers the optimal config. One Coordinator dispatches it. Each token's capital executes independently — same strategy, isolated execution. This is the production architecture for multi-token scaling.
+
+**Phase 1 (current demo):** Single adopter, single treasury PDA, full redistribution cycle proven on devnet.
+**Phase 2 (production scaling):** Per-token copy-trading dispatcher — the Trading Wing iterates over all registered adopters, executing the validated strategy for each token's isolated capital.
 
 ## Capital Flow
 
