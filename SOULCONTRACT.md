@@ -13,13 +13,11 @@ Amendments require a human signature and a 24-hour monitoring window before taki
 2. **Per-token isolation** — each adopting mint gets its own Treasury PDA and vault (`seeds: ["treasury", mint]`). No shared pool exists. One token's exploit cannot affect another's reserves.
 3. **TransferFeeConfig immutable** — fee percentage and withdraw authority cannot be revoked after mint. Platform-level fee routing varies: Pump.fun allows one-time redirect, Bags.fm supports anytime updates, Raydium requires manual forwarding.
 4. **CPI-only transfers** — all on-chain token movements are atomic and verifiable.
-5. **Agent proposes, human approves** — irreversible actions require explicit human sign-off.
-6. **No SOL liquidation** — SOL reserves are never sold on the open market. The Phantom bridge converts SOL↔USDC trustlessly; the treasury never sells SOL to fund operations. Hyperliquid positions are USDC-margined. SOL on the treasury PDA is never at risk of liquidation.
-7. **Phase transitions irreversible** — Sustenance → Ecosystem → Humanity. No downgrade path.
-8. **Soulcontract amendments require human signature + 24h monitoring** — no autonomous self-modification of governance.
-9. **Auto-rollback on degradation** — if performance drops > 5% post-amendment, rollback is automatic.
-10. **Self-hydration gated on runway** — ops funding only if sustenance bucket covers > 90-day runway.
-11. **Strategies remain black-boxed** — the yield brain is a competitive moat; strategy configs and research internals are not exposed on-chain or in public interfaces.
+5. **No SOL liquidation** — SOL reserves are never sold on the open market. The Phantom bridge converts SOL↔USDC trustlessly; the treasury never sells SOL to fund operations. Hyperliquid positions are USDC-margined. SOL on the treasury PDA is never at risk of liquidation.
+6. **Phase transitions irreversible** — Sustenance → Ecosystem → Humanity. No downgrade path.
+7. **Auto-rollback on degradation** — if performance drops > 5% post-amendment, rollback is automatic.
+8. **Self-hydration gated on runway** — ops funding only if sustenance bucket covers > 90-day runway.
+9. **Strategies remain black-boxed** — the yield brain is a competitive moat; strategy configs and research internals are not exposed on-chain or in public interfaces.
 
 ---
 

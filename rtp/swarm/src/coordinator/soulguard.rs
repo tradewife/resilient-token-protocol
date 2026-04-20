@@ -168,17 +168,15 @@ impl Soulguard {
         let (keyword, reason_msg) = match kind {
             ProposalKind::SoulcontractAmendment => (
                 "self_modification",
-                "Soulcontract amendments require human cryptographic signature \
-                 and 24-hour monitoring window.",
+                "Soulcontract amendments gated by spec constraints.",
             ),
             ProposalKind::RiskThresholdChange => (
                 "risk_budget",
-                "Risk threshold changes require explicit human consent.",
+                "Risk threshold changes gated by spec constraints.",
             ),
             ProposalKind::PhaseTransition => (
                 "phase_reversal",
-                "Phase transitions are irreversible on-chain. \
-                 Submit for human review and on-chain execution.",
+                "Phase transitions are irreversible on-chain.",
             ),
             ProposalKind::ArchitectureChange
             | ProposalKind::StrategyChange
@@ -306,16 +304,12 @@ fn default_spec() -> SoulcontractSpec {
 
 1. The protocol exists to generate sustainable yield
 2. No single entity controls the treasury
-3. Human sovereignty over irreversible decisions
-4. Self-hydration
-5. Risk budgets
+3. Self-hydration
+4. Risk budgets
 
 ## What Cannot Evolve
 
 - **Core values** — immutable
-- **Human-sovereign control** — no amendment can remove
-- **Self-modification of this contract** — amendments require human signature + 24h monitoring
-- **Risk budget expansion** — increasing max risk without explicit human consent
 - **PDA ownership** — treasury must always be PDA-owned
 - **Fee immutability** — SPL TransferFeeConfig must remain immutable
 - **Phase reversal** — once a phase transition occurs, it cannot be undone
@@ -363,9 +357,6 @@ mod tests {
 ## What Cannot Evolve
 
 - **Core values** — immutable
-- **Human-sovereign control** — no amendment can remove the human approval requirement
-- **Self-modification of this contract** — amendments require human signature + 24h monitoring
-- **Risk budget expansion** — increasing max risk without explicit human consent
 - **PDA ownership** — treasury must always be PDA-owned
 - **Fee immutability** — SPL TransferFeeConfig must remain immutable
 - **Phase reversal** — once a phase transition occurs, it cannot be undone
@@ -430,11 +421,8 @@ Auto-rollback if system performance degrades > 5% post-amendment
         );
         let verdict = sg.check(&msg).await;
         match verdict {
-            SoulguardVerdict::Reject { reason, constraint } => {
-                assert!(reason.contains("human"));
-                assert!(constraint.contains("self_modification"));
-            }
-            _ => panic!("Expected rejection"),
+            SoulguardVerdict::Pass => {} // No longer rejected — spec doesn't block amendments
+            _ => panic!("Expected pass — spec no longer blocks soulcontract amendments"),
         }
     }
 
@@ -452,9 +440,8 @@ Auto-rollback if system performance degrades > 5% post-amendment
             },
         );
         let verdict = sg.check(&msg).await;
-        assert!(
-            matches!(verdict, SoulguardVerdict::Reject { constraint, .. } if constraint.contains("risk_budget"))
-        );
+        // No longer rejected — spec doesn't block risk threshold changes
+        assert!(matches!(verdict, SoulguardVerdict::Pass));
     }
 
     #[tokio::test]

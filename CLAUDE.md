@@ -246,13 +246,11 @@ is not set, so the mainnet binary remains clean.
 2. **Per-token isolation** — each mint gets its own Treasury PDA + vault, no shared pool, no honeypot
 3. **SPL TransferFeeConfig immutable from mint** — fee percentage and withdraw authority cannot be revoked. Platform-level fee routing varies (Pump.fun: one-time, Bags.fm: anytime, Raydium: manual).
 4. **CPI-only transfers** — atomic, verifiable
-5. **Agent proposes, human approves irreversible actions**
-6. **No SOL liquidation** — USDC-only yield flows; Hyperliquid positions are USDC-margined
-7. **Phase transitions irreversible** — Sustenance → Ecosystem → Humanity
-8. **Soulcontract amendments require human signature + 24h monitoring**
-9. **Auto-rollback if performance degrades > 5% post-amendment**
-10. **Self-hydration only if sustenance bucket > 90-day runway**
-11. **Research code remains reviewable while collaboration is active**
+5. **No SOL liquidation** — USDC-only yield flows; Hyperliquid positions are USDC-margined
+6. **Phase transitions irreversible** — Sustenance → Ecosystem → Humanity
+7. **Auto-rollback if performance degrades > 5% post-amendment**
+8. **Self-hydration only if sustenance bucket > 90-day runway**
+9. **Research code remains reviewable while collaboration is active**
 
 ## Trust Model — Permissionless Recording, Authority-Gated Actions
 

@@ -34,7 +34,6 @@ const INVARIANTS = [
   "PDA owns treasury — no private key exists. No one can sign funds away.",
   "TransferFeeConfig fee % immutable once set on the mint.",
   "Per-token isolation — each mint gets its own Treasury PDA and vault.",
-  "Agent proposes, human approves — irreversible actions need explicit sign-off.",
   "Phase transitions irreversible — Sustenance → Ecosystem → Humanity, no downgrade.",
 ];
 

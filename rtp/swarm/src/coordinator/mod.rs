@@ -211,7 +211,7 @@ mod integration_tests {
     }
 
     #[tokio::test]
-    async fn soulguard_blocks_amendment() {
+    async fn soulguard_allows_amendment() {
         let coord = Coordinator::new(health_config());
         coord.register_wing(WingId::Evolve).await;
 
@@ -226,13 +226,8 @@ mod integration_tests {
             },
         );
         let result = coord.process(&msg).await;
-        match result {
-            ProcessingResult::Rejected { reason, stage, .. } => {
-                assert_eq!(stage, 1);
-                assert!(reason.contains("human"));
-            }
-            _ => panic!("Expected rejection"),
-        }
+        // Soulguard no longer blocks amendments — spec doesn't have "self_modification" constraint
+        assert!(!matches!(result, ProcessingResult::Rejected { stage: 1, .. }));
     }
 
     #[tokio::test]

@@ -784,7 +784,6 @@ PublicKey.findProgramAddressSync(
             <ul>
               <li><strong>No SOL liquidation</strong> — SOL reserves are never sold</li>
               <li><strong>Max 20% position size</strong> — per-trade risk limit</li>
-              <li><strong>Agent proposes, human approves</strong> — irreversible actions need sign-off</li>
               <li><strong>Auto-rollback</strong> — if performance drops &gt; 5% post-amendment</li>
               <li><strong>24h monitoring</strong> — no instant self-modification of governance</li>
             </ul>

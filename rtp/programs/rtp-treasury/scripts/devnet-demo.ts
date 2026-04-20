@@ -582,10 +582,10 @@ async function main() {
   console.log(``);
   console.log(`  Invariant checks:`);
   console.log(`    ✅ PDA owns treasury (no private key risk)`);
+  console.log(`    ✅ Per-token isolation — each mint gets its own PDA + vault`);
   console.log(`    ✅ TransferFeeConfig immutable (withdraw authority = PDA)`);
   console.log(`    ✅ CPI-only transfers (atomic, verifiable)`);
-  console.log(`    ✅ Agent proposes, human approves irreversible actions`);
-  console.log(`    ✅ No SOL liquidation (token-only flows)`);
+  console.log(`    ✅ No SOL liquidation (USDC-only yield flows)`);
   console.log(`    ✅ Phase transitions require threshold + authority`);
   console.log(`    ✅ Self-hydration enforces 90-day runway floor`);
   console.log(``);
