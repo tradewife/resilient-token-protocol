@@ -31,11 +31,11 @@ const FALLBACK_WINGS = [
 ];
 
 const INVARIANTS = [
-  "TransferFeeConfig is immutable once set on the mint — the fee percentage and withdraw authority cannot be revoked. Platform fee routing varies: Pump.fun (one-time redirect), Bags.fm (anytime), Raydium (manual forward).",
-  "Every token gets its own treasury PDA — no shared pool, no honeypot. One token's loss cannot affect another's reserves.",
-  "An autonomous research engine tests 30,000 strategy configs per night, validates via 9-fold walk-forward analysis, and executes yield strategies on Hyperliquid. Capital returns to holders.",
-  "Agents operate within constitutional boundaries enforced by soulguard.rs (Rust) and on-chain require! constraints (Anchor). Irreversible actions require human sign-off.",
-  "Three phases — Sustenance → Ecosystem → Humanity. Each transition is irreversible, threshold-gated, and enforced on-chain. No downgrade path exists.",
+  "PDA owns treasury — no private key exists. No one can sign funds away.",
+  "TransferFeeConfig fee % immutable once set on the mint.",
+  "Per-token isolation — each mint gets its own Treasury PDA and vault.",
+  "Agent proposes, human approves — irreversible actions need explicit sign-off.",
+  "Phase transitions irreversible — Sustenance → Ecosystem → Humanity, no downgrade.",
 ];
 
 interface CycleData {
@@ -526,7 +526,7 @@ export default function Home() {
               <span className="hiw-num">1</span>
               <div className="hiw-content">
                 <p className="hiw-text">
-                  Token adopts RTP. Creator fees route to a per-mint treasury PDA — each token gets its own isolated vault. No shared pool, no honeypot.
+                  Token adopts RTP. Creator fees (SOL) route to a per-mint treasury PDA — each token gets its own isolated vault. TransferFeeConfig fee % is immutable. No shared pool, no honeypot.
                 </p>
                 <a
                   className="hiw-link"
@@ -542,7 +542,7 @@ export default function Home() {
               <span className="hiw-num">2</span>
               <div className="hiw-content">
                 <p className="hiw-text">
-                  The Python research layer tests 30K strategy configs overnight, validates survivors via 9-fold walk-forward, and hands the best config to the Rust Trading Wing.
+                  The research engine tests 30,000 strategy configs per night, validates survivors via 9-fold walk-forward analysis. Best survivor: +118% PnL, 100% consistency (9/9 folds).
                 </p>
                 <Link
                   className="hiw-link"
@@ -556,7 +556,15 @@ export default function Home() {
               <span className="hiw-num">3</span>
               <div className="hiw-content">
                 <p className="hiw-text">
-                  The Trading Wing signs a perps order on Phantom (EIP-712). If it fills, USDC yield converts back to SOL and deposits to the treasury PDA. The Anchor program then splits it 70/20/10 — on-chain, no discretion.
+                  The Trading Wing swaps SOL to USDC via Phantom MCP, then executes the validated strategy on Hyperliquid (USDC-margined, 20% max position). Soulguard enforces constitutional constraints before every trade.
+                </p>
+              </div>
+            </div>
+            <div className="hiw-step">
+              <span className="hiw-num">4</span>
+              <div className="hiw-content">
+                <p className="hiw-text">
+                  USDC yield converts back to SOL, deposits to the treasury PDA. The Anchor program splits it 70% holders / 20% dev / 10% ecosystem — on-chain, deterministic, no discretion.
                 </p>
                 <a
                   className="hiw-link"
