@@ -284,79 +284,79 @@ export default function Home() {
         </div>
 
         <div className="hero-content">
-          <span className="hero-label">SOLANA-NATIVE · AUTONOMOUS YIELD · ON-CHAIN ENFORCED</span>
-          <h1 className="hero-title">
-            Every token gets a
-            <br />
-            program-enforced treasury
-          </h1>
-          <p className="hero-subtitle" style={{ maxWidth: 600, color: "var(--fg2, #aaa)", fontSize: "0.95rem", lineHeight: 1.6, margin: "0.5rem 0 0" }}>
-            Transfer fees compound. An autonomous swarm generates yield on Hyperliquid.
-            Returns flow to holders — 70/20/10 split, enforced on-chain. No RTP token. Pure infrastructure.
-          </p>
-
-          <div className="hero-balance">
-            <span className="hero-balance-value">{tBal} SOL</span>
-            <span className="hero-balance-label">
-              TREASURY VAULT · FNQbK1...otF
-            </span>
+          <div className="hero-copy">
+            <span className="hero-label">SOLANA-NATIVE · AUTONOMOUS YIELD · ON-CHAIN ENFORCED</span>
+            <h1 className="hero-title">
+              Every token gets a
+              <br />
+              program-enforced treasury
+            </h1>
+            <p className="hero-subtitle">
+              Creator fees don't sit idle. A swarm of agents trades them into yield, and distributes returns to holders — automatically, verifiably, forever. No RTP token. Pure infrastructure.
+            </p>
           </div>
 
-          <div className="hero-metrics">
-            <div className="metric">
-              <span className="metric-value accent">307</span>
-              <span className="metric-label">Tests Passing</span>
-            </div>
-            <div className="metric">
-              <span className="metric-value accent">{cycleCount}</span>
-              <span className="metric-label">Autonomous Cycles</span>
-            </div>
-            <div className="metric">
-              <span className="metric-value accent">{cycle?.memory_file_count ?? memory?.fileCount ?? 14}</span>
-              <span className="metric-label">Memory Files</span>
-            </div>
-            <div className="metric">
-              <span className="metric-value">+118%</span>
-              <span className="metric-label">Validated PnL</span>
-            </div>
-          </div>
-
-          {/* CTA row */}
-          <div style={{ display: "flex", gap: "var(--space-md)", marginTop: "var(--space-sm)" }}>
-            <Link href="/launch" style={{
-              display: "inline-flex", alignItems: "center", gap: 6,
-              background: "var(--coral)", color: "#fff", borderRadius: 6,
-              padding: "10px 20px", fontSize: "0.875rem", fontWeight: 500,
-              textDecoration: "none", transition: "opacity 0.15s",
-            }}>
-              Try it live →
-            </Link>
-            <Link href="/docs" style={{
-              display: "inline-flex", alignItems: "center", gap: 6,
-              background: "var(--surface-2)", color: "var(--text-secondary)", borderRadius: 6,
-              padding: "10px 20px", fontSize: "0.875rem", fontWeight: 500,
-              textDecoration: "none", border: "1px solid var(--border)",
-              transition: "border-color 0.15s",
-            }}>
-              Read the docs
-            </Link>
-          </div>
-
-          {connected && publicKey && (
-            <div className="hero-yield">
-              {yieldLoading ? (
-                <span className="yield-text">Scanning treasury transactions...</span>
-              ) : yieldReceived !== null && yieldReceived > 0 ? (
-                <span className="yield-text">
-                  You have received <strong>{yieldReceived.toFixed(4)} SOL</strong> from RTP
+          <div className="hero-balance-block">
+            <div className="hero-balance">
+              <span className="hero-balance-value">{tBal} SOL</span>
+              <div className="hero-balance-row">
+                <span className="hero-balance-label">
+                  TREASURY VAULT · FNQbK1...otF
                 </span>
-              ) : yieldReceived !== null ? (
-                <span className="yield-text">No yield received yet — treasury is compounding</span>
-              ) : (
-                <span className="yield-text">Could not fetch yield data</span>
-              )}
+
+                <div className="hero-actions">
+                  <Link href="/launch" style={{
+                    display: "inline-flex", alignItems: "center", gap: 6,
+                    background: "var(--coral)", color: "#fff", borderRadius: 6,
+                    padding: "10px 20px", fontSize: "0.875rem", fontWeight: 500,
+                    textDecoration: "none", transition: "opacity 0.15s",
+                  }}>
+                    Try it live →
+                  </Link>
+                  <Link href="/docs" style={{
+                    display: "inline-flex", alignItems: "center", gap: 6,
+                    background: "var(--surface-2)", color: "var(--text-secondary)", borderRadius: 6,
+                    padding: "10px 20px", fontSize: "0.875rem", fontWeight: 500,
+                    textDecoration: "none", border: "1px solid var(--border)",
+                    transition: "border-color 0.15s",
+                  }}>
+                    Read the docs
+                  </Link>
+                </div>
+              </div>
             </div>
-          )}
+
+            {connected && publicKey && (yieldLoading || (yieldReceived !== null && yieldReceived > 0)) && (
+              <div className="hero-yield">
+                {yieldLoading ? (
+                  <span className="yield-text">Scanning treasury transactions...</span>
+                ) : (
+                  <span className="yield-text">
+                    You have received <strong>{yieldReceived?.toFixed(4)} SOL</strong> from RTP
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="hero-metrics">
+          <div className="metric">
+            <span className="metric-value accent">307</span>
+            <span className="metric-label">Tests Passing</span>
+          </div>
+          <div className="metric">
+            <span className="metric-value accent">{cycleCount}</span>
+            <span className="metric-label">Autonomous Cycles</span>
+          </div>
+          <div className="metric">
+            <span className="metric-value accent">{cycle?.memory_file_count ?? memory?.fileCount ?? 14}</span>
+            <span className="metric-label">Memory Files</span>
+          </div>
+          <div className="metric">
+            <span className="metric-value">+118%</span>
+            <span className="metric-label">Validated PnL</span>
+          </div>
         </div>
       </section>
 
@@ -428,15 +428,15 @@ export default function Home() {
           fontFamily: "var(--font-mono)", fontSize: "0.75rem", color: "var(--text-secondary)",
         }}>
           {[
-            { label: "Transfer Fees", color: "var(--coral)" },
+            { label: "Creator Fees", color: "var(--coral)" },
             { label: "→" },
             { label: "Treasury PDA", color: "var(--emerald)" },
             { label: "→" },
             { label: "SOL → USDC", color: "var(--text-tertiary)" },
             { label: "→" },
-            { label: "Hyperliquid Perps", color: "var(--coral)" },
+            { label: "Phantom Perps", color: "var(--coral)" },
             { label: "→" },
-            { label: "USDC Yield", color: "var(--text-tertiary)" },
+            { label: "SOL Yield", color: "var(--text-tertiary)" },
             { label: "→" },
             { label: "70/20/10 Split", color: "var(--emerald)" },
           ].map((item, i) => (
@@ -492,11 +492,10 @@ export default function Home() {
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-sm)" }}>
             {[
-              { label: "Anchor program", detail: "8 on-chain instructions, PDA-owned treasury, deployed to devnet" },
-              { label: "Rust swarm runtime", detail: "6-wing architecture, Coordinator message bus, 307 tests passing" },
-              { label: "Hyperliquid execution", detail: "EIP-712 signed orders, BUY→fill→SELL→fill round-trip verified" },
-              { label: "Phantom integration", detail: "MCP agent wallet for swaps + bridging, Connect SDK for dashboard" },
-              { label: "TypeScript SDK", detail: "registerWithRTP, fetchTreasuryState, withdrawAndRedistribute" },
+              { label: "Anchor program", detail: "14 on-chain instructions — fee collection, 70/20/10 redistribution, strategy lifecycle, phase evolution. Deployed to devnet." },
+              { label: "Rust swarm runtime", detail: "6 wings (Trading, Security, Evolve, Knowledge, Audit, Futureproof), Coordinator message bus, 307 tests" },
+              { label: "Phantom perps execution", detail: "ETH keypair signs EIP-712 orders on HL testnet. BUY→fill→SELL→fill round-trip verified from Rust." },
+              { label: "TypeScript SDK", detail: "registerWithRTP, fetchTreasuryState, withdrawAndRedistribute, registerAdopterBeta, fetchAdopterState" },
             ].map((item, i) => (
               <div key={i} style={{
                 padding: "var(--space-sm) var(--space-md)",
@@ -525,7 +524,7 @@ export default function Home() {
               <span className="hiw-num">1</span>
               <div className="hiw-content">
                 <p className="hiw-text">
-                  Token adopts RTP → fees route to treasury PDA (immutable TransferFeeConfig)
+                  Token adopts RTP. Creator fees route to a per-mint treasury PDA — the vault address is baked into the mint and cannot be changed.
                 </p>
                 <a
                   className="hiw-link"
@@ -541,7 +540,7 @@ export default function Home() {
               <span className="hiw-num">2</span>
               <div className="hiw-content">
                 <p className="hiw-text">
-                  Swarm researches overnight (30K configs, 9-fold walk-forward) → validates → proposes strategy
+                  The Python research layer tests 30K strategy configs overnight, validates survivors via 9-fold walk-forward, and hands the best config to the Rust Trading Wing.
                 </p>
                 <Link
                   className="hiw-link"
@@ -555,7 +554,7 @@ export default function Home() {
               <span className="hiw-num">3</span>
               <div className="hiw-content">
                 <p className="hiw-text">
-                  Treasury enforces redistribution (70% holders / 20% dev / 10% ecosystem) → yields compound forever
+                  The Trading Wing signs a perps order on Phantom (EIP-712). If it fills, USDC yield converts back to SOL and deposits to the treasury PDA. The Anchor program then splits it 70/20/10 — on-chain, no discretion.
                 </p>
                 <a
                   className="hiw-link"
@@ -623,13 +622,7 @@ export default function Home() {
         >
           Solana Explorer ↗
         </a>
-        <span style={{
-          fontSize: "0.625rem", fontWeight: 500, letterSpacing: "0.08em", textTransform: "uppercase",
-          color: "var(--emerald)", background: "oklch(20% 0.04 160)",
-          padding: "3px 8px", borderRadius: 3,
-        }}>
-          Phantom Sponsored
-        </span>
+
       </footer>
     </div>
   );
