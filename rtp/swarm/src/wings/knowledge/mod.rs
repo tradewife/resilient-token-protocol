@@ -9,12 +9,14 @@ use crate::types::{Message, Payload, WingId};
 use chrono::Utc;
 use std::collections::HashMap;
 use std::sync::Mutex;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::MutexGuard;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 /// Lock the store mutex, logging a warning if it was poisoned by a previous panic.
 /// Returns `None` only if the lock cannot be acquired at all (should never happen).
-fn lock_store<'a>(mtx: &'a Mutex<HashMap<String, KnowledgeEntry>>) -> Option<MutexGuard<'a, HashMap<String, KnowledgeEntry>>> {
+fn lock_store<'a>(
+    mtx: &'a Mutex<HashMap<String, KnowledgeEntry>>,
+) -> Option<MutexGuard<'a, HashMap<String, KnowledgeEntry>>> {
     match mtx.lock() {
         Ok(guard) => Some(guard),
         Err(poisoned) => {

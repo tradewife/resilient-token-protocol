@@ -85,6 +85,26 @@ skills-lock.json
 .factory/
 .goose/
 
+# --- Dashboard build artifacts ---
+dashboard/.next/
+dashboard/out/
+dashboard/.source/
+dashboard/tsconfig.tsbuildinfo
+
+# --- Dashboard favicon duplicates (use public/ only) ---
+dashboard/favicon-*.png
+dashboard/favicon.svg
+dashboard/favicon.ico
+
+# --- Session/conversation dumps ---
+codex-session.jsonl
+hermes_conversation_*.json
+HANDOFF.md
+
+# --- Anchor test artifacts ---
+rtp/programs/rtp-treasury/test-ledger/
+rtp/programs/rtp-treasury/.anchor/
+
 # --- Demo outputs ---
 demo_output_*.txt
 

@@ -1,7 +1,7 @@
 //! RTP Swarm — Two-Cycle Demo Binary (covers all 5 judge points).
 //! Run with: cargo run --bin rtp-demo
 
-use rtp_swarm::demo::{print_two_cycle_demo, run_two_cycle_demo, run_mcp_bridge_demo};
+use rtp_swarm::demo::{print_two_cycle_demo, run_mcp_bridge_demo, run_two_cycle_demo};
 
 #[tokio::main]
 async fn main() {

@@ -116,7 +116,11 @@ impl PhantomMcpClient {
         Err("MCP server closed stdout".to_string())
     }
 
-    fn rpc_request(&mut self, method: &str, params: serde_json::Value) -> Result<serde_json::Value, String> {
+    fn rpc_request(
+        &mut self,
+        method: &str,
+        params: serde_json::Value,
+    ) -> Result<serde_json::Value, String> {
         let id = self.next_id();
         let msg = serde_json::json!({
             "jsonrpc": "2.0",

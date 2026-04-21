@@ -542,7 +542,11 @@ pub fn run_mcp_bridge_demo(sol_amount: f64) -> Result<serde_json::Value, String>
     println!("[MCP BRIDGE DEMO] Complete. Summary:");
     if let Some(obj) = result.as_object() {
         for (k, v) in obj {
-            println!("  {}: {}", k, serde_json::to_string_pretty(v).unwrap_or_default());
+            println!(
+                "  {}: {}",
+                k,
+                serde_json::to_string_pretty(v).unwrap_or_default()
+            );
         }
     }
     println!("════════════════════════════════════════════════════════");

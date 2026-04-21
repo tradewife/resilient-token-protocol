@@ -227,7 +227,10 @@ mod integration_tests {
         );
         let result = coord.process(&msg).await;
         // Soulguard no longer blocks amendments — spec doesn't have "self_modification" constraint
-        assert!(!matches!(result, ProcessingResult::Rejected { stage: 1, .. }));
+        assert!(!matches!(
+            result,
+            ProcessingResult::Rejected { stage: 1, .. }
+        ));
     }
 
     #[tokio::test]

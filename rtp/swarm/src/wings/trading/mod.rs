@@ -7,13 +7,13 @@
 
 use crate::bridge::{self, BridgeRequest};
 use crate::types::{Message, Payload, WingId};
-pub mod types;
 pub mod phantom_mcp;
-pub use types::{HlKeyFile, HlSignature, PositionState, StrategyConfig, YieldReportData};
+pub mod types;
 pub use phantom_mcp::PhantomMcpClient;
 use solana_sdk::signer::Signer;
 use std::sync::Mutex;
 use std::sync::MutexGuard;
+pub use types::{HlKeyFile, HlSignature, PositionState, StrategyConfig, YieldReportData};
 
 /// Lock a mutex, logging a warning if poisoned by a previous panic, then recovering.
 fn lock_state<'a>(mtx: &'a Mutex<TradingState>) -> Option<MutexGuard<'a, TradingState>> {
@@ -292,9 +292,17 @@ pub fn get_sol_index() -> Result<i64, String> {
         .map_err(|e| format!("HL info request failed: {}", e))?;
 
     let status = resp.status();
-    let body = resp.text().map_err(|e| format!("HL info body read error: {}", e))?;
-    let data: serde_json::Value = serde_json::from_str(&body)
-        .map_err(|e| format!("HL info parse error (status {}): {} — body: {}", status, e, &body[..body.len().min(200)]))?;
+    let body = resp
+        .text()
+        .map_err(|e| format!("HL info body read error: {}", e))?;
+    let data: serde_json::Value = serde_json::from_str(&body).map_err(|e| {
+        format!(
+            "HL info parse error (status {}): {} — body: {}",
+            status,
+            e,
+            &body[..body.len().min(200)]
+        )
+    })?;
 
     let universe = data[0]["universe"]
         .as_array()
@@ -322,9 +330,17 @@ pub fn get_sol_mid_price() -> Result<f64, String> {
         .map_err(|e| format!("HL info request failed: {}", e))?;
 
     let status = resp.status();
-    let body = resp.text().map_err(|e| format!("HL info body read error: {}", e))?;
-    let data: serde_json::Value = serde_json::from_str(&body)
-        .map_err(|e| format!("HL info parse error (status {}): {} — body: {}", status, e, &body[..body.len().min(200)]))?;
+    let body = resp
+        .text()
+        .map_err(|e| format!("HL info body read error: {}", e))?;
+    let data: serde_json::Value = serde_json::from_str(&body).map_err(|e| {
+        format!(
+            "HL info parse error (status {}): {} — body: {}",
+            status,
+            e,
+            &body[..body.len().min(200)]
+        )
+    })?;
 
     let universe = data[0]["universe"]
         .as_array()
@@ -1058,10 +1074,7 @@ pub fn deposit_sol_yield_to_treasury(
     phantom_wallet_address: Option<&str>,
 ) -> Result<String, String> {
     if usdc_pnl <= 0.0 {
-        return Err(format!(
-            "Cannot deposit non-positive yield: {}",
-            usdc_pnl
-        ));
+        return Err(format!("Cannot deposit non-positive yield: {}", usdc_pnl));
     }
     if sol_price_usdc <= 0.0 {
         return Err(format!(
@@ -1343,7 +1356,8 @@ impl TradingWing {
                             // Step 1: Quote swap SOL → USDC.
                             match mcp.quote_sol_to_usdc(mcp_sol) {
                                 Ok(quote) => {
-                                    let buy_usdc: f64 = quote.buy_amount.parse().unwrap_or(0.0) / 1_000_000.0;
+                                    let buy_usdc: f64 =
+                                        quote.buy_amount.parse().unwrap_or(0.0) / 1_000_000.0;
                                     println!(
                                         "[MCP BRIDGE] Swap quote: {:.4} SOL → {:.4} USDC (impact {:.4}%)",
                                         mcp_sol,
@@ -1367,7 +1381,10 @@ impl TradingWing {
                                     );
                                 }
                                 Err(e) => {
-                                    println!("[MCP BRIDGE] HL deposit quote failed (non-fatal): {}", e);
+                                    println!(
+                                        "[MCP BRIDGE] HL deposit quote failed (non-fatal): {}",
+                                        e
+                                    );
                                 }
                             }
 
@@ -1380,7 +1397,10 @@ impl TradingWing {
                                     );
                                 }
                                 Err(e) => {
-                                    println!("[MCP BRIDGE] HL account check failed (non-fatal): {}", e);
+                                    println!(
+                                        "[MCP BRIDGE] HL account check failed (non-fatal): {}",
+                                        e
+                                    );
                                 }
                             }
                         }
@@ -1568,7 +1588,9 @@ impl TradingWing {
 
     /// Get the current execution count.
     pub fn execution_count(&self) -> u64 {
-        lock_state(&self.state).map(|s| s.execution_count).unwrap_or(0)
+        lock_state(&self.state)
+            .map(|s| s.execution_count)
+            .unwrap_or(0)
     }
 
     /// Check if the wing has a stored proposal.
@@ -1628,8 +1650,7 @@ impl TradingWing {
 
     /// Get the entry price of an open position, if one exists.
     pub fn get_entry_price(&self, symbol: &str) -> Option<f64> {
-        lock_state(&self.state)
-            .and_then(|s| s.open_positions.get(symbol).map(|p| p.entry_price))
+        lock_state(&self.state).and_then(|s| s.open_positions.get(symbol).map(|p| p.entry_price))
     }
 }
 
@@ -2701,11 +2722,9 @@ mod tests {
         let result = build_sol_transfer_tx(DEVNET_WALLET, lamports);
         match result {
             Ok(b64) => {
-                let decoded = base64::Engine::decode(
-                    &base64::engine::general_purpose::STANDARD,
-                    &b64,
-                )
-                .unwrap();
+                let decoded =
+                    base64::Engine::decode(&base64::engine::general_purpose::STANDARD, &b64)
+                        .unwrap();
                 let tx: solana_sdk::transaction::Transaction =
                     bincode::deserialize(&decoded).unwrap();
                 assert_eq!(tx.message.instructions.len(), 1);
