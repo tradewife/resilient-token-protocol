@@ -12,17 +12,8 @@ import "@solana/wallet-adapter-react-ui/styles.css";
 const RPC_ENDPOINT = "https://api.mainnet-beta.solana.com";
 
 function AutoConnectHandler({ children }: { children: React.ReactNode }) {
-  const { wallet, connected, connect } = useWallet();
-
-  // When a wallet is selected from the modal, connect immediately.
-  // This replaces `autoConnect` which fires on page load and fails
-  // when no prior wallet is cached, leaving the adapter in a bad state.
-  useEffect(() => {
-    if (wallet && !connected) {
-      connect().catch(() => {});
-    }
-  }, [wallet]);
-
+  // No auto-connect on page load. The user must click "Connect Wallet" explicitly.
+  // Previous auto-connect caused Phantom to redirect/open on every page visit.
   return <>{children}</>;
 }
 
