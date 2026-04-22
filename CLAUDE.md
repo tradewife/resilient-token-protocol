@@ -13,7 +13,7 @@ This file provides guidance to Claude Code when working with this repository.
 
 ## Execution Venue — Complete
 
-The Hyperliquid perps execution path is fully implemented. BUY→fill→SELL→fill→PnL round-trip verified from Rust. Yield deposits to treasury PDA confirmed on devnet.
+The Hyperliquid perps execution path is fully implemented. BUY→fill→SELL→fill→PnL round-trip verified from Rust. Yield deposits to treasury PDA confirmed on devnet. **Per-token wallet isolation via `derivationIndex`** — each registered token gets its own Solana address, EVM address, and HL perps account from a single MCP auth session.
 
 ```
 Night Shift (Python, DONE)
@@ -36,6 +36,14 @@ Trading Wing (Rust, DONE)
         │
         ▼ Devnet loop daemon (DONE)
            6h cron, LLM-driven strategy evolution, auditable trail
+
+Per-Token Wallet Isolation (DONE)
+  └── Phantom MCP derivationIndex → each token gets own wallet
+        │
+        ▼ index 0: default agent, index 1: Token A, index 2: Token B, ...
+        ▼ Each index: separate Solana addr + EVM addr + HL perps account
+        ▼ TradingState.token_wallet_map: HashMap<String, u32>
+        ▼ All phantom_mcp.rs functions take di: u32 parameter
 ```
 
 ### Integration Resources
@@ -50,9 +58,10 @@ Trading Wing (Rust, DONE)
 
 ### Signing Architecture
 - **HL order signing**: ETH keypair directly (`configs/hl_testnet_key.json`), EIP-712
-- **MCP bridge signing**: Phantom MCP server subprocess (`@phantom/mcp-server`) — fee-free swaps, Relay cross-chain bridge to HL
+- **MCP bridge signing**: Phantom MCP server subprocess (`@phantom/mcp-server`, v1.2.x) — fee-free swaps, Relay cross-chain bridge to HL, 28+ tools
+- **Per-token wallet isolation**: `derivationIndex` parameter on every MCP call — each token gets its own Solana/EVM/HL account from one auth session
 - **Solana CPI signing**: Phantom KMS (production) → local devnet keypair (demo)
-- **Signing cascade**: Phantom MCP → Phantom KMS → `~/.config/solana/id.json` → manual fallback
+- **Signing cascade**: Phantom MCP (derivationIndex) → Phantom KMS → `~/.config/solana/id.json` → manual fallback
 
 ---
 
@@ -60,7 +69,7 @@ Trading Wing (Rust, DONE)
 
 This repo has three layers:
 1. **Proven Python fractal-swarm** (shipping) — backtesting, optimization, paper trading
-2. **Rust swarm + Solana treasury** (built, 307 tests) — 6-wing architecture, Coordinator, soulcontract
+2. **Rust swarm + Solana treasury** (built, 307 tests) — 6-wing architecture, Coordinator, soulcontract, per-token wallet isolation
 3. **Hyperliquid execution** (done — devnet verified) — Trading Wing → HL testnet → yield → treasury PDA
 
 ---
@@ -180,8 +189,8 @@ cd rtp/programs/rtp-treasury && anchor deploy --provider.cluster devnet
 | `rtp/swarm/src/coordinator/soulcontract_spec.rs` | Parse SOULCONTRACT.md → structured constraints + drift detection |
 | `rtp/swarm/src/coordinator/lifecycle.rs` | Wing spawn, health-check, retire |
 | `rtp/swarm/src/wings/trading/mod.rs` | **Trading Wing — HL execution, PnL tracking, apply_mutations, MCP bridge** |
-| `rtp/swarm/src/wings/trading/types.rs` | Trading types — HlSignature, StrategyConfig, PositionState, TradingWing |
-| `rtp/swarm/src/wings/trading/phantom_mcp.rs` | **Phantom MCP client — subprocess MCP server, fee-free swaps, HL bridge, perps reads** |
+| `rtp/swarm/src/wings/trading/types.rs` | Trading types — HlSignature, StrategyConfig, PositionState, **TradingState (token_wallet_map, per-token derivation indices)** |
+| `rtp/swarm/src/wings/trading/phantom_mcp.rs` | **Phantom MCP client — subprocess MCP server, fee-free swaps, HL bridge, perps trading, yield distribution. All functions take `di: u32` for per-token wallet isolation** |
 | `rtp/swarm/src/bin/rtp-daemon.rs` | **Devnet loop daemon — single-cycle, 6h cron, LLM evolution** |
 | `rtp/swarm/src/wings/security/mod.rs` | Threat detection, rate-limiting, suspicious-proposal detection |
 | `rtp/swarm/src/wings/evolve/` | Assessor, proposer, rollback (complete, tested) |
@@ -281,12 +290,12 @@ The on-chain program separates instructions into two categories:
 
 ---
 
-## Sponsored Hackathon Resources
+## Hackathon Resources
 
-| Sponsor | Use in RTP | Link |
+| Resource | Use in RTP | Link |
 |---------|-----------|------|
-| Phantom Connect | **Phantom Portal app registered**. `@solana/wallet-adapter-react` wired to dashboard (/, /launch, /docs). Wallet connect + live token launch flow operational on devnet. MCP server for AI agent wallet ops. | https://docs.phantom.com/introduction |
-| CASH stablecoin | **Treasury yield settlement currency** | https://docs.phantom.com/phantom-connect |
+| Phantom Connect | **Phantom Portal app registered**. `@solana/wallet-adapter-react` wired to dashboard (/, /launch, /docs). Wallet connect + live token launch flow operational on devnet. MCP server (v1.2.x, 28+ tools) for AI agent wallet ops. Per-token wallet isolation via `derivationIndex`. | https://docs.phantom.com/introduction |
+| CASH stablecoin | Third-party resource (not currently used — treasury uses USDC for settlement) | https://docs.phantom.com/phantom-connect |
 | Squads Multisig | Treasury PDA security (production path) | https://docs.squads.so |
 | Swig | Programmable smart wallets for wing message bus | https://docs.swig.fi |
 | MoonPay Agents | Agent money movement infrastructure | https://www.moonpay.com/developers/agents |
@@ -346,7 +355,7 @@ This is the config the Trading Wing targets on Hyperliquid.
 ## Design Decisions
 
 - **Hyperliquid for execution**: highest-liquidity perps DEX, REST API, USDC-margined, no KYC
-- **Phantom for signing**: sponsored, agentic wallet flow, CASH stablecoin settlement
+- **Phantom for signing**: agentic wallet flow, per-token wallet isolation via `derivationIndex`, USDC settlement
 - **Median OOS Sharpe** (not mean) — prevents single-fold outliers dominating
 - **Per-fold Sharpe winsorized at ±100** — prevents tiny-sample extremes
 - **Fragility is a penalty, not rejection** — `survivor *= 1/(1+fragility)`

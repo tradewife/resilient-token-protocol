@@ -5,6 +5,7 @@
 //! and position tracking.
 
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 //  Hyperliquid Signing Types
 
@@ -101,5 +102,57 @@ impl PositionState {
             "SELL" => (self.entry_price - close_price) * close_size,
             _ => 0.0,
         }
+    }
+}
+
+//  Per-Token Wallet Mapping
+
+/// In-memory trading state for the Trading Wing.
+///
+/// Tracks per-token derivation indices for Phantom MCP wallet isolation.
+/// Each registered token gets its own `derivationIndex` — yielding a
+/// separate Solana address, EVM address, and Hyperliquid account.
+///
+/// Index 0 is the default agent wallet. Tokens are assigned 1, 2, 3, ...
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TradingState {
+    /// Maps token mint (base58) → Phantom derivation index.
+    pub token_wallet_map: HashMap<String, u32>,
+    /// Next available derivation index for a new token.
+    pub next_derivation_index: u32,
+    /// Last proposal received by the wing.
+    pub last_proposal: Option<serde_json::Value>,
+    /// Execution count.
+    pub execution_count: u64,
+    /// Open positions by symbol.
+    pub open_positions: HashMap<String, PositionState>,
+}
+
+impl Default for TradingState {
+    fn default() -> Self {
+        Self {
+            token_wallet_map: HashMap::new(),
+            next_derivation_index: 1, // 0 is the default agent wallet
+            last_proposal: None,
+            execution_count: 0,
+            open_positions: HashMap::new(),
+        }
+    }
+}
+
+impl TradingState {
+    /// Assign a derivation index for a new token mint.
+    /// Returns the assigned index and increments the counter.
+    pub fn assign_derivation_index(&mut self, mint: &str) -> u32 {
+        let di = self.next_derivation_index;
+        self.token_wallet_map.insert(mint.to_string(), di);
+        self.next_derivation_index += 1;
+        di
+    }
+
+    /// Look up the derivation index for a token mint.
+    /// Returns 0 (default wallet) if not found.
+    pub fn derivation_index_for(&self, mint: &str) -> u32 {
+        self.token_wallet_map.get(mint).copied().unwrap_or(0)
     }
 }

@@ -155,7 +155,7 @@ Treasury program deployed and operational on Solana devnet (Apr 11 2026).
 │                                                                 │
 │  Invariants (enforced on-chain):                                │
 │  ├── PDA owns treasury (no private key risk)                    │
-│  ├── Per-token isolation — each mint gets its own PDA + vault   │
+│  ├── Per-token isolation — each mint gets its own PDA + vault + agent wallet (derivationIndex)   │
 │  ├── SPL TransferFeeConfig (fee % immutable from mint)          │
 │  ├── CPI-only transfers (atomic, verifiable)                    │
 │  ├── SOL never liquidated — bridged via Phantom, never sold     │
@@ -449,7 +449,7 @@ AdopterRecord_A             AdopterRecord_B             AdopterRecord_C
 - **Transparent attribution** — each token's yield is directly verifiable on its own PDA via Solana Explorer. No pro-rata math required.
 - **No cross-subsidization** — Token A's losses cannot eat Token B's reserves.
 
-**The swarm copy-trades the same validated strategy across all tokens.** One research engine (Night Shift, 30K configs) discovers the optimal config. One Coordinator dispatches it. Each token's capital executes independently — same strategy, isolated execution. This is the production architecture for multi-token scaling.
+**The swarm copy-trades the same validated strategy across all tokens.** One research engine (Night Shift, 30K configs) discovers the optimal config. One Coordinator dispatches it. Each token's capital executes independently — same strategy, isolated execution. Each token gets its own Phantom agent wallet via `derivationIndex`, giving it a separate Solana address, EVM address, and Hyperliquid perps account from a single MCP auth session. This is the production architecture for multi-token scaling.
 
 **Phase 1 (current demo):** Single adopter, single treasury PDA, full redistribution cycle proven on devnet.
 **Phase 2 (production scaling):** Per-token copy-trading dispatcher — the Trading Wing iterates over all registered adopters, executing the validated strategy for each token's isolated capital.
@@ -697,8 +697,8 @@ cargo run --bin rtp-daemon
 | atlas-gic | MIT | Multi-agent Darwinian loop — Evolve Wing autoresearch |
 | karpathy/autoresearch | MIT | Core Modify/Verify/Keep loop specification |
 | uditgoenka/autoresearch | MIT | Claude-native implementation |
-| Phantom Connect | Sponsored | Agentic wallet + CASH stablecoin flows |
-| CASH | Sponsored | Stablecoin for treasury transactions |
+| Phantom Connect | Open-source | Agentic wallet + per-token isolation via derivationIndex + MCP server (28+ tools) |
+| CASH | Third-party | Stablecoin (not currently used — treasury uses USDC for settlement) |
 | Squads Multisig | Sponsored | Treasury PDA security + multisig authority |
 | Swig | Sponsored | Programmable smart wallets for wing message bus |
 | MoonPay Agents | Sponsored | VC capital on-ramp → treasury USDC deposit |

@@ -23,6 +23,7 @@ RTP is a memory-persistent, self-coordinating, self-improving agent system whose
 - The Python research layer (Night Shift) runs 30K configs/night, 9-fold WFA, Darwinian evolution — validated strategies are handed to the Rust Trading Wing via bridge.rs.
 - The Trading Wing executes validated strategies as **perpetuals trades on Hyperliquid**, signed via Phantom MCP agent wallet (EVM for HL EIP-712, Solana for CPI).
 - **Capital flow**: SOL in → Phantom MCP swap → USDC on HL → yield → Phantom MCP swap → SOL back to treasury PDA. Single asset on-chain, USDC only in-flight.
+- **Per-token wallet isolation**: Each registered token gets its own Phantom MCP wallet via `derivationIndex` — separate Solana address, EVM address, and HL perps account. One MCP auth session supports unlimited per-token wallets. `TradingState.token_wallet_map: HashMap<String, u32>` tracks the mapping.
 - The redistribution split (70/20/10) is enforced on-chain.
 - The swarm accumulates memory, distills strategy knowledge, and improves over repeated market cycles.
 - Core claim: agent operations are bounded by on-chain invariants, fully auditable, and designed for token survival over time.
@@ -45,24 +46,24 @@ The execution path is **fully implemented**. BUY→fill→SELL→fill→PnL roun
 - Rust SDK (community): https://github.com/hyperliquid-dex/hyperliquid-rust-sdk
 
 ### Why Phantom
-- Sponsored hackathon resource: https://docs.phantom.com/introduction
-- **Phantom MCP Server (`@phantom/mcp-server`)** — gives the AI trading agent a dedicated Phantom wallet with 28 tools.
+- Phantom Connect: https://docs.phantom.com/introduction
+- **Phantom MCP Server (`@phantom/mcp-server`)** — gives the AI trading agent a dedicated Phantom wallet with 28+ tools.
   - Device-code auth (browser sign-in) — no Portal app ID or API keys needed
   - Agent gets its own wallet — separate from personal wallet, funded independently
   - Session persisted at `~/.phantom-mcp/session.json`
-  - **Agent wallet addresses (authenticated Apr 18):**
-    - Solana: `AxRWo1N4xjyUN3fbmRpUVwP4WQcEPakdECThyx93CxkR`
-    - Ethereum: `0xc1c3b483ec26f5aece1aa25b74de5180fd6dbff8` (used for HL EIP-712 signing)
-    - Bitcoin: `bc1qqcy88s30k05q0j2l4x4xzvl2usda6ruhvlq4sd`
-    - Sui: `0x9e204a740df615d83b5f1da1f4d5caa47e2fcc36abacf972da6109f08b4ae22a`
-  - Key MCP tools for RTP: `buy` (SOL↔USDC swap, fee-free), `perps_deposit` (bridge to HL), `perps_open`, `perps_close`, `perps_withdraw`, `wallet_balances`
-  - 28 tools total (discovered via tools/list). Tool names: `buy`, `wallet_addresses`, `perps_deposit`, `perps_withdraw`, `perps_account`, `perps_positions`, `perps_orders`, `perps_markets`, `perps_open`, `perps_close`, `perps_leverage`, `perps_transfer`, etc.
-  - **Phantom MCP Rust client** (`phantom_mcp.rs`): starts `@phantom/mcp-server` as subprocess, JSON-RPC over stdio. Provides `quote_sol_to_usdc()`, `swap_sol_to_usdc()`, `quote_deposit_to_hl()`, `deposit_to_hl()`, `withdraw_from_hl()`, `get_perps_account()`, `get_perps_positions()`.
+  - **Per-token wallet isolation via `derivationIndex`:**
+    - Index 0: `AxRWo1N4xjyUN3fbmRpUVwP4WQcEPakdECThyx93CxkR` (Solana) / `0xc1c3b483ec26f5aece1aa25b74de5180fd6dbff8` (EVM) — default agent
+    - Index 1: `GZa8CuVmdHjbdZQtLzcz7t8LLUqV7sBZXPtnPqz6Q2FP` (Solana) / `0x5f5da29713bf8e02d8ffe554b0f47bb63ba11066` (EVM) — Token A
+    - Index 2: `QBM7XE3bN9TQ4FeKXJAtFxgDKUn9VkQeJ4UkcH84BSq` (Solana) / `0xb7eb912322b8f24ec41daea12cd78ac282ea8849` (EVM) — Token B
+    - Same walletId, same organizationId, different addresses on every chain
+  - Key MCP tools for RTP: `buy` (SOL↔USDC swap, fee-free), `perps_deposit` (bridge to HL), `perps_open`, `perps_close`, `perps_withdraw`, `wallet_balances`, `transfer` (yield distribution)
+  - 28+ tools total. Tool names: `buy`, `wallet_addresses`, `perps_deposit`, `perps_withdraw`, `perps_account`, `perps_positions`, `perps_orders`, `perps_markets`, `perps_open`, `perps_close`, `perps_leverage`, `perps_transfer`, `transfer`, `simulate`, `evm_send`, `solana_send`, etc.
+  - **Phantom MCP Rust client** (`phantom_mcp.rs`): starts `@phantom/mcp-server` as subprocess, JSON-RPC over stdio. Every function takes `di: u32` (derivation index) parameter. Provides swap, bridge, perps trading, balance queries, yield distribution — all per-token isolated.
   - Replaces `scripts/phantom_signer.ts` (was based on `@phantom/server-sdk`, now obsolete)
 - **Phantom Connect SDK** — for the dashboard's browser extension wallet connection.
   - Portal App ID: `2fbef7dc-7975-4378-ba2b-ff8018ad2325` (registered at https://phantom.app/portal)
   - Dashboard uses `@solana/wallet-adapter-react` + Phantom adapter — works today
-- CASH stablecoin (sponsored) is the settlement currency for treasury yield flows
+- CASH stablecoin (sponsored) — not currently used. Treasury uses USDC for settlement.
 
 ### Execution Flow (target state for demo)
 ```
@@ -73,17 +74,21 @@ Night Shift (Python)
 Trading Wing (Rust)
   └── ExecutePermit payload
         │
-        ▼ Phantom MCP: swap SOL → USDC (fee-free)
+        ▼ Look up token's derivation index (token_wallet_map)
         │
-        ▼ Phantom MCP: deposit USDC to Hyperliquid
+        ▼ Phantom MCP(di): swap SOL → USDC (fee-free)
         │
-        ▼ Phantom MCP: open_perp_position (SOL/USDT)
+        ▼ Phantom MCP(di): deposit USDC to Hyperliquid
         │
-        ▼ Phantom MCP: close_perp_position (take profit)
+        ▼ Phantom MCP(di): open_perp_position (SOL/USDT)
         │
-        ▼ Phantom MCP: withdraw USDC from Hyperliquid
+        ▼ Phantom MCP(di): close_perp_position (take profit)
         │
-        ▼ Phantom MCP: swap USDC → SOL (fee-free)
+        ▼ Phantom MCP(di): withdraw USDC from Hyperliquid
+        │
+        ▼ Phantom MCP(di): swap USDC → SOL (fee-free)
+        │
+        ▼ Phantom MCP(di): transfer SOL to dev/holders/ecosystem
         │
         ▼ deposit_sol_yield_to_treasury() → Treasury PDA (Solana)
         │
@@ -147,8 +152,8 @@ These are not proposals. They are decisions made. Do not relitigate them unless 
 
 ### Execution Venue (decided)
 - **Perps:** Hyperliquid (REST API, USDC-margined)
-- **Signing:** Phantom Connect (agentic wallet, sponsored)
-- **Settlement:** CASH stablecoin (sponsored) for treasury yield flows
+- **Signing:** Phantom Connect (agentic wallet, per-token derivationIndex)
+- **Settlement:** USDC for treasury yield flows (CASH is a sponsored resource but not currently integrated)
 - **On-chain:** Solana devnet treasury PDA receives yield via CPI transfer
 
 ---
@@ -263,21 +268,25 @@ State as of Apr 18:
 | MCP bridge in ExecutePermit | `trading/mod.rs` | New `execution_venue: "phantom_mcp"` triggers MCP bridge before HL trading |
 | `mcp_bridge_flow()` | `trading/mod.rs` | Standalone function: swap quote → deposit quote → account check |
 | `run_mcp_bridge_demo()` | `demo.rs` | MCP bridge demo step in rtp-demo binary |
-| MCP config with Portal App ID | `~/.factory/mcp.json` | `PHANTOM_APP_ID=2fbef7dc-...` added to env |
+| MCP config with Portal App ID | `~/.factory/mcp.json` | `PHANTOM_APP_ID=2fbef7dc-...` added to env (later removed — MCP doesn't use it) |
 
 **MCP tools status (this session):**
 
 | Tool | Status | Notes |
 |------|--------|-------|
-| `buy` (swap) | ✅ Quotes work | 3 routes: OKX, Jupiter, DFlow. Fee-free. Execution needs mainnet SOL. |
+| `buy` (swap) | ✅ Quotes work | 3 routes: OKX, Jupiter, DFlow. Fee-free. All functions take `di: u32` for per-token isolation. |
 | `perps_deposit` (bridge) | ✅ Quotes work | 0.5 SOL → ~43 USDC via Relay. Execution needs mainnet SOL. |
-| `wallet_addresses` | ✅ Works | Returns all chain addresses |
+| `wallet_addresses` | ✅ Works | Returns all chain addresses per derivationIndex |
 | `wallet_balances` | ✅ Works | Token balances with USD prices |
 | `perps_account` | ✅ Works | HL account balance (0.0 unfunded) |
 | `perps_positions` | ✅ Works | Open positions (empty) |
 | `perps_orders` | ✅ Works | Open orders (empty) |
 | `perps_markets` | ❌ 403 | `invalid_client` — server-side issue |
 | `perps_open/close/leverage` | ❌ 403 | Same server-side issue |
+| `transfer` | ✅ Wrapper built | Rust wrapper for yield distribution |
+| `perps_transfer` (spot→perps) | ✅ Wrapper built | Rust wrapper for moving USDC |
+| `simulate` | ✅ Wrapper built | Rust wrapper for tx simulation |
+| `evm_send` / `solana_send` | ✅ Wrapper built | Rust wrappers for chain-specific txs |
 
 **Known issue:** Perps write operations return 403 `invalid_client`. This is a server-side MCP configuration issue. HL trading via Rust EIP-712 (testnet) continues to work. MCP handles bridging, EIP-712 handles trading.
 
@@ -659,7 +668,7 @@ State as of Apr 11:
 
 **Architecture discovery (from RESOURCES.md):**
 - Phantom × Hyperliquid native perps: SOL → HL in single Solana tx, no bridge, no EVM wallet
-- Phantom MCP Server v0.2.4: 13 tools (swap, sign, manage addresses)
+- Phantom MCP Server v1.2.x: 28+ tools (swap, sign, perps trading, yield distribution, balance queries)
 - This means: yield stays on Solana, no cross-chain bridging needed
 - Dependencies added: `reqwest` (rustls-tls), `sha3`, `secp256k1`, `rmp`, `rmp-serde`
 
@@ -750,7 +759,7 @@ State as of Apr 11:
 | Hyperliquid Python SDK | https://github.com/hyperliquid-dex/hyperliquid-python-sdk |
 | Hyperliquid Rust SDK | https://github.com/hyperliquid-dex/hyperliquid-rust-sdk |
 | Phantom Connect docs | https://docs.phantom.app/phantom-connect/introduction |
-| CASH stablecoin | https://docs.phantom.app/phantom-connect/cash |
+| CASH stablecoin | https://docs.phantom.com/phantom-connect/cash (sponsored, not currently used — USDC for settlement) |
 | Squads Multisig | https://docs.squads.so |
 | Swig smart wallets | https://docs.swig.fi |
 | MoonPay Agents | https://www.moonpay.com/developers/agents |
@@ -794,7 +803,7 @@ Memory layer       = institutional memory (learns across cycles)
 Evaluator          = survival objective   (defines success)
 Heartbeat          = rhythm & triggers    (CORAL-style coordination)
 Hyperliquid        = execution venue      (where yield is generated)
-Phantom            = signing layer        (agentic wallet, sponsored)
+Phantom            = signing layer        (agentic wallet, per-token derivationIndex)
 Demo               = proof the institution persists without founder trust
 ```
 
@@ -871,5 +880,36 @@ State as of Apr 18:
 
 ---
 
-*Last updated: 2026-04-21 (Documentation audit: 9 inconsistencies fixed. Per-token isolation architecture documented across all surfaces. SOULCONTRACT capital flow corrected to SOL. 307/311 tests, 0 failures. Next: fund mainnet wallet, demo rehearsal, Colosseum registration.)*
-*Update this file after each session that changes canonical decisions or resolves open decisions.*
+**Session 2026-04-22 — Per-Token Wallet Isolation via derivationIndex**
+
+State as of Apr 22:
+- **307 Rust tests (311 with devnet feature), 0 failures**
+- **Per-token Phantom wallet isolation implemented via derivationIndex**
+- Demo-Readiness Score: 9.5/10
+
+**Per-token wallet isolation (this session):**
+
+| Change | File | Detail |
+|--------|------|--------|
+| All MCP functions take `di: u32` | `phantom_mcp.rs` | Every function injects `"derivationIndex": di` into MCP tool calls. Per-token wallet isolation from a single auth session. |
+| 10 new MCP tool wrappers | `phantom_mcp.rs` | `transfer_spot_to_perps()`, `open_perp_position()`, `close_perp_position()`, `cancel_perp_order()`, `update_perp_leverage()`, `get_token_balances()`, `get_perp_orders()`, `get_perp_trade_history()`, `transfer_tokens()`, `send_solana_transaction()` |
+| `TradingState` struct | `trading/types.rs` | `token_wallet_map: HashMap<String, u32>`, `next_derivation_index: u32`, `register_token()`, `get_derivation_index()` |
+| Updated MCP callers | `trading/mod.rs` | `mcp_bridge_flow()` and inline MCP bridge both pass `di` (defaulting to 0 with TODO for per-token lookup) |
+| Removed `PHANTOM_APP_ID` | `phantom_mcp.rs` | MCP doesn't use it — was dead code |
+
+**Verified: derivationIndex gives separate wallets:**
+| Index | Solana | EVM |
+|-------|--------|-----|
+| 0 | `AxRWo1N4xjyUN3fbmRpUVwP4WQcEPakdECThyx93CxkR` | `0xc1c3b483ec26f5aece1aa25b74de5180fd6dbff8` |
+| 1 | `GZa8CuVmdHjbdZQtLzcz7t8LLUqV7sBZXPtnPqz6Q2FP` | `0x5f5da29713bf8e02d8ffe554b0f47bb63ba11066` |
+| 2 | `QBM7XE3bN9TQ4FeKXJAtFxgDKUn9VkQeJ4UkcH84BSq` | `0xb7eb912322b8f24ec41daea12cd78ac282ea8849` |
+
+**Next session priority:**
+1. Live test: fund index 1 wallet, run full swap→deposit→trade loop
+2. Wire `token_wallet_map` into the execute_permit path (currently hardcoded `di: 0`)
+3. Persist `TradingState` across daemon restarts (swarm memory or on-chain)
+4. Demo rehearsal with per-token isolation visible in output
+
+---
+
+*Last updated: 2026-04-22 (Per-token wallet isolation via derivationIndex. 307/311 tests, 0 failures. phantom_mcp.rs: 28+ tool wrappers, all with di param. TradingState.token_wallet_map added. Next: live test, wire di lookup, persist state.)*

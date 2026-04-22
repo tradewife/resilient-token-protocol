@@ -1197,9 +1197,10 @@ pub fn devnet_fund_from_hl_oracle(sol_amount: f64) -> Result<f64, String> {
 /// `execute: true` in the MCP tool calls (funded wallet needed).
 pub fn mcp_bridge_flow(sol_amount: f64) -> Result<serde_json::Value, String> {
     let mut mcp = phantom_mcp::PhantomMcpClient::new()?;
+    let di = 0; // TODO: look up per-token derivation index from state
 
     // Step 1: Quote swap SOL → USDC.
-    let swap = mcp.quote_sol_to_usdc(sol_amount)?;
+    let swap = mcp.quote_sol_to_usdc(sol_amount, di)?;
     let buy_usdc_raw: f64 = swap.buy_amount.parse().unwrap_or(0.0);
     let buy_usdc = buy_usdc_raw / 1_000_000.0; // USDC has 6 decimals
     println!(
@@ -1210,7 +1211,7 @@ pub fn mcp_bridge_flow(sol_amount: f64) -> Result<serde_json::Value, String> {
     );
 
     // Step 2: Quote deposit to HL.
-    let deposit = mcp.quote_deposit_to_hl(sol_amount)?;
+    let deposit = mcp.quote_deposit_to_hl(sol_amount, di)?;
     let hl_usdc_raw: f64 = deposit.buy_amount_usdc.parse().unwrap_or(0.0);
     let hl_usdc = hl_usdc_raw / 100_000_000.0; // HL USDC has 8 decimals
     println!(
@@ -1219,14 +1220,14 @@ pub fn mcp_bridge_flow(sol_amount: f64) -> Result<serde_json::Value, String> {
     );
 
     // Step 3: Check HL account.
-    let account = mcp.get_perps_account()?;
+    let account = mcp.get_perps_account(di)?;
     println!(
         "[MCP BRIDGE] Step 3 — HL account: value={}, available={}",
         account.account_value, account.available_balance
     );
 
     // Step 4: Check positions.
-    let positions = mcp.get_perps_positions()?;
+    let positions = mcp.get_perps_positions(di)?;
     let pos_count = positions.as_array().map(|a| a.len()).unwrap_or(0);
     println!("[MCP BRIDGE] Step 4 — Open positions: {}", pos_count);
 
@@ -1353,8 +1354,10 @@ impl TradingWing {
 
                     match phantom_mcp::PhantomMcpClient::new() {
                         Ok(mut mcp) => {
+                            // TODO: derive di from token_wallet_map for this token's mint
+                            let mcp_di: u32 = 0;
                             // Step 1: Quote swap SOL → USDC.
-                            match mcp.quote_sol_to_usdc(mcp_sol) {
+                            match mcp.quote_sol_to_usdc(mcp_sol, mcp_di) {
                                 Ok(quote) => {
                                     let buy_usdc: f64 =
                                         quote.buy_amount.parse().unwrap_or(0.0) / 1_000_000.0;
@@ -1371,7 +1374,7 @@ impl TradingWing {
                             }
 
                             // Step 2: Quote deposit to HL via Relay.
-                            match mcp.quote_deposit_to_hl(mcp_sol) {
+                            match mcp.quote_deposit_to_hl(mcp_sol, mcp_di) {
                                 Ok(dep) => {
                                     let usdc: f64 =
                                         dep.buy_amount_usdc.parse().unwrap_or(0.0) / 100_000_000.0;
@@ -1389,7 +1392,7 @@ impl TradingWing {
                             }
 
                             // Step 3: Check HL perps account.
-                            match mcp.get_perps_account() {
+                            match mcp.get_perps_account(mcp_di) {
                                 Ok(acct) => {
                                     println!(
                                         "[MCP BRIDGE] HL perps account: value={}, available={}",

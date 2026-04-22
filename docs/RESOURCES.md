@@ -29,18 +29,19 @@ Extracted from BUILD_PLAN v2.2. Keep this file updated as new tools are integrat
 
 ---
 
-## Sponsored Hackathon Tools
+## Hackathon Tools & Integrations
 
 ### Phantom Connect + CASH + MCP
 - Docs: https://docs.phantom.com/phantom-connect
 - Get Started: https://phantom.app/phantom-connect
 - React Template: https://github.com/phantom-labs/phantom-connect-react
 - JS Template: https://github.com/phantom-labs/phantom-connect-js
-- CASH stablecoin: https://phantom.app/cash
-- **Phantom MCP Server** (v0.2.4, 13 tools — swap, sign, manage addresses): https://help.phantom.com/hc/en-us/articles/49235725504147
+- CASH stablecoin: https://phantom.app/cash (third-party, not currently used — treasury uses USDC)
+- **Phantom MCP Server** (v1.2.x, 28+ tools — swap, sign, perps trading, yield distribution, balance queries): https://help.phantom.com/hc/en-us/articles/49235725504147
 - MCP changelog: https://docs.phantom.com/updates
 - **Phantom × Hyperliquid native perps** (UI feature only — NOT a programmatic API):
   https://unchainedcrypto.com/phantom-wallet-launches-direct-perpetual-trading-with-hyperliquid/
+- **Per-token wallet isolation**: `derivationIndex` parameter gives each token its own wallet (Solana + EVM + HL account) from a single MCP auth session. Verified live with 3 separate indices.
 
 > **RTP integration note (corrected Apr 11):** Phantom × HL native perps is a wallet UI feature,
 > not a programmatic API. RTP's Hyperliquid execution uses an ETH keypair + EIP-712 signing
@@ -48,6 +49,8 @@ Extracted from BUILD_PLAN v2.2. Keep this file updated as new tools are integrat
 > Phantom's role in RTP is Solana treasury signing (CPI transfer), not HL trading.
 > For the devnet demo, a local keypair signs the treasury deposit tx. The signing cascade:
 > Phantom KMS (production) → local devnet keypair (demo) → manual submission (fallback).
+
+### Colosseum Sponsored Tools
 
 ### Squads Multisig
 - Docs: https://docs.squads.so
@@ -131,7 +134,7 @@ Extracted from BUILD_PLAN v2.2. Keep this file updated as new tools are integrat
 |---|---|
 | Phantom × HL native perps for execution | UI feature only, not a programmatic API. HL execution uses ETH keypair + EIP-712 in `trading/mod.rs` directly. |
 | Hyperliquid via Arbitrum bridge | Not needed — HL testnet API is accessed directly via REST. No bridge or EVM wallet needed for programmatic orders. |
-| Phantom MCP for treasury signing | Deferred. Production KMS path via Phantom Portal. Demo uses local devnet keypair for signing. |
+| Phantom MCP for treasury signing | Partially implemented — MCP handles swaps, bridge, perps, yield distribution. Treasury CPI signing still uses local devnet keypair for demo. Production KMS path via Phantom Portal. |
 | World Coin | Toxic sentiment — skip entirely |
 | Privy | Not yet available |
 | Coinbase | Not yet available |

@@ -37,11 +37,11 @@
 - **9-fold** walk-forward validation
 - **8/8** on-chain steps completed including live redistribution
 
-## Sponsor Integrations
+## Integrations
 
-| Sponsor | Integration |
-|---------|------------|
-| Phantom Connect | Browser wallet connection (dashboard), Solana CPI signing path |
+| Integration | Use |
+|------------|-----|
+| Phantom Connect | Browser wallet connection (dashboard), MCP agent wallet with per-token derivationIndex |
 | Hyperliquid | Perps execution via EIP-712 signed orders from Rust |
 | Solana | Treasury PDA, Anchor program, Token-2022 TransferFeeConfig |
 

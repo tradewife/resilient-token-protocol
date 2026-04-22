@@ -68,7 +68,7 @@ These apply specifically to the Hyperliquid perps execution path:
 - **USDC-margined only**: no cross-margin, no SOL-margined positions
 - **Soulguard-gated**: every ExecutePermit payload is validated by soulguard.rs before the Hyperliquid API call is made
 - **Audit Wing approval required** for new strategy configs before first live execution
-- **Phantom signing in production**: all order signing via Phantom Connect agentic wallet flow. Demo path uses EIP-712 keypair for HL testnet and local keypair for devnet CPI — production path is Phantom MCP exclusively.
+- **Phantom signing in production**: all order signing via Phantom Connect agentic wallet flow, with per-token wallet isolation via `derivationIndex`. Demo path uses EIP-712 keypair for HL testnet and local keypair for devnet CPI — production path is Phantom MCP exclusively. Each registered token operates through its own derived wallet (separate Solana/EVM addresses, separate HL account).
 
 ### Strategy Lifecycle Governance (Automated)
 

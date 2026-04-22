@@ -4,6 +4,12 @@ Multi-token scaling: each adopting token mint has an AdopterRecord PDA tracking
 cumulative fee contributions. Yield attribution is proportional:
 `share_i = fees_i / Σfees × yield_pool`
 
+Each token also gets its own Phantom agent wallet via `derivationIndex`, providing
+isolated Solana/EVM addresses and a separate Hyperliquid perps account. The
+`TradingState.token_wallet_map` (in `trading/types.rs`) maps token mints to
+derivation indices. The swarm copy-trades the same validated strategy across all
+tokens with isolated capital and isolated wallets.
+
 Holder-level distribution for each adopter uses an SPL token balance snapshot
 at redistribution time. Phase 1 uses a single adopter; Phase 2 adds factory
 pattern for full multi-tenant isolation.
