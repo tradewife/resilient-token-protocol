@@ -129,26 +129,24 @@ impl SoulcontractSpec {
                         evolvable_items.push(item.to_string());
                     }
                 }
-                "Phase Evolution" => {
-                    if in_table && trimmed.starts_with('|') {
-                        let cells: Vec<&str> = trimmed
-                            .split('|')
-                            .map(|c| c.trim())
-                            .filter(|c| !c.is_empty() && !c.starts_with("---"))
-                            .collect();
-                        if cells.len() >= 3 {
-                            let threshold = cells[1]
-                                .replace(['$', 'k', ',', '<', '>'], "")
-                                .trim()
-                                .parse::<f64>()
-                                .unwrap_or(0.0);
-                            phases.push(PhaseRule {
-                                name: cells[0].to_string(),
-                                threshold_usd: threshold
-                                    * if cells[1].contains("k") { 1_000.0 } else { 1.0 },
-                                description: cells.get(2).unwrap_or(&"").to_string(),
-                            });
-                        }
+                "Phase Evolution" if in_table && trimmed.starts_with('|') => {
+                    let cells: Vec<&str> = trimmed
+                        .split('|')
+                        .map(|c| c.trim())
+                        .filter(|c| !c.is_empty() && !c.starts_with("---"))
+                        .collect();
+                    if cells.len() >= 3 {
+                        let threshold = cells[1]
+                            .replace(['$', 'k', ',', '<', '>'], "")
+                            .trim()
+                            .parse::<f64>()
+                            .unwrap_or(0.0);
+                        phases.push(PhaseRule {
+                            name: cells[0].to_string(),
+                            threshold_usd: threshold
+                                * if cells[1].contains("k") { 1_000.0 } else { 1.0 },
+                            description: cells.get(2).unwrap_or(&"").to_string(),
+                        });
                     }
                 }
                 _ => {}
