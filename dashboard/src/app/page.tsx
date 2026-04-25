@@ -566,32 +566,34 @@ export default function Home() {
                   <p className="hiw-text">
                     USDC yield converts back to SOL, deposits to the treasury PDA. The Anchor program splits it 70% holders / 20% dev / 10% ecosystem — on-chain, deterministic, no discretion.
                   </p>
-                  <a
-                    className="hiw-link"
-                    href="https://explorer.solana.com/tx/9HzWgBfwYxs5ModdjF5mT6gdTfayQq8mMYipopyHfGPmYqk6KESHFqgDrc9Mcie573ttcdPqMHSyJP5nNBKK3bR?cluster=devnet"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    View redistribution tx ↗
-                  </a>
-                  <div className="hero-actions" style={{ marginTop: "var(--space-md)" }}>
-                    <Link href="/launch" style={{
-                      display: "inline-flex", alignItems: "center", gap: 6,
-                      background: "var(--coral)", color: "#fff", borderRadius: 6,
-                      padding: "10px 20px", fontSize: "0.875rem", fontWeight: 500,
-                      textDecoration: "none", transition: "opacity 0.15s",
-                    }}>
-                      Try it live →
-                    </Link>
-                    <Link href="/docs" style={{
-                      display: "inline-flex", alignItems: "center", gap: 6,
-                      background: "var(--surface-2)", color: "var(--text-secondary)", borderRadius: 6,
-                      padding: "10px 20px", fontSize: "0.875rem", fontWeight: 500,
-                      textDecoration: "none", border: "1px solid var(--border)",
-                      transition: "border-color 0.15s",
-                    }}>
-                      Read the docs
-                    </Link>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "var(--space-sm)" }}>
+                    <a
+                      className="hiw-link"
+                      href="https://explorer.solana.com/tx/9HzWgBfwYxs5ModdjF5mT6gdTfayQq8mMYipopyHfGPmYqk6KESHFqgDrc9Mcie573ttcdPqMHSyJP5nNBKK3bR?cluster=devnet"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      View redistribution tx ↗
+                    </a>
+                    <div className="hero-actions">
+                      <Link href="/launch" style={{
+                        display: "inline-flex", alignItems: "center", gap: 6,
+                        background: "var(--coral)", color: "#fff", borderRadius: 6,
+                        padding: "10px 20px", fontSize: "0.875rem", fontWeight: 500,
+                        textDecoration: "none", transition: "opacity 0.15s",
+                      }}>
+                        Try it live →
+                      </Link>
+                      <Link href="/docs" style={{
+                        display: "inline-flex", alignItems: "center", gap: 6,
+                        background: "var(--surface-2)", color: "var(--text-secondary)", borderRadius: 6,
+                        padding: "10px 20px", fontSize: "0.875rem", fontWeight: 500,
+                        textDecoration: "none", border: "1px solid var(--border)",
+                        transition: "border-color 0.15s",
+                      }}>
+                        Read the docs
+                      </Link>
+                    </div>
                   </div>
                 </div>
               </div>
