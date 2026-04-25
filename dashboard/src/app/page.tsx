@@ -574,28 +574,27 @@ export default function Home() {
                   >
                     View redistribution tx ↗
                   </a>
+                  <div className="hero-actions" style={{ marginTop: "var(--space-md)" }}>
+                    <Link href="/launch" style={{
+                      display: "inline-flex", alignItems: "center", gap: 6,
+                      background: "var(--coral)", color: "#fff", borderRadius: 6,
+                      padding: "10px 20px", fontSize: "0.875rem", fontWeight: 500,
+                      textDecoration: "none", transition: "opacity 0.15s",
+                    }}>
+                      Try it live →
+                    </Link>
+                    <Link href="/docs" style={{
+                      display: "inline-flex", alignItems: "center", gap: 6,
+                      background: "var(--surface-2)", color: "var(--text-secondary)", borderRadius: 6,
+                      padding: "10px 20px", fontSize: "0.875rem", fontWeight: 500,
+                      textDecoration: "none", border: "1px solid var(--border)",
+                      transition: "border-color 0.15s",
+                    }}>
+                      Read the docs
+                    </Link>
+                  </div>
                 </div>
               </div>
-            </div>
-
-            <div className="hero-actions" style={{ marginTop: "var(--space-lg)", justifyContent: "center" }}>
-              <Link href="/launch" style={{
-                display: "inline-flex", alignItems: "center", gap: 6,
-                background: "var(--coral)", color: "#fff", borderRadius: 6,
-                padding: "10px 20px", fontSize: "0.875rem", fontWeight: 500,
-                textDecoration: "none", transition: "opacity 0.15s",
-              }}>
-                Try it live →
-              </Link>
-              <Link href="/docs" style={{
-                display: "inline-flex", alignItems: "center", gap: 6,
-                background: "var(--surface-2)", color: "var(--text-secondary)", borderRadius: 6,
-                padding: "10px 20px", fontSize: "0.875rem", fontWeight: 500,
-                textDecoration: "none", border: "1px solid var(--border)",
-                transition: "border-color 0.15s",
-              }}>
-                Read the docs
-              </Link>
             </div>
           </>
         )}
