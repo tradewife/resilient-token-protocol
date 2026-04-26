@@ -85,6 +85,14 @@ pub enum TreasuryError {
     BetaExpired,
     #[msg("Only the treasury authority can end a beta")]
     UnauthorizedBetaOp,
+    #[msg("Zero address (Pubkey::default()) is not allowed")]
+    ZeroAddressRejected,
+    #[msg("Treasury is frozen — all operations are halted")]
+    TreasuryFrozen,
+    #[msg("Treasury is already frozen")]
+    AlreadyFrozen,
+    #[msg("Treasury is not frozen")]
+    NotFrozen,
 }
 
 // ---------------------------------------------------------------------------
@@ -124,11 +132,14 @@ pub struct Treasury {
     /// Enforces the 90-day runway invariant (CLAUDE.md #9).
     /// Production: set to USDC-denominated 90-day ops cost via oracle.
     pub min_runway_balance: u64,
+    /// Whether the treasury is frozen (emergency halt).
+    /// When true, all non-read operations are rejected.
+    pub frozen: bool,
     /// PDA bump
     pub bump: u8,
 }
 
-/// Treasury phase — can only advance forward. Transitions are IRREVERSIBLE.
+/// Treasury phase -- can only advance forward. Transitions are IRREVERSIBLE.
 /// - Sustenance (<$50k): self-hydrate, reinvest all yield
 /// - Ecosystem ($50k-$1M): auto-provide LP to top RTP-adopting tokens
 /// - Humanity (>$1M): USDC grants to Solana public-goods projects
@@ -300,6 +311,20 @@ pub struct Redistribution {
     pub ts: i64,
 }
 
+#[event]
+pub struct TreasuryFrozen {
+    pub mint: Pubkey,
+    pub authority: Pubkey,
+    pub timestamp: i64,
+}
+
+#[event]
+pub struct TreasuryUnfrozen {
+    pub mint: Pubkey,
+    pub authority: Pubkey,
+    pub timestamp: i64,
+}
+
 // ---------------------------------------------------------------------------
 // Shared Helpers (outside #[program] so Anchor doesn't treat as instructions)
 // ---------------------------------------------------------------------------
@@ -339,6 +364,14 @@ fn verify_transfer_fee_config(
     Ok(())
 }
 
+/// Reject the Solana zero address on critical fields.
+fn reject_zero_address(addr: Pubkey) -> Result<()> {
+    if addr == Pubkey::default() {
+        return err!(TreasuryError::ZeroAddressRejected);
+    }
+    Ok(())
+}
+
 // ---------------------------------------------------------------------------
 // Program + Account Contexts
 // ---------------------------------------------------------------------------
@@ -360,6 +393,13 @@ pub mod rtp_treasury {
         ctx: Context<Initialize>,
         min_runway_balance: u64,
     ) -> Result<()> {
+        // Zero-address guard: reject Pubkey::default() on all critical fields.
+        reject_zero_address(ctx.accounts.authority.key())?;
+        reject_zero_address(ctx.accounts.mint.key())?;
+        reject_zero_address(ctx.accounts.holders_wallet.key())?;
+        reject_zero_address(ctx.accounts.project_dev_wallet.key())?;
+        reject_zero_address(ctx.accounts.ecosystem_wallet.key())?;
+
         let treasury = &mut ctx.accounts.treasury;
         treasury.mint = ctx.accounts.mint.key();
         treasury.authority = ctx.accounts.authority.key();
@@ -370,6 +410,7 @@ pub mod rtp_treasury {
         treasury.total_distributed_ecosystem = 0;
         treasury.total_hydration = 0;
         treasury.total_fees_received_lamports = 0;
+        treasury.frozen = false;
         treasury.holders_wallet = ctx.accounts.holders_wallet.key();
         treasury.project_dev_wallet = ctx.accounts.project_dev_wallet.key();
         treasury.ecosystem_wallet = ctx.accounts.ecosystem_wallet.key();
@@ -400,6 +441,7 @@ pub mod rtp_treasury {
     /// adoption time) signs for the withdrawal. Anyone can call this — fees
     /// are permissionlessly pulled into the PDA.
     pub fn withdraw_fees(ctx: Context<WithdrawFees>) -> Result<()> {
+        require!(!ctx.accounts.treasury.frozen, TreasuryError::TreasuryFrozen);
         let treasury = &mut ctx.accounts.treasury;
         let mint = &ctx.accounts.mint;
         let mint_key = mint.key();
@@ -446,6 +488,7 @@ pub mod rtp_treasury {
     ///
     /// Callable by anyone. The split is deterministic on-chain.
     pub fn check_redistribute(ctx: Context<CheckRedistribute>) -> Result<()> {
+        require!(!ctx.accounts.treasury.frozen, TreasuryError::TreasuryFrozen);
         let treasury = &mut ctx.accounts.treasury;
         let vault = &ctx.accounts.treasury_vault;
         let balance = vault.amount;
@@ -546,6 +589,7 @@ pub mod rtp_treasury {
     /// post-hydration balance MUST remain >= `min_runway_balance`.
     /// Transfers tokens to the swarm hydration PDA for swap to USDC.
     pub fn hydrate_swarm(ctx: Context<HydrateSwarm>, amount: u64) -> Result<()> {
+        require!(!ctx.accounts.treasury.frozen, TreasuryError::TreasuryFrozen);
         let treasury = &mut ctx.accounts.treasury;
         let vault = &ctx.accounts.treasury_vault;
 
@@ -611,6 +655,7 @@ pub mod rtp_treasury {
     ///
     /// Only the treasury authority can trigger (Squads Multisig compatible).
     pub fn evolve_phase(ctx: Context<EvolvePhase>) -> Result<()> {
+        require!(!ctx.accounts.treasury.frozen, TreasuryError::TreasuryFrozen);
         let treasury = &mut ctx.accounts.treasury;
         let vault_balance = ctx.accounts.treasury_vault.amount;
 
@@ -669,7 +714,8 @@ pub mod rtp_treasury {
     /// Must be called once after `initialize` and before `hydrate_swarm`.
     /// S-001 fix: replaces `init_if_needed` with explicit initialization
     /// to prevent re-initialization attacks on the swarm vault.
-    pub fn create_swarm_vault(_ctx: Context<CreateSwarmVault>) -> Result<()> {
+    pub fn create_swarm_vault(ctx: Context<CreateSwarmVault>) -> Result<()> {
+        require!(!ctx.accounts.treasury.frozen, TreasuryError::TreasuryFrozen);
         Ok(())
     }
 
@@ -679,6 +725,7 @@ pub mod rtp_treasury {
     /// per adopting token project at adoption time. The AdopterRecord tracks
     /// cumulative fee contributions for pro-rata yield attribution.
     pub fn register_adopter(ctx: Context<RegisterAdopter>, token_mint: Pubkey) -> Result<()> {
+        require!(!ctx.accounts.treasury.frozen, TreasuryError::TreasuryFrozen);
         let record = &mut ctx.accounts.adopter_record;
         let clock = Clock::get()?;
 
@@ -712,6 +759,7 @@ pub mod rtp_treasury {
         token_mint: Pubkey,
         beta_expires_at: i64,
     ) -> Result<()> {
+        require!(!ctx.accounts.treasury.frozen, TreasuryError::TreasuryFrozen);
         let clock = Clock::get()?;
         require!(
             beta_expires_at > clock.unix_timestamp,
@@ -744,6 +792,7 @@ pub mod rtp_treasury {
     /// alongside (or composed into) any fee deposit. It does not move
     /// funds — it only updates accounting state for pro-rata attribution.
     pub fn record_fee_deposit(ctx: Context<RecordFeeDeposit>, amount_lamports: u64) -> Result<()> {
+        require!(!ctx.accounts.treasury.frozen, TreasuryError::TreasuryFrozen);
         require!(amount_lamports > 0, TreasuryError::ZeroAmount);
 
         let record = &mut ctx.accounts.adopter_record;
@@ -780,6 +829,7 @@ pub mod rtp_treasury {
     /// The adopter's fee contributions remain on record for attribution.
     /// Yield already generated stays with the project.
     pub fn end_beta(ctx: Context<EndBeta>) -> Result<()> {
+        require!(!ctx.accounts.treasury.frozen, TreasuryError::TreasuryFrozen);
         require!(
             ctx.accounts.authority.key() == ctx.accounts.treasury.authority,
             TreasuryError::UnauthorizedBetaOp,
@@ -805,6 +855,7 @@ pub mod rtp_treasury {
         strategy_id: String,
         promotion_sharpe_x100: i32,
     ) -> Result<()> {
+        require!(!ctx.accounts.treasury.frozen, TreasuryError::TreasuryFrozen);
         require!(
             strategy_id.len() >= 1 && strategy_id.len() <= 16,
             TreasuryError::InvalidStrategyId,
@@ -850,6 +901,7 @@ pub mod rtp_treasury {
         drawdown_24h_bps: u16,
         new_soft_strike: bool,
     ) -> Result<()> {
+        require!(!ctx.accounts.treasury.frozen, TreasuryError::TreasuryFrozen);
         let record = &mut ctx.accounts.strategy_record;
         require!(
             record.status == StrategyLifecycleStatus::Live,
@@ -923,6 +975,7 @@ pub mod rtp_treasury {
 
     /// Emergency manual retirement by treasury authority. Bypasses thresholds.
     pub fn force_retire_strategy(ctx: Context<ForceRetireStrategy>) -> Result<()> {
+        require!(!ctx.accounts.treasury.frozen, TreasuryError::TreasuryFrozen);
         require!(
             ctx.accounts.authority.key() == ctx.accounts.treasury.authority,
             TreasuryError::UnauthorizedStrategyOp,
@@ -940,6 +993,39 @@ pub mod rtp_treasury {
             ts: clock.unix_timestamp,
         });
 
+        Ok(())
+    }
+
+    /// Emergency freeze: authority-gated, sets frozen = true.
+    /// In production, authority is the Squads multisig PDA — requires 2-of-3 approval.
+    /// No time lock on freeze (emergency speed). Unfreeze requires 24h time lock.
+    pub fn freeze_treasury(ctx: Context<FreezeTreasury>) -> Result<()> {
+        let treasury = &mut ctx.accounts.treasury;
+        require!(!treasury.frozen, TreasuryError::AlreadyFrozen);
+
+        treasury.frozen = true;
+        let clock = Clock::get()?;
+        emit!(TreasuryFrozen {
+            mint: treasury.mint,
+            authority: ctx.accounts.authority.key(),
+            timestamp: clock.unix_timestamp,
+        });
+        Ok(())
+    }
+
+    /// Unfreeze: authority-gated, sets frozen = false.
+    /// In production, requires Squads 2-of-3 + 24h time lock.
+    pub fn unfreeze_treasury(ctx: Context<UnfreezeTreasury>) -> Result<()> {
+        let treasury = &mut ctx.accounts.treasury;
+        require!(treasury.frozen, TreasuryError::NotFrozen);
+
+        treasury.frozen = false;
+        let clock = Clock::get()?;
+        emit!(TreasuryUnfrozen {
+            mint: treasury.mint,
+            authority: ctx.accounts.authority.key(),
+            timestamp: clock.unix_timestamp,
+        });
         Ok(())
     }
 
@@ -1364,6 +1450,36 @@ pub mod rtp_treasury {
         pub treasury: Account<'info, Treasury>,
 
         /// Authority — must equal treasury.authority (enforced in handler)
+        pub authority: Signer<'info>,
+    }
+
+    #[derive(Accounts)]
+    pub struct FreezeTreasury<'info> {
+        /// Treasury state account (PDA).
+        #[account(
+            mut,
+            seeds = [TREASURY_SEED, treasury.mint.as_ref()],
+            bump = treasury.bump,
+            constraint = authority.key() == treasury.authority @ TreasuryError::UnauthorizedPhaseEvolution,
+        )]
+        pub treasury: Account<'info, Treasury>,
+
+        /// Authority — must equal treasury.authority.
+        pub authority: Signer<'info>,
+    }
+
+    #[derive(Accounts)]
+    pub struct UnfreezeTreasury<'info> {
+        /// Treasury state account (PDA).
+        #[account(
+            mut,
+            seeds = [TREASURY_SEED, treasury.mint.as_ref()],
+            bump = treasury.bump,
+            constraint = authority.key() == treasury.authority @ TreasuryError::UnauthorizedPhaseEvolution,
+        )]
+        pub treasury: Account<'info, Treasury>,
+
+        /// Authority — must equal treasury.authority.
         pub authority: Signer<'info>,
     }
 }

@@ -237,6 +237,19 @@ impl PhantomMcpClient {
         if let Some(err) = response.get("error") {
             let msg = err["message"].as_str().unwrap_or("unknown error");
             let code = err["code"].as_i64().unwrap_or(-1);
+
+            // Check for spending limit errors specifically.
+            if msg.contains("SPENDING_LIMIT_EXCEEDED")
+                || msg.contains("spending limit")
+                || msg.contains("SpendingLimit")
+            {
+                tracing::error!(
+                    "[PhantomMCP] SPENDING_LIMIT_EXCEEDED: {} — \
+                     user must adjust on-chain spending limits in Phantom wallet",
+                    msg
+                );
+            }
+
             return Err(format!("MCP error {}: {}", code, msg));
         }
 

@@ -140,6 +140,8 @@ export interface TreasuryState {
   totalHydration: number;
   totalFeesReceived: number;
   minRunwayBalance: number;
+  /** Whether the treasury is frozen (emergency halt). */
+  isFrozen: boolean;
 }
 
 /** Wrap a Keypair as a minimal wallet for AnchorProvider (avoids anchor.Wallet ESM issue). */
@@ -354,6 +356,7 @@ export async function fetchTreasuryState(
       totalHydration: 0,
       totalFeesReceived: 0,
       minRunwayBalance: 0,
+      isFrozen: false,
     };
   }
 
@@ -392,6 +395,7 @@ export async function fetchTreasuryState(
     totalHydration: Number(treasury.totalHydration) / 10 ** decimals,
     totalFeesReceived: Number(treasury.totalFeesReceivedLamports) / 10 ** decimals,
     minRunwayBalance: Number(treasury.minRunwayBalance) / 10 ** decimals,
+    isFrozen: Boolean(treasury.frozen),
   };
 }
 
@@ -626,4 +630,88 @@ export async function fetchAdopterState(
     betaEnded: adopter.betaEnded,
     isBeta: Number(adopter.betaExpiresAt) > 0,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Emergency Freeze / Unfreeze
+// ---------------------------------------------------------------------------
+
+/**
+ * Emergency freeze: halts all treasury operations.
+ * Only callable by the treasury authority (Squads multisig in production).
+ * No time lock on freeze — emergency speed.
+ */
+export async function freezeTreasury(
+  connection: Connection,
+  payer: Keypair | WalletAdapter,
+  mintAddress: string | PublicKey,
+): Promise<{ signature: string }> {
+  const mint = typeof mintAddress === "string" ? new PublicKey(mintAddress) : mintAddress;
+  const [treasuryPDA] = deriveTreasuryPDA(mint);
+  const payerPubkey = payer instanceof Keypair ? payer.publicKey : payer.publicKey!;
+
+  const idl = loadPatchedIdl();
+  const provider = new AnchorProvider(
+    connection,
+    payer instanceof Keypair ? kpWallet(payer) : walletToAnchorWallet(payer),
+    { commitment: "confirmed" },
+  );
+  const program = new Program(idl, provider);
+
+  const tx = await program.methods
+    .freezeTreasury()
+    .accounts({
+      treasury: treasuryPDA,
+      authority: payerPubkey,
+    })
+    .transaction();
+
+  const signature = await sendTx(connection, tx, payer);
+  return { signature };
+}
+
+/**
+ * Unfreeze: resumes treasury operations.
+ * Only callable by the treasury authority (Squads multisig in production).
+ * In production, requires 2-of-3 + 24h time lock via Squads proposal.
+ */
+export async function unfreezeTreasury(
+  connection: Connection,
+  payer: Keypair | WalletAdapter,
+  mintAddress: string | PublicKey,
+): Promise<{ signature: string }> {
+  const mint = typeof mintAddress === "string" ? new PublicKey(mintAddress) : mintAddress;
+  const [treasuryPDA] = deriveTreasuryPDA(mint);
+  const payerPubkey = payer instanceof Keypair ? payer.publicKey : payer.publicKey!;
+
+  const idl = loadPatchedIdl();
+  const provider = new AnchorProvider(
+    connection,
+    payer instanceof Keypair ? kpWallet(payer) : walletToAnchorWallet(payer),
+    { commitment: "confirmed" },
+  );
+  const program = new Program(idl, provider);
+
+  const tx = await program.methods
+    .unfreezeTreasury()
+    .accounts({
+      treasury: treasuryPDA,
+      authority: payerPubkey,
+    })
+    .transaction();
+
+  const signature = await sendTx(connection, tx, payer);
+  return { signature };
+}
+
+/**
+ * Check whether a treasury is currently frozen.
+ * Read-only — no transactions, no signing required.
+ */
+export async function isTreasuryFrozen(
+  connection: Connection,
+  mintAddress: string | PublicKey,
+): Promise<boolean> {
+  const state = await fetchTreasuryState(connection, mintAddress);
+  return state.isFrozen;
 }

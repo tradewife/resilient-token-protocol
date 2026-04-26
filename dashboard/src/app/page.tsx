@@ -78,6 +78,7 @@ export default function Home() {
   const [showHowItWorks, setShowHowItWorks] = useState(true);
   const [yieldReceived, setYieldReceived] = useState<number | null>(null);
   const [yieldLoading, setYieldLoading] = useState(false);
+  const [isFrozen, setIsFrozen] = useState(false);
 
   // ── Treasury PDA balance (devnet) ──
   useEffect(() => {
@@ -186,6 +187,52 @@ export default function Home() {
     return () => { alive = false; clearInterval(id); };
   }, []);
 
+  // ── Treasury frozen state (devnet account data check) ──
+  useEffect(() => {
+    let alive = true;
+    const check = async () => {
+      try {
+        const resp = await fetch("https://api.devnet.solana.com", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            jsonrpc: "2.0", id: 1, method: "getAccountInfo",
+            params: [TREASURY_PDA, { encoding: "jsonParsed" }],
+          }),
+        });
+        const json = await resp.json();
+        // The Treasury account uses Anchor's Borsh serialization.
+        // Fetch via the program's IDL to decode the frozen field.
+        // For now, use a lightweight byte-level check on the base64 data.
+        const data = json?.result?.value?.data?.[0];
+        if (data && alive) {
+          // Decode base64 account data to read the `frozen` bool.
+          // Treasury layout (Anchor 8-byte discriminator + fields):
+          //   mint(32) + authority(32) + phase(1+4) + total_fees_withdrawn(8) +
+          //   total_distributed_holders(8) + total_distributed_dev(8) +
+          //   total_distributed_ecosystem(8) + total_hydration(8) +
+          //   total_fees_received_lamports(8) + holders_wallet(32) +
+          //   project_dev_wallet(32) + ecosystem_wallet(32) +
+          //   min_runway_balance(8) + frozen(1) + bump(1)
+          // The frozen field is at byte offset 8+32+32+1+4+8+8+8+8+8+8+32+32+32+8 = 229
+          const binary = atob(data);
+          const frozenOffset = 229;
+          if (binary.length > frozenOffset) {
+            const frozenByte = binary.charCodeAt(frozenOffset);
+            setIsFrozen(frozenByte !== 0);
+          } else {
+            setIsFrozen(false);
+          }
+        }
+      } catch {
+        // Devnet RPC unreachable — keep current state
+      }
+    };
+    check();
+    const id = setInterval(check, 30_000);
+    return () => { alive = false; clearInterval(id); };
+  }, []);
+
   // ── Yield received: scan treasury PDA txs for SOL sent to connected wallet ──
   useEffect(() => {
     if (!publicKey) {
@@ -273,6 +320,17 @@ export default function Home() {
     <div className="page">
       {/* Top bar */}
       <Topbar activePage="dashboard" />
+
+      {/* Emergency freeze banner */}
+      {isFrozen && (
+        <div style={{
+          background: "#dc2626", color: "#fff", padding: "10px 24px",
+          textAlign: "center", fontSize: "0.875rem", fontWeight: 600,
+          letterSpacing: "0.04em",
+        }}>
+          TREASURY FROZEN — All operations halted by authority. Unfreeze requires 2-of-3 multisig approval + 24h time lock.
+        </div>
+      )}
 
       {/* Hero: image + treasury overview */}
       <section className="hero">

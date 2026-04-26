@@ -533,6 +533,63 @@ export const RAW_IDL =
       "args": []
     },
     {
+      "name": "freeze_treasury",
+      "docs": [
+        "Emergency freeze: authority-gated, sets frozen = true.",
+        "In production, authority is the Squads multisig PDA \u2014 requires 2-of-3 approval.",
+        "No time lock on freeze (emergency speed). Unfreeze requires 24h time lock."
+      ],
+      "discriminator": [
+        11,
+        162,
+        24,
+        48,
+        89,
+        121,
+        169,
+        188
+      ],
+      "accounts": [
+        {
+          "name": "treasury",
+          "docs": [
+            "Treasury state account (PDA)."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  114,
+                  101,
+                  97,
+                  115,
+                  117,
+                  114,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "treasury.mint",
+                "account": "Treasury"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "docs": [
+            "Authority \u2014 must equal treasury.authority."
+          ],
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "hydrate_swarm",
       "docs": [
         "Fund swarm operations from the treasury vault.",
@@ -1218,6 +1275,62 @@ export const RAW_IDL =
       ]
     },
     {
+      "name": "unfreeze_treasury",
+      "docs": [
+        "Unfreeze: authority-gated, sets frozen = false.",
+        "In production, requires Squads 2-of-3 + 24h time lock."
+      ],
+      "discriminator": [
+        71,
+        1,
+        11,
+        192,
+        79,
+        138,
+        250,
+        129
+      ],
+      "accounts": [
+        {
+          "name": "treasury",
+          "docs": [
+            "Treasury state account (PDA)."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  114,
+                  101,
+                  97,
+                  115,
+                  117,
+                  114,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "treasury.mint",
+                "account": "Treasury"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "docs": [
+            "Authority \u2014 must equal treasury.authority."
+          ],
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "update_strategy_performance",
       "docs": [
         "Update strategy performance metrics after each completed trade batch.",
@@ -1625,6 +1738,32 @@ export const RAW_IDL =
         120,
         152
       ]
+    },
+    {
+      "name": "TreasuryFrozen",
+      "discriminator": [
+        93,
+        25,
+        3,
+        194,
+        186,
+        48,
+        201,
+        185
+      ]
+    },
+    {
+      "name": "TreasuryUnfrozen",
+      "discriminator": [
+        178,
+        174,
+        48,
+        234,
+        92,
+        48,
+        128,
+        47
+      ]
     }
   ],
   "errors": [
@@ -1707,6 +1846,26 @@ export const RAW_IDL =
       "code": 6015,
       "name": "UnauthorizedBetaOp",
       "msg": "Only the treasury authority can end a beta"
+    },
+    {
+      "code": 6016,
+      "name": "ZeroAddressRejected",
+      "msg": "Zero address (Pubkey::default()) is not allowed"
+    },
+    {
+      "code": 6017,
+      "name": "TreasuryFrozen",
+      "msg": "Treasury is frozen \u2014 all operations are halted"
+    },
+    {
+      "code": 6018,
+      "name": "AlreadyFrozen",
+      "msg": "Treasury is already frozen"
+    },
+    {
+      "code": 6019,
+      "name": "NotFrozen",
+      "msg": "Treasury is not frozen"
     }
   ],
   "types": [
@@ -1849,7 +2008,7 @@ export const RAW_IDL =
     {
       "name": "Phase",
       "docs": [
-        "Treasury phase \u2014 can only advance forward. Transitions are IRREVERSIBLE.",
+        "Treasury phase -- can only advance forward. Transitions are IRREVERSIBLE.",
         "- Sustenance (<$50k): self-hydrate, reinvest all yield",
         "- Ecosystem ($50k-$1M): auto-provide LP to top RTP-adopting tokens",
         "- Humanity (>$1M): USDC grants to Solana public-goods projects"
@@ -2258,6 +2417,14 @@ export const RAW_IDL =
             "type": "u64"
           },
           {
+            "name": "frozen",
+            "docs": [
+              "Whether the treasury is frozen (emergency halt).",
+              "When true, all non-read operations are rejected."
+            ],
+            "type": "bool"
+          },
+          {
             "name": "bump",
             "docs": [
               "PDA bump"
@@ -2266,6 +2433,46 @@ export const RAW_IDL =
           }
         ]
       }
+    },
+    {
+      "name": "TreasuryFrozen",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TreasuryUnfrozen",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
     }
   ]
-};
+} as const;

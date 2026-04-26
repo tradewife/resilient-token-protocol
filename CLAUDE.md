@@ -58,10 +58,16 @@ Per-Token Wallet Isolation (DONE)
 
 ### Signing Architecture
 - **HL order signing**: ETH keypair directly (`configs/hl_testnet_key.json`), EIP-712
-- **MCP bridge signing**: Phantom MCP server subprocess (`@phantom/mcp-server`, v1.2.x) — fee-free swaps, Relay cross-chain bridge to HL, 28+ tools
+- **MCP bridge signing**: Phantom MCP server subprocess (`@phantom/mcp-server`, v1.2.x) — fee-free swaps, Relay cross-chain bridge to HL, 29+ tools
 - **Per-token wallet isolation**: `derivationIndex` parameter on every MCP call — each token gets its own Solana/EVM/HL account from one auth session
 - **Solana CPI signing**: Phantom KMS (production) → local devnet keypair (demo)
 - **Signing cascade**: Phantom MCP (derivationIndex) → Phantom KMS → `~/.config/solana/id.json` → manual fallback
+- **Dashboard signing**: `@solana/wallet-adapter-react` for browser wallet ops (freeze/unfreeze, multisig status) — no Server SDK needed
+
+### Security Hardening (v1.0)
+- **Zero-address guard**: `Pubkey::default()` rejected on all critical fields in `initialize`.
+- **Emergency freeze/unfreeze**: `freeze_treasury` (instant, authority-gated), `unfreeze_treasury` (authority-gated). All 12 state-mutating instructions check frozen flag. Events emitted for audit.
+- **SPENDING_LIMIT_EXCEEDED**: MCP error handling logs spending limit violations for visibility.
 
 ---
 
@@ -69,7 +75,7 @@ Per-Token Wallet Isolation (DONE)
 
 This repo has three layers:
 1. **Proven Python fractal-swarm** (shipping) — backtesting, optimization, paper trading
-2. **Rust swarm + Solana treasury** (built, 307 tests) — 6-wing architecture, Coordinator, soulcontract, per-token wallet isolation
+2. **Rust swarm + Solana treasury** (built, 307 tests) — 6-wing architecture, Coordinator, soulcontract, per-token wallet isolation, emergency freeze, zero-address guard
 3. **Hyperliquid execution** (done — devnet verified) — Trading Wing → HL testnet → yield → treasury PDA
 
 ---
@@ -190,7 +196,7 @@ cd rtp/programs/rtp-treasury && anchor deploy --provider.cluster devnet
 | `rtp/swarm/src/coordinator/lifecycle.rs` | Wing spawn, health-check, retire |
 | `rtp/swarm/src/wings/trading/mod.rs` | **Trading Wing — HL execution, PnL tracking, apply_mutations, MCP bridge** |
 | `rtp/swarm/src/wings/trading/types.rs` | Trading types — HlSignature, StrategyConfig, PositionState, **TradingState (token_wallet_map, per-token derivation indices)** |
-| `rtp/swarm/src/wings/trading/phantom_mcp.rs` | **Phantom MCP client — subprocess MCP server, fee-free swaps, HL bridge, perps trading, yield distribution. All functions take `di: u32` for per-token wallet isolation** |
+| `rtp/swarm/src/wings/trading/phantom_mcp.rs` | **Phantom MCP client — subprocess MCP server, fee-free swaps, HL bridge, perps trading, yield distribution. All functions take `di: u32` for per-token wallet isolation. SPENDING_LIMIT_EXCEEDED error logging** |
 | `rtp/swarm/src/bin/rtp-daemon.rs` | **Devnet loop daemon — single-cycle, 6h cron, LLM evolution** |
 | `rtp/swarm/src/wings/security/mod.rs` | Threat detection, rate-limiting, suspicious-proposal detection |
 | `rtp/swarm/src/wings/evolve/` | Assessor, proposer, rollback (complete, tested) |
@@ -236,10 +242,10 @@ USDC amount. This function is gated behind `#[cfg(feature = "devnet")]` and
 is never compiled for the mainnet binary.
 
 ```bash
-# Run tests with devnet stub (310 tests):
+# Run tests with devnet stub (307+ tests):
 cd rtp/swarm && cargo test --lib --features devnet
 
-# Run without devnet stub (307 tests, production config):
+# Run without devnet stub (307+ tests, production config):
 cd rtp/swarm && cargo test --lib
 ```
 
@@ -260,6 +266,8 @@ is not set, so the mainnet binary remains clean.
 7. **Auto-rollback if performance degrades > 5% post-amendment**
 8. **Self-hydration only if sustenance bucket > 90-day runway**
 9. **Research code remains reviewable while collaboration is active**
+10. **Emergency freeze** — authority-gated halt, all 12 state-mutating instructions check frozen flag. Unfreeze also authority-gated.
+11. **Zero-address rejection** — `Pubkey::default()` rejected on all critical fields
 
 ## Trust Model — Permissionless Recording, Authority-Gated Actions
 
@@ -272,6 +280,8 @@ The on-chain program separates instructions into two categories:
 - `force_retire_strategy` — emergency strategy retirement
 - `end_beta` — manual beta adopter sunset
 - `create_swarm_vault` — creates hydration vault (anyone can pay, but treasury PDA is authority)
+- `freeze_treasury` — emergency halt, sets frozen=true, no time lock (emergency speed)
+- `unfreeze_treasury` — resume operations, authority-gated. Post-launch: Squads 2-of-3 + 24h time lock
 
 **Permissionless (any signer can call):**
 - `withdraw_fees` — anyone can pull TransferFeeConfig fees INTO the PDA vault (not out)
@@ -287,6 +297,9 @@ The on-chain program separates instructions into two categories:
 **Known mainnet considerations (accepted for launch, post-launch improvements):**
 - `evolve_phase` thresholds checked against raw vault balance, not oracle-denominated USD. Authority manually verifies reserves before calling. Post-launch: integrate Pyth/Switchboard oracle.
 - `check_redistribute` emits a `Redistribution` event for auditability (added Apr 2026).
+- `freeze_treasury` / `unfreeze_treasury` events (`TreasuryFrozen`, `TreasuryUnfrozen`) emitted for audit (added Apr 2026).
+- All 12 state-mutating instructions check `treasury.frozen` flag before executing (added Apr 2026).
+- `reject_zero_address` guard on `initialize` for all critical fields (added Apr 2026).
 
 ---
 
@@ -296,7 +309,7 @@ The on-chain program separates instructions into two categories:
 |---------|-----------|------|
 | Phantom Connect | **Phantom Portal app registered**. `@solana/wallet-adapter-react` wired to dashboard (/, /launch, /docs). Wallet connect + live token launch flow operational on devnet. MCP server (v1.2.x, 28+ tools) for AI agent wallet ops. Per-token wallet isolation via `derivationIndex`. | https://docs.phantom.com/introduction |
 | CASH stablecoin | Third-party resource (not currently used — treasury uses USDC for settlement) | https://docs.phantom.com/phantom-connect |
-| Squads Multisig | Treasury PDA security (production path) | https://docs.squads.so |
+| Squads Multisig | Post-launch: `treasury.authority` rotation to Squads PDA for 2-of-3 multisig governance | https://docs.squads.so |
 | Swig | Programmable smart wallets for wing message bus | https://docs.swig.fi |
 | MoonPay Agents | Agent money movement infrastructure | https://www.moonpay.com/developers/agents |
 | Solana MCP | AI dev assistant for Anchor | https://github.com/solana-developers/solana-mcp |

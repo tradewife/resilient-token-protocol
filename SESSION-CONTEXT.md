@@ -912,4 +912,43 @@ State as of Apr 22:
 
 ---
 
-*Last updated: 2026-04-22 (Per-token wallet isolation via derivationIndex. 307/311 tests, 0 failures. phantom_mcp.rs: 28+ tool wrappers, all with di param. TradingState.token_wallet_map added. Next: live test, wire di lookup, persist state.)*
+**Session 2026-04-26 — Security Hardening (Freeze + Zero-Address Guard)**
+
+State as of Apr 26:
+- **307 Rust tests, 0 failures. Anchor build passes.**
+- **Security hardening Phase 1 (on-chain) complete. Squads/Hydra deferred post-hackathon.**
+- Demo-Readiness Score: 9.5/10
+
+**On-chain security hardening (this session):**
+
+| Change | File | Detail |
+|--------|------|--------|
+| Zero-address guard | `lib.rs` | `reject_zero_address()` on `initialize` — rejects `Pubkey::default()` for authority, mint, all 3 wallets |
+| Emergency freeze/unfreeze | `lib.rs` | `freeze_treasury` + `unfreeze_treasury` instructions, authority-gated. Events emitted. |
+| Frozen flag on Treasury | `lib.rs` | `frozen: bool` field. All 12 state-mutating instructions check it. |
+| 4 new errors | `lib.rs` | `ZeroAddressRejected`, `TreasuryFrozen`, `AlreadyFrozen`, `NotFrozen` |
+| 2 new events | `lib.rs` | `TreasuryFrozen { mint, authority, timestamp }`, `TreasuryUnfrozen { ... }` |
+| SPENDING_LIMIT_EXCEEDED logging | `phantom_mcp.rs` | `tracing::error!()` in `call_tool()` when spending limit hit |
+| SDK freeze/unfreeze | `sdk/index.ts` | `freezeTreasury()`, `unfreezeTreasury()`, `isTreasuryFrozen()` functions |
+| IDL regenerated | `sdk/idl.ts` | 16 instructions (was 14), includes freeze/unfreeze |
+| Dashboard freeze banner | `page.tsx` | Red banner when treasury frozen, polls devnet account data |
+| Squads/Hydra deleted | `trading/` | Created then deleted during audit — shelfware, not wired, unvalidated APIs |
+
+**Audit findings that drove the cleanup:**
+- Squads program ID in spec was wrong (`a6Eg` should be `aD6E`, `CfH` should be `Cf`)
+- Hydra crank had invented serialization — wouldn't produce valid transactions
+- Neither module was wired into any execution path (daemon, demo, coordinator)
+- Only 4 of 12 instructions had frozen guard — now all 12 do
+- Dashboard frozen polling was hardcoded `setIsFrozen(false)` — now reads account data
+- Squads/Hydra are post-launch infrastructure, not hackathon requirements
+
+**Docs updated:** CLAUDE.md, SOULCONTRACT.md, RESOURCES.md, SECURITY-HARDENING-SPEC.md
+
+**Next session priority:**
+1. Deploy updated program to devnet (`anchor deploy`) — requires re-initializing treasury PDA
+2. Dashboard dev server test — verify freeze banner works with real devnet data
+3. Demo rehearsal with freeze/unfreeze visible
+
+---
+
+*Last updated: 2026-04-26 (Security hardening Phase 1 complete: freeze/unfreeze, zero-address guard, 12 frozen guards. Squads/Hydra deferred. 307 tests, 0 failures.)*

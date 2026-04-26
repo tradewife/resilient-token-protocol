@@ -55,7 +55,9 @@ Extracted from BUILD_PLAN v2.2. Keep this file updated as new tools are integrat
 ### Squads Multisig
 - Docs: https://docs.squads.so
 - Get Started: https://squads.so
+- Audits: OtterSec (3 rounds), Neodyme (3 rounds), Certora (3 rounds), Trail of Bits (1 round)
 - Altitude (financial ops): https://altitude.finance
+- Post-launch integration: `treasury.authority` rotation to Squads PDA for 2-of-3 multisig governance
 
 ### Swig (programmable smart wallets)
 - Overview: https://docs.swig.fi/overview
