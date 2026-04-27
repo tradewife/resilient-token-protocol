@@ -4,16 +4,16 @@ This file provides guidance to Claude Code when working with this repository.
 
 ## Project Overview
 
-**RTP (Resilient Token Protocol)** — a Solana-native, self-funding treasury governed by a modular Rust swarm. Any token project adopts RTP — their trading fees route to the swarm, which autonomously researches, validates, and executes yield strategies — returning yield back to the project and its holders. The swarm executes validated strategies as **perpetuals trades on Hyperliquid**, signed via **Phantom Connect** (agentic wallet). Yield (USDC) flows back to the Solana treasury PDA on devnet.
+**RTP (Resilient Token Protocol)** — a Solana-native, self-funding treasury governed by a modular Rust swarm. Any token project adopts RTP — their trading fees route to the swarm, which autonomously researches, validates, and executes yield strategies — returning yield back to the project and its holders. The swarm executes validated strategies as **on-chain perpetuals via Flash Trade CPI**, signed by the **Treasury PDA via `invoke_signed`** (no human keypair). All execution stays on Solana — no cross-chain bridge, no off-chain signing.
 
 **Hackathon**: SWARMs / Canteen × Colosseum, deadline May 11, 2026.
 **License**: MIT
 
 ---
 
-## Execution Venue — Complete
+## Execution Venue — Complete (Flash Trade CPI)
 
-The Hyperliquid perps execution path is fully implemented. BUY→fill→SELL→fill→PnL round-trip verified from Rust. Yield deposits to treasury PDA confirmed on devnet. **Per-token wallet isolation via `derivationIndex`** — each registered token gets its own Solana address, EVM address, and HL perps account from a single MCP auth session.
+The Flash Trade on-chain CPI execution path is fully implemented (M0–M5). PDA-signed position open/close confirmed on mainnet. The Hyperliquid/Phantom MCP path is archived behind `#[cfg(feature = "hyperliquid")]`.
 
 ```
 Night Shift (Python, DONE)
@@ -21,53 +21,61 @@ Night Shift (Python, DONE)
         │
         ▼ bridge.rs (DONE)
 Trading Wing (Rust, DONE)
-  └── ExecutePermit payload → EIP-712 signed HL order
+  └── ExecutePermit payload → reads on-chain state, builds Anchor instruction
         │
-        ▼ Hyperliquid REST API (DONE)
-           POST https://api.hyperliquid-testnet.xyz/exchange
-           Signed via ETH keypair (EIP-712)
+        ▼ RTP Treasury Program (on-chain, DONE)
+           open_flash_position: validates frozen, strategy Live, runway floor
+           invoke_signed with Treasury PDA seeds → Flash Trade Perpetuals CPI
         │
-        ▼ fill confirmed → YieldReport with PnL (DONE)
+        ▼ Flash Trade Perpetuals Program (on-chain CPI)
+           FLASH6Lo6h3iasJKWDs2F8TkW2UKf3s15C8PMGuVfgBn (mainnet)
+           Position opened/closed on Solana, fully auditable on Explorer
         │
-        ▼ Treasury CPI transfer (DONE)
-           USDC → Treasury PDA via transfer_checked on devnet
+        ▼ close_flash_position (invoke_signed) → SOL returned to treasury vault
         │
-        ▼ check_redistribute on-chain (DONE on devnet)
+        ▼ check_redistribute on-chain (DONE)
+           70% holders / 20% project dev / 10% ecosystem
         │
         ▼ Devnet loop daemon (DONE)
            6h cron, LLM-driven strategy evolution, auditable trail
 
-Per-Token Wallet Isolation (DONE)
-  └── Phantom MCP derivationIndex → each token gets own wallet
+Fee-Payer Wallet (gas only, DONE)
+  └── Funded keypair pays Solana transaction gas (< 0.001 SOL/tx)
         │
-        ▼ index 0: default agent, index 1: Token A, index 2: Token B, ...
-        ▼ Each index: separate Solana addr + EVM addr + HL perps account
-        ▼ TradingState.token_wallet_map: HashMap<String, u32>
-        ▼ All phantom_mcp.rs functions take di: u32 parameter
+        ▼ No authority over treasury funds — cannot sign for Treasury PDA
+        ▼ Losing this key means losing gas money, not treasury funds
 ```
 
 ### Integration Resources
 | Resource | URL |
 |----------|-----|
+| Flash Trade REST API | https://flashapi.trade |
+| Flash Trade SKILL.md | `flash-trade/SKILL.md` (in repo) |
+| Flash Trade TransactionFlow | `flash-trade/TransactionFlow.md` (in repo) |
+| Flash Trade ProtocolConcepts | `flash-trade/ProtocolConcepts.md` (in repo) |
+| Flash Trade SDK (TypeScript) | `flash-sdk` (NPM) |
+| Flash Trade Program (mainnet) | `FLASH6Lo6h3iasJKWDs2F8TkW2UKf3s15C8PMGuVfgBn` |
+| Flash Trade Program (devnet) | `FTPP4jEWW1n8s2FEccwVfS9KCPjpndaswg7Nkkuz4ER4` |
+| Composability Program (mainnet) | `FSWAPViR8ny5K96hezav8jynVubP2dJ2L7SbKzds2hwm` |
+| Phantom Connect docs (browser wallet) | https://docs.phantom.com/phantom-connect |
+
+**Legacy (archived behind `#[cfg(feature = "hyperliquid")]`):**
+| Resource | URL |
+|----------|-----|
 | Hyperliquid API docs | https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api |
 | Hyperliquid Python SDK | https://github.com/hyperliquid-dex/hyperliquid-python-sdk |
-| Hyperliquid Rust SDK | https://github.com/hyperliquid-dex/hyperliquid-rust-sdk |
 | Testnet endpoint | https://api.hyperliquid-testnet.xyz/exchange |
-| Phantom Connect docs | https://docs.phantom.com/phantom-connect |
-| CASH stablecoin docs | https://docs.phantom.com/phantom-connect |
 
 ### Signing Architecture
-- **HL order signing**: ETH keypair directly (`configs/hl_testnet_key.json`), EIP-712
-- **MCP bridge signing**: Phantom MCP server subprocess (`@phantom/mcp-server`, v1.2.x) — fee-free swaps, Relay cross-chain bridge to HL, 29+ tools
-- **Per-token wallet isolation**: `derivationIndex` parameter on every MCP call — each token gets its own Solana/EVM/HL account from one auth session
-- **Solana CPI signing**: Phantom KMS (production) → local devnet keypair (demo)
-- **Signing cascade**: Phantom MCP (derivationIndex) → Phantom KMS → `~/.config/solana/id.json` → manual fallback
-- **Dashboard signing**: `@solana/wallet-adapter-react` for browser wallet ops (freeze/unfreeze, multisig status) — no Server SDK needed
+- **Flash Trade CPI signing**: Treasury PDA `invoke_signed` — no private key exists. The program IS the only authority.
+- **Fee-payer wallet**: Funded keypair for Solana gas fees only — has zero authority over treasury funds
+- **Dashboard signing**: `@solana/wallet-adapter-react` for browser wallet ops (freeze/unfreeze, multisig status)
+- **Phantom MCP** (archived): `phantom_mcp.rs` gated behind `#[cfg(feature = "hyperliquid")]`. Not compiled in default build. Available for legacy reference.
 
 ### Security Hardening (v1.0)
 - **Zero-address guard**: `Pubkey::default()` rejected on all critical fields in `initialize`.
-- **Emergency freeze/unfreeze**: `freeze_treasury` (instant, authority-gated), `unfreeze_treasury` (authority-gated). All 12 state-mutating instructions check frozen flag. Events emitted for audit.
-- **SPENDING_LIMIT_EXCEEDED**: MCP error handling logs spending limit violations for visibility.
+- **Emergency freeze/unfreeze**: `freeze_treasury` (instant, authority-gated), `unfreeze_treasury` (authority-gated). All 15 state-mutating instructions check frozen flag (12 original + 3 Flash Trade). Events emitted for audit.
+- **Emergency close all positions**: `emergency_close_all_positions` — authority-gated, closes all open Flash Trade positions during freeze events.
 
 ---
 
@@ -75,8 +83,8 @@ Per-Token Wallet Isolation (DONE)
 
 This repo has three layers:
 1. **Proven Python fractal-swarm** (shipping) — backtesting, optimization, paper trading
-2. **Rust swarm + Solana treasury** (built, 307 tests) — 6-wing architecture, Coordinator, soulcontract, per-token wallet isolation, emergency freeze, zero-address guard
-3. **Hyperliquid execution** (done — devnet verified) — Trading Wing → HL testnet → yield → treasury PDA
+2. **Rust swarm + Solana treasury** (built, 308 tests) — 6-wing architecture, Coordinator, soulcontract, Flash Trade CPI execution, emergency freeze, zero-address guard
+3. **Flash Trade CPI execution** (done — mainnet verified) — Trading Wing → Treasury PDA invoke_signed → Flash Trade Perpetuals CPI → on-chain positions → SOL yield → treasury PDA
 
 ---
 
@@ -129,9 +137,9 @@ python -m research.data.download_ohlcv
 cd rtp/swarm && cargo build --release
 cd rtp/swarm && cargo test
 cd rtp/swarm && cargo run --bin rtp-daemon    # single devnet cycle
-cd rtp/swarm && cargo run --bin rtp-demo      # full 8-step demo + MCP bridge
+cd rtp/swarm && cargo run --bin rtp-demo      # full 8-step demo + Flash Trade CPI
 cd rtp/swarm && cargo test --lib trading::tests
-cd rtp/swarm && cargo test --lib trading::phantom_mcp::tests  # MCP integration
+cd rtp/swarm && cargo test --lib trading::flash_trade_client::tests  # Flash Trade REST client
 cd rtp/swarm && cargo test --lib audit::tests
 cd rtp/swarm && cargo test --test coordinator_integration
 ```
@@ -144,6 +152,16 @@ cd rtp/programs/rtp-treasury && anchor test --provider.cluster devnet
 cd rtp/programs/rtp-treasury && anchor deploy --provider.cluster devnet
 ```
 
+### Flash Trade (Demo + Account Derivation)
+
+```bash
+# Flash Trade CPI demo (mainnet simulation, optionally execute with --execute)
+npx ts-node scripts/flash-trade-demo.ts
+
+# Derive all Flash Trade PDAs offline
+npx ts-node scripts/derive_flash_accounts.ts
+```
+
 ---
 
 ## Architecture
@@ -154,13 +172,14 @@ cd rtp/programs/rtp-treasury && anchor deploy --provider.cluster devnet
 ┌─────────────────────────────────────────────────────────────────┐
 │                    ON-CHAIN (Solana / Anchor)                    │
 │  Treasury PDA: fees → yield → redistribute → self-hydrate       │
+│  Flash Trade CPI: invoke_signed → open/close positions          │
 │  Phase evolution: Sustenance → Ecosystem → Humanity Fund        │
 ├─────────────────────────────────────────────────────────────────┤
 │                    SWARM RUNTIME (Rust)                          │
 │  Coordinator → message bus → 6 wings (trading, security,        │
 │  evolve, knowledge, audit, futureproof)                          │
-│  Trading Wing → Hyperliquid perps → USDC yield → treasury PDA   │
-│  Signed via Phantom Connect agentic wallet                       │
+│  Trading Wing → Flash Trade CPI → on-chain perps → SOL yield    │
+│  Signed by Treasury PDA via invoke_signed (no human key)         │
 ├─────────────────────────────────────────────────────────────────┤
 │                    RESEARCH LAYER (Python)                       │
 │  Night Shift: 30K configs → WFA → Darwinian → full-sim validate │
@@ -194,9 +213,10 @@ cd rtp/programs/rtp-treasury && anchor deploy --provider.cluster devnet
 | `rtp/swarm/src/coordinator/soulguard.rs` | Enforce soulcontract on every message |
 | `rtp/swarm/src/coordinator/soulcontract_spec.rs` | Parse SOULCONTRACT.md → structured constraints + drift detection |
 | `rtp/swarm/src/coordinator/lifecycle.rs` | Wing spawn, health-check, retire |
-| `rtp/swarm/src/wings/trading/mod.rs` | **Trading Wing — HL execution, PnL tracking, apply_mutations, MCP bridge** |
-| `rtp/swarm/src/wings/trading/types.rs` | Trading types — HlSignature, StrategyConfig, PositionState, **TradingState (token_wallet_map, per-token derivation indices)** |
-| `rtp/swarm/src/wings/trading/phantom_mcp.rs` | **Phantom MCP client — subprocess MCP server, fee-free swaps, HL bridge, perps trading, yield distribution. All functions take `di: u32` for per-token wallet isolation. SPENDING_LIMIT_EXCEEDED error logging** |
+| `rtp/swarm/src/wings/trading/mod.rs` | **Trading Wing — Flash Trade CPI execution, PnL tracking, apply_mutations** |
+| `rtp/swarm/src/wings/trading/types.rs` | Trading types — StrategyConfig, PositionState, TradingState |
+| `rtp/swarm/src/wings/trading/flash_trade_client.rs` | **Flash Trade REST API client — markets, prices, positions, pool data queries** |
+| `rtp/swarm/src/wings/trading/phantom_mcp.rs` | **[ARCHIVED]** Phantom MCP client — gated behind `#[cfg(feature = "hyperliquid")]`, not compiled by default |
 | `rtp/swarm/src/bin/rtp-daemon.rs` | **Devnet loop daemon — single-cycle, 6h cron, LLM evolution** |
 | `rtp/swarm/src/wings/security/mod.rs` | Threat detection, rate-limiting, suspicious-proposal detection |
 | `rtp/swarm/src/wings/evolve/` | Assessor, proposer, rollback (complete, tested) |
@@ -208,7 +228,7 @@ cd rtp/programs/rtp-treasury && anchor deploy --provider.cluster devnet
 
 | File | Purpose |
 |------|---------|
-| `rtp/programs/rtp-treasury/` | Anchor: withdraw_fees, check_redistribute, hydrate_swarm, evolve_phase |
+| `rtp/programs/rtp-treasury/` | Anchor: withdraw_fees, check_redistribute, hydrate_swarm, evolve_phase, **open_flash_position, close_flash_position, emergency_close_all_positions** |
 
 #### Governance
 
@@ -225,33 +245,32 @@ cd rtp/programs/rtp-treasury && anchor deploy --provider.cluster devnet
 
 ## Devnet Limitations
 
-### Phantom Wallet Perps Bridge (SOL → HL USDC) — Mainnet-Only
+### Flash Trade — Pyth Oracle Mainnet-Only
 
-The Phantom wallet native perps bridge that converts SOL to USDC for Hyperliquid
-perpetual trading operates **on mainnet only**. Phantom's Testnet Mode supports
-basic SOL transactions and dApp connections, but the specific integration for
-bridging to and trading on Hyperliquid relies on mainnet liquidity pools.
+Flash Trade uses **Pyth Network** oracles for pricing. Pyth prices are **mainnet only** — devnet returns stale/zero prices, causing `StaleOraclePrice` (error 6007) on all position operations.
 
-**Impact on RTP:** The Trading Wing cannot route SOL from the treasury through
-Phantom's bridge to fund the HL perps account on devnet.
+**Impact on RTP:** Flash Trade CPI execution (open/close positions) cannot work on devnet. Constraint logic tests (frozen, strategy gate, position limits) run on local validator without invoking actual Flash Trade CPI.
 
-**Devnet workaround:** `devnet_fund_stub()` in `trading/mod.rs` simulates the
-SOL→USDC conversion at the current oracle price (fetched from HL testnet).
-It applies a 0.3% bridge fee (realistic swap cost) and returns the simulated
-USDC amount. This function is gated behind `#[cfg(feature = "devnet")]` and
-is never compiled for the mainnet binary.
+**Mainnet CPI proofs (M1):**
+- Open position: TX `2bLg1Fu...` — 99,214 CU consumed, confirmed on mainnet
+- Close position: TX `dFqkoP2...` — confirmed on mainnet
+
+**Testing strategy:**
+| Environment | Purpose | Works |
+|---|---|---|
+| Mainnet | Full CPI with real prices | Yes — micro positions (~$11-12 USDC minimum) |
+| Local validator | Constraint logic (frozen, runway, strategy gate) without CPI | Yes — 9/9 tests passing |
+| Devnet | Account derivation only (no fills) | Partial — stale oracle prices |
+
+**Flash Trade devnet program:** `FTPP4jEWW1n8s2FEccwVfS9KCPjpndaswg7Nkkuz4ER4` (available but limited by oracle)
 
 ```bash
-# Run tests with devnet stub (307+ tests):
-cd rtp/swarm && cargo test --lib --features devnet
+# Run Flash Trade CPI tests (local validator):
+cd rtp/programs/rtp-treasury && anchor test
 
-# Run without devnet stub (307+ tests, production config):
+# Run Rust swarm tests (308 tests):
 cd rtp/swarm && cargo test --lib
 ```
-
-**Production path (mainnet):** The Phantom perps bridge will work natively.
-`devnet_fund_stub()` is excluded from compilation when the `devnet` feature
-is not set, so the mainnet binary remains clean.
 
 ---
 
@@ -261,13 +280,14 @@ is not set, so the mainnet binary remains clean.
 2. **Per-token isolation** — each mint gets its own Treasury PDA + vault, no shared pool, no honeypot
 3. **SPL TransferFeeConfig immutable from mint** — fee percentage and withdraw authority cannot be revoked. Platform-level fee routing varies (Pump.fun: one-time, Bags.fm: anytime, Raydium: manual).
 4. **CPI-only transfers** — atomic, verifiable
-5. **No SOL liquidation** — USDC-only yield flows; Hyperliquid positions are USDC-margined
-6. **Phase transitions irreversible** — Sustenance → Ecosystem → Humanity
-7. **Auto-rollback if performance degrades > 5% post-amendment**
-8. **Self-hydration only if sustenance bucket > 90-day runway**
-9. **Research code remains reviewable while collaboration is active**
-10. **Emergency freeze** — authority-gated halt, all 12 state-mutating instructions check frozen flag. Unfreeze also authority-gated.
-11. **Zero-address rejection** — `Pubkey::default()` rejected on all critical fields
+5. **No SOL liquidation** — SOL committed as Flash Trade input via Composability swap-and-open; positions are on-chain on Solana, no cross-chain risk
+6. **Flash Trade CPI-only execution** — Treasury PDA signs via `invoke_signed`, no human keypair involved in trading
+7. **Phase transitions irreversible** — Sustenance → Ecosystem → Humanity
+8. **Auto-rollback if performance degrades > 5% post-amendment**
+9. **Self-hydration only if sustenance bucket > 90-day runway**
+10. **Research code remains reviewable while collaboration is active**
+11. **Emergency freeze** — authority-gated halt, all 15 state-mutating instructions check frozen flag. Unfreeze also authority-gated.
+12. **Zero-address rejection** — `Pubkey::default()` rejected on all critical fields
 
 ## Trust Model — Permissionless Recording, Authority-Gated Actions
 
@@ -281,6 +301,9 @@ The on-chain program separates instructions into two categories:
 - `end_beta` — manual beta adopter sunset
 - `freeze_treasury` — emergency halt, sets frozen=true, no time lock (emergency speed)
 - `unfreeze_treasury` — resume operations, authority-gated. Post-launch: Squads 2-of-3 + 24h time lock
+- `open_flash_position` — open Flash Trade perps position via CPI (invoke_signed)
+- `close_flash_position` — close position, SOL returned to treasury vault
+- `emergency_close_all_positions` — authority-gated, closes all open positions during freeze
 
 **Permissionless (any signer can call):**
 - `withdraw_fees` — anyone can pull TransferFeeConfig fees INTO the PDA vault (not out)
@@ -292,13 +315,18 @@ The on-chain program separates instructions into two categories:
 - `update_strategy_performance` — anyone can write strategy metrics (enforcement is on-chain via hydrate_swarm gate)
 - `verify_adoption` — read-only verification
 
+**Flash Trade CPI instructions (fee-payer submits, Treasury PDA signs via invoke_signed):**
+- `open_flash_position` — any fee-payer can submit, PDA signs the CPI. Validates: not frozen, strategy Live, position count < 3, runway floor, position size ≤ 20% vault.
+- `close_flash_position` — any fee-payer can submit. Permitted even if strategy Suspended (exiting is always safe).
+- `emergency_close_all_positions` — authority-gated. Closes up to 3 positions. Used with freeze_treasury for emergency halts.
+
 **Why this is safe:** Permissionless instructions either move funds INTO the PDA (never out), record accounting state (no fund movement), or write metrics where the real enforcement happens via authority-gated on-chain checks. The PDA owns all treasury assets — no private key can sign them away. Cumulative counters use `saturating_add` (never panics, never overflows to wrong values).
 
 **Known mainnet considerations (accepted for launch, post-launch improvements):**
 - `evolve_phase` thresholds checked against raw vault balance, not oracle-denominated USD. Authority manually verifies reserves before calling. Post-launch: integrate Pyth/Switchboard oracle.
 - `check_redistribute` emits a `Redistribution` event for auditability (added Apr 2026).
 - `freeze_treasury` / `unfreeze_treasury` events (`TreasuryFrozen`, `TreasuryUnfrozen`) emitted for audit (added Apr 2026).
-- All 12 state-mutating instructions check `treasury.frozen` flag before executing (added Apr 2026).
+- All 15 state-mutating instructions check `treasury.frozen` flag before executing (12 original + 3 Flash Trade CPI, added Apr 2026).
 - `reject_zero_address` guard on `initialize` for all critical fields (added Apr 2026).
 
 ---
@@ -307,8 +335,9 @@ The on-chain program separates instructions into two categories:
 
 | Resource | Use in RTP | Link |
 |---------|-----------|------|
-| Phantom Connect | **Phantom Portal app registered**. `@solana/wallet-adapter-react` wired to dashboard (/, /launch, /docs). Wallet connect + live token launch flow operational on devnet. MCP server (v1.2.x, 28+ tools) for AI agent wallet ops. Per-token wallet isolation via `derivationIndex`. | https://docs.phantom.com/introduction |
-| CASH stablecoin | Third-party resource (not currently used — treasury uses USDC for settlement) | https://docs.phantom.com/phantom-connect |
+| Flash Trade Perpetuals | **Execution venue**. On-chain Solana perps DEX. CPI via `invoke_signed` from Treasury PDA. REST API for queries (prices, positions, markets). Pool-to-peer model, up to 100x leverage, Pyth oracle pricing. | `flash-trade/SKILL.md` (in repo), https://flashapi.trade |
+| Phantom Connect | **Browser wallet only**. `@solana/wallet-adapter-react` wired to dashboard (/, /launch, /docs). Wallet connect + live token launch flow operational on devnet. | https://docs.phantom.com/introduction |
+| CASH stablecoin | Third-party resource (not currently used) | https://docs.phantom.com/phantom-connect |
 | Squads Multisig | Post-launch: `treasury.authority` rotation to Squads PDA for 2-of-3 multisig governance | https://docs.squads.so |
 | Swig | Programmable smart wallets for wing message bus | https://docs.swig.fi |
 | MoonPay Agents | Agent money movement infrastructure | https://www.moonpay.com/developers/agents |
@@ -342,7 +371,7 @@ Active symbols: BTC/USDT, ETH/USDT, SOL/USDT, BNB/USDT. XRP dropped (net negativ
 
 **Top live candidate (Apr 9 Night Shift):**
 SOL/USDT Survivor 2.69 — signal_threshold=0.3, tp_atr=3.0, sl_atr=1.5, max_hold=36h, trailing_stop_atr=0.5
-This is the config the Trading Wing targets on Hyperliquid.
+This is the config the Trading Wing targets on Flash Trade (via on-chain CPI).
 
 ---
 
@@ -367,8 +396,9 @@ This is the config the Trading Wing targets on Hyperliquid.
 
 ## Design Decisions
 
-- **Hyperliquid for execution**: highest-liquidity perps DEX, REST API, USDC-margined, no KYC
-- **Phantom for signing**: agentic wallet flow, per-token wallet isolation via `derivationIndex`, USDC settlement
+- **Flash Trade for execution**: on-chain Solana perps DEX, CPI via invoke_signed, no cross-chain bridge, no human keypair, fully auditable on Explorer
+- **Treasury PDA for signing**: invoke_signed with PDA seeds — the program IS the only authority, no private key exists
+- **Hyperliquid (archived)**: legacy execution path gated behind `#[cfg(feature = "hyperliquid")]`, not compiled by default
 - **Median OOS Sharpe** (not mean) — prevents single-fold outliers dominating
 - **Per-fold Sharpe winsorized at ±100** — prevents tiny-sample extremes
 - **Fragility is a penalty, not rejection** — `survivor *= 1/(1+fragility)`

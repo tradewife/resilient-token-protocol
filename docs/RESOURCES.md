@@ -31,7 +31,19 @@ Extracted from BUILD_PLAN v2.2. Keep this file updated as new tools are integrat
 
 ## Hackathon Tools & Integrations
 
-### Phantom Connect + CASH + MCP
+### Flash Trade (Execution Venue)
+- REST API: https://flashapi.trade
+- SKILL.md (in repo): `flash-trade/SKILL.md`
+- TransactionFlow: `flash-trade/TransactionFlow.md`
+- ProtocolConcepts: `flash-trade/ProtocolConcepts.md`
+- ErrorReference: `flash-trade/ErrorReference.md`
+- Program (mainnet): `FLASH6Lo6h3iasJKWDs2F8TkW2UKf3s15C8PMGuVfgBn`
+- Program (devnet): `FTPP4jEWW1n8s2FEccwVfS9KCPjpndaswg7Nkkuz4ER4`
+- Composability Program (mainnet): `FSWAPViR8ny5K96hezav8jynVubP2dJ2L7SbKzds2hwm`
+- TypeScript SDK: `flash-sdk` (NPM package)
+- **RTP integration:** CPI via `invoke_signed` from Treasury PDA. REST API for queries only (prices, positions, markets). Execution is CPI only — no REST API execution. Pyth oracle prices are mainnet-only (devnet has stale/zero prices).
+
+### Phantom Connect + CASH (Browser Wallet)
 - Docs: https://docs.phantom.com/phantom-connect
 - Get Started: https://phantom.app/phantom-connect
 - React Template: https://github.com/phantom-labs/phantom-connect-react
@@ -39,16 +51,15 @@ Extracted from BUILD_PLAN v2.2. Keep this file updated as new tools are integrat
 - CASH stablecoin: https://phantom.app/cash (third-party, not currently used — treasury uses USDC)
 - **Phantom MCP Server** (v1.2.x, 28+ tools — swap, sign, perps trading, yield distribution, balance queries): https://help.phantom.com/hc/en-us/articles/49235725504147
 - MCP changelog: https://docs.phantom.com/updates
+- **[ARCHIVED]** Phantom MCP is gated behind `#[cfg(feature = "hyperliquid")]` in the Rust swarm. Not compiled by default. Available for legacy reference.
 - **Phantom × Hyperliquid native perps** (UI feature only — NOT a programmatic API):
   https://unchainedcrypto.com/phantom-wallet-launches-direct-perpetual-trading-with-hyperliquid/
-- **Per-token wallet isolation**: `derivationIndex` parameter gives each token its own wallet (Solana + EVM + HL account) from a single MCP auth session. Verified live with 3 separate indices.
 
-> **RTP integration note (corrected Apr 11):** Phantom × HL native perps is a wallet UI feature,
-> not a programmatic API. RTP's Hyperliquid execution uses an ETH keypair + EIP-712 signing
-> directly in `trading/mod.rs` — this is the correct and final architecture for HL order placement.
-> Phantom's role in RTP is Solana treasury signing (CPI transfer), not HL trading.
-> For the devnet demo, a local keypair signs the treasury deposit tx. The signing cascade:
-> Phantom KMS (production) → local devnet keypair (demo) → manual submission (fallback).
+> **RTP integration note (updated Apr 28):** The execution venue is now Flash Trade (on-chain Solana CPI).
+> The Treasury PDA signs via `invoke_signed` — no human keypair involved.
+> Phantom's role in RTP is the browser wallet (dashboard freeze/unfreeze, wallet connect).
+> The Hyperliquid/Phantom MCP execution path is archived behind a feature flag.
+> Flash Trade handles all perps execution on Solana.
 
 ### Colosseum Sponsored Tools
 
@@ -134,9 +145,9 @@ Extracted from BUILD_PLAN v2.2. Keep this file updated as new tools are integrat
 
 | Tool | Reason |
 |---|---|
-| Phantom × HL native perps for execution | UI feature only, not a programmatic API. HL execution uses ETH keypair + EIP-712 in `trading/mod.rs` directly. |
-| Hyperliquid via Arbitrum bridge | Not needed — HL testnet API is accessed directly via REST. No bridge or EVM wallet needed for programmatic orders. |
-| Phantom MCP for treasury signing | Partially implemented — MCP handles swaps, bridge, perps, yield distribution. Treasury CPI signing still uses local devnet keypair for demo. Production KMS path via Phantom Portal. |
+| Hyperliquid for execution | **Archived.** Replaced by Flash Trade on-chain CPI. HL path gated behind `#[cfg(feature = "hyperliquid")]`. |
+| Phantom MCP for execution | **Archived.** Replaced by Treasury PDA invoke_signed. MCP module not compiled by default. |
+| Phantom × HL native perps for execution | UI feature only, not a programmatic API. Flash Trade provides on-chain CPI instead. |
 | World Coin | Toxic sentiment — skip entirely |
 | Privy | Not yet available |
 | Coinbase | Not yet available |

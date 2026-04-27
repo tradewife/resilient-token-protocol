@@ -37,10 +37,10 @@ Any launch platform integrates RTP — one function call per token launch. Trans
 Prior hackathon projects built individual components — treasury managers, AI agents, yield aggregators, backtesting tools. RTP is the first to combine them:
 
 - **Constitutional governance** — soulcontract enforced in Rust (soulguard.rs) AND on-chain (Anchor `require!`). No other project has both.
-- **Self-funding economics** — treasury generates its own yield via Hyperliquid perps, with irreversible phase evolution (Sustenance → Ecosystem → Humanity). No VC dependency.
+- **Self-funding economics** — treasury generates its own yield via Flash Trade on-chain perps (CPI via `invoke_signed`), with irreversible phase evolution (Sustenance → Ecosystem → Humanity). No VC dependency.
 - **Proven research engine** — 30K configs/night, 9-fold walk-forward validation, fee-aware simulation. Not a backtest screenshot — out-of-sample results across 9 independent time windows.
 - **On-chain constraint proof** — the Anchor program deliberately rejects invalid transactions (10+ rejection tests). Constraint rejection IS the demo.
-- **Hyperliquid execution** — EIP-712 signed orders from Rust, fills on HL testnet, USDC yield deposited to Solana PDA. No prior Colosseum project integrates Hyperliquid.
+- **Flash Trade on-chain execution** — PDA-signed CPI into Flash Trade's Perpetuals program on Solana. No human keypair. No cross-chain bridge. Fully auditable on Explorer. Mainnet-proven (M1: TX `2bLg1Fu...`, 99,214 CU).
 
 ## Language Architecture
 
@@ -146,8 +146,7 @@ Treasury program deployed and operational on Solana devnet (Apr 11 2026).
 │  ├── Receive fees — TransferFeeConfig (withheld) + platform creator fees (SOL)  │
 │  ├── Strategy lifecycle (register → update → suspend/retire)    │
 │  ├── Hydration gate (only Live strategies receive funding)      │
-│  ├── Phantom bridge: SOL → USDC (fund HL working capital)     │
-│  ├── Phantom bridge: USDC yield → SOL (return to treasury)    │
+│  ├── Flash Trade CPI: invoke_signed → open/close perps positions │
 │  ├── Threshold-triggered redistribution (70/20/10 split)        │
 │  ├── Self-hydration CPI (fund swarm ops from yield)            │
 │  ├── Ecosystem auto-invest (excess → top RTP token LPs)        │
@@ -155,10 +154,11 @@ Treasury program deployed and operational on Solana devnet (Apr 11 2026).
 │                                                                 │
 │  Invariants (enforced on-chain):                                │
 │  ├── PDA owns treasury (no private key risk)                    │
-│  ├── Per-token isolation — each mint gets its own PDA + vault + agent wallet (derivationIndex)   │
+│  ├── Per-token isolation — each mint gets its own PDA + vault   │
 │  ├── SPL TransferFeeConfig (fee % immutable from mint)          │
 │  ├── CPI-only transfers (atomic, verifiable)                    │
-│  ├── SOL never liquidated — bridged via Phantom, never sold     │
+│  ├── Flash Trade CPI-only execution (invoke_signed, no human key)│
+│  ├── SOL never liquidated — committed via Composability, not sold│
 │  ├── Agent can propose, human must approve irreversible actions │
 │  └── Treasury cannot fund Suspended/Retired strategies          │
 ├─────────────────────────────────────────────────────────────────┤
@@ -206,10 +206,11 @@ The only wing that touches capital. Responsible for generating yield.
 | Full-sim validation (fees, slippage, 429 trades validated) | Python | **Shipping** |
 | Self-correction (fast sim vs full sim calibration) | Python | **Shipping** |
 | Paper trading (live Binance, ADX filter, state persistence) | Python | **Shipping** |
-| Live execution on Hyperliquid (testnet) | Rust | **Done** — EIP-712 signed, round-trip verified, PnL tracked |
+| Live execution on Flash Trade (mainnet CPI) | Rust + Solana | **Done** — Treasury PDA invoke_signed, positions opened/closed on-chain, mainnet-proven |
 | Degradation detection + auto-recalibration trigger | Rust | Planned |
 | Strategy lifecycle (hypothesis → validate → deploy → retire) | Both | **Built** — PromotionGate + RetirementGate + DecayMonitor (7 tests) |
 | On-chain lifecycle enforcement (StrategyRecord PDA) | Solana | **Built** — register/update/retire instructions, hydrate gate (17 tests) |
+| Flash Trade CPI instructions (open/close/emergency) | Solana | **Built** — 9/9 CPI tests, 3 instruction handlers, PDA-signed |
 
 ### Security Wing
 
@@ -339,31 +340,29 @@ Yield (USDC)
 
 At $10k reserves generating 20-50% annual yield, ops cost is ~$100-200/mo. The system runs forever on its own yield.
 
-## Treasury Capital Model — Unified SOL Cycle
+## Treasury Capital Model — On-Chain SOL Cycle
 
-The protocol operates on a single transparent cycle: **SOL in, USDC on Hyperliquid, SOL back out.**
+The protocol operates on a single transparent cycle: **SOL in, Flash Trade CPI on Solana, SOL back out.** No cross-chain bridge. No USDC in-flight. Everything stays on Solana.
 
 ```
-SOL fees → Phantom bridge → USDC → HL perps → USDC yield → Phantom bridge → SOL → Treasury PDA → redistribute
+SOL fees → Treasury PDA → invoke_signed → Flash Trade CPI (on-chain perps) → SOL returned → Treasury PDA → redistribute
 ```
 
 | Step | Asset | Location | Mechanism |
 |------|-------|----------|-----------|
-| 1. Fees arrive | SOL | Treasury PDA (Solana) | TransferFeeConfig from adopting token projects |
-| 2. Fund trading | SOL → USDC | Phantom bridge (mainnet) | Trustless swap at oracle price |
-| 3. Execute strategies | USDC | HL clearinghouse | USDC-margined perps, EIP-712 signed |
-| 4. Yield returns | USDC → SOL | Phantom bridge (mainnet) | Trustless swap at oracle price |
-| 5. Redistribute | SOL | Treasury PDA | 70% holders / 20% dev / 10% ecosystem (on-chain) |
+| 1. Fees arrive | SOL | Treasury PDA (Solana) | Platform creator fees (Pump.fun, Bags.fm, Raydium) → treasury PDA |
+| 2. Execute strategies | SOL | Flash Trade (on-chain CPI) | Treasury PDA invoke_signed → Composability swap-and-open → perps position on Solana |
+| 3. Yield returns | SOL | Treasury PDA (Solana) | Close position → SOL returned to treasury vault via CPI |
+| 4. Redistribute | SOL | Treasury PDA | 70% holders / 20% dev / 10% ecosystem (on-chain) |
 
 **Why this model:**
-- **Single asset on-chain** — the treasury PDA only holds SOL. Judges verify the full balance on Solana Explorer.
-- **USDC only in-flight** — Hyperliquid positions are USDC-margined. SOL is never at liquidation risk on HL.
-- **Trustless conversion** — the Phantom bridge handles SOL↔USDC without custodial risk.
-- **Auditable** — every step produces an on-chain signature or API receipt.
+- **Single asset, single chain** — the treasury PDA holds SOL, Flash Trade positions are on Solana, yield returns as SOL. No bridge. No USDC. No cross-chain risk.
+- **PDA-signed execution** — the Treasury PDA signs via `invoke_signed`. No human keypair exists for trading. The program IS the only authority.
+- **Fully auditable** — every position open/close is an on-chain transaction visible on Solana Explorer.
 
-> **Devnet note:** The Phantom SOL↔USDC bridge is mainnet-only. On devnet, the HL clearinghouse is funded directly via faucet, and `devnet_fund_stub()` simulates the bridge for demo narrative. The treasury PDA holds SOL on devnet as it would in production.
+> **Devnet note:** Flash Trade uses Pyth oracles which are mainnet-only. CPI execution works on mainnet with micro positions (~$11 USDC minimum). Constraint logic tests (frozen, strategy gate, position limits) run on local validator. See `FLASHTRADE-PDA-UPGRADE-SPEC.md` for M1 mainnet proofs.
 
-**Self-sustaining threshold:** when USDC yield exceeds ops cost by 10x sustained over 90 days, external seed capital is no longer required and can be returned or recycled to the ecosystem fund.
+**Self-sustaining threshold:** when SOL yield exceeds ops cost by 10x sustained over 90 days, external seed capital is no longer required and can be returned or recycled to the ecosystem fund.
 
 ## soulcontract.md
 
@@ -408,9 +407,8 @@ Token project adopts RTP
   └── Raydium
           └── Creator fees → pool_creator wallet → forward to Treasury PDA (manual)
 
-SOL reserves held in treasury PDA. Phantom bridge converts SOL→USDC to fund
-Hyperliquid positions. USDC yield converts back to SOL via Phantom bridge.
-Single asset on-chain, trustless conversion, fully auditable.
+SOL reserves held in treasury PDA. Treasury PDA invoke_signed → Flash Trade CPI
+opens positions on Solana. SOL returned on position close. Single asset, single chain, fully auditable.
 ```
 
 **Why projects adopt**: Their fees don't just sit in a wallet — the swarm puts them to work. Yield flows back to the project and its holders automatically. No trust required. The community's SOL is never sold.
@@ -430,11 +428,9 @@ AdopterRecord_A             AdopterRecord_B             AdopterRecord_C
       │                           │                           │
   SOL fees_A                 SOL fees_B                 SOL fees_C
       │                           │                           │
-  Swap to USDC_A             Swap to USDC_B             Swap to USDC_C
-      │                           │                           │
-  HL trade (same             HL trade (same             HL trade (same
-  strategy, isolated         strategy, isolated         strategy, isolated
-  capital)                   capital)                   capital)
+  Flash Trade CPI_A         Flash Trade CPI_B         Flash Trade CPI_C
+  (invoke_signed,            (invoke_signed,            (invoke_signed,
+   isolated capital)          isolated capital)          isolated capital)
       │                           │                           │
   Yield_A → SOL_A            Yield_B → SOL_B            Yield_C → SOL_C
       │                           │                           │
@@ -449,7 +445,7 @@ AdopterRecord_A             AdopterRecord_B             AdopterRecord_C
 - **Transparent attribution** — each token's yield is directly verifiable on its own PDA via Solana Explorer. No pro-rata math required.
 - **No cross-subsidization** — Token A's losses cannot eat Token B's reserves.
 
-**The swarm copy-trades the same validated strategy across all tokens.** One research engine (Night Shift, 30K configs) discovers the optimal config. One Coordinator dispatches it. Each token's capital executes independently — same strategy, isolated execution. Each token gets its own Phantom agent wallet via `derivationIndex`, giving it a separate Solana address, EVM address, and Hyperliquid perps account from a single MCP auth session. This is the production architecture for multi-token scaling.
+**The swarm copy-trades the same validated strategy across all tokens.** One research engine (Night Shift, 30K configs) discovers the optimal config. One Coordinator dispatches it. Each token's capital executes independently — same strategy, isolated execution. Each token's Treasury PDA signs its own Flash Trade CPI via `invoke_signed`. This is the production architecture for multi-token scaling.
 
 **Phase 1 (current demo):** Single adopter, single treasury PDA, full redistribution cycle proven on devnet.
 **Phase 2 (production scaling):** Per-token copy-trading dispatcher — the Trading Wing iterates over all registered adopters, executing the validated strategy for each token's isolated capital.
@@ -468,20 +464,21 @@ AdopterRecord_A             AdopterRecord_B             AdopterRecord_C
                      │                             │
                      │  SOL reserves               │
                      │  ├─ Never liquidated        │
-                     │  └─ Bridged to USDC via     │
-                     │       Phantom (mainnet)     │
+                     │  └─ Committed via invoke_   │
+                     │       signed to Flash Trade  │
                      └──────────┬─────────────────┘
-                                │ SOL → USDC (Phantom bridge)
+                                │ Treasury PDA invoke_signed (no human key)
                                 ▼
                      ┌──────────▼─────────────────┐
-                     │  HYPERLIQUID CLEARINGHOUSE  │
+                     │ FLASH TRADE PERPETUALS      │
+                     │ (on-chain Solana CPI)       │
                      │                             │
-                     │  USDC working capital       │
-                     │  ├─ USDC-margined perps     │
-                     │  ├─ EIP-712 signed orders   │
-                     │  └─ Yield compounds         │
+                     │  SOL input via Composability│
+                     │  ├─ swap-and-open (atomic)  │
+                     │  ├─ Pool-to-peer perps      │
+                     │  └─ Up to 100x leverage     │
                      └──────────┬─────────────────┘
-                                │ USDC yield → SOL (Phantom bridge)
+                                │ SOL returned on close (via CPI)
                                 ▼
                      ┌──────────▼─────────────────┐
                      │     SOLANA TREASURY PDA     │
@@ -497,7 +494,7 @@ AdopterRecord_A             AdopterRecord_B             AdopterRecord_C
                      └─────────────────────────────┘
 ```
 
-Single asset on-chain (SOL). USDC only exists in-flight on Hyperliquid. Trustless conversion via Phantom bridge. Judges verify the full SOL balance on Solana Explorer.
+Single asset throughout (SOL). Single chain (Solana). No cross-chain bridge. PDA-signed execution. Judges verify the full SOL balance and all Flash Trade positions on Solana Explorer.
 
 ## What This Is Not
 
@@ -506,7 +503,7 @@ Single asset on-chain (SOL). USDC only exists in-flight on Hyperliquid. Trustles
 - **Not dependent on LLMs** — core loop is deterministic Python; LLMs optional for hypothesis generation
 - **Not just a trading bot** — it's infrastructure that any launch platform can integrate
 - **Not requiring venture infrastructure** — runs on a single machine, no database, no Kubernetes
-- **Not liquidating community SOL** — SOL is bridged to USDC via Phantom (trustless), never sold on the open market. SOL on the treasury PDA is never at risk of liquidation.
+- **Not liquidating community SOL** — SOL is committed to Flash Trade positions via on-chain CPI (Composability swap-and-open), never sold on the open market. Positions are on Solana, fully auditable.
 
 ## What We Already Have (Proven)
 
@@ -521,13 +518,13 @@ The Trading Wing's research layer is shipping today. Everything else is scaffold
 | CI Pipeline (nightly cron, auto-commit, 300min timeout) | Trading | Infra | **Shipping** |
 | Devnet Loop (6h cron, LLM mutations, config chaining) | Evolve | Infra | **Shipping** |
 | SOL Optimized Config (+118.3% PnL, 78% consistency, 429 trades) | Trading | Python | **Shipping** |
-| Treasury Program (Anchor: deposit, distribute, hydrate, evolve) | — | Solana | **Built** (audit remediated) |
+| Treasury Program (Anchor: deposit, distribute, hydrate, evolve, Flash Trade CPI) | — | Solana | **Built** (audit remediated, M0–M5 complete) |
 | soulcontract.md (constitutional governance layer) | — | Governance | **Defined** |
 | Python ↔ Rust Bridge (typed JSON, bridge-mode subprocess) | Trading | Both | **Built** |
-| Coordinator (soulguard + router + lifecycle) | — | Rust | **Built** (307 tests) |
+| Coordinator (soulguard + router + lifecycle) | — | Rust | **Built** (308 tests) |
 | Evolve Wing (assessor + proposer + rollback) | Evolve | Rust | **Built** |
 | Audit Wing (3-agent tribunal, Byzantine consensus) | Audit | Rust | **Built** |
-| Trading Wing (bridge-backed execution, in-memory state) | Trading | Rust | **Built** |
+| Trading Wing (Flash Trade CPI execution, REST API client, in-memory state) | Trading | Rust | **Built** |
 | Security Wing (threat detection, rate-limiting, alert tracking) | Security | Rust | **Built** |
 | Knowledge Wing (in-memory graph, cross-wing queries) | Knowledge | Rust | **Built** |
 | Future-proof Wing (deprecation monitoring, heartbeat) | Future-proof | Rust | **Built** |
@@ -551,7 +548,7 @@ rtp/
 │   │   │   ├── soulcontract_spec.rs # Parse soulcontract.md → constraints
 │   │   │   └── lifecycle.rs        # Wing spawn, health-check, retire
 │   │   └── wings/
-│   │       ├── trading/mod.rs      # Bridge-backed execution, in-memory state
+│   │       ├── trading/mod.rs      # Flash Trade CPI execution, REST client, in-memory state
 │   │       ├── security/mod.rs     # Threat detection, rate-limiting, alerts
 │   │       ├── evolve/
 │   │       │   ├── mod.rs          # Darwinian loop orchestration + LLM proposer
@@ -623,7 +620,7 @@ Treasury program audit-remediated. All 6 wings built. Coordinator with full qual
 - ✅ Python ↔ Rust typed bridge (`rtp/swarm/src/bridge.rs`)
 - ✅ End-to-end demo loop (`rtp/swarm/src/demo.rs`, 8-step pipeline)
 - ✅ Autonomous devnet loop (`rtp-daemon` binary, 6h CI cron, LLM mutations)
-- ✅ Test suite: 307 tests, 0 failures, 0 clippy warnings (anchor: 34 passing).
+- ✅ Test suite: 308 tests, 0 failures, 0 clippy warnings (anchor: 32 passing, 9/9 Flash Trade CPI tests).
 
 ### Phase 2: End-to-End Integration + Full Loop
 
@@ -640,7 +637,7 @@ Demo rehearsal, video, hardening, Colosseum submission by May 11.
 
 ### Phase 4: Eternal Autonomy
 
-All wings operational. Human role reduced to soulcontract amendments. The swarm runs, improves, defends, and evolves — funded by its own yield. SOL collateral loop operational via Phantom-native integration.
+All wings operational. Human role reduced to soulcontract amendments. The swarm runs, improves, defends, and evolves — funded by its own yield. Flash Trade CPI loop operational: Treasury PDA signs positions on-chain, yield returns as SOL, redistribution runs at threshold.
 
 ## Quick Start
 
@@ -674,7 +671,7 @@ cargo run --bin rtp-daemon
 
 | Criterion | Weight | What Judges Want | How RTP Delivers |
 |---|---|---|---|
-| **Functionality** | ? | Working demo with real transactions | Live: adopt→fees→swarm→yield→redistribute on devnet |
+| **Functionality** | ? | Working demo with real transactions | Live: adopt→fees→swarm→Flash Trade CPI→yield→redistribute on mainnet |
 | **Potential Impact** | ? | Project with lasting real-world value | Any Solana token can adopt — unruggable yield standard |
 | **Novelty** | ? | Novel approach, original architecture | Six-wing modular swarm + token adoption model |
 | **UX** | ? | Great demo experience | Phantom Connect + MCP server (agentic wallet), devnet treasury live, 3-min demo |
@@ -687,7 +684,7 @@ cargo run --bin rtp-daemon
 2. "This is our night shift — it tested 30,000 strategy configs last night, fully autonomous"
 3. "Here's the best one — +118% PnL, 78% consistency, 9 independent validation folds"
 4. "The Trading Wing proposes deployment — the Audit Wing checks it against the soulcontract"
-5. "Approved — the Rust executor places the trade, yield flows back to the project and holders"
+5. "Approved — the Treasury PDA signs a Flash Trade CPI call via invoke_signed, the position opens on Solana, yield flows back to the project and holders"
 6. "At threshold, it auto-redistributes — 70% holders, 20% project dev, 10% ecosystem — all on-chain"
 
 ## Third-Party Components
@@ -697,8 +694,9 @@ cargo run --bin rtp-daemon
 | atlas-gic | MIT | Multi-agent Darwinian loop — Evolve Wing autoresearch |
 | karpathy/autoresearch | MIT | Core Modify/Verify/Keep loop specification |
 | uditgoenka/autoresearch | MIT | Claude-native implementation |
-| Phantom Connect | Open-source | Agentic wallet + per-token isolation via derivationIndex + MCP server (28+ tools) |
-| CASH | Third-party | Stablecoin (not currently used — treasury uses USDC for settlement) |
+| Phantom Connect | Open-source | Browser wallet for dashboard (freeze/unfreeze, wallet connect). MCP server archived behind feature flag. |
+| Flash Trade | Open-source program | On-chain Solana perps DEX — execution venue. CPI via invoke_signed, REST API for queries. |
+| CASH | Third-party | Stablecoin (not currently used) |
 | Squads Multisig | Sponsored | Treasury PDA security + multisig authority |
 | Swig | Sponsored | Programmable smart wallets for wing message bus |
 | MoonPay Agents | Sponsored | VC capital on-ramp → treasury USDC deposit |

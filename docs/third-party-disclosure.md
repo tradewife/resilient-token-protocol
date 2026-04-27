@@ -17,9 +17,11 @@ RTP (Resilient Token Protocol) uses the following open-source frameworks and spo
 
 | Integration | Link | Use in RTP |
 |---------|------|------------|
-| Phantom Connect + CASH | https://docs.phantom.com/phantom-connect | Agentic wallet for treasury interactions. Per-token wallet isolation via `derivationIndex`. CASH stablecoin is a third-party resource (not currently used — treasury uses USDC). |
-| **Phantom MCP Server** | https://help.phantom.com/hc/en-us/articles/49235725504147 | Primary MCP interface for swarm agent wallet operations (swap, sign, perps trading, yield distribution) — v1.2.x, 28+ tools. Every function takes `derivationIndex` for per-token wallet isolation. |
-| **Phantom × Hyperliquid** | https://unchainedcrypto.com/phantom-wallet-launches-direct-perpetual-trading-with-hyperliquid/ | Native perps integration: SOL → Hyperliquid account in a single Solana tx. No Arbitrum bridge. No EVM wallet. |
+| **Flash Trade Perpetuals** | https://flashapi.trade | **Execution venue.** On-chain Solana perps DEX. CPI via `invoke_signed` from Treasury PDA. REST API for queries (prices, positions, markets). Pool-to-peer model, up to 100x leverage, Pyth oracle pricing. |
+| **Flash Trade Composability** | `FSWAPViR8ny5K96hezav8jynVubP2dJ2L7SbKzds2hwm` | Atomic swap-and-open / close-and-swap for SOL input to Flash Trade positions. |
+| Phantom Connect | https://docs.phantom.com/phantom-connect | Browser wallet for dashboard (freeze/unfreeze, wallet connect, token launch). `@solana/wallet-adapter-react`. |
+| **Phantom MCP Server** | https://help.phantom.com/hc/en-us/articles/49235725504147 | **[ARCHIVED]** Gated behind `#[cfg(feature = "hyperliquid")]`. Not compiled by default. Available for legacy reference. |
+| Phantom × Hyperliquid | https://unchainedcrypto.com/phantom-wallet-launches-direct-perpetual-trading-with-hyperliquid/ | **[ARCHIVED]** Was native perps integration. Replaced by Flash Trade on-chain CPI. |
 
 ## Colosseum Sponsored Resources
 
