@@ -306,7 +306,7 @@ pub fn get_sol_index() -> Result<i64, String> {
             "HL info parse error (status {}): {} — body: {}",
             status,
             e,
-            &body[..body.len().min(200)]
+            body.chars().take(200).collect::<String>()
         )
     })?;
 
@@ -320,7 +320,7 @@ pub fn get_sol_index() -> Result<i64, String> {
         }
     }
 
-    Ok(0) // SOL is typically index 0
+    Err("SOL not found in HL universe".to_string())
 }
 
 /// Get the current SOL mid price from Hyperliquid testnet.
@@ -344,7 +344,7 @@ pub fn get_sol_mid_price() -> Result<f64, String> {
             "HL info parse error (status {}): {} — body: {}",
             status,
             e,
-            &body[..body.len().min(200)]
+            body.chars().take(200).collect::<String>()
         )
     })?;
 
@@ -770,8 +770,8 @@ pub fn build_treasury_deposit_tx(
     // Derive ATA for the payer wallet.
     let from_ata = derive_ata(&from, &mint, &token_program);
 
-    // Convert to raw units (6 decimals).
-    let amount_raw = (amount_tokens * 10f64.powi(TOKEN_DECIMALS as i32)) as u64;
+    // Convert to raw units (6 decimals). Use round() to avoid float truncation.
+    let amount_raw = (amount_tokens * 10f64.powi(TOKEN_DECIMALS as i32)).round() as u64;
 
     // Build transfer_checked instruction.
     let transfer_ix = build_transfer_checked_ix(
@@ -785,10 +785,10 @@ pub fn build_treasury_deposit_tx(
     );
 
     // Fetch recent blockhash from devnet.
-    let (_blockhash_str, _blockhash) = get_devnet_blockhash()?;
+    let (_blockhash_str, blockhash) = get_devnet_blockhash()?;
 
-    // Build unsigned transaction.
-    let message = solana_sdk::message::Message::new(&[transfer_ix], Some(&from));
+    // Build unsigned transaction with the fetched blockhash.
+    let message = solana_sdk::message::Message::new_with_blockhash(&[transfer_ix], Some(&from), &blockhash);
     let tx = solana_sdk::transaction::Transaction::new_unsigned(message);
 
     // Serialize to bytes (Solana wire format via bincode), then base64.
@@ -912,9 +912,9 @@ pub fn sign_and_send_local(tx_base64: &str) -> Result<String, String> {
     let mut tx: solana_sdk::transaction::Transaction =
         bincode::deserialize(&tx_bytes).map_err(|e| format!("Failed to deserialize tx: {}", e))?;
 
-    // Sign the transaction.
-    let blockhash = tx.message.recent_blockhash;
-    tx.sign(&[&keypair], blockhash);
+    // Fetch a fresh blockhash to avoid expiry between build and sign.
+    let (_bh_str, fresh_blockhash) = get_devnet_blockhash()?;
+    tx.sign(&[&keypair], fresh_blockhash);
 
     // Verify the first signature is not default (zero) — proves signing happened.
     if tx.signatures[0] == solana_sdk::signature::Signature::default() {
@@ -1045,9 +1045,9 @@ pub fn build_sol_transfer_tx(from_wallet: &str, lamports: u64) -> Result<String,
 
     let transfer_ix = solana_sdk::system_instruction::transfer(&from, &vault, lamports);
 
-    let (_blockhash_str, _blockhash) = get_devnet_blockhash()?;
+    let (_blockhash_str, blockhash) = get_devnet_blockhash()?;
 
-    let message = solana_sdk::message::Message::new(&[transfer_ix], Some(&from));
+    let message = solana_sdk::message::Message::new_with_blockhash(&[transfer_ix], Some(&from), &blockhash);
     let tx = solana_sdk::transaction::Transaction::new_unsigned(message);
 
     let serialized =
@@ -1090,7 +1090,7 @@ pub fn deposit_sol_yield_to_treasury(
     }
 
     let sol_amount = usdc_pnl / sol_price_usdc;
-    let lamports = (sol_amount * 1_000_000_000.0) as u64;
+    let lamports = (sol_amount * 1_000_000_000.0).round() as u64;
 
     if lamports == 0 {
         return Err(format!(

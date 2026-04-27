@@ -58,7 +58,8 @@ const FLASH_TRADE_PROGRAM_ID: &str = "FLASH6Lo6h3iasJKWDs2F8TkW2UKf3s15C8PMGuVfg
 const FLASH_OPEN_POSITION_DISC: [u8; 8] = [135, 128, 47, 77, 15, 152, 240, 49];
 
 /// Flash Trade close_position discriminator (IDL v15.2.0)
-const FLASH_CLOSE_POSITION_DISC: [u8; 8] = [123, 134, 81, 0, 49, 68, 98, 98];
+/// Verified via mainnet close TX dFqkoP2... — must match flash-trade-demo.ts CLOSE_POS_DISC
+const FLASH_CLOSE_POSITION_DISC: [u8; 8] = [191, 210, 137, 115, 145, 22, 230, 244];
 
 /// Max concurrent Flash Trade positions per strategy
 const MAX_CONCURRENT_POSITIONS: u8 = 3;
@@ -1189,6 +1190,12 @@ pub mod rtp_treasury {
             TreasuryError::InvalidPoolName,
         );
 
+        // Validate slippage: must be <= 10000 bps (100%) to prevent negative slippage prices
+        require!(slippage_bps <= 10000, TreasuryError::PositionSizeExceeded);
+
+        // Validate leverage: must be <= 1_000_000 bps (100x) to prevent overflow
+        require!(leverage_bps <= 1_000_000, TreasuryError::PositionSizeExceeded);
+
         let treasury = &mut ctx.accounts.treasury;
         let strategy = &mut ctx.accounts.strategy_record;
 
@@ -1342,6 +1349,9 @@ pub mod rtp_treasury {
         let treasury = &mut ctx.accounts.treasury;
         let strategy = &mut ctx.accounts.strategy_record;
 
+        // Validate slippage: must be <= 10000 bps (100%) to prevent negative slippage prices
+        require!(slippage_bps <= 10000, TreasuryError::PositionSizeExceeded);
+
         let flash_program_id = Pubkey::try_from(FLASH_TRADE_PROGRAM_ID)
             .map_err(|_| TreasuryError::InvalidFlashProgramId)?;
 
@@ -1379,14 +1389,14 @@ pub mod rtp_treasury {
         };
 
         // Build close_position instruction data: disc (8) + OraclePrice (12)
-        // + collateralAmount (8) + sizeAmount (8) + privilege (1) = 37 bytes.
+        // + sizeUsd (8) + privilege (1) = 29 bytes.
+        // Matches Flash Trade IDL v15.2.0 close_position (verified on mainnet).
         // u64::MAX = full close.
-        let mut ix_data = Vec::with_capacity(37);
+        let mut ix_data = Vec::with_capacity(29);
         ix_data.extend_from_slice(&FLASH_CLOSE_POSITION_DISC);
         ix_data.extend_from_slice(&(slippage_price as i64).to_le_bytes());
         ix_data.extend_from_slice(&oracle_price.exponent.to_le_bytes());
-        ix_data.extend_from_slice(&u64::MAX.to_le_bytes());
-        ix_data.extend_from_slice(&u64::MAX.to_le_bytes());
+        ix_data.extend_from_slice(&u64::MAX.to_le_bytes()); // sizeUsd: full close
         ix_data.push(0u8); // privilege: None
 
         let account_metas: Vec<AccountMeta> = remaining.iter().enumerate().map(|(i, acc)| {
