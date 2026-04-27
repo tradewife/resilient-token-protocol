@@ -788,7 +788,8 @@ pub fn build_treasury_deposit_tx(
     let (_blockhash_str, blockhash) = get_devnet_blockhash()?;
 
     // Build unsigned transaction with the fetched blockhash.
-    let message = solana_sdk::message::Message::new_with_blockhash(&[transfer_ix], Some(&from), &blockhash);
+    let message =
+        solana_sdk::message::Message::new_with_blockhash(&[transfer_ix], Some(&from), &blockhash);
     let tx = solana_sdk::transaction::Transaction::new_unsigned(message);
 
     // Serialize to bytes (Solana wire format via bincode), then base64.
@@ -1047,7 +1048,8 @@ pub fn build_sol_transfer_tx(from_wallet: &str, lamports: u64) -> Result<String,
 
     let (_blockhash_str, blockhash) = get_devnet_blockhash()?;
 
-    let message = solana_sdk::message::Message::new_with_blockhash(&[transfer_ix], Some(&from), &blockhash);
+    let message =
+        solana_sdk::message::Message::new_with_blockhash(&[transfer_ix], Some(&from), &blockhash);
     let tx = solana_sdk::transaction::Transaction::new_unsigned(message);
 
     let serialized =
@@ -1410,10 +1412,7 @@ impl TradingWing {
                     let flash_client = FlashTradeClient::new();
                     match flash_client.get_price("SOL") {
                         Ok(sol_price) => {
-                            flash_log.push(format!(
-                                "[FLASH] SOL oracle price: ${:.2}",
-                                sol_price
-                            ));
+                            flash_log.push(format!("[FLASH] SOL oracle price: ${:.2}", sol_price));
 
                             // Query existing positions for the treasury
                             if !treasury_pda.is_empty() {
@@ -2060,12 +2059,12 @@ mod tests {
         // Expected Python action_hash for nonce=1744380000000
         let expected_hash = "4aeaba018ccfaa20cd746642f6300a94a84e8452365c192d7c89000cb88c292a";
 
-        println!("[TEST] Rust action_hash: {}", hex::encode(&action_hash));
+        println!("[TEST] Rust action_hash: {}", hex::encode(action_hash));
         println!("[TEST] Expected hash:    {}", expected_hash);
         println!("[TEST] Expected msgpack: {}", expected_msgpack);
 
         assert_eq!(
-            hex::encode(&action_hash),
+            hex::encode(action_hash),
             expected_hash,
             "Action hash must match Python SDK insertion-order output"
         );

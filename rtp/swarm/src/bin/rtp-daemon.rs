@@ -87,9 +87,7 @@ fn check_treasury_frozen() -> Result<bool, String> {
         .send()
         .map_err(|e| format!("RPC request failed: {}", e))?;
 
-    let json: serde_json::Value = resp
-        .json()
-        .map_err(|e| format!("RPC parse error: {}", e))?;
+    let json: serde_json::Value = resp.json().map_err(|e| format!("RPC parse error: {}", e))?;
 
     let data = json
         .get("result")
@@ -129,7 +127,9 @@ async fn main() {
     // avoids wasting a full cycle of work.
     match check_treasury_frozen() {
         Ok(true) => {
-            println!("[DAEMON] Treasury is FROZEN — skipping cycle. Unfreeze required by authority.");
+            println!(
+                "[DAEMON] Treasury is FROZEN — skipping cycle. Unfreeze required by authority."
+            );
             println!("[DAEMON] exit 0 (frozen is not an error)");
             return;
         }
@@ -137,7 +137,10 @@ async fn main() {
             println!("[DAEMON] Treasury status: ACTIVE");
         }
         Err(e) => {
-            println!("[DAEMON] Could not check frozen status ({}). Continuing — on-chain CPI will gate.", e);
+            println!(
+                "[DAEMON] Could not check frozen status ({}). Continuing — on-chain CPI will gate.",
+                e
+            );
         }
     }
 

@@ -13,8 +13,8 @@ use crate::wings::evolve::{LlmProposerConfig, propose_strategy_mutation};
 use crate::wings::futureproof::FutureproofWing;
 use crate::wings::knowledge::KnowledgeWing;
 use crate::wings::security::SecurityWing;
-use crate::wings::trading::TradingWing;
 use crate::wings::trading::FlashTradeClient;
+use crate::wings::trading::TradingWing;
 
 /// Result of a demo run.
 #[derive(Debug)]
@@ -544,7 +544,10 @@ pub fn run_flash_trade_demo() -> Result<serde_json::Value, String> {
     println!("\n[FLASH DEMO] Step 1: Query Flash Trade REST API");
     let sol_price = client.get_price("SOL");
     match &sol_price {
-        Ok(price) => println!("[FLASH DEMO]   SOL oracle price: ${:.2} (Pyth mainnet)", price),
+        Ok(price) => println!(
+            "[FLASH DEMO]   SOL oracle price: ${:.2} (Pyth mainnet)",
+            price
+        ),
         Err(e) => println!("[FLASH DEMO]   Price query failed (non-fatal): {}", e),
     }
 
