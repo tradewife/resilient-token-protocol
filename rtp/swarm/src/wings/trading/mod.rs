@@ -7,8 +7,12 @@
 
 use crate::bridge::{self, BridgeRequest};
 use crate::types::{Message, Payload, WingId};
+pub mod flash_trade_client;
+#[cfg(feature = "hyperliquid")]
 pub mod phantom_mcp;
 pub mod types;
+pub use flash_trade_client::FlashTradeClient;
+#[cfg(feature = "hyperliquid")]
 pub use phantom_mcp::PhantomMcpClient;
 use solana_sdk::signer::Signer;
 use std::sync::Mutex;
@@ -1195,6 +1199,7 @@ pub fn devnet_fund_from_hl_oracle(sol_amount: f64) -> Result<f64, String> {
 ///
 /// Returns a summary of the quotes obtained. Actual execution requires
 /// `execute: true` in the MCP tool calls (funded wallet needed).
+#[cfg(feature = "hyperliquid")]
 pub fn mcp_bridge_flow(sol_amount: f64) -> Result<serde_json::Value, String> {
     mcp_bridge_flow_for_token(sol_amount, None)
 }
@@ -1204,6 +1209,7 @@ pub fn mcp_bridge_flow(sol_amount: f64) -> Result<serde_json::Value, String> {
 /// If `state` is provided and contains a registered token, uses that token's
 /// derivation index for per-token wallet isolation. Otherwise falls back to
 /// the default agent wallet (di=0).
+#[cfg(feature = "hyperliquid")]
 pub fn mcp_bridge_flow_for_token(
     sol_amount: f64,
     state: Option<&types::TradingState>,
@@ -1354,12 +1360,133 @@ impl TradingWing {
                     .and_then(|v| v.as_str())
                     .unwrap_or("bridge");
                 let use_hl = venue == "hyperliquid" || venue == "phantom_mcp";
+                #[cfg(feature = "hyperliquid")]
                 let use_mcp_bridge = venue == "phantom_mcp";
+                #[cfg(not(feature = "hyperliquid"))]
+                let _use_mcp_bridge = false;
+                let use_flash_trade = venue == "flash_trade";
+
+                // ── Flash Trade CPI: on-chain Solana execution ──────────
+                // When execution_venue is "flash_trade", the Trading Wing
+                // queries prices/positions via REST API, then the agent
+                // submits an `open_flash_position` instruction to the
+                // rtp-treasury on-chain program. The program CPIs into
+                // Flash Trade's Perpetuals program with PDA signing.
+                if use_flash_trade {
+                    let side = config
+                        .get("side")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("Long");
+                    let size_sol = config
+                        .get("size_sol")
+                        .and_then(|v| v.as_f64())
+                        .unwrap_or(0.02);
+                    let leverage_bps = config
+                        .get("leverage_bps")
+                        .and_then(|v| v.as_u64())
+                        .unwrap_or(10000); // 1x default
+                    let slippage_bps = config
+                        .get("slippage_bps")
+                        .and_then(|v| v.as_u64())
+                        .unwrap_or(500); // 5%
+                    let pool_name = config
+                        .get("pool_name")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("Crypto.1");
+                    let treasury_pda = config
+                        .get("treasury_pda")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("");
+
+                    let mut flash_log = Vec::new();
+                    flash_log.push(format!(
+                        "[FLASH] CPI execution: side={} size={:.4} SOL leverage={}bps pool={}",
+                        side, size_sol, leverage_bps, pool_name
+                    ));
+
+                    // Query Flash Trade REST API for current price
+                    let flash_client = FlashTradeClient::new();
+                    match flash_client.get_price("SOL") {
+                        Ok(sol_price) => {
+                            flash_log.push(format!(
+                                "[FLASH] SOL oracle price: ${:.2}",
+                                sol_price
+                            ));
+
+                            // Query existing positions for the treasury
+                            if !treasury_pda.is_empty() {
+                                match flash_client.get_positions(treasury_pda) {
+                                    Ok(positions) => {
+                                        flash_log.push(format!(
+                                            "[FLASH] Open positions: {}",
+                                            positions.len()
+                                        ));
+                                        for pos in &positions {
+                                            flash_log.push(format!(
+                                                "  {} {} size={} collateral={} pnl={} leverage={}",
+                                                pos.side,
+                                                pos.market,
+                                                pos.size_usd,
+                                                pos.collateral_usd,
+                                                pos.unrealized_pnl_usd,
+                                                pos.leverage
+                                            ));
+                                        }
+                                    }
+                                    Err(e) => {
+                                        flash_log.push(format!(
+                                            "[FLASH] Position query failed (non-fatal): {}",
+                                            e
+                                        ));
+                                    }
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            flash_log
+                                .push(format!("[FLASH] Price query failed (non-fatal): {}", e));
+                        }
+                    }
+
+                    // Print the execution log
+                    for line in &flash_log {
+                        println!("{}", line);
+                    }
+
+                    // The actual tx submission (open_flash_position instruction)
+                    // is handled by the agent's Solana RPC client, not here.
+                    // This path prepares the decision and logs the state.
+                    // The agent daemon reads this output and submits the tx.
+                    let mut state = lock_state(&self.state)?;
+                    state.execution_count += 1;
+                    state.last_yield_report = Some(serde_json::json!({
+                        "execution_venue": "flash_trade",
+                        "side": side,
+                        "size_sol": size_sol,
+                        "leverage_bps": leverage_bps,
+                        "slippage_bps": slippage_bps,
+                        "pool_name": pool_name,
+                        "treasury_pda": treasury_pda,
+                    }));
+
+                    return Some(Message::new(
+                        WingId::Trading,
+                        WingId::Coordinator,
+                        Payload::YieldReport {
+                            usdc_yield: 0.0, // Filled after position close
+                            sol_reserves: size_sol,
+                            drawdown: 0.0,
+                            source: Some("flash_trade_cpi".to_string()),
+                        },
+                    ));
+                }
 
                 // ── MCP bridge: swap SOL → USDC, deposit to HL ─────────
                 // When execution_venue is "phantom_mcp", the Phantom MCP
                 // server handles the Solana swap (fee-free) and cross-chain
                 // bridge to Hyperliquid before the Rust EIP-712 HL order.
+                // Archived behind #[cfg(feature = "hyperliquid")].
+                #[cfg(feature = "hyperliquid")]
                 if use_mcp_bridge {
                     let mcp_sol = config
                         .get("mcp_bridge_sol")

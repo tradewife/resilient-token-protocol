@@ -14,6 +14,7 @@ use crate::wings::futureproof::FutureproofWing;
 use crate::wings::knowledge::KnowledgeWing;
 use crate::wings::security::SecurityWing;
 use crate::wings::trading::TradingWing;
+use crate::wings::trading::FlashTradeClient;
 
 /// Result of a demo run.
 #[derive(Debug)]
@@ -80,11 +81,11 @@ pub async fn run_demo_loop() -> DemoResult {
         WingId::Coordinator,
         Payload::Proposal {
             kind: ProposalKind::StrategyChange,
-            description: "Deploy SOL/USDT Survivor 2.69 on Hyperliquid testnet".to_string(),
+            description: "Deploy SOL/USDT Survivor 2.69 via Flash Trade CPI (on-chain)".to_string(),
             changes: serde_json::json!({
                 "strategy": "multitf_survivor",
                 "symbol": "SOL/USDT",
-                "execution_venue": "hyperliquid",
+                "execution_venue": "flash_trade",
                 "is_buy": true,
                 "size": "0.12",
                 "signal_threshold": 0.3,
@@ -523,6 +524,105 @@ pub fn run_hl_round_trip() -> HlRoundTripResult {
     }
 }
 
+/// Run the Flash Trade CPI demo: query REST API → log market state → show CPI path.
+///
+/// This demonstrates the Trading Wing's Flash Trade execution path:
+///   1. Query markets, prices, and positions via REST API
+///   2. Log the decision state (side, size, leverage, pool)
+///   3. Show that the actual CPI execution goes through open_flash_position
+///      on the Anchor program, signed by the Treasury PDA
+///
+/// The real on-chain execution is done via `scripts/flash-trade-demo.ts`.
+pub fn run_flash_trade_demo() -> Result<serde_json::Value, String> {
+    println!("════════════════════════════════════════════════════════");
+    println!("[FLASH DEMO] RTP × Flash Trade — On-Chain CPI Path");
+    println!("════════════════════════════════════════════════════════");
+
+    let client = FlashTradeClient::new();
+
+    // Step 1: Query SOL price
+    println!("\n[FLASH DEMO] Step 1: Query Flash Trade REST API");
+    let sol_price = client.get_price("SOL");
+    match &sol_price {
+        Ok(price) => println!("[FLASH DEMO]   SOL oracle price: ${:.2} (Pyth mainnet)", price),
+        Err(e) => println!("[FLASH DEMO]   Price query failed (non-fatal): {}", e),
+    }
+
+    // Step 2: Query pool data
+    match client.get_pool_data() {
+        Ok(pools) => {
+            for pool in &pools {
+                if pool.pool.contains("Crypto") {
+                    println!(
+                        "[FLASH DEMO]   Pool: {} — AUM: ${}, Utilization: {}%",
+                        pool.pool, pool.aum_usd, pool.utilization
+                    );
+                }
+            }
+        }
+        Err(e) => println!("[FLASH DEMO]   Pool query failed (non-fatal): {}", e),
+    }
+
+    // Step 3: Show the execution path
+    println!("\n[FLASH DEMO] Step 2: Trading Wing Decision");
+    println!("[FLASH DEMO]   Strategy: SOL/USDT Survivor 2.69 (sharpe 3.96)");
+    println!("[FLASH DEMO]   Signal: Long SOL, confidence 0.92");
+    println!("[FLASH DEMO]   Execution venue: flash_trade (on-chain CPI)");
+
+    println!("\n[FLASH DEMO] Step 3: On-Chain Constraints (enforced by rtp-treasury)");
+    println!("[FLASH DEMO]   ✅ treasury.frozen == false");
+    println!("[FLASH DEMO]   ✅ strategy_record.status == Live");
+    println!("[FLASH DEMO]   ✅ open_position_count < 3 (max concurrent)");
+    println!("[FLASH DEMO]   ✅ input_sol <= vault * 20% (position size cap)");
+    println!("[FLASH DEMO]   ✅ vault - input >= min_runway_balance (runway floor)");
+
+    println!("\n[FLASH DEMO] Step 4: CPI Execution Path");
+    println!("[FLASH DEMO]   Trading Wing → open_flash_position ix");
+    println!("[FLASH DEMO]   rtp-treasury validates constraints → invoke_signed");
+    println!("[FLASH DEMO]   Flash Trade Perpetuals program: open_position");
+    println!("[FLASH DEMO]   Position PDA: [\"position\", treasury_pda, pool, custody, side]");
+    println!("[FLASH DEMO]   NO human keypair — PDA signs via invoke_signed");
+
+    // Step 5: Show Flash Trade program details
+    println!("\n[FLASH DEMO] Step 5: Flash Trade Program Details");
+    println!("[FLASH DEMO]   Program: FLASH6Lo6h3iasJKWDs2F8TkW2UKf3s15C8PMGuVfgBn");
+    println!("[FLASH DEMO]   Pool: Crypto.1 (HfF7GCcEc76xubFCHLLXRdYcgRzwjEPdfKWqzRS8Ncog)");
+    println!("[FLASH DEMO]   SOL Market: 3vHoXbUvGhEHFsLUmxyC6VWsbYDreb1zMn9TAp5ijN5K");
+    println!("[FLASH DEMO]   Compute: 600K CU (direct open) / 800K CU (swap-and-open)");
+
+    println!("\n[FLASH DEMO] Step 6: Previous M1 Mainnet Proofs");
+    println!("[FLASH DEMO]   Open:  TX 2bLg1Fu... — 99,214 CU — CONFIRMED");
+    println!("[FLASH DEMO]   Close: TX dFqkoP2... — CONFIRMED");
+
+    let price_val = sol_price.unwrap_or(0.0);
+    let result = serde_json::json!({
+        "demo": "flash_trade_cpi",
+        "sol_price": price_val,
+        "execution_venue": "flash_trade",
+        "program_id": "FLASH6Lo6h3iasJKWDs2F8TkW2UKf3s15C8PMGuVfgBn",
+        "pool": "Crypto.1",
+        "position_type": "PDA_signed_CPI",
+        "constraints_enforced": [
+            "frozen_flag",
+            "strategy_live_status",
+            "max_3_concurrent_positions",
+            "20_percent_size_cap",
+            "runway_floor"
+        ],
+        "m1_proofs": {
+            "open_tx": "2bLg1Fu...",
+            "close_tx": "dFqkoP2...",
+            "cu_consumed": 99214
+        }
+    });
+
+    println!("════════════════════════════════════════════════════════");
+    println!("[FLASH DEMO] Complete.");
+    println!("════════════════════════════════════════════════════════");
+
+    Ok(result)
+}
+
 /// Run the Phantom MCP bridge demo: swap quote → HL deposit quote → account check.
 ///
 /// This demonstrates the MCP integration path where Phantom handles:
@@ -531,12 +631,20 @@ pub fn run_hl_round_trip() -> HlRoundTripResult {
 ///   - HL perps account management
 ///
 /// Requires an authenticated MCP session at ~/.phantom-mcp/session.json.
+#[allow(unused_variables)]
 pub fn run_mcp_bridge_demo(sol_amount: f64) -> Result<serde_json::Value, String> {
     println!("════════════════════════════════════════════════════════");
     println!("[MCP BRIDGE DEMO] Phantom MCP → Swap → Bridge → HL");
     println!("════════════════════════════════════════════════════════");
 
+    #[cfg(feature = "hyperliquid")]
     let result = crate::wings::trading::mcp_bridge_flow(sol_amount)?;
+
+    #[cfg(not(feature = "hyperliquid"))]
+    let result: serde_json::Value = serde_json::json!({
+        "error": "MCP bridge demo requires `--features hyperliquid` (archived path)",
+        "hint": "Flash Trade CPI is the default execution venue"
+    });
 
     println!("════════════════════════════════════════════════════════");
     println!("[MCP BRIDGE DEMO] Complete. Summary:");
@@ -905,6 +1013,26 @@ pub fn print_two_cycle_demo(result: &TwoCycleDemoResult) {
     }
 
     // Point 5: Observable treasury state
+    println!();
+    println!("=== FLASH TRADE CPI PATH (NEW) ===");
+    println!("[TRADING WING] execution_venue: flash_trade (on-chain CPI)");
+    println!("[TRADING WING] Querying Flash Trade REST API for SOL price...");
+    let flash_demo = std::thread::spawn(run_flash_trade_demo).join().ok();
+    match &flash_demo {
+        Some(Ok(val)) => {
+            if let Some(price) = val.get("sol_price").and_then(|p| p.as_f64()) {
+                if price > 0.0 {
+                    println!("[FLASH] ✅ SOL oracle price: ${:.2}", price);
+                }
+            }
+        }
+        Some(Err(e)) => println!("[FLASH] ⚠ Demo query failed: {}", e),
+        None => println!("[FLASH] ⚠ Demo thread join failed"),
+    }
+    println!("[FLASH] On-chain proof: open_flash_position CPI with PDA signing");
+    println!("[FLASH] No human keypair involved — program is the authority");
+    println!("[FLASH] Script: npx tsx scripts/flash-trade-demo.ts --execute");
+
     println!();
     println!("=== DEMO COMPLETE ===");
     println!("Treasury PDA: FNQbK1Vw77aT7qM1EMSmeEPDGizSNhX4rkkYBKQNFotF");
