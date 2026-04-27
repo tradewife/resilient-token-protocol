@@ -25,7 +25,7 @@
 
 **Solution:** Resilient Token Protocol (RTP) is a Solana-native, self-funding treasury governed by a modular Rust swarm. Any token project integrates RTP via a single SDK call — their trading fees (SOL creator fees from platforms like Pump.fun, Bags.fm, Raydium) route to a per-mint PDA-owned treasury. TransferFeeConfig fee percentages are immutable once set on the mint. A 6-wing swarm (trading, security, evolve, knowledge, audit, futureproof) autonomously researches, validates, and executes yield strategies. The Trading Wing executes USDC-margined perpetuals trades on Hyperliquid, signed via Phantom Connect (agentic wallet). Yield flows back to the treasury PDA on Solana, redistributed via a deterministic 70/20/10 split (project/community/humanity fund). The system is designed to be self-funding from day one — funded by its own yield, forever.
 
-**Architecture:** Three layers — on-chain Solana treasury (Anchor, PDA-gated), Rust swarm runtime (6 wings, coordinator, soulguard), and Python research layer (Night Shift: 30K configs/night, 9-fold walk-forward validation, Darwinian selection). 167 commits, 306 Rust tests passing, full BUY→fill→SELL→fill→PnL round-trip verified on Hyperliquid testnet with yield deposits confirmed on Solana devnet. Multi-platform launcher supports Metaplex, Pump.fun, Bags.fm, and RTP Direct.
+**Architecture:** Three layers — on-chain Solana treasury (Anchor, PDA-gated), Rust swarm runtime (6 wings, coordinator, soulguard), and Python research layer (Night Shift: 30K configs/night, 9-fold walk-forward validation, Darwinian selection). 167 commits, 307 Rust tests passing, full BUY→fill→SELL→fill→PnL round-trip verified on Hyperliquid testnet with yield deposits confirmed on Solana devnet. Multi-platform launcher supports Metaplex, Pump.fun, Bags.fm, and RTP Direct.
 
 **What the grant funds:** Final mainnet hardening — security audit remediation, mainnet deployment of treasury program, Phantom Connect production integration, and hackathon submission (SWARMs/Canteen x Colosseum, deadline May 11, 2026).
 
@@ -36,7 +36,7 @@ May 11, 2026 (Australia/Sydney)
 ### Proof of Work
 
 - **Live site**: www.resilientprotocol.xyz (dashboard with wallet connect, token launch, SDK docs)
-- **GitHub**: github.com/Tradewife/resilient-token-protocol (167 commits, 306 passing Rust tests)
+- **GitHub**: github.com/Tradewife/resilient-token-protocol (167 commits, 307 passing Rust tests)
 - **On-chain**: Treasury program deployed to Solana devnet (program ID: `8rt6yiBn...`), PDA-gated fee collection, redistribution, and phase evolution all verified
 - **Hyperliquid integration**: Full EIP-712 signed order flow from Rust, BUY→SELL→PnL round-trip confirmed on HL testnet, yield deposited to treasury PDA
 - **Night Shift pipeline**: 30K strategy configs/night, 9-fold walk-forward validation, Darwinian survivor selection — top live candidate: SOL/USDT Survivor 2.69 with +118.3% optimized PnL

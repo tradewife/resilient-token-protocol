@@ -208,15 +208,15 @@ export default function Home() {
         if (data && alive) {
           // Decode base64 account data to read the `frozen` bool.
           // Treasury layout (Anchor 8-byte discriminator + fields):
-          //   mint(32) + authority(32) + phase(1+4) + total_fees_withdrawn(8) +
+          //   mint(32) + authority(32) + phase(1) + total_fees_withdrawn(8) +
           //   total_distributed_holders(8) + total_distributed_dev(8) +
           //   total_distributed_ecosystem(8) + total_hydration(8) +
           //   total_fees_received_lamports(8) + holders_wallet(32) +
           //   project_dev_wallet(32) + ecosystem_wallet(32) +
           //   min_runway_balance(8) + frozen(1) + bump(1)
-          // The frozen field is at byte offset 8+32+32+1+4+8+8+8+8+8+8+32+32+32+8 = 229
+          // The frozen field is at byte offset 8+32+32+1+8+8+8+8+8+8+32+32+32+8 = 225
           const binary = atob(data);
-          const frozenOffset = 229;
+          const frozenOffset = 225;
           if (binary.length > frozenOffset) {
             const frozenByte = binary.charCodeAt(frozenOffset);
             setIsFrozen(frozenByte !== 0);

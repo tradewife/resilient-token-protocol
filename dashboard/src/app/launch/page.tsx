@@ -548,10 +548,45 @@ export default function LaunchPage() {
     }
   }, [wallet, publicKey, projectName, tokenSymbol]);
 
+  // Check if treasury is frozen (read frozen flag from on-chain Treasury PDA)
+  const TREASURY_PDA = "FNQbK1Vw77aT7qM1EMSmeEPDGizSNhX4rkkYBKQNFotF";
+  const [isFrozen, setIsFrozen] = useState(false);
+
+  React.useEffect(() => {
+    let alive = true;
+    const check = async () => {
+      try {
+        const resp = await fetch("https://api.devnet.solana.com", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            jsonrpc: "2.0", id: 1,
+            method: "getAccountInfo",
+            params: [TREASURY_PDA, { encoding: "base64" }],
+          }),
+        });
+        const json = await resp.json();
+        const data = json?.result?.value?.data?.[0];
+        if (data && alive) {
+          const binary = atob(data);
+          const frozenOffset = 225;
+          if (binary.length > frozenOffset) {
+            setIsFrozen(binary.charCodeAt(frozenOffset) !== 0);
+          }
+        }
+      } catch { /* devnet unreachable */ }
+    };
+    check();
+  }, []);
+
   // Main launch handler
 
   const handleLaunch = useCallback(async () => {
     if (!wallet || !publicKey) return;
+    if (isFrozen) {
+      setError("Treasury is frozen — all operations are halted. Contact authority to unfreeze.");
+      return;
+    }
     setPhase("launching");
     setError(null);
 

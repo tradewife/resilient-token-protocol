@@ -804,7 +804,7 @@ pub mod rtp_treasury {
             .checked_add(amount_lamports)
             .ok_or(TreasuryError::Overflow)?;
         record.last_deposit_ts = clock.unix_timestamp;
-        record.deposit_count += 1;
+        record.deposit_count = record.deposit_count.saturating_add(1);
 
         treasury.total_fees_received_lamports = treasury
             .total_fees_received_lamports

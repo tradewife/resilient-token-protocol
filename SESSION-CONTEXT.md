@@ -352,7 +352,7 @@ State as of Apr 18:
 **Session 2026-04-17(ii) — Beta Adopter Lifecycle + Mainnet Audit**
 
 State as of Apr 17:
-- **39 anchor tests (5 new beta tests), 306 Rust tests, 18/18 devnet integration tests, 0 failures**
+- **39 anchor tests (5 new beta tests), 307 Rust tests, 18/18 devnet integration tests, 0 failures**
 - **Beta adopter lifecycle shipped, mainnet audit completed**
 - Demo-Readiness Score: 9.5/10
 
@@ -386,7 +386,7 @@ State as of Apr 17:
 **Session 2026-04-17 — SDK Audit Fixes + Phantom Wallet Integration + Dashboard /docs**
 
 State as of Apr 17:
-- **306 tests (anchor: 34 passing), 0 failures, 0 clippy warnings**
+- **307 tests (anchor: 34 passing), 0 failures, 0 clippy warnings**
 - **SDK signing bug fixed, Phantom wallet wired to dashboard, /docs interactive**
 - Demo-Readiness Score: 9.5/10
 
@@ -417,7 +417,7 @@ State as of Apr 17:
 **Session 2026-04-15(ii) — SOL Yield Return Path + Demo Wiring**
 
 State as of Apr 15:
-- **306 tests (anchor: 34 passing), 0 failures, 0 clippy warnings**
+- **307 tests (anchor: 34 passing), 0 failures, 0 clippy warnings**
 - **SOL yield return path + execution_venue wiring + dashboard balance fix**
 - Demo-Readiness Score: 9/10
 

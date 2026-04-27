@@ -101,7 +101,7 @@ const DOC_GROUPS: DocGroup[] = [
               <pre style={{ margin: 0, whiteSpace: "pre" }}>{`┌──────────────────────────────────────────────────────┐
 │              ON-CHAIN (Solana / Anchor)               │
 │  Treasury PDA: fees → yield → redistribute           │
-│  14 instructions · PDA-owned · CPI-only transfers     │
+│  16 instructions · PDA-owned · CPI-only transfers     │
 ├──────────────────────────────────────────────────────┤
 │              SWARM RUNTIME (Rust · 307 tests)         │
 │  Coordinator → message bus → 6 wings                  │
@@ -539,6 +539,7 @@ RTP_MAINNET_RPC // "https://api.mainnet-beta.solana.com"`}</CodeBlock>
             <CodeBlock>{`interface TreasuryState {
   mint: string;
   phase: "Sustenance" | "Ecosystem" | "Humanity";
+  isFrozen: boolean;
   vaultBalance: number;
   totalFeesWithdrawn: number;
   totalDistributedHolders: number;
@@ -573,6 +574,38 @@ RTP_MAINNET_RPC // "https://api.mainnet-beta.solana.com"`}</CodeBlock>
   payer: Keypair | WalletAdapter,
   mintAddress: string | PublicKey,
 ): Promise<{ withdrawSig: string; redistributeSig?: string }>;`}</CodeBlock>
+
+            <h4>registerAdopterBeta()</h4>
+            <p>Registers a beta adopter with an expiry timestamp. Free until beta period ends.</p>
+            <CodeBlock>{`async function registerAdopterBeta(
+  connection: Connection,
+  payer: Keypair | WalletAdapter,
+  mintAddress: string | PublicKey,
+  expiresAt: Date,
+): Promise<string>; // tx signature`}</CodeBlock>
+
+            <h4>fetchAdopterState()</h4>
+            <p>Read-only. Fetches on-chain adopter record (beta status, fee contributions).</p>
+            <CodeBlock>{`async function fetchAdopterState(
+  connection: Connection,
+  mintAddress: string | PublicKey,
+): Promise<AdopterState>;`}</CodeBlock>
+
+            <h4>freezeTreasury()</h4>
+            <p>Authority-gated emergency freeze. Halts all state-mutating operations. No time lock (emergency speed).</p>
+            <CodeBlock>{`async function freezeTreasury(
+  connection: Connection,
+  authority: Keypair | WalletAdapter,
+  mintAddress: string | PublicKey,
+): Promise<string>; // tx signature`}</CodeBlock>
+
+            <h4>unfreezeTreasury()</h4>
+            <p>Authority-gated unfreeze. Resumes operations. Post-launch: Squads 2-of-3 + 24h time lock.</p>
+            <CodeBlock>{`async function unfreezeTreasury(
+  connection: Connection,
+  authority: Keypair | WalletAdapter,
+  mintAddress: string | PublicKey,
+): Promise<string>; // tx signature`}</CodeBlock>
 
             <h3>PDA Derivation</h3>
             <CodeBlock>{`// Treasury PDA
@@ -621,7 +654,10 @@ PublicKey.findProgramAddressSync(
               <li><code>initialize</code> — creates treasury</li>
               <li><code>evolve_phase</code> — irreversible phase transitions</li>
               <li><code>register_strategy</code> — promotes strategy to Live</li>
+              <li><code>force_retire_strategy</code> — emergency strategy retirement</li>
               <li><code>end_beta</code> — ends beta participation</li>
+              <li><code>freeze_treasury</code> — emergency halt (no time lock)</li>
+              <li><code>unfreeze_treasury</code> — resume operations</li>
             </ul>
 
             <h4>Permissionless Actions</h4>

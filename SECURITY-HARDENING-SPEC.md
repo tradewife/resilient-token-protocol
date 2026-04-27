@@ -149,7 +149,7 @@ Replace the single-key `treasury.authority` with a Squads v4 multisig PDA. All a
 
 | Parameter | Value |
 |-----------|-------|
-| Program ID | `SQDS4ep65T869zMMBKyuUq6a6EgTu8psMjkvj52pCf` (same on mainnet + devnet) |
+| Program ID | `SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf` (same on mainnet + devnet) |
 | REST API | `https://developer-api.squads.so/api/v1` |
 | Auth Header | `Authorization: Bearer <API_KEY>` |
 | Network Header | `x-squads-network: devnet` or `mainnet` |
@@ -242,7 +242,7 @@ Squads executes transactions as top-level instructions from the multisig vault P
 **Vault PDA derivation:**
 ```
 seeds: ["multisig", multisig_key, "vault", vault_index]
-program ID: SQDS4ep65T869zMMBKyuUq6a6EgTu8psMjkvj52pCf
+program ID: SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf
 ```
 
 #### Rust CPI Integration
@@ -260,6 +260,8 @@ squads-multisig-program = "<version>"
 ```
 
 #### New Rust Client File
+
+> **DEFERRED** — Post-hackathon. Squads integration is planned for post-launch.
 
 Create `rtp/swarm/src/wings/trading/squads_client.rs` — a REST API client for Squads operations:
 
@@ -459,6 +461,8 @@ Fund each crank with ~0.05 SOL for 30 days. Top up monthly.
 **Only permissionless instructions** (no signer required) can be Hydra-scheduled. Authority-gated ops (`hydrate_swarm`, `evolve_phase`) remain under Squads multisig control.
 
 #### New Rust File
+
+> **DEFERRED** — Post-hackathon. Hydra crank automation is planned for post-launch.
 
 Create `rtp/swarm/src/wings/trading/hydra_crank.rs`:
 
@@ -909,14 +913,14 @@ pub enum TreasuryError {
 
 ## 5. Doc Update Checklist
 
-After all code changes are complete:
+> **DEFERRED** — All items below are post-hackathon. Squads multisig, Hydra cranks, and Server SDK integration are planned for post-launch. Freeze/unfreeze and zero-address guards are already implemented and tested.
 
-- [ ] **CLAUDE.md** — Update Signing Architecture section with dual MCP + Server SDK flow. Add Squads Multisig section (program ID, REST API, config). Add Hydra Crank section (program ID, crate, cost model). Update Key Files table with new files. Update Commands section. Update Devnet Limitations. Add new invariants (multisig authority, freeze capability, Hydra automation).
-- [ ] **SESSION-CONTEXT.md** — Add new session entry documenting all security hardening work. Update signing architecture references. Add Squads multisig address and configuration. Add Hydra crank addresses. Mark migration items from `rtp-current-state.md` as addressed.
-- [ ] **SOULCONTRACT.md** — Add constitutional invariant: "treasury.authority MUST be a Squads multisig PDA after initialization, minimum 2-of-3 threshold". Add emergency freeze rules: "freeze is authority-gated (no time lock for speed), unfreeze requires 2-of-3 + 24h time lock". Add Hydra scheduling rules: "withdraw_fees every ~800 slots (~5 min), check_redistribute every ~1,600 slots (~10 min), atomic rollback on failure". Update capital flow description to note Hydra automation of permissionless ops.
-- [ ] **docs/RESOURCES.md** — Add Squads: docs (`https://docs.squads.so`), REST API (`https://developer-api.squads.so/api/v1`), program ID (`SQDS4ep65T869zMMBKyuUq6a6EgTu8psMjkvj52pCf`), Rust crate (`squads-multisig-program`). Add Hydra: GitHub (`https://github.com/magicblock-labs/hydra`), crate (`hydra-api`), program ID (`Hydra17i1feui9deaxu6d1TzSQMRNHeBRkDR1Awy7zea`). Add Server SDK: npm (`@phantom/server-sdk`), GitHub (`https://github.com/phantom/phantom-connect-sdk`).
-- [ ] **README.md** — Add Security Hardening section (if it doesn't exist): describe Squads multisig, Hydra cranks, freeze capability, zero-address guards. Update architecture diagram if present.
-- [ ] **research/rtp-current-state.md** — Mark all P0 items as addressed. Mark P1 items as addressed. Update status of each file listed in the migration map.
+- [ ] **DEFERRED** **CLAUDE.md** — Update Signing Architecture section with dual MCP + Server SDK flow. Add Squads Multisig section (program ID, REST API, config). Add Hydra Crank section (program ID, crate, cost model). Update Key Files table with new files. Update Commands section. Update Devnet Limitations. Add new invariants (multisig authority, freeze capability, Hydra automation).
+- [ ] **DEFERRED** **SESSION-CONTEXT.md** — Add new session entry documenting all security hardening work. Update signing architecture references. Add Squads multisig address and configuration. Add Hydra crank addresses. Mark migration items from `rtp-current-state.md` as addressed.
+- [ ] **DEFERRED** **SOULCONTRACT.md** — Add constitutional invariant: "treasury.authority MUST be a Squads multisig PDA after initialization, minimum 2-of-3 threshold". Add emergency freeze rules: "freeze is authority-gated (no time lock for speed), unfreeze requires 2-of-3 + 24h time lock". Add Hydra scheduling rules: "withdraw_fees every ~800 slots (~5 min), check_redistribute every ~1,600 slots (~10 min), atomic rollback on failure". Update capital flow description to note Hydra automation of permissionless ops.
+- [ ] **DEFERRED** **docs/RESOURCES.md** — Add Squads: docs (`https://docs.squads.so`), REST API (`https://developer-api.squads.so/api/v1`), program ID (`SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf`), Rust crate (`squads-multisig-program`). Add Hydra: GitHub (`https://github.com/magicblock-labs/hydra`), crate (`hydra-api`), program ID (`Hydra17i1feui9deaxu6d1TzSQMRNHeBRkDR1Awy7zea`). Add Server SDK: npm (`@phantom/server-sdk`), GitHub (`https://github.com/phantom/phantom-connect-sdk`).
+- [ ] **DEFERRED** **README.md** — Add Security Hardening section (if it doesn't exist): describe Squads multisig, Hydra cranks, freeze capability, zero-address guards. Update architecture diagram if present.
+- [ ] **DEFERRED** **research/rtp-current-state.md** — Mark all P0 items as addressed. Mark P1 items as addressed. Update status of each file listed in the migration map.
 
 ---
 

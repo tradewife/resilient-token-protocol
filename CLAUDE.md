@@ -279,13 +279,13 @@ The on-chain program separates instructions into two categories:
 - `register_strategy` — promotes strategy to Live status
 - `force_retire_strategy` — emergency strategy retirement
 - `end_beta` — manual beta adopter sunset
-- `create_swarm_vault` — creates hydration vault (anyone can pay, but treasury PDA is authority)
 - `freeze_treasury` — emergency halt, sets frozen=true, no time lock (emergency speed)
 - `unfreeze_treasury` — resume operations, authority-gated. Post-launch: Squads 2-of-3 + 24h time lock
 
 **Permissionless (any signer can call):**
 - `withdraw_fees` — anyone can pull TransferFeeConfig fees INTO the PDA vault (not out)
 - `check_redistribute` — anyone can trigger 70/20/10 split (deterministic, no discretion)
+- `create_swarm_vault` — anyone can pay to create the hydration vault (no authority check)
 - `hydrate_swarm` — anyone can propose hydration (gated by strategy Live status + beta check + runway invariant)
 - `register_adopter` / `register_adopter_beta` — anyone can create an adopter record (caller pays rent)
 - `record_fee_deposit` — anyone can record fee accounting (no fund movement, just counters)

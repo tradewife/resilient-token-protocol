@@ -1184,4 +1184,204 @@ describe("rtp-treasury", () => {
       }
     });
   });
+
+  // =========================================================================
+  // freeze_treasury / unfreeze_treasury
+  // =========================================================================
+
+  describe("freeze_treasury / unfreeze_treasury", () => {
+    let fMint: PublicKey, fMintKp: Keypair, fAuth: Keypair;
+    let fTreasury: PublicKey, fVault: PublicKey, fSwarmVault: PublicKey;
+
+    beforeEach(async () => {
+      fAuth = Keypair.generate();
+      fMintKp = Keypair.generate();
+      fMint = fMintKp.publicKey;
+
+      await createMintWithFee(fAuth, fMintKp, payer.publicKey);
+
+      [fTreasury] = deriveTreasuryPDA(fMint);
+      [fVault] = deriveVaultPDA(fMint);
+      [fSwarmVault] = deriveSwarmVaultPDA(fMint);
+
+      // Initialize treasury
+      await program.methods
+        .initialize(new BN(MIN_RUNWAY))
+        .accounts({
+          mint: fMint,
+          treasury: fTreasury,
+          treasuryVault: fVault,
+          authority: payer.publicKey,
+          holdersWallet: Keypair.generate().publicKey,
+          projectDevWallet: Keypair.generate().publicKey,
+          ecosystemWallet: Keypair.generate().publicKey,
+          tokenProgram: TOKEN_2022_PROGRAM_ID,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+    });
+
+    it("authority can freeze treasury", async () => {
+      const stateBefore = await program.account.treasury.fetch(fTreasury);
+      assert.isFalse(stateBefore.frozen);
+
+      await program.methods
+        .freezeTreasury()
+        .accounts({
+          treasury: fTreasury,
+          authority: payer.publicKey,
+        })
+        .rpc();
+
+      const stateAfter = await program.account.treasury.fetch(fTreasury);
+      assert.isTrue(stateAfter.frozen);
+    });
+
+    it("authority can unfreeze treasury", async () => {
+      // Freeze first
+      await program.methods
+        .freezeTreasury()
+        .accounts({ treasury: fTreasury, authority: payer.publicKey })
+        .rpc();
+
+      // Unfreeze
+      await program.methods
+        .unfreezeTreasury()
+        .accounts({ treasury: fTreasury, authority: payer.publicKey })
+        .rpc();
+
+      const state = await program.account.treasury.fetch(fTreasury);
+      assert.isFalse(state.frozen);
+    });
+
+    it("non-authority cannot freeze", async () => {
+      const imposter = Keypair.generate();
+      // Airdrop SOL for tx fee
+      const sig = await provider.connection.requestAirdrop(imposter.publicKey, 1_000_000_000);
+      await provider.connection.confirmTransaction(sig);
+
+      try {
+        await program.methods
+          .freezeTreasury()
+          .accounts({
+            treasury: fTreasury,
+            authority: imposter.publicKey,
+          })
+          .signers([imposter])
+          .rpc();
+        assert.fail("Non-authority should not be able to freeze");
+      } catch (err: any) {
+        assert.include(err.toString(), "UnauthorizedPhaseEvolution",
+          `Expected UnauthorizedPhaseEvolution, got: ${err}`);
+      }
+    });
+
+    it("non-authority cannot unfreeze", async () => {
+      // Freeze first
+      await program.methods
+        .freezeTreasury()
+        .accounts({ treasury: fTreasury, authority: payer.publicKey })
+        .rpc();
+
+      const imposter = Keypair.generate();
+      const sig = await provider.connection.requestAirdrop(imposter.publicKey, 1_000_000_000);
+      await provider.connection.confirmTransaction(sig);
+
+      try {
+        await program.methods
+          .unfreezeTreasury()
+          .accounts({
+            treasury: fTreasury,
+            authority: imposter.publicKey,
+          })
+          .signers([imposter])
+          .rpc();
+        assert.fail("Non-authority should not be able to unfreeze");
+      } catch (err: any) {
+        assert.include(err.toString(), "UnauthorizedPhaseEvolution",
+          `Expected UnauthorizedPhaseEvolution, got: ${err}`);
+      }
+    });
+
+    it("double-freeze rejected (AlreadyFrozen)", async () => {
+      await program.methods
+        .freezeTreasury()
+        .accounts({ treasury: fTreasury, authority: payer.publicKey })
+        .rpc();
+
+      try {
+        await program.methods
+          .freezeTreasury()
+          .accounts({ treasury: fTreasury, authority: payer.publicKey })
+          .rpc();
+        assert.fail("Double freeze should be rejected");
+      } catch (err: any) {
+        assert.include(err.toString(), "AlreadyFrozen",
+          `Expected AlreadyFrozen, got: ${err}`);
+      }
+    });
+
+    it("unfreeze on non-frozen rejected (NotFrozen)", async () => {
+      try {
+        await program.methods
+          .unfreezeTreasury()
+          .accounts({ treasury: fTreasury, authority: payer.publicKey })
+          .rpc();
+        assert.fail("Unfreeze on non-frozen should be rejected");
+      } catch (err: any) {
+        assert.include(err.toString(), "NotFrozen",
+          `Expected NotFrozen, got: ${err}`);
+      }
+    });
+
+    it("frozen treasury rejects withdraw_fees", async () => {
+      await program.methods
+        .freezeTreasury()
+        .accounts({ treasury: fTreasury, authority: payer.publicKey })
+        .rpc();
+
+      try {
+        await program.methods
+          .withdrawFees()
+          .accounts({
+            mint: fMint,
+            treasury: fTreasury,
+            treasuryVault: fVault,
+            feeWithheldAccount: payer.publicKey,
+            tokenProgram: TOKEN_2022_PROGRAM_ID,
+          })
+          .rpc();
+        assert.fail("withdraw_fees on frozen treasury should be rejected");
+      } catch (err: any) {
+        assert.include(err.toString(), "TreasuryFrozen",
+          `Expected TreasuryFrozen, got: ${err}`);
+      }
+    });
+
+    it("frozen treasury rejects check_redistribute", async () => {
+      await program.methods
+        .freezeTreasury()
+        .accounts({ treasury: fTreasury, authority: payer.publicKey })
+        .rpc();
+
+      try {
+        await program.methods
+          .checkRedistribute(new BN(DEFAULT_MIN_REDISTRIBUTE))
+          .accounts({
+            mint: fMint,
+            treasury: fTreasury,
+            treasuryVault: fVault,
+            holdersWallet: Keypair.generate().publicKey,
+            projectDevWallet: Keypair.generate().publicKey,
+            ecosystemWallet: Keypair.generate().publicKey,
+            tokenProgram: TOKEN_2022_PROGRAM_ID,
+          })
+          .rpc();
+        assert.fail("check_redistribute on frozen treasury should be rejected");
+      } catch (err: any) {
+        assert.include(err.toString(), "TreasuryFrozen",
+          `Expected TreasuryFrozen, got: ${err}`);
+      }
+    });
+  });
 });

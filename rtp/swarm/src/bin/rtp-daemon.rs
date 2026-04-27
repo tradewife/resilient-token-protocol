@@ -69,6 +69,50 @@ fn collect_memory_files() -> Vec<String> {
     files
 }
 
+/// Check if the demo treasury is frozen by reading the on-chain account data.
+/// Returns Ok(true) if frozen, Ok(false) if not, Err if RPC unreachable.
+fn check_treasury_frozen() -> Result<bool, String> {
+    let treasury_pda = "FNQbK1Vw77aT7qM1EMSmeEPDGizSNhX4rkkYBKQNFotF";
+    let rpc_url = "https://api.devnet.solana.com";
+
+    let client = reqwest::blocking::Client::new();
+    let resp = client
+        .post(rpc_url)
+        .json(&serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "getAccountInfo",
+            "params": [treasury_pda, { "encoding": "base64" }]
+        }))
+        .send()
+        .map_err(|e| format!("RPC request failed: {}", e))?;
+
+    let json: serde_json::Value = resp
+        .json()
+        .map_err(|e| format!("RPC parse error: {}", e))?;
+
+    let data = json
+        .get("result")
+        .and_then(|r| r.get("value"))
+        .and_then(|v| v.get("data"))
+        .and_then(|d| d.get(0))
+        .and_then(|d| d.as_str())
+        .ok_or("No account data returned")?;
+
+    use base64::Engine;
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(data)
+        .map_err(|e| format!("Base64 decode error: {}", e))?;
+
+    // Frozen field at byte offset 225 (8 discriminator + 32+32+1+8*6+32*3+8 = 225)
+    let frozen_offset = 225;
+    if bytes.len() > frozen_offset {
+        Ok(bytes[frozen_offset] != 0)
+    } else {
+        Err("Account data too short to read frozen flag".to_string())
+    }
+}
+
 #[tokio::main]
 async fn main() {
     println!("┌─────────────────────────────────────────────────┐");
@@ -79,6 +123,23 @@ async fn main() {
     );
     println!("└─────────────────────────────────────────────────┘");
     println!();
+
+    // 0. Check if treasury is frozen before running cycle.
+    // The on-chain program will reject operations, but checking early
+    // avoids wasting a full cycle of work.
+    match check_treasury_frozen() {
+        Ok(true) => {
+            println!("[DAEMON] Treasury is FROZEN — skipping cycle. Unfreeze required by authority.");
+            println!("[DAEMON] exit 0 (frozen is not an error)");
+            return;
+        }
+        Ok(false) => {
+            println!("[DAEMON] Treasury status: ACTIVE");
+        }
+        Err(e) => {
+            println!("[DAEMON] Could not check frozen status ({}). Continuing — on-chain CPI will gate.", e);
+        }
+    }
 
     // 1. Load config.
     let config = load_config();

@@ -1196,8 +1196,22 @@ pub fn devnet_fund_from_hl_oracle(sol_amount: f64) -> Result<f64, String> {
 /// Returns a summary of the quotes obtained. Actual execution requires
 /// `execute: true` in the MCP tool calls (funded wallet needed).
 pub fn mcp_bridge_flow(sol_amount: f64) -> Result<serde_json::Value, String> {
+    mcp_bridge_flow_for_token(sol_amount, None)
+}
+
+/// Run the full MCP bridge flow for a specific token (or the default agent wallet).
+///
+/// If `state` is provided and contains a registered token, uses that token's
+/// derivation index for per-token wallet isolation. Otherwise falls back to
+/// the default agent wallet (di=0).
+pub fn mcp_bridge_flow_for_token(
+    sol_amount: f64,
+    state: Option<&types::TradingState>,
+) -> Result<serde_json::Value, String> {
     let mut mcp = phantom_mcp::PhantomMcpClient::new()?;
-    let di = 0; // TODO: look up per-token derivation index from state
+    let di = state
+        .map(|s| s.derivation_index_for("default"))
+        .unwrap_or(0);
 
     // Step 1: Quote swap SOL → USDC.
     let swap = mcp.quote_sol_to_usdc(sol_amount, di)?;
