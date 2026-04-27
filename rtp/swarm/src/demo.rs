@@ -1020,10 +1020,12 @@ pub fn print_two_cycle_demo(result: &TwoCycleDemoResult) {
     let flash_demo = std::thread::spawn(run_flash_trade_demo).join().ok();
     match &flash_demo {
         Some(Ok(val)) => {
-            if let Some(price) = val.get("sol_price").and_then(|p| p.as_f64()) {
-                if price > 0.0 {
-                    println!("[FLASH] ✅ SOL oracle price: ${:.2}", price);
-                }
+            if let Some(price) = val
+                .get("sol_price")
+                .and_then(|p| p.as_f64())
+                .filter(|p| *p > 0.0)
+            {
+                println!("[FLASH] ✅ SOL oracle price: ${:.2}", price);
             }
         }
         Some(Err(e)) => println!("[FLASH] ⚠ Demo query failed: {}", e),

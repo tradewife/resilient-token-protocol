@@ -549,7 +549,7 @@ export default function LaunchPage() {
   }, [wallet, publicKey, projectName, tokenSymbol]);
 
   // Check if treasury is frozen (read frozen flag from on-chain Treasury PDA)
-  const TREASURY_PDA = "FNQbK1Vw77aT7qM1EMSmeEPDGizSNhX4rkkYBKQNFotF";
+  const TREASURY_PDA = "7oZTJWYBDjzqmbfRs5YkTv53CDa6vESAzfyjK3yhYshc";
   const [isFrozen, setIsFrozen] = useState(false);
 
   React.useEffect(() => {

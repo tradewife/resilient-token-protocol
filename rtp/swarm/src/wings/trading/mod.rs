@@ -1,8 +1,10 @@
 //! Trading Wing — strategy research, validation, assessment, and execution.
-//! Trading Wing — strategy research, validation, assessment, and execution.
 //!
-//! When `execution_venue: "hyperliquid"` is set, places real orders on HL testnet
-//! via REST API signed with the ETH keypair at `configs/hl_testnet_key.json`.
+//! Default execution venue is `flash_trade` (on-chain Solana CPI signed by the
+//! Treasury PDA via `invoke_signed`). The legacy Hyperliquid path is retained
+//! for tests and reference; the EIP-712 signing helpers below are compiled in
+//! every build but are only invoked when `execution_venue == "hyperliquid"`,
+//! and the Phantom MCP bridge is gated behind `#[cfg(feature = "hyperliquid")]`.
 //! In-memory state: last proposal, last assessment, execution count.
 
 use crate::bridge::{self, BridgeRequest};

@@ -74,8 +74,8 @@ Fee-Payer Wallet (gas only, DONE)
 
 ### Security Hardening (v1.0)
 - **Zero-address guard**: `Pubkey::default()` rejected on all critical fields in `initialize`.
-- **Emergency freeze/unfreeze**: `freeze_treasury` (instant, authority-gated), `unfreeze_treasury` (authority-gated). All 15 state-mutating instructions check frozen flag (12 original + 3 Flash Trade). Events emitted for audit.
-- **Emergency close all positions**: `emergency_close_all_positions` — authority-gated, closes all open Flash Trade positions during freeze events.
+- **Emergency freeze/unfreeze**: `freeze_treasury` (instant, authority-gated), `unfreeze_treasury` (authority-gated). 14 state-mutating instructions check the frozen flag (12 original + `open_flash_position` + `close_flash_position`). `emergency_close_all_positions` is intentionally exempt so it can be paired with `freeze_treasury` in either order. Events emitted for audit.
+- **Emergency reset of position counters**: `emergency_close_all_positions` — authority-gated. Zeroes `open_position_count` and `committed_sol_lamports` and emits `EmergencyPositionsReset`. Does NOT itself fire Flash Trade CPI close calls — operators must follow up with explicit `close_flash_position` calls (or rely on Flash Trade liquidation) to actually unwind exposure.
 
 ---
 

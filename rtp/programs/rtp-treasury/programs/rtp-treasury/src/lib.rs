@@ -126,8 +126,10 @@ pub enum TreasuryError {
     FlashCpiFailed,
     #[msg("Invalid Flash Trade program ID")]
     InvalidFlashProgramId,
-    #[msg("Instruction serialization failed")]
-    SerializationFailed,
+    #[msg("Pool name must be 1-32 characters")]
+    InvalidPoolName,
+    #[msg("Decremented committed_sol_lamports exceeds tracked balance")]
+    CommittedDeltaExceedsBalance,
 }
 
 // ---------------------------------------------------------------------------
@@ -301,7 +303,7 @@ pub enum FlashSide {
 
 /// Oracle price — matches Flash Trade on-chain struct (i64 price, i32 exponent)
 /// Pyth uses exponent -8 (not -6 as originally assumed)
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy)]
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, InitSpace, Debug)]
 pub struct FlashOraclePrice {
     pub price: i64,
     pub exponent: i32,
@@ -414,6 +416,21 @@ pub struct FlashPositionClosed {
     pub position_pda: Pubkey,
     pub realised_pnl_sol_lamports: i64,
     pub returned_sol_lamports: u64,
+    pub ts: i64,
+}
+
+/// Emitted by `emergency_close_all_positions`. Distinct from `FlashPositionClosed`
+/// because the on-chain instruction does NOT itself fire Flash Trade CPI close
+/// calls — it resets the position counters and records the operator's intent.
+/// Operators MUST follow up with explicit `close_flash_position` calls (or rely
+/// on Flash Trade liquidation) to actually close the on-chain positions.
+#[event]
+pub struct EmergencyPositionsReset {
+    pub treasury: Pubkey,
+    pub strategy_id: String,
+    pub authority: Pubkey,
+    pub position_pubkeys: Vec<Pubkey>,
+    pub previous_committed_sol_lamports: u64,
     pub ts: i64,
 }
 
@@ -1165,6 +1182,13 @@ pub mod rtp_treasury {
         pool_name: String,
     ) -> Result<()> {
         require!(!ctx.accounts.treasury.frozen, TreasuryError::TreasuryFrozen);
+
+        // Validate pool name: 1..=32 chars (matches StrategyRecord.flash_pool_name max_len).
+        require!(
+            !pool_name.is_empty() && pool_name.len() <= 32,
+            TreasuryError::InvalidPoolName,
+        );
+
         let treasury = &mut ctx.accounts.treasury;
         let strategy = &mut ctx.accounts.strategy_record;
 
@@ -1180,18 +1204,23 @@ pub mod rtp_treasury {
             TreasuryError::TooManyOpenPositions,
         );
 
-        // Get vault balance (token account — read lamports from AccountInfo)
-        let vault_lamports = ctx.accounts.treasury_vault.to_account_info().lamports();
+        // Read the *token* balance of the treasury vault.
+        // Units MUST match `min_runway_balance` and `input_sol_lamports`
+        // (callers commit a wSOL/SOL-denominated token whose decimals match
+        // SOL lamports — see Initialize). Previously this read .lamports()
+        // off an UncheckedAccount which only returned rent dust and made the
+        // runway check vacuous. P0 fix: use the typed TokenAccount amount.
+        let vault_balance = ctx.accounts.treasury_vault.amount;
 
         // Position size cap (20% of vault)
-        let max_input = vault_lamports as u128 * MAX_POSITION_SIZE_BPS as u128 / 10000;
+        let max_input = vault_balance as u128 * MAX_POSITION_SIZE_BPS as u128 / 10000;
         require!(
             input_sol_lamports as u128 <= max_input,
             TreasuryError::PositionSizeExceeded,
         );
 
         // Runway floor: vault after commit must still cover min_runway_balance
-        let post_commit = vault_lamports.saturating_sub(input_sol_lamports);
+        let post_commit = vault_balance.saturating_sub(input_sol_lamports);
         require!(
             post_commit >= treasury.min_runway_balance,
             TreasuryError::InsufficientRunway,
@@ -1230,24 +1259,17 @@ pub mod rtp_treasury {
             TreasuryError::FlashCpiFailed,
         );
 
-        // Account 0 (owner) = treasury PDA — signer via invoke_signed
-        // Account 1 (fee_payer) = authority (passed as ctx.accounts.authority)
-        // Accounts 2..18 from remaining_accounts[0..17] (funding_account onward)
-        // But we pass ALL 19 in remaining_accounts for simplicity
+        // Account layout (matches Flash Trade IDL v15.2.0):
+        //   0: owner (treasury PDA, signs via invoke_signed — readonly signer)
+        //   1: fee_payer (authority, writable signer)
+        //   2,5,6,7,10,12: writable accounts (funding/pool/position/market/custodies)
+        //   all others: readonly
         let account_metas: Vec<AccountMeta> = remaining.iter().enumerate().map(|(i, acc)| {
-            let is_writable = matches!(i, 0 | 1 | 2 | 5 | 6 | 7 | 10 | 12);
-            let is_signer = matches!(i, 0 | 1);
-            // Override: account 0 is the treasury PDA which signs via invoke_signed
-            if i == 0 {
-                AccountMeta::new_readonly(acc.key(), true) // PDA signer
-            } else if i == 1 {
-                AccountMeta::new(acc.key(), true) // fee_payer
-            } else if is_writable {
-                AccountMeta::new(acc.key(), false)
-            } else if is_signer {
-                AccountMeta::new_readonly(acc.key(), true)
-            } else {
-                AccountMeta::new_readonly(acc.key(), false)
+            match i {
+                0 => AccountMeta::new_readonly(acc.key(), true), // PDA signer
+                1 => AccountMeta::new(acc.key(), true),           // fee_payer
+                2 | 5 | 6 | 7 | 10 | 12 => AccountMeta::new(acc.key(), false),
+                _ => AccountMeta::new_readonly(acc.key(), false),
             }
         }).collect();
 
@@ -1311,8 +1333,10 @@ pub mod rtp_treasury {
     /// 17: collateral_mint
     pub fn close_flash_position(
         ctx: Context<CloseFlashPosition>,
+        side: FlashSide,
         oracle_price: FlashOraclePrice,
         slippage_bps: u16,
+        committed_sol_lamports_delta: u64,
     ) -> Result<()> {
         require!(!ctx.accounts.treasury.frozen, TreasuryError::TreasuryFrozen);
         let treasury = &mut ctx.accounts.treasury;
@@ -1321,39 +1345,55 @@ pub mod rtp_treasury {
         let flash_program_id = Pubkey::try_from(FLASH_TRADE_PROGRAM_ID)
             .map_err(|_| TreasuryError::InvalidFlashProgramId)?;
 
-        // Build close_position instruction data
-        // Discriminator (8) + OraclePrice (12) + collateralAmount (8) + sizeAmount (8) + privilege (1) = 37 bytes
-        // For full close: collateralAmount = 0, sizeAmount = 0 (close all)
-        // Slippage: for closing long, exit price must be below oracle; for short, above
-        // Apply slippage tolerance to the oracle price
-        let slippage_mult = 10000u32.saturating_sub(slippage_bps as u32) as i128;
-        let slippage_price = oracle_price.price as i128 * slippage_mult / 10000;
-
-        let mut ix_data = Vec::with_capacity(37);
-        ix_data.extend_from_slice(&FLASH_CLOSE_POSITION_DISC);
-        ix_data.extend_from_slice(&slippage_price.to_le_bytes());
-        ix_data.extend_from_slice(&oracle_price.exponent.to_le_bytes());
-        // collateralAmount = u64::MAX for full close
-        ix_data.extend_from_slice(&u64::MAX.to_le_bytes());
-        // sizeAmount = u64::MAX for full close
-        ix_data.extend_from_slice(&u64::MAX.to_le_bytes());
-        // privilege: None
-        ix_data.push(0u8);
-
         let remaining = ctx.remaining_accounts;
         require!(
             remaining.len() >= 18,
             TreasuryError::FlashCpiFailed,
         );
 
+        // §2.6 fix: verify the position PDA at remaining[6] is derived from
+        // ["position", treasury_pda, market], proving the treasury PDA owns
+        // the position before signing the close. We check both bumps via
+        // find_program_address — if the supplied position is owned by any
+        // other authority, the derivation will not match.
+        let position_account = &remaining[6];
+        let market_account = &remaining[7];
+        let (expected_position, _bump) = Pubkey::find_program_address(
+            &[b"position", treasury.key().as_ref(), market_account.key.as_ref()],
+            &flash_program_id,
+        );
+        require!(
+            position_account.key() == expected_position,
+            TreasuryError::PositionNotOwnedByTreasury,
+        );
+
+        // §2.4 fix: slippage direction depends on side.
+        // Closing a long sells the target → accept exit price >= oracle * (1 - slip)
+        // Closing a short buys back the target → accept exit price <= oracle * (1 + slip)
+        // We always pass the worst-acceptable price; Flash Trade rejects worse fills.
+        let slip = slippage_bps as i128;
+        let slippage_price: i128 = match side {
+            FlashSide::Long => oracle_price.price as i128 * (10_000 - slip) / 10_000,
+            FlashSide::Short => oracle_price.price as i128 * (10_000 + slip) / 10_000,
+            FlashSide::None => oracle_price.price as i128,
+        };
+
+        // Build close_position instruction data: disc (8) + OraclePrice (12)
+        // + collateralAmount (8) + sizeAmount (8) + privilege (1) = 37 bytes.
+        // u64::MAX = full close.
+        let mut ix_data = Vec::with_capacity(37);
+        ix_data.extend_from_slice(&FLASH_CLOSE_POSITION_DISC);
+        ix_data.extend_from_slice(&(slippage_price as i64).to_le_bytes());
+        ix_data.extend_from_slice(&oracle_price.exponent.to_le_bytes());
+        ix_data.extend_from_slice(&u64::MAX.to_le_bytes());
+        ix_data.extend_from_slice(&u64::MAX.to_le_bytes());
+        ix_data.push(0u8); // privilege: None
+
         let account_metas: Vec<AccountMeta> = remaining.iter().enumerate().map(|(i, acc)| {
-            let is_writable = matches!(i, 0 | 1 | 2 | 5 | 6 | 7 | 10 | 12);
-            if i == 0 {
-                AccountMeta::new_readonly(acc.key(), true) // PDA signer
-            } else if is_writable {
-                AccountMeta::new(acc.key(), false)
-            } else {
-                AccountMeta::new_readonly(acc.key(), false)
+            match i {
+                0 => AccountMeta::new_readonly(acc.key(), true), // PDA signer
+                2 | 5 | 6 | 7 | 10 | 12 => AccountMeta::new(acc.key(), false),
+                _ => AccountMeta::new_readonly(acc.key(), false),
             }
         }).collect();
 
@@ -1370,33 +1410,49 @@ pub mod rtp_treasury {
         invoke_signed(&flash_ix, &remaining.iter().map(|a| a.to_account_info()).collect::<Vec<_>>(), signer_seeds)
             .map_err(|_| TreasuryError::FlashCpiFailed)?;
 
-        // Decrement position tracking
+        // §2.9 fix: decrement both counters. The caller passes the input
+        // amount that was committed at open time (typically the same value
+        // they passed to open_flash_position). For a partial close, the
+        // caller can pass the proportional delta. Reject under-flow rather
+        // than silently saturating to keep accounting honest.
         strategy.open_position_count = strategy.open_position_count.saturating_sub(1);
-        // Note: committed_sol_lamports is adjusted by the agent via update_strategy_performance
-        // after PnL is realized, since we don't know the exact return amount here
+        require!(
+            strategy.committed_sol_lamports >= committed_sol_lamports_delta,
+            TreasuryError::CommittedDeltaExceedsBalance,
+        );
+        strategy.committed_sol_lamports -= committed_sol_lamports_delta;
 
         let clock = Clock::get()?;
         emit!(FlashPositionClosed {
             treasury: treasury.key(),
             strategy_id: strategy.strategy_id.clone(),
-            position_pda: remaining.get(6).map(|a| a.key()).unwrap_or_default(),
-            realised_pnl_sol_lamports: 0, // Filled in by agent after close
-            returned_sol_lamports: 0,     // Filled in by agent after close
+            position_pda: position_account.key(),
+            realised_pnl_sol_lamports: 0, // Filled in by agent via update_strategy_performance
+            returned_sol_lamports: 0,     // Filled in by agent via update_strategy_performance
             ts: clock.unix_timestamp,
         });
 
         Ok(())
     }
 
-    /// Emergency close all open Flash Trade positions.
-    /// Authority-gated (treasury.authority required).
-    /// Accepts explicit position pubkeys since Solana programs cannot
-    /// iterate unknown accounts. Max 3 positions per strategy.
+    /// Emergency reset of Flash Trade position counters.
+    /// Authority-gated. Designed to be called *together with* `freeze_treasury`
+    /// (in either order) so it is intentionally NOT blocked by `treasury.frozen`.
+    ///
+    /// What it does:
+    ///   1. Resets `open_position_count` and `committed_sol_lamports` to 0
+    ///   2. Emits an `EmergencyPositionsReset` event for the audit trail
+    ///
+    /// What it does NOT do:
+    ///   - It does **not** invoke Flash Trade CPI close. Operators must follow
+    ///     up with explicit `close_flash_position` calls per position (or rely
+    ///     on Flash Trade keeper liquidation) to actually unwind exposure.
+    ///   - The event is deliberately distinct from `FlashPositionClosed` so
+    ///     observers cannot mistake a counter reset for a real position close.
     pub fn emergency_close_all_positions(
         ctx: Context<EmergencyCloseAllPositions>,
         position_pubkeys: Vec<Pubkey>,
     ) -> Result<()> {
-        require!(!ctx.accounts.treasury.frozen, TreasuryError::TreasuryFrozen);
         require!(
             position_pubkeys.len() <= MAX_CONCURRENT_POSITIONS as usize,
             TreasuryError::TooManyOpenPositions,
@@ -1406,32 +1462,22 @@ pub mod rtp_treasury {
             TreasuryError::UnauthorizedStrategyOp,
         );
 
-        // Emergency close doesn't invoke Flash Trade CPI directly —
-        // it just resets the tracking counters. The actual position closure
-        // must be done via close_flash_position calls or Flash Trade liquidation.
-        // This instruction exists to:
-        // 1. Reset open_position_count to 0
-        // 2. Zero out committed_sol_lamports
-        // 3. Create an audit trail of the emergency action
-
         let strategy = &mut ctx.accounts.strategy_record;
+        let previous_committed = strategy.committed_sol_lamports;
         let clock = Clock::get()?;
 
-        // Emit individual close events for each position for audit trail
-        for pos_key in &position_pubkeys {
-            emit!(FlashPositionClosed {
-                treasury: ctx.accounts.treasury.key(),
-                strategy_id: strategy.strategy_id.clone(),
-                position_pda: *pos_key,
-                realised_pnl_sol_lamports: 0, // Unknown during emergency
-                returned_sol_lamports: 0,
-                ts: clock.unix_timestamp,
-            });
-        }
-
-        // Reset counters
+        // Reset counters first (audit captures the post-state intent).
         strategy.open_position_count = 0;
         strategy.committed_sol_lamports = 0;
+
+        emit!(EmergencyPositionsReset {
+            treasury: ctx.accounts.treasury.key(),
+            strategy_id: strategy.strategy_id.clone(),
+            authority: ctx.accounts.authority.key(),
+            position_pubkeys,
+            previous_committed_sol_lamports: previous_committed,
+            ts: clock.unix_timestamp,
+        });
 
         Ok(())
     }
@@ -1911,16 +1957,16 @@ pub mod rtp_treasury {
         )]
         pub strategy_record: Account<'info, StrategyRecord>,
 
-        /// Treasury vault (token account or system account).
-        /// CHECK: Vault balance checked directly via lamports(). May be
-        /// SPL token account (Token-2022) or system account depending on setup.
-        /// Seeds verified by Anchor constraint.
+        /// Treasury vault — Token-2022 token account whose token amount denominates
+        /// `min_runway_balance` and `input_sol_lamports`. Authority = treasury PDA.
+        /// Seeds verified; runway/position-size checks read `.amount`, not `.lamports()`.
         #[account(
             mut,
+            token::authority = treasury,
             seeds = [TREASURY_SEED, treasury.mint.as_ref(), b"vault"],
             bump,
         )]
-        pub treasury_vault: UncheckedAccount<'info>,
+        pub treasury_vault: InterfaceAccount<'info, TokenAccount>,
 
         /// Fee payer — pays for transaction gas and Flash Trade account rent.
         /// Has NO authority over treasury funds (only pays gas).

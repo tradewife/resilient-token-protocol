@@ -83,6 +83,12 @@ pub struct FlashTradeClient {
     base_url: String,
 }
 
+impl Default for FlashTradeClient {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl FlashTradeClient {
     pub fn new() -> Self {
         Self {

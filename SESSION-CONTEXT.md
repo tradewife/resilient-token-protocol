@@ -51,22 +51,11 @@ The execution path is **fully implemented** (M0–M5 complete). Treasury PDA inv
 - **Verifiability gap**: Trade authorisation happened off-chain (EIP-712), not auditable on Solana
 - **Custody mismatch**: Treasury funds had to leave the Solana PDA to reach Hyperliquid
 - Flash Trade eliminates all three: PDA signs, execution is on Solana, funds never leave Solana
-  - Device-code auth (browser sign-in) — no Portal app ID or API keys needed
-  - Agent gets its own wallet — separate from personal wallet, funded independently
-  - Session persisted at `~/.phantom-mcp/session.json`
-  - **Per-token wallet isolation via `derivationIndex`:**
-    - Index 0: `AxRWo1N4xjyUN3fbmRpUVwP4WQcEPakdECThyx93CxkR` (Solana) / `0xc1c3b483ec26f5aece1aa25b74de5180fd6dbff8` (EVM) — default agent
-    - Index 1: `GZa8CuVmdHjbdZQtLzcz7t8LLUqV7sBZXPtnPqz6Q2FP` (Solana) / `0x5f5da29713bf8e02d8ffe554b0f47bb63ba11066` (EVM) — Token A
-    - Index 2: `QBM7XE3bN9TQ4FeKXJAtFxgDKUn9VkQeJ4UkcH84BSq` (Solana) / `0xb7eb912322b8f24ec41daea12cd78ac282ea8849` (EVM) — Token B
-    - Same walletId, same organizationId, different addresses on every chain
-  - Key MCP tools for RTP: `buy` (SOL↔USDC swap, fee-free), `perps_deposit` (bridge to HL), `perps_open`, `perps_close`, `perps_withdraw`, `wallet_balances`, `transfer` (yield distribution)
-  - 28+ tools total. Tool names: `buy`, `wallet_addresses`, `perps_deposit`, `perps_withdraw`, `perps_account`, `perps_positions`, `perps_orders`, `perps_markets`, `perps_open`, `perps_close`, `perps_leverage`, `perps_transfer`, `transfer`, `simulate`, `evm_send`, `solana_send`, etc.
-  - **Phantom MCP Rust client** (`phantom_mcp.rs`): starts `@phantom/mcp-server` as subprocess, JSON-RPC over stdio. Every function takes `di: u32` (derivation index) parameter. Provides swap, bridge, perps trading, balance queries, yield distribution — all per-token isolated.
-  - Replaces `scripts/phantom_signer.ts` (was based on `@phantom/server-sdk`, now obsolete)
 - **Phantom Connect SDK** — for the dashboard's browser extension wallet connection.
   - Portal App ID: `2fbef7dc-7975-4378-ba2b-ff8018ad2325` (registered at https://phantom.app/portal)
   - Dashboard uses `@solana/wallet-adapter-react` + Phantom adapter — works today
 - CASH stablecoin (sponsored) — not currently used. Treasury uses USDC for settlement.
+- **Phantom MCP (archived)**: gated behind `#[cfg(feature = "hyperliquid")]`, not compiled by default. Historical details in session logs (§8, sessions 2026-04-18/22).
 
 ### Execution Flow (target state for demo)
 ```
@@ -103,7 +92,7 @@ Trading Wing (Rust)
 | Strategy validated (SOL/USDT Survivor 2.69) | ✅ DONE | — |
 | bridge.rs wires Python → Rust | ✅ DONE | — |
 | Trading Wing handles ExecutePermit | ✅ DONE | Flash Trade CPI path wired |
-| Treasury deployed to devnet (8/8 steps) | ✅ DONE | Program `8rt6yi...`, PDA `FNQbK1...` |
+| Treasury deployed to devnet (8/8 steps) | ✅ DONE | Program `8rt6yi...`, PDA `7oZTJW...` |
 | Flash Trade CPI viability verified (M0) | ✅ DONE | owner: Signer<'info> confirmed — PDA CPI works |
 | Flash Trade CPI mainnet proof (M1) | ✅ DONE | Open TX `2bLg1Fu...` (99,214 CU), Close TX `dFqkoP2...` |
 | Flash Trade CPI instructions in lib.rs (M2) | ✅ DONE | open/close/emergency_close_all, 6 errors, 3 events, 3 StrategyRecord fields |
@@ -171,13 +160,13 @@ Do not re-read the papers. Use only these extracted design consequences.
 ### From karpathy/autoresearch — https://github.com/karpathy/autoresearch
 - The Modify/Verify/Keep loop is the core primitive: generate candidate → verify against objective → keep if better
 - RTP's Night Shift implements this loop over strategy configs (30K candidates → WFA → Darwinian)
-- Apply same loop to the Hyperliquid execution layer: propose order → simulate → submit if passes soulguard
+- Apply same loop to the Flash Trade CPI execution layer: propose position → simulate → submit via invoke_signed if passes soulguard
 
 ### Night Shift Research Output (live — Apr 12 run, confirmed)
 - SOL/USDT candidate #1: Survivor score 2.69 (+2.46 over baseline)
 - OOS Sharpe +3.96, 100% consistency (9/9 folds profitable), fragility 0.29, 47 trades/fold
 - Config: signal_threshold=0.3, tp_atr=3.0, sl_atr=1.5, max_hold=36h, trailing_stop_atr=0.5
-- Status: STRONG RECOMMEND — this is the strategy the Trading Wing executes on Hyperliquid
+- Status: STRONG RECOMMEND — this is the strategy the Trading Wing executes via Flash Trade CPI
 - Apr 12 night shift (9,888s, 9 folds) CONFIRMED same recommendation — strategy is stable.
 - SOL/USDT ADX trend: FALLING (40.6) — monitor for regime transition. Strategy valid while TREND holds.
 - BTC overfitting warning: configs with tp_atr=6.0, sl_atr=3.0 flagged overfitting_score=0.57 > threshold.
@@ -229,7 +218,7 @@ A judge must be able to verify these five things in under 3 minutes:
 | Trust model for agent execution | OPEN | Multisig? Optimistic challenge? ZK? Not required for MVP demo. |
 | Demo UX | **DECISION: Browser dashboard** | `@solana/wallet-adapter-react` + Phantom. Wallet connect wired in topbar (/), /launch, /docs. Live token launch flow on /launch. |
 | Invariant 7 (soulguard reload sig) | CLOSED (documented) | Production TODO: ed25519 on reload(). Comment in soulguard.rs. Demo path unaffected. |
-| Hyperliquid testnet vs mainnet for demo | **DECISION: Testnet** | Safer for hackathon. Same API interface as mainnet. Judges care about the flow working end-to-end. |
+| Hyperliquid testnet vs mainnet for demo | **SUPERSEDED** | Replaced by Flash Trade CPI (on-chain Solana perps). Mainnet CPI proofs: Open TX `2bLg1Fu...`, Close TX `dFqkoP2...`. |
 | Phantom signing architecture | **DECISION: Path C for demo** | Phantom KMS for production. Local devnet keypair for demo. Signing cascade: Phantom → local → manual. |
 | Phantom Portal registration | DONE | App "RTP Trading Wing" registered. Creds in `configs/.env.phantom` (values empty — deferred). |
 | Phantom signing scope | DECISION: Solana-focused | ServerSDK for Solana CPI. ETH keypair for HL. Other chains post-hackathon. |
@@ -650,7 +639,7 @@ State as of Apr 11:
 - `call_phantom_signer()`: subprocess call to `ts-node phantom_signer.ts sign-sol <base64>`
 - `get_phantom_solana_address()`: parses Solana address from sidecar `addresses` command
 - `deposit_yield_to_treasury()`: orchestrates build → sign → send, wired into `handle_execute_permit`
-- Devnet addresses: Mint `2JN8Qr9Q...`, Vault `DKuC9Q3F...`, Payer `Driyi8Sw...`
+- Devnet addresses: Mint `3yMH4kCB...`, Vault `Fa5Mrv9n...`, Payer `Driyi8Sw...`
 - Dependencies added: `solana-sdk = "2"`, `bincode = "1"`, `base64 = "0.22"`
 - `libssl-dev` installed (required by `solana-secp256r1-program` transitive dep)
 
@@ -690,10 +679,9 @@ State as of Apr 11:
 
 **Anchor treasury deployed to devnet 2026-04-11:**
 - Program ID: `8rt6yiBnRTyHy8F69jUd7exWwwShUs4Eokeq41auo2RB`
-- Treasury PDA: `FNQbK1Vw77aT7qM1EMSmeEPDGizSNhX4rkkYBKQNFotF`
-- Treasury Vault: `DKuC9Q3FXS28C32k3Grur8QtBLrN5BR5nDsujFkhs3kM`
-- Swarm Vault: `E8k82YihuxmX`
-- Explorer: https://explorer.solana.com/address/FNQbK1Vw77aT7qM1EMSmeEPDGizSNhX4rkkYBKQNFotF?cluster=devnet
+- Treasury PDA: `7oZTJWYBDjzqmbfRs5YkTv53CDa6vESAzfyjK3yhYshc`
+- Treasury Vault: `Fa5Mrv9nTgk46XABZFxSow3RvbX7BJHrksFqBuHMo5ZZ`
+- Explorer: https://explorer.solana.com/address/7oZTJWYBDjzqmbfRs5YkTv53CDa6vESAzfyjK3yhYshc?cluster=devnet
 - **All 8 steps completed on-chain:**
   1. ✅ Token-2022 mint with TransferFeeConfig created
   2. ✅ Treasury initialized (phase: sustenance)
@@ -703,7 +691,7 @@ State as of Apr 11:
   6. ✅ Redistribution: 70.0% holders / 20.0% dev / 10.0% ecosystem
   7. ✅ Swarm hydrated (runway invariant enforced)
   8. ✅ Phase evolution correctly rejected (BelowThreshold)
-- Redistribution tx: https://explorer.solana.com/tx/9HzWgBfwYxs5ModdjF5mT6gdTfayQq8mMYipopyHfGPmYqk6KESHFqgDrc9Mcie573ttcdPqMHSyJP5nNBKK3bR?cluster=devnet
+- Init TX: https://explorer.solana.com/tx/4RVehmPVpnFYHrsF6N64RjVh7mszRzKF9DQVHd8TUqBHwrnyDYavf3TnDYJC4b5PrJWVSubZkNuyVkF1oJzk71RT?cluster=devnet
 - Remaining SOL: ~7.51 SOL
 
 **Phantom integration:**

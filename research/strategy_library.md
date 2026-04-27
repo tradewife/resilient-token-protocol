@@ -1,6 +1,6 @@
 # Strategy Library
 
-> Seed corpus for the continual evolution infrastructure. Sourced from *151 Trading Strategies* (Ivy League / quant literature compendium) and filtered for crypto perpetuals applicability on Hyperliquid.
+> Seed corpus for the continual evolution infrastructure. Sourced from *151 Trading Strategies* (Ivy League / quant literature compendium) and filtered for crypto perpetuals applicability on Flash Trade (on-chain Solana perps).
 >
 > **Current best strategy:** SOL/USDT Survivor 2.69 (momentum/trend following, OOS Sharpe 3.96, 9/9 folds). New strategies should complement, not duplicate, this edge.
 >

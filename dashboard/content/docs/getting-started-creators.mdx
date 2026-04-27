@@ -39,7 +39,7 @@ const result = await registerWithRTP(connection, wallet, {
 ## After Registration: What Happens
 
 1. **Fees accumulate** — trading fees flow into your treasury vault PDA
-2. **Swarm activates** — autonomous strategies execute on Hyperliquid (USDC-margined, no SOL liquidation risk)
+2. **Swarm activates** — Treasury PDA executes validated strategies via Flash Trade CPI (on-chain Solana perps, invoke_signed)
 3. **Yield returns** — generated yield flows back to the treasury PDA
 4. **Redistribution** — 70% to holders, 20% to project dev, 10% to ecosystem (enforced on-chain)
 

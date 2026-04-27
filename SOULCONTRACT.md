@@ -18,7 +18,7 @@ Amendments require a human signature and a 24-hour monitoring window before taki
 7. **Auto-rollback on degradation** — if performance drops > 5% post-amendment, rollback is automatic.
 8. **Self-hydration gated on runway** — ops funding only if sustenance bucket covers > 90-day runway.
 9. **Strategies remain black-boxed** — the yield brain is a competitive moat; strategy configs and research internals are not exposed on-chain or in public interfaces.
-10. **Emergency freeze** — authority can halt all treasury operations instantly via `freeze_treasury`. All 12 state-mutating instructions check the frozen flag. Freeze/unfreeze events emitted on-chain for audit.
+10. **Emergency freeze** — authority can halt all treasury operations instantly via `freeze_treasury`. All 14 state-mutating instructions check the frozen flag (12 original + 2 Flash Trade: `open_flash_position`, `close_flash_position`). `emergency_close_all_positions` is intentionally exempt so the freeze-then-unwind flow works. Freeze/unfreeze events emitted on-chain for audit.
 11. **Zero-address rejection** — `Pubkey::default()` is rejected on all critical fields (authority, mint, wallet addresses). No misconfiguration attacks.
 
 ---
@@ -109,7 +109,7 @@ No strategy goes live or stays live without clearing codified gates. All thresho
 | **On-chain** | Anchor program constraints, PDA authority checks, CPI guards |
 | **On-chain lifecycle** | `StrategyRecord` PDA — hydrate_swarm requires Live status; hard stops auto-suspend; 3 soft strikes auto-retire |
 | **Swarm runtime** | `coordinator/soulguard.rs` validates every message against invariants |
-| **Execution** | Trading Wing enforces position limits before every Hyperliquid API call |
+| **Execution** | Trading Wing enforces position limits before every Flash Trade CPI submission; on-chain `open_flash_position` re-checks the 20% cap, runway floor, and max-3 concurrent positions |
 | **Lifecycle** | `promotion_criteria.py` gates strategy promotion and retirement; `DecayMonitor` tracks live performance against hard/soft thresholds |
 | **This document** | Constitutional reference for all LLM sessions, code reviews, and agent prompts |
 

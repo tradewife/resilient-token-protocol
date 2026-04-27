@@ -130,9 +130,9 @@ Treasury program deployed and operational on Solana devnet (Apr 11 2026).
 | Item | Value |
 |------|-------|
 | Program ID | `8rt6yiBnRTyHy8F69jUd7exWwwShUs4Eokeq41auo2RB` |
-| Treasury PDA | Per-mint — demo: `FNQbK1Vw77aT7qM1EMSmeEPDGizSNhX4rkkYBKQNFotF` |
-| Explorer | [View demo treasury](https://explorer.solana.com/address/FNQbK1Vw77aT7qM1EMSmeEPDGizSNhX4rkkYBKQNFotF?cluster=devnet) |
-| Redistribution tx | [View transaction](https://explorer.solana.com/tx/9HzWgBfwYxs5ModdjF5mT6gdTfayQq8mMYipopyHfGPmYqk6KESHFqgDrc9Mcie573ttcdPqMHSyJP5nNBKK3bR?cluster=devnet) |
+| Treasury PDA | Per-mint — demo: `7oZTJWYBDjzqmbfRs5YkTv53CDa6vESAzfyjK3yhYshc` |
+| Explorer | [View demo treasury](https://explorer.solana.com/address/7oZTJWYBDjzqmbfRs5YkTv53CDa6vESAzfyjK3yhYshc?cluster=devnet) |
+| Init tx | [View transaction](https://explorer.solana.com/tx/4RVehmPVpnFYHrsF6N64RjVh7mszRzKF9DQVHd8TUqBHwrnyDYavf3TnDYJC4b5PrJWVSubZkNuyVkF1oJzk71RT?cluster=devnet) |
 
 8/8 on-chain steps completed including live redistribution (70/20/10 split).
 

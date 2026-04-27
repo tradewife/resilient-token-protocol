@@ -503,7 +503,12 @@ describe("flash-trade-cpi", () => {
 
       try {
         await program.methods
-          .closeFlashPosition(oraclePrice, new BN(500))
+          .closeFlashPosition(
+            FLASH_SIDE_LONG, // side
+            oraclePrice,
+            500, // slippage_bps
+            new BN(0) // committed_sol_lamports_delta
+          )
           .accounts({
             treasury: treasuryPDA,
             strategyRecord: strategyPDA,
@@ -553,10 +558,11 @@ describe("flash-trade-cpi", () => {
       }
     });
 
-    it("rejects when treasury is frozen", async () => {
+    it("succeeds when treasury is frozen (emergency path is intentionally exempt)", async () => {
       await setupFresh();
 
-      // Freeze treasury
+      // Freeze treasury — emergency_close_all_positions must remain callable
+      // so the documented "freeze first, then unwind" flow works.
       await program.methods
         .freezeTreasury()
         .accounts({
@@ -565,26 +571,18 @@ describe("flash-trade-cpi", () => {
         })
         .rpc();
 
-      try {
-        await program.methods
-          .emergencyCloseAllPositions([
-            Keypair.generate().publicKey,
-          ])
-          .accounts({
-            treasury: treasuryPDA,
-            strategyRecord: strategyPDA,
-            authority: payer.publicKey,
-          })
-          .rpc();
-        assert.fail("Expected TreasuryFrozen error");
-      } catch (err: any) {
-        const errorMsg = err.toString();
-        assert.include(
-          errorMsg,
-          "TreasuryFrozen",
-          `Expected TreasuryFrozen, got: ${errorMsg}`
-        );
-      }
+      await program.methods
+        .emergencyCloseAllPositions([Keypair.generate().publicKey])
+        .accounts({
+          treasury: treasuryPDA,
+          strategyRecord: strategyPDA,
+          authority: payer.publicKey,
+        })
+        .rpc();
+
+      const strategy = await program.account.strategyRecord.fetch(strategyPDA);
+      assert.equal(strategy.openPositionCount, 0);
+      assert.equal(strategy.committedSolLamports.toNumber(), 0);
     });
 
     it("authority can reset counters with empty position list", async () => {
