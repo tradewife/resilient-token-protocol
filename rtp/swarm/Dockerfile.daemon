@@ -1,10 +1,13 @@
-FROM rust:1.85-slim AS builder
-WORKDIR /app
-COPY rtp/swarm/ rtp/swarm/
-WORKDIR /app/rtp/swarm
+FROM rust:1.88-slim AS builder
+RUN apt-get update && apt-get install -y pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*
+WORKDIR /build
+# Build context is the repo root (Dockerfile Path set in Railway settings)
+COPY rtp/swarm/Cargo.toml rtp/swarm/Cargo.lock ./
+COPY rtp/swarm/src/ src/
+COPY rtp/swarm/tests/ tests/
 RUN cargo build --release --bin rtp-daemon
 
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
-COPY --from=builder /app/rtp/swarm/target/release/rtp-daemon /usr/local/bin/
+COPY --from=builder /build/target/release/rtp-daemon /usr/local/bin/
 CMD ["rtp-daemon"]
