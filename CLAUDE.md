@@ -72,10 +72,21 @@ Fee-Payer Wallet (gas only, DONE)
 - **Dashboard signing**: `@solana/wallet-adapter-react` for browser wallet ops (freeze/unfreeze, multisig status)
 - **Phantom MCP** (archived): `phantom_mcp.rs` gated behind `#[cfg(feature = "hyperliquid")]`. Not compiled in default build. Available for legacy reference.
 
-### Security Hardening (v1.0)
+### Security Hardening (v1.1)
 - **Zero-address guard**: `Pubkey::default()` rejected on all critical fields in `initialize`.
-- **Emergency freeze/unfreeze**: `freeze_treasury` (instant, authority-gated), `unfreeze_treasury` (authority-gated). 14 state-mutating instructions check the frozen flag (12 original + `open_flash_position` + `close_flash_position`). `emergency_close_all_positions` is intentionally exempt so it can be paired with `freeze_treasury` in either order. Events emitted for audit.
+- **Emergency freeze/unfreeze**: `freeze_treasury` (instant, authority-gated), `unfreeze_treasury` (authority-gated). 15 state-mutating instructions check the frozen flag (12 original + `open_flash_position` + `close_flash_position` + `emergency_close_all_positions` is intentionally exempt so it can be paired with `freeze_treasury` in either order). Events emitted for audit.
 - **Emergency reset of position counters**: `emergency_close_all_positions` — authority-gated. Zeroes `open_position_count` and `committed_sol_lamports` and emits `EmergencyPositionsReset`. Does NOT itself fire Flash Trade CPI close calls — operators must follow up with explicit `close_flash_position` calls (or rely on Flash Trade liquidation) to actually unwind exposure.
+- **PDA seed validation on all treasury accounts**: `RecordFeeDeposit.treasury` and `RegisterAdopter.treasury` now have `seeds = [TREASURY_SEED, treasury.mint.as_ref()], bump = treasury.bump` constraints. Prevents cross-treasury accounting corruption.
+- **FlashSide::None rejected for open/close**: `open_flash_position` and `close_flash_position` reject `FlashSide::None` with `InvalidFlashSide` error. A position must have a direction.
+- **size_amount overflow guard**: `open_flash_position` checks `size_amount <= u64::MAX as u128` before truncation from u128. Prevents silent truncation with large leverage * large input.
+- **Soft decay strike reset**: `soft_decay_strikes` resets to 0 when strategy shows recovery (positive PnL + positive Sharpe). Previously strikes only accumulated, guaranteeing eventual retirement.
+
+### Operational Notes (Lessons Learned)
+- **Never use `railway up` for redeployment** — it wipes custom domain registrations. Use Railway dashboard redeploy instead. If domains are lost, re-add via GraphQL `customDomainCreate` + `customDomainUpdate` to trigger verification.
+- **Dashboard RPC must match treasury network**: WalletProvider uses devnet RPC. The `/launch` page creates a separate mainnet connection for platform launches. Never mix networks — treasury balance reads from wrong RPC return 0.
+- **Frozen state must use SDK decoder**: Never read on-chain frozen field via hardcoded byte offsets — the Anchor account layout can change. Use `fetchTreasuryState()` from the SDK which uses Borsh decoding.
+- **FlashTradeClient is async**: The REST client uses async `reqwest` with retry (3 attempts, exponential backoff). Synchronous callers use `_blocking()` wrappers that create a tokio current-thread runtime.
+- **No `.unwrap()` in production paths**: All msgpack encoding, ATA derivation, daemon serialization, and evolve proposals use proper error handling (`map_err`, `unwrap_or_else`, `ok_or`). Never re-introduce `.unwrap()` on code that handles external input.
 
 ---
 
@@ -288,6 +299,10 @@ cd rtp/swarm && cargo test --lib
 10. **Research code remains reviewable while collaboration is active**
 11. **Emergency freeze** — authority-gated halt, all 15 state-mutating instructions check frozen flag. Unfreeze also authority-gated.
 12. **Zero-address rejection** — `Pubkey::default()` rejected on all critical fields
+13. **FlashSide::None rejection** — open/close require Long or Short direction, None is rejected with `InvalidFlashSide` error
+14. **size_amount bounds check** — `u128` to `u64` truncation guarded by `require!(size_amount <= u64::MAX as u128)`
+15. **Soft decay recovery** — strikes reset to 0 on positive PnL + positive Sharpe (prevents guaranteed retirement)
+16. **PDA seed validation** — `RecordFeeDeposit.treasury` and `RegisterAdopter.treasury` have seeds constraints, preventing cross-treasury corruption
 
 ## Trust Model — Permissionless Recording, Authority-Gated Actions
 

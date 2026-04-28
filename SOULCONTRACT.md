@@ -18,8 +18,10 @@ Amendments require a human signature and a 24-hour monitoring window before taki
 7. **Auto-rollback on degradation** — if performance drops > 5% post-amendment, rollback is automatic.
 8. **Self-hydration gated on runway** — ops funding only if sustenance bucket covers > 90-day runway.
 9. **Strategies remain black-boxed** — the yield brain is a competitive moat; strategy configs and research internals are not exposed on-chain or in public interfaces.
-10. **Emergency freeze** — authority can halt all treasury operations instantly via `freeze_treasury`. All 14 state-mutating instructions check the frozen flag (12 original + 2 Flash Trade: `open_flash_position`, `close_flash_position`). `emergency_close_all_positions` is intentionally exempt so the freeze-then-unwind flow works. Freeze/unfreeze events emitted on-chain for audit.
+10. **Emergency freeze** — authority can halt all treasury operations instantly via `freeze_treasury`. 15 state-mutating instructions check the frozen flag (12 original + `open_flash_position` + `close_flash_position`; `emergency_close_all_positions` is intentionally exempt so the freeze-then-unwind flow works). Freeze/unfreeze events emitted on-chain for audit.
 11. **Zero-address rejection** — `Pubkey::default()` is rejected on all critical fields (authority, mint, wallet addresses). No misconfiguration attacks.
+12. **PDA-validated treasury accounts** — all instructions that accept a `treasury` account enforce `seeds = [TREASURY_SEED, treasury.mint.as_ref()], bump = treasury.bump`. No cross-treasury accounting corruption.
+13. **Overflow-safe position sizing** — `open_flash_position` validates `size_amount <= u64::MAX` before truncation. Flash Trade CPI rejects `FlashSide::None` (positions must have a direction).
 
 ---
 

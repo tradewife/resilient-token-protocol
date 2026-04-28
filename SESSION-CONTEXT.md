@@ -2,6 +2,9 @@
 
 > **How to use this file:** Paste the relevant sections at the top of every fresh agent session. Do not paste the full papers or full repo. This file is the compressed institutional memory of the project. Update it after each significant session.
 
+**Last updated:** 2026-04-28 — Full stack security audit remediation, Railway deployment, custom domain restored.
+**Current state:** All systems operational. 308 Rust tests pass. Dashboard live at resilientprotocol.xyz (200). On-chain program hardened (PDA seeds, overflow guards, FlashSide rejection, soft decay reset).
+
 ---
 
 ## 1. Canonical Project Definition
@@ -226,6 +229,53 @@ A judge must be able to verify these five things in under 3 minutes:
 ---
 
 ## 8. Session Status
+
+**Session 2026-04-28 — Full Stack Security Audit + Remediation + Railway Deployment**
+
+State as of Apr 28:
+- **308 Rust tests, 0 failures**
+- **Security audit remediated: 2 CRITICAL on-chain fixes, 4 panic fixes, async HTTP with retry**
+- **All 4 Railway services deployed and healthy**
+- **Custom domain resilientprotocol.xyz live (200 OK)**
+
+**What was done (this session):**
+
+| Category | Fix | Files |
+|----------|-----|-------|
+| **CRITICAL on-chain** | Added PDA seed constraints to `RecordFeeDeposit.treasury` and `RegisterAdopter.treasury` | `rtp/programs/.../lib.rs` |
+| **HIGH on-chain** | `size_amount as u64` bounds check before u128→u64 truncation | `rtp/programs/.../lib.rs` |
+| **HIGH on-chain** | `FlashSide::None` rejected for open/close with `InvalidFlashSide` error | `rtp/programs/.../lib.rs` |
+| **MEDIUM on-chain** | `soft_decay_strikes` resets on recovery (positive PnL + positive Sharpe) | `rtp/programs/.../lib.rs` |
+| **CRITICAL Rust** | Replaced 4x `.unwrap()` panics with proper error handling | `trading/mod.rs`, `evolve/mod.rs`, `rtp-daemon.rs` |
+| **HIGH Rust** | FlashTradeClient converted to async with retry (3 attempts, exponential backoff) | `flash_trade_client.rs` |
+| **CRITICAL Dashboard** | WalletProvider switched from mainnet to devnet RPC | `WalletContextProvider.tsx` |
+| **CRITICAL Dashboard** | Frozen state check replaced hardcoded byte offset 225 with SDK `fetchTreasuryState()` | `page.tsx`, `launch/page.tsx` |
+| **HIGH Dashboard** | Yield scan reduced from 100→20 signatures, uses explicit devnet connection | `page.tsx` |
+| **HIGH Dashboard** | Wallet errors now logged instead of silently swallowed | `WalletContextProvider.tsx` |
+| **MEDIUM Dashboard** | Research page shows error state instead of infinite loading | `research/page.tsx` |
+
+**Railway deployment:**
+- All 4 services redeployed successfully: dashboard (Online), swarm-ci (Completed), devnet-loop (Online), night-shift (Online)
+- Custom domain resilientprotocol.xyz verified and working (200 OK)
+- **WARNING**: Do NOT use `railway up` CLI command for redeployment — it wipes custom domain registrations. Use Railway dashboard redeploy button instead. If domains are lost, re-add via GraphQL `customDomainCreate` + `customDomainUpdate`.
+
+**Known remaining gaps (not blocking for hackathon):**
+- `update_strategy_performance` accepts arbitrary metrics from any signer (trust model: only agent calls it)
+- Phase evolution thresholds use raw vault balance, not oracle-denominated USD (acknowledged)
+- No remaining_accounts ownership validation in `open_flash_position` (CPI fails at Flash Trade if wrong)
+- `AdopterRecord` has no treasury back-reference (orphaned records possible)
+- Static JSON data files in `public/data/` are 2+ weeks stale (not rebuilt by CI)
+- SDK missing wrappers for 8 of 18 instructions (non-essential ones)
+- 60+ `println!()` in Rust swarm instead of `tracing` (logging works but unstructured)
+- Integration test directory is empty (308 unit tests pass but zero integration tests)
+
+**Priority for next session:**
+1. Demo rehearsal — run through docs/demo-flow.md end-to-end
+2. Register on Colosseum before May 4 if not done
+3. Polish any remaining dashboard rough edges
+4. Final submission prep
+
+---
 
 **Session 2026-04-18(ii) — Phantom MCP Rust Client + Bridge Integration**
 
