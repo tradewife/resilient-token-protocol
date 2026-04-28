@@ -144,6 +144,11 @@ export interface TreasuryState {
   isFrozen: boolean;
 }
 
+/** Check if a signer is a Keypair (works across ESM/CJS module boundaries). */
+function isKeypair(payer: Keypair | WalletAdapter): payer is Keypair {
+  return "secretKey" in payer && payer.secretKey instanceof Uint8Array;
+}
+
 /** Wrap a Keypair as a minimal wallet for AnchorProvider (avoids anchor.Wallet ESM issue). */
 function kpWallet(kp: Keypair) {
   return {
@@ -212,9 +217,9 @@ async function sendTx(
   const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
   tx.recentBlockhash = blockhash;
   tx.lastValidBlockHeight = lastValidBlockHeight;
-  tx.feePayer = payer instanceof Keypair ? payer.publicKey : payer.publicKey!;
+  tx.feePayer = isKeypair(payer) ? payer.publicKey : payer.publicKey!;
 
-  if (payer instanceof Keypair) {
+  if (isKeypair(payer)) {
     return sendAndConfirmTransaction(connection, tx, [payer, ...extraSigners]);
   } else {
     if (extraSigners.length > 0) tx.partialSign(...extraSigners);
@@ -237,7 +242,7 @@ export async function registerWithRTP(
   payer: Keypair | WalletAdapter,
   config: RTPRegistrationConfig,
 ): Promise<RTPRegistrationResult> {
-  const payerPubkey = payer instanceof Keypair ? payer.publicKey : payer.publicKey!;
+  const payerPubkey = isKeypair(payer) ? payer.publicKey : payer.publicKey!;
   const mintPubkey = config.mint;
 
   // Derive per-mint PDAs
@@ -273,7 +278,7 @@ export async function registerWithRTP(
   const idl = loadPatchedIdl();
   const provider = new AnchorProvider(
     connection,
-    payer instanceof Keypair ? kpWallet(payer) : walletToAnchorWallet(payer),
+    isKeypair(payer) ? kpWallet(payer) : walletToAnchorWallet(payer),
     { commitment: "confirmed" },
   );
   const program = new Program(idl, provider);
@@ -415,10 +420,10 @@ export async function withdrawAndRedistribute(
   const [vaultPDA] = deriveVaultPDA(mint);
 
   const idl = loadPatchedIdl();
-  const payerPubkey = payer instanceof Keypair ? payer.publicKey : payer.publicKey!;
+  const payerPubkey = isKeypair(payer) ? payer.publicKey : payer.publicKey!;
   const provider = new AnchorProvider(
     connection,
-    payer instanceof Keypair ? kpWallet(payer) : walletToAnchorWallet(payer),
+    isKeypair(payer) ? kpWallet(payer) : walletToAnchorWallet(payer),
     { commitment: "confirmed" },
   );
   const program = new Program(idl, provider);
@@ -524,12 +529,12 @@ export async function registerAdopterBeta(
   const mint = typeof mintAddress === "string" ? new PublicKey(mintAddress) : mintAddress;
   const [treasuryPDA] = deriveTreasuryPDA(mint);
   const [adopterPDA] = deriveAdopterPDA(mint);
-  const payerPubkey = payer instanceof Keypair ? payer.publicKey : payer.publicKey!;
+  const payerPubkey = isKeypair(payer) ? payer.publicKey : payer.publicKey!;
 
   const idl = loadPatchedIdl();
   const provider = new AnchorProvider(
     connection,
-    payer instanceof Keypair ? kpWallet(payer) : walletToAnchorWallet(payer),
+    isKeypair(payer) ? kpWallet(payer) : walletToAnchorWallet(payer),
     { commitment: "confirmed" },
   );
   const program = new Program(idl, provider);
@@ -570,7 +575,7 @@ export async function endBeta(
   const idl = loadPatchedIdl();
   const provider = new AnchorProvider(
     connection,
-    payer instanceof Keypair ? kpWallet(payer) : walletToAnchorWallet(payer),
+    isKeypair(payer) ? kpWallet(payer) : walletToAnchorWallet(payer),
     { commitment: "confirmed" },
   );
   const program = new Program(idl, provider);
@@ -648,12 +653,12 @@ export async function freezeTreasury(
 ): Promise<{ signature: string }> {
   const mint = typeof mintAddress === "string" ? new PublicKey(mintAddress) : mintAddress;
   const [treasuryPDA] = deriveTreasuryPDA(mint);
-  const payerPubkey = payer instanceof Keypair ? payer.publicKey : payer.publicKey!;
+  const payerPubkey = isKeypair(payer) ? payer.publicKey : payer.publicKey!;
 
   const idl = loadPatchedIdl();
   const provider = new AnchorProvider(
     connection,
-    payer instanceof Keypair ? kpWallet(payer) : walletToAnchorWallet(payer),
+    isKeypair(payer) ? kpWallet(payer) : walletToAnchorWallet(payer),
     { commitment: "confirmed" },
   );
   const program = new Program(idl, provider);
@@ -682,12 +687,12 @@ export async function unfreezeTreasury(
 ): Promise<{ signature: string }> {
   const mint = typeof mintAddress === "string" ? new PublicKey(mintAddress) : mintAddress;
   const [treasuryPDA] = deriveTreasuryPDA(mint);
-  const payerPubkey = payer instanceof Keypair ? payer.publicKey : payer.publicKey!;
+  const payerPubkey = isKeypair(payer) ? payer.publicKey : payer.publicKey!;
 
   const idl = loadPatchedIdl();
   const provider = new AnchorProvider(
     connection,
-    payer instanceof Keypair ? kpWallet(payer) : walletToAnchorWallet(payer),
+    isKeypair(payer) ? kpWallet(payer) : walletToAnchorWallet(payer),
     { commitment: "confirmed" },
   );
   const program = new Program(idl, provider);
@@ -749,12 +754,12 @@ export async function registerStrategy(
   const mint = typeof mintAddress === "string" ? new PublicKey(mintAddress) : mintAddress;
   const [treasuryPDA] = deriveTreasuryPDA(mint);
   const [strategyPDA] = deriveStrategyPDA(treasuryPDA, strategyId);
-  const payerPubkey = payer instanceof Keypair ? payer.publicKey : payer.publicKey!;
+  const payerPubkey = isKeypair(payer) ? payer.publicKey : payer.publicKey!;
 
   const idl = loadPatchedIdl();
   const provider = new AnchorProvider(
     connection,
-    payer instanceof Keypair ? kpWallet(payer) : walletToAnchorWallet(payer),
+    isKeypair(payer) ? kpWallet(payer) : walletToAnchorWallet(payer),
     { commitment: "confirmed" },
   );
   const program = new Program(idl, provider);
