@@ -69,6 +69,7 @@ night_shift.bin
 # --- Configs with secrets ---
 configs/*.json
 configs/.env*
+.secrets/
 
 # --- Log files ---
 *.log

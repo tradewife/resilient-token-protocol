@@ -419,14 +419,36 @@ All CI/CD runs on **Railway** (migrated from GitHub Actions to conserve Actions 
 
 ### Cron Schedule Configuration
 
-Cron schedules are set via Railway's GraphQL API (`serviceInstanceUpdate` mutation) — not via CLI. Requires a workspace-level API token (account tokens at `railway.com/account/tokens`). Project tokens are deployment-only and cannot set cron.
+Cron schedules are set via Railway's GraphQL API (`serviceInstanceUpdate` mutation) — not via CLI. Requires a workspace-level API token. The workspace token is stored locally at `.secrets/railway-workspace-token` (gitignored, never committed).
 
 ```bash
-# Set cron schedule (requires workspace API token)
-curl -X POST https://backboard.railway.com/graphql/v2 \
-  -H "Authorization: Bearer <WORKSPACE_API_TOKEN>" \
+# Railway workspace token (local only, gitignored)
+RAILWAY_TOKEN=$(cat .secrets/railway-workspace-token)
+
+# Example: Set cron schedule
+curl -s -X POST https://backboard.railway.com/graphql/v2 \
+  -H "Authorization: Bearer $RAILWAY_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"query":"mutation($sid:String!,$eid:String!,$input:ServiceInstanceUpdateInput!){serviceInstanceUpdate(serviceId:$sid,environmentId:$eid,input:$input)}","variables":{"sid":"<SERVICE_ID>","eid":"986bee12-1028-4016-aa42-ba0a174233b4","input":{"cronSchedule":"0 */6 * * *"}}}'
+
+# Example: Update service config (root directory, dockerfile, etc.)
+curl -s -X POST https://backboard.railway.com/graphql/v2 \
+  -H "Authorization: Bearer $RAILWAY_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"query":"mutation($sid:String!,$eid:String!,$input:ServiceInstanceUpdateInput!){serviceInstanceUpdate(serviceId:$sid,environmentId:$eid,input:$input)}","variables":{"sid":"<SERVICE_ID>","eid":"986bee12-1028-4016-aa42-ba0a174233b4","input":{"rootDirectory":"/","dockerfilePath":"Dockerfile.dashboard"}}}'
+
+# Example: Trigger deploy
+curl -s -X POST https://backboard.railway.com/graphql/v2 \
+  -H "Authorization: Bearer $RAILWAY_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"query":"mutation($sid:String!,$eid:String!){serviceInstanceDeployV2(serviceId:$sid,environmentId:$eid)}","variables":{"sid":"<SERVICE_ID>","eid":"986bee12-1028-4016-aa42-ba0a174233b4"}}'
+
+# Service IDs:
+# rtp-dashboard:        f44e64aa-81d0-429d-b3e5-605d72ef2778
+# rtp-devnet-loop:      (check via CLI: railway service list)
+# rtp-night-shift:      (check via CLI: railway service list)
+# rtp-fee-crank:        (check via CLI: railway service list)
+# rtp-promote-strategy: (check via CLI: railway service list)
 ```
 
 ### Legacy GitHub Actions (paused)
@@ -442,7 +464,7 @@ All 4 GitHub Actions workflows have push/PR triggers commented out (`workflow_di
 - **Binance geo-blocked on GitHub runners** — OHLCV data in `data/ohlcv/`, fetch defaults to `false`. Same constraint applies on Railway (night-shift uses `--skip-fetch`).
 - **Droid-Shield** blocks pushes from AI agents (false positives on Solana pubkeys). Manual push required after commits.
 - **Railway dashboard root directory must be `/`** — all Dockerfiles reference paths relative to repo root. Setting root to `/dashboard` breaks the build because `sdk/` is outside `dashboard/`.
-- **Railway workspace API token** — not stored in repo. Generate at `railway.com/account/tokens` when needed for GraphQL mutations (cron schedules, service config). CLI token only supports deployment-level operations.
+- **Railway workspace API token** — stored locally at `.secrets/railway-workspace-token` (gitignored). Use `RAILWAY_TOKEN=$(cat .secrets/railway-workspace-token)` for GraphQL mutations. If missing, regenerate at `railway.com/account/tokens`.
 - **Never use `railway up` for redeployment** — it wipes custom domain registrations. Use `railway redeploy --yes` or Railway dashboard redeploy instead.
 
 ---
