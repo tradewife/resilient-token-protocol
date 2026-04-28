@@ -715,3 +715,60 @@ export async function isTreasuryFrozen(
   const state = await fetchTreasuryState(connection, mintAddress);
   return state.isFrozen;
 }
+
+// ---------------------------------------------------------------------------
+// Strategy Promotion
+// ---------------------------------------------------------------------------
+
+/** Derive the strategy record PDA for a given treasury + strategy_id. */
+function deriveStrategyPDA(treasury: PublicKey, strategyId: string): [PublicKey, number] {
+  const SEED_STRATEGY = Buffer.from("strategy");
+  return PublicKey.findProgramAddressSync(
+    [SEED_STRATEGY, treasury.toBuffer(), Buffer.from(strategyId)],
+    RTP_PROGRAM_ID,
+  );
+}
+
+/**
+ * Register (promote) a strategy to Live status on-chain.
+ * Only callable by the treasury authority.
+ *
+ * @param connection - Solana RPC connection
+ * @param payer - Keypair or WalletAdapter (must be treasury authority)
+ * @param mintAddress - The token mint for the treasury
+ * @param strategyId - Short strategy identifier (1-16 chars, e.g. "S01", "SOL_MR_v2")
+ * @param promotionSharpeX100 - OOS Sharpe * 100 (e.g. 396 for Sharpe 3.96)
+ */
+export async function registerStrategy(
+  connection: Connection,
+  payer: Keypair | WalletAdapter,
+  mintAddress: string | PublicKey,
+  strategyId: string,
+  promotionSharpeX100: number,
+): Promise<{ signature: string; strategyPDA: string }> {
+  const mint = typeof mintAddress === "string" ? new PublicKey(mintAddress) : mintAddress;
+  const [treasuryPDA] = deriveTreasuryPDA(mint);
+  const [strategyPDA] = deriveStrategyPDA(treasuryPDA, strategyId);
+  const payerPubkey = payer instanceof Keypair ? payer.publicKey : payer.publicKey!;
+
+  const idl = loadPatchedIdl();
+  const provider = new AnchorProvider(
+    connection,
+    payer instanceof Keypair ? kpWallet(payer) : walletToAnchorWallet(payer),
+    { commitment: "confirmed" },
+  );
+  const program = new Program(idl, provider);
+
+  const tx = await program.methods
+    .registerStrategy(strategyId, promotionSharpeX100)
+    .accounts({
+      treasury: treasuryPDA,
+      strategyRecord: strategyPDA,
+      authority: payerPubkey,
+      systemProgram: SystemProgram.programId,
+    })
+    .transaction();
+
+  const signature = await sendTx(connection, tx, payer);
+  return { signature, strategyPDA: strategyPDA.toBase58() };
+}

@@ -1,0 +1,29 @@
+FROM node:20-slim
+
+WORKDIR /app
+
+# Copy SDK source
+COPY sdk/package.json sdk/tsconfig.json sdk/idl.ts sdk/index.ts ./sdk/
+
+# Copy the promote script
+COPY scripts/promote-strategy.ts ./scripts/promote-strategy.ts
+
+# Copy night results data (included via build context)
+COPY data/night_results/ ./data/night_results/
+
+# Create a minimal package.json
+RUN echo '{"name":"rtp-promote-strategy","type":"commonjs","dependencies":{"@coral-xyz/anchor":"^0.32.1","@solana/web3.js":"^1.98.4","@solana/spl-token":"^0.4.14","tsx":"^4.19.0","typescript":"^5.0.0"}}' > package.json
+
+RUN npm install
+
+# Install SDK peer deps
+RUN cd sdk && npm install @coral-xyz/anchor@^0.32.1 @solana/web3.js@^1.98.4 @solana/spl-token@^0.4.14 --save-dev || true
+
+# Create keypair directory
+RUN mkdir -p /app/keys
+
+ENV RPC_URL=https://api.devnet.solana.com
+ENV NIGHT_RESULTS_DIR=/app/data/night_results
+
+# Write keypair from env var at startup, then run the promotion
+CMD sh -c 'echo "$FEE_PAYER_KEYPAIR" > /app/keys/fee-payer.json && KEYPAIR_PATH=/app/keys/fee-payer.json npx tsx scripts/promote-strategy.ts'
