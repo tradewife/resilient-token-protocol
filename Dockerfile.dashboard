@@ -14,6 +14,7 @@ COPY dashboard/ dashboard/
 RUN cd dashboard && npm run build
 
 FROM node:20-slim AS runner
+# v2: fixed static asset paths (.next/static not dashboard/.next/static)
 WORKDIR /app
 ENV NODE_ENV=production
 ENV HOSTNAME="0.0.0.0"
