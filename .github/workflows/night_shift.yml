@@ -1,8 +1,9 @@
 name: Night Shift — Autonomous Strategy Optimization
 
 on:
-  schedule:
-    - cron: '0 14 * * *'
+  # Paused — night shift moved to Railway
+  # schedule:
+  #   - cron: '0 14 * * *'
   workflow_dispatch:
     # Allow manual trigger from GitHub Actions tab
     inputs:

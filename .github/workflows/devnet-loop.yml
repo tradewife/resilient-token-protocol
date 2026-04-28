@@ -1,8 +1,9 @@
 name: Devnet Loop — Autonomous Cycle
 
 on:
-  schedule:
-    - cron: '0 */6 * * *'
+  # Paused — devnet loop moved to Railway
+  # schedule:
+  #   - cron: '0 */6 * * *'
   workflow_dispatch:
 
 permissions:

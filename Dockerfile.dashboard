@@ -1,0 +1,25 @@
+FROM node:20-slim AS deps
+WORKDIR /app
+COPY sdk/package.json sdk/package.json
+COPY sdk/idl.ts sdk/idl.ts
+COPY sdk/README.md sdk/README.md
+COPY dashboard/package.json dashboard/package-lock.json dashboard/
+RUN cd dashboard && npm ci
+
+FROM node:20-slim AS builder
+WORKDIR /app
+COPY --from=deps /app/dashboard/node_modules dashboard/node_modules
+COPY --from=deps /app/sdk sdk
+COPY dashboard/ dashboard/
+RUN cd dashboard && npm run build
+
+FROM node:20-slim AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+ENV HOSTNAME="0.0.0.0"
+ENV PORT=3000
+COPY --from=builder /app/dashboard/.next/standalone ./
+COPY --from=builder /app/dashboard/.next/static dashboard/.next/static
+COPY --from=builder /app/dashboard/public dashboard/public
+EXPOSE 3000
+CMD ["node", "server.js"]

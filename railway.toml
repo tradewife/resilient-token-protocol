@@ -1,0 +1,15 @@
+# Railway deployment config for RTP
+# 
+# Each service uses Dockerfile Path set in Railway dashboard Settings tab.
+# This file provides service-level overrides that CLI `railway up` respects.
+
+# Dashboard: SSR Next.js on port 3000
+# Devnet Loop: Rust daemon (6h cron)
+# Night Shift: Python strategy optimization (daily cron)  
+# Swarm CI: Rust cargo test + anchor build (manual trigger)
+#
+# Dockerfile paths configured in Railway dashboard:
+#   rtp-dashboard   → dashboard/Dockerfile
+#   rtp-devnet-loop → rtp/swarm/Dockerfile.daemon
+#   rtp-night-shift → research/Dockerfile
+#   rtp-swarm-ci    → rtp/Dockerfile.ci

@@ -1,0 +1,23 @@
+FROM rust:1.85-slim AS builder
+WORKDIR /app
+# Install Solana CLI and Anchor
+RUN apt-get update && apt-get install -y curl pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*
+RUN sh -c "$(curl -sSfL https://release.anza.xyz/stable/install)" && \
+    export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
+RUN cargo install --git https://github.com/coral-xyz/anchor avm --force && \
+    avm install 1.0.0 && avm use 1.0.0
+
+COPY rtp/ rtp/
+WORKDIR /app/rtp/swarm
+RUN cargo build --release
+RUN cargo test --release
+RUN cargo clippy --release -- -D warnings
+RUN cargo fmt --check
+
+WORKDIR /app/rtp/programs/rtp-treasury
+ENV PATH="/root/.local/share/solana/install/active_release/bin:/root/.avm/bin:${PATH}"
+RUN anchor build
+
+# Artifact verification stage
+FROM debian:bookworm-slim
+RUN echo "CI build completed successfully"

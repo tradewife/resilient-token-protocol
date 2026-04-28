@@ -3,7 +3,7 @@ import type { NextConfig } from "next";
 import path from "path";
 
 const nextConfig: NextConfig = {
-  output: "export",
+  output: "standalone",
   trailingSlash: true,
   images: {
     unoptimized: true,

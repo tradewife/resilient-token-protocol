@@ -1,0 +1,10 @@
+FROM rust:1.85-slim AS builder
+WORKDIR /app
+COPY rtp/swarm/ rtp/swarm/
+WORKDIR /app/rtp/swarm
+RUN cargo build --release --bin rtp-daemon
+
+FROM debian:bookworm-slim
+RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
+COPY --from=builder /app/rtp/swarm/target/release/rtp-daemon /usr/local/bin/
+CMD ["rtp-daemon"]
