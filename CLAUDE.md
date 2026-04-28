@@ -377,12 +377,53 @@ This is the config the Trading Wing targets on Flash Trade (via on-chain CPI).
 
 ## CI/CD
 
-- **Night shift**: GitHub Actions cron at 14:00 UTC (`night_shift.yml`, 300 min timeout) — also runs Python module import + CLI tests
-- **Swarm CI**: `swarm-ci.yml` — cargo build + test + clippy + fmt + anchor build
-- **Devnet loop**: `devnet-loop.yml` — cron every 6h + manual dispatch, runs rtp-daemon, commits cycle output
-- **Binance geo-blocked on GitHub runners** — OHLCV data in `data/ohlcv/`, fetch defaults to `false`
-- **All workflow push/PR triggers currently paused** (workflow_dispatch only) to conserve Actions minutes. Re-enable `swarm-ci.yml` push trigger before May 11 submission for one final green CI run.
-- **Dashboard deployment is manual** — `deploy-dashboard.yml` push triggers are commented out. After merging dashboard changes, run `gh workflow run deploy-dashboard.yml --ref main` to deploy to GitHub Pages (resilientprotocol.xyz). The site does NOT auto-deploy on push.
+All CI/CD runs on **Railway** (migrated from GitHub Actions to conserve Actions minutes).
+
+### Railway Project: `resilient-token-protocol`
+
+| Service | Type | Dockerfile | Schedule | URL |
+|---------|------|-----------|----------|-----|
+| **rtp-dashboard** | Always-on SSR | `dashboard/Dockerfile` | — | https://rtp-dashboard-production.up.railway.app |
+| **rtp-devnet-loop** | Cron (one-shot) | `rtp/swarm/Dockerfile.daemon` | `0 */6 * * *` (every 6h) | https://rtp-devnet-loop-production.up.railway.app |
+| **rtp-night-shift** | Cron (one-shot) | `research/Dockerfile` | `0 14 * * *` (daily 14:00 UTC) | https://rtp-night-shift-production.up.railway.app |
+| **rtp-swarm-ci** | Manual trigger | `rtp/Dockerfile.ci` | Manual redeploy only | https://rtp-swarm-ci-production.up.railway.app |
+
+**Railway account:** katejcooper.atelier@gmail.com
+**Project dashboard:** https://railway.com/project/11004852-2ba7-46d9-aeb5-ab9558e965a0
+**Region:** Southeast Asia (asia-southeast1-eqsg3a)
+**Environment:** production (`986bee12-1028-4016-aa42-ba0a174233b4`)
+
+### Service Details
+
+- **rtp-dashboard**: SSR Next.js (`output: "standalone"` in `next.config.ts`). Multi-stage Docker build: deps → builder → runner. Auto-deploys from connected GitHub repo on push to main.
+- **rtp-devnet-loop**: Rust `rtp-daemon` binary. Dockerfile uses `rust:1.88-slim` builder + `debian:bookworm-slim` runner. Connected to GitHub repo (`tradewife/resilient-token-protocol`), auto-deploys on push. Build context is repo root — COPY paths in Dockerfile use `rtp/swarm/` prefix. Needs env vars: `LLM_API_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`.
+- **rtp-night-shift**: Python 3.12, installs from `requirements-ci.txt`, runs `night_shift --skip-fetch`. One-shot: runs to completion and exits. OHLCV data in `data/ohlcv/` included via `.railwayignore` exclusion.
+- **rtp-swarm-ci**: Rust builder with Solana CLI + Anchor. Runs `cargo build`, `cargo test`, `cargo clippy`, `cargo fmt --check`, `anchor build`. One-shot CI validation.
+
+### Cron Schedule Configuration
+
+Cron schedules are set via Railway's GraphQL API (`serviceInstanceUpdate` mutation) — not via CLI. Requires a workspace-level API token (account tokens at `railway.com/account/tokens`). Project tokens are deployment-only and cannot set cron.
+
+```bash
+# Set cron schedule (requires workspace API token)
+curl -X POST https://backboard.railway.com/graphql/v2 \
+  -H "Authorization: Bearer <WORKSPACE_API_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{"query":"mutation($sid:String!,$eid:String!,$input:ServiceInstanceUpdateInput!){serviceInstanceUpdate(serviceId:$sid,environmentId:$eid,input:$input)}","variables":{"sid":"<SERVICE_ID>","eid":"986bee12-1028-4016-aa42-ba0a174233b4","input":{"cronSchedule":"0 */6 * * *"}}}'
+```
+
+### Legacy GitHub Actions (paused)
+
+All 4 GitHub Actions workflows have push/PR triggers commented out (`workflow_dispatch` only):
+- `swarm-ci.yml` — cargo build + test + clippy + fmt + anchor build
+- `deploy-dashboard.yml` — was GitHub Pages deploy (now superseded by Railway SSR)
+- `night_shift.yml` — cron at 14:00 UTC (now runs on Railway)
+- `devnet-loop.yml` — cron every 6h (now runs on Railway)
+
+### Key Notes
+
+- **Binance geo-blocked on GitHub runners** — OHLCV data in `data/ohlcv/`, fetch defaults to `false`. Same constraint applies on Railway (night-shift uses `--skip-fetch`).
+- **Droid-Shield** blocks pushes from AI agents (false positives on Solana pubkeys). Manual push required after commits.
 
 ---
 

@@ -971,3 +971,60 @@ State as of Apr 26:
 ---
 
 *Last updated: 2026-04-26 (Security hardening Phase 1 complete: freeze/unfreeze, zero-address guard, 12 frozen guards. Squads/Hydra deferred. 307 tests, 0 failures.)*
+
+---
+
+**Session 2026-04-28 — Audit Remediation + Railway CI/CD Migration**
+
+State as of Apr 28:
+- **308 Rust tests, 0 failures. Cargo clippy clean. Anchor build clean.**
+- **Deep audit completed: 2 P1, 8 P2, 15 P3 findings — all P1/P2 fixed**
+- **All 4 services deployed to Railway — CI/CD migrated from GitHub Actions**
+- Demo-Readiness Score: 9.5/10
+
+**Audit remediation (this session):**
+
+| Finding | Severity | Fix |
+|---------|----------|-----|
+| Close discriminator mismatched | P1 | `FLASH_CLOSE_POSITION_DISC` changed from `[123,134,81,0,49,68,98,98]` to `[191,210,137,115,145,22,230,244]` in `lib.rs` — matches mainnet-verified demo script |
+| Close data layout wrong (37 bytes → 29 bytes) | P1 | Corrected to disc+OraclePrice+sizeUsd+privilege matching Flash Trade IDL |
+| No slippage validation | P2 | `require!(slippage_bps <= 10000)` in both `open_flash_position` and `close_flash_position` |
+| No leverage cap | P2 | `require!(leverage_bps <= 1_000_000)` in `open_flash_position` |
+| Stale blockhash in tx builder | P2 | `build_treasury_deposit_tx` and `build_sol_transfer_tx` use `Message::new_with_blockhash()` with fetched blockhash |
+| Float precision in conversions | P2 | `.round()` added to SOL lamport and token amount float-to-int conversions |
+| UTF-8 unsafe error formatting | P2 | `chars().take(200)` replaces byte slicing `&body[..200]` |
+| Silent fallback in `get_sol_index` | P2 | Returns `Err("SOL not found")` instead of silent `Ok(0)` |
+
+**Railway CI/CD migration (this session):**
+
+All 4 GitHub Actions workflows paused (triggers commented out, `workflow_dispatch` only). Migrated to Railway:
+
+| Service | Dockerfile | Schedule | Image | Status |
+|---------|-----------|----------|-------|--------|
+| rtp-dashboard | `dashboard/Dockerfile` | Always-on | SSR Next.js 16 (standalone) | Online |
+| rtp-devnet-loop | `rtp/swarm/Dockerfile.daemon` | `0 */6 * * *` | Rust rtp-daemon (1.88) | Cron |
+| rtp-night-shift | `research/Dockerfile` | `0 14 * * *` | Python 3.12 | Cron |
+| rtp-swarm-ci | `rtp/Dockerfile.ci` | Manual | Rust + Anchor CI | One-shot |
+
+**Railway project details:**
+- Project: `resilient-token-protocol` (ID: `11004852-2ba7-46d9-aeb5-ab9558e965a0`)
+- Environment: production (ID: `986bee12-1028-4016-aa42-ba0a174233b4`)
+- Account: katejcooper.atelier@gmail.com
+- Region: Southeast Asia
+- API: GraphQL endpoint `https://backboard.railway.com/graphql/v2`
+- Cron schedules configured via Railway dashboard Settings (or GraphQL `serviceInstanceUpdate` mutation)
+
+**Devnet-loop Dockerfile fixes:**
+- Build context is repo root (Dockerfile Path set in Railway dashboard Settings)
+- COPY paths prefixed with `rtp/swarm/` (e.g. `COPY rtp/swarm/Cargo.toml rtp/swarm/Cargo.lock ./`)
+- Rust 1.85 → 1.88 (serde_with 3.18, icu_properties_data 2.2 require newer Rust)
+- Added `pkg-config` + `libssl-dev` for openssl-sys build dependency
+- Verified locally: `docker build -f rtp/swarm/Dockerfile.daemon -t rtp-daemon-test .` passes
+
+**Commits this session:**
+- `c9cf27f` fix: audit remediation — 20 actions from AUDIT-REPORT-2026-04-27
+- `3d67584` fix: audit fixes — clippy warnings, blockhash, close disc, float precision, utf8 safety
+- `1e3aca2` fix: clippy -D warnings (needless borrows) + cargo fmt
+- `a6cea5d` feat: Railway deployment — 3/4 services live, GitHub Actions paused
+- `840b7bc` feat: Flash Trade CPI integration + audit fixes + CI re-enable (#1)
+- `6b0c11a` fix: Dockerfile.daemon — use repo-root COPY paths, rust 1.88, add pkg-config for OpenSSL

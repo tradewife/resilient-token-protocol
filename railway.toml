@@ -1,15 +1,38 @@
 # Railway deployment config for RTP
 # 
-# Each service uses Dockerfile Path set in Railway dashboard Settings tab.
-# This file provides service-level overrides that CLI `railway up` respects.
-
-# Dashboard: SSR Next.js on port 3000
-# Devnet Loop: Rust daemon (6h cron)
-# Night Shift: Python strategy optimization (daily cron)  
-# Swarm CI: Rust cargo test + anchor build (manual trigger)
+# Project: resilient-token-protocol
+# Dashboard: https://railway.com/project/11004852-2ba7-46d9-aeb5-ab9558e965a0
+# Account: katejcooper.atelier@gmail.com
+# Region: Southeast Asia (asia-southeast1-eqsg3a)
+# Environment: production (986bee12-1028-4016-aa42-ba0a174233b4)
 #
-# Dockerfile paths configured in Railway dashboard:
+# Service IDs:
+#   rtp-dashboard   f44e64aa-81d0-429d-b3e5-605d72ef2778
+#   rtp-devnet-loop 006a2ac8-d74b-4f1d-ac4e-8a044ebfb46d
+#   rtp-night-shift 0088cfc9-1310-4926-ab7e-1e3991028ed9
+#   rtp-swarm-ci    ca591cef-4b09-4797-b80d-fbbb04098ce4
+#
+# Dockerfile paths configured in Railway dashboard Settings tab:
 #   rtp-dashboard   → dashboard/Dockerfile
 #   rtp-devnet-loop → rtp/swarm/Dockerfile.daemon
 #   rtp-night-shift → research/Dockerfile
 #   rtp-swarm-ci    → rtp/Dockerfile.ci
+#
+# Cron schedules (set via GraphQL serviceInstanceUpdate mutation):
+#   rtp-devnet-loop → 0 */6 * * * (every 6 hours)
+#   rtp-night-shift → 0 14 * * * (daily at 14:00 UTC)
+#   rtp-swarm-ci    → manual redeploy only
+#   rtp-dashboard   → always-on (no cron)
+#
+# Build notes:
+#   - Build context is always the repo root, even with Dockerfile Path set
+#   - Devnet-loop Dockerfile COPY paths use rtp/swarm/ prefix
+#   - Devnet-loop requires Rust 1.88+ (serde_with 3.18, icu_properties_data 2.2)
+#   - Devnet-loop needs env vars: LLM_API_BASE_URL, LLM_API_KEY, LLM_MODEL
+#   - Night-shift uses --skip-fetch (Binance geo-blocked on Railway)
+#   - Dashboard uses output: "standalone" in next.config.ts (SSR mode)
+#
+# API:
+#   GraphQL endpoint: https://backboard.railway.com/graphql/v2
+#   Cron mutation requires workspace-level API token (not project token)
+#   Project tokens use "Project-Access-Token" header (not "Authorization: Bearer")
