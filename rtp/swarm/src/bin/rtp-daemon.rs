@@ -70,7 +70,88 @@ fn collect_memory_files() -> Vec<String> {
     files
 }
 
+/// Minimal Anchor-compatible Treasury struct for decoding on-chain state.
+/// Must match the field order in rtp-treasury/src/lib.rs exactly.
+#[derive(Debug, serde::Deserialize)]
+struct TreasuryAccount {
+    mint: solana_sdk::pubkey::Pubkey,       // 32
+    authority: solana_sdk::pubkey::Pubkey,    // 32
+    phase: u8,                                // 1 (enum)
+    total_fees_withdrawn: u64,               // 8
+    total_distributed_holders: u64,           // 8
+    total_distributed_dev: u64,               // 8
+    total_distributed_ecosystem: u64,         // 8
+    total_hydration: u64,                     // 8
+    total_fees_received_lamports: u64,        // 8
+    holders_wallet: solana_sdk::pubkey::Pubkey, // 32
+    project_dev_wallet: solana_sdk::pubkey::Pubkey, // 32
+    ecosystem_wallet: solana_sdk::pubkey::Pubkey, // 32
+    min_runway_balance: u64,                  // 8
+    frozen: bool,                             // 1
+    bump: u8,                                 // 1
+}
+
+/// Check for stale positions that have exceeded max_hold_hours * 1.1.
+///
+/// Queries the Flash Trade REST API for open positions belonging to the
+/// treasury PDA. Any position open longer than the timeout is logged as
+/// a warning — actual close requires an on-chain `close_flash_position`
+/// CPI call, which the daemon does not auto-trigger (requires authority).
+async fn check_stale_positions(max_hold_hours: f64) {
+    let treasury_pda = "FNQbK1Vw77aT7qM1EMSmeEPDGizSNN4h4rkkYBKQNFotF";
+    let timeout_hours = max_hold_hours * 1.1;
+
+    let client = rtp_swarm::wings::trading::flash_trade_client::FlashTradeClient::new();
+    match client.get_positions(treasury_pda).await {
+        Ok(positions) => {
+            if positions.is_empty() {
+                println!("[DAEMON] no open positions — stale check clean");
+                return;
+            }
+            println!("[DAEMON] {} open position(s) found", positions.len());
+            let now = Utc::now();
+            for pos in &positions {
+                // Parse created_at — Flash Trade returns ISO 8601 timestamps.
+                let opened = chrono::DateTime::parse_from_rfc3339(&pos.created_at)
+                    .map(|dt| dt.with_timezone(&Utc))
+                    .unwrap_or_else(|e| {
+                        println!(
+                            "[DAEMON] warning: could not parse created_at '{}' — {}",
+                            pos.created_at, e
+                        );
+                        Utc::now()
+                    });
+                let age_hours = (now - opened).num_seconds() as f64 / 3600.0;
+                let stale = age_hours > timeout_hours;
+                println!(
+                    "[DAEMON] position {} — side={}, size_usd={}, age={:.1}h{}",
+                    &pos.position_address[..8],
+                    pos.side,
+                    pos.size_usd,
+                    age_hours,
+                    if stale { " *** STALE ***" } else { "" }
+                );
+                if stale {
+                    println!(
+                        "[DAEMON] ALERT: position {} is stale ({:.1}h > {:.1}h timeout). \
+                         Manual close_flash_position recommended.",
+                        pos.position_address, age_hours, timeout_hours
+                    );
+                }
+            }
+        }
+        Err(e) => {
+            println!(
+                "[DAEMON] could not query Flash Trade positions ({}). \
+                 Stale check skipped — on-chain CPI will still gate.",
+                e
+            );
+        }
+    }
+}
+
 /// Check if the demo treasury is frozen by reading the on-chain account data.
+/// Uses Anchor Borsh deserialization — no hardcoded byte offsets.
 /// Returns Ok(true) if frozen, Ok(false) if not, Err if RPC unreachable.
 fn check_treasury_frozen() -> Result<bool, String> {
     let treasury_pda = "FNQbK1Vw77aT7qM1EMSmeEPDGizSNhX4rkkYBKQNFotF";
@@ -90,10 +171,18 @@ fn check_treasury_frozen() -> Result<bool, String> {
 
     let json: serde_json::Value = resp.json().map_err(|e| format!("RPC parse error: {}", e))?;
 
-    let data = json
+    // Check if account exists
+    let value = json
         .get("result")
         .and_then(|r| r.get("value"))
-        .and_then(|v| v.get("data"))
+        .ok_or("No result.value in RPC response")?;
+
+    if value.is_null() {
+        return Err("Treasury account does not exist on this network".to_string());
+    }
+
+    let data = value
+        .get("data")
         .and_then(|d| d.get(0))
         .and_then(|d| d.as_str())
         .ok_or("No account data returned")?;
@@ -103,13 +192,21 @@ fn check_treasury_frozen() -> Result<bool, String> {
         .decode(data)
         .map_err(|e| format!("Base64 decode error: {}", e))?;
 
-    // Frozen field at byte offset 225 (8 discriminator + 32+32+1+8*6+32*3+8 = 225)
-    let frozen_offset = 225;
-    if bytes.len() > frozen_offset {
-        Ok(bytes[frozen_offset] != 0)
-    } else {
-        Err("Account data too short to read frozen flag".to_string())
+    // Anchor accounts start with 8-byte discriminator, then Borsh-serialized data.
+    if bytes.len() < 8 {
+        return Err("Account data too short for Anchor discriminator".to_string());
     }
+
+    // Deserialize the account data (skip 8-byte discriminator).
+    let treasury: TreasuryAccount = bincode::deserialize(&bytes[8..])
+        .map_err(|e| format!("Treasury deserialize error: {}", e))?;
+
+    println!(
+        "[DAEMON] treasury decoded: mint={}, phase={}, frozen={}, runway={}",
+        treasury.mint, treasury.phase, treasury.frozen, treasury.min_runway_balance
+    );
+
+    Ok(treasury.frozen)
 }
 
 #[tokio::main]
@@ -143,6 +240,15 @@ async fn main() {
                 e
             );
         }
+    }
+
+    // 0b. Check execution mode.
+    let mainnet_execute = std::env::var("RTP_MAINNET_EXECUTE").is_ok();
+    println!();
+    if mainnet_execute {
+        println!("[DAEMON] *** MAINNET EXECUTION MODE — real transactions will be sent ***");
+    } else {
+        println!("[DAEMON] Simulation mode (set RTP_MAINNET_EXECUTE=1 for live execution)");
     }
 
     // 1. Load config.
@@ -213,10 +319,28 @@ async fn main() {
     }
     let params_used = config;
 
+    // 1c. Stale position check.
+    // If positions have been open longer than max_hold_hours * 1.1, they're stale.
+    // This handles the case where the daemon crashes after opening a position
+    // and never closes it.
+    {
+        let max_hold = params_used.max_hold_hours;
+        let stale_timeout_hours = max_hold * 1.1;
+        println!(
+            "[DAEMON] stale position timeout: {:.1}h (max_hold={}h × 1.1)",
+            stale_timeout_hours, max_hold
+        );
+        check_stale_positions(max_hold).await;
+    }
 
     // 2. Run orchestrator cycle (reuses demo infrastructure).
     println!();
     println!("=== ORCHESTRATOR CYCLE ===");
+    if mainnet_execute {
+        println!("[DAEMON] Live execution requested — orchestrator will submit real transactions");
+    } else {
+        println!("[DAEMON] Simulation mode — orchestrator runs paper cycle only");
+    }
     let demo_result = rtp_swarm::demo::run_two_cycle_demo().await;
     if demo_result.success {
         println!("[DAEMON] orchestrator cycle completed successfully");
