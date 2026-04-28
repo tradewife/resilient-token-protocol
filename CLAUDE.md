@@ -398,10 +398,12 @@ All CI/CD runs on **Railway** (migrated from GitHub Actions to conserve Actions 
 
 | Service | Type | Dockerfile | Schedule | URL |
 |---------|------|-----------|----------|-----|
-| **rtp-dashboard** | Always-on SSR | `dashboard/Dockerfile` | — | https://rtp-dashboard-production.up.railway.app |
+| **rtp-dashboard** | Always-on SSR | `Dockerfile.dashboard` | — | https://rtp-dashboard-production.up.railway.app |
 | **rtp-devnet-loop** | Cron (one-shot) | `rtp/swarm/Dockerfile.daemon` | `0 */6 * * *` (every 6h) | https://rtp-devnet-loop-production.up.railway.app |
 | **rtp-night-shift** | Cron (one-shot) | `research/Dockerfile` | `0 14 * * *` (daily 14:00 UTC) | https://rtp-night-shift-production.up.railway.app |
 | **rtp-swarm-ci** | Manual trigger | `rtp/Dockerfile.ci` | Manual redeploy only | https://rtp-swarm-ci-production.up.railway.app |
+| **rtp-fee-crank** | Cron (one-shot) | `scripts/Dockerfile.crank` | `0 * * * *` (hourly) | — |
+| **rtp-promote-strategy** | Cron (one-shot) | `scripts/Dockerfile.promote` | `30 14 * * *` | — |
 
 **Railway account:** katejcooper.atelier@gmail.com
 **Project dashboard:** https://railway.com/project/11004852-2ba7-46d9-aeb5-ab9558e965a0
@@ -410,7 +412,7 @@ All CI/CD runs on **Railway** (migrated from GitHub Actions to conserve Actions 
 
 ### Service Details
 
-- **rtp-dashboard**: SSR Next.js (`output: "standalone"` in `next.config.ts`). Multi-stage Docker build: deps → builder → runner. Auto-deploys from connected GitHub repo on push to main.
+- **rtp-dashboard**: SSR Next.js (`output: "standalone"` in `next.config.ts`). Multi-stage Docker build from `Dockerfile.dashboard` at repo root. Auto-deploys from connected GitHub repo on push to main. **Railway config: Root Directory must be `/` (repo root), NOT `/dashboard`** — the Dockerfile needs access to both `sdk/` and `dashboard/`. Env var `RAILPACK_DOCKERFILE_PATH=Dockerfile.dashboard` tells Railway to use our Dockerfile instead of Nixpacks. The standalone build copies static assets to `.next/static` (not `dashboard/.next/static`) relative to `server.js`.
 - **rtp-devnet-loop**: Rust `rtp-daemon` binary. Dockerfile uses `rust:1.88-slim` builder + `debian:bookworm-slim` runner. Connected to GitHub repo (`tradewife/resilient-token-protocol`), auto-deploys on push. Build context is repo root — COPY paths in Dockerfile use `rtp/swarm/` prefix. Needs env vars: `LLM_API_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`.
 - **rtp-night-shift**: Python 3.12, installs from `requirements-ci.txt`, runs `night_shift --skip-fetch`. One-shot: runs to completion and exits. OHLCV data in `data/ohlcv/` included via `.railwayignore` exclusion.
 - **rtp-swarm-ci**: Rust builder with Solana CLI + Anchor. Runs `cargo build`, `cargo test`, `cargo clippy`, `cargo fmt --check`, `anchor build`. One-shot CI validation.
@@ -439,6 +441,9 @@ All 4 GitHub Actions workflows have push/PR triggers commented out (`workflow_di
 
 - **Binance geo-blocked on GitHub runners** — OHLCV data in `data/ohlcv/`, fetch defaults to `false`. Same constraint applies on Railway (night-shift uses `--skip-fetch`).
 - **Droid-Shield** blocks pushes from AI agents (false positives on Solana pubkeys). Manual push required after commits.
+- **Railway dashboard root directory must be `/`** — all Dockerfiles reference paths relative to repo root. Setting root to `/dashboard` breaks the build because `sdk/` is outside `dashboard/`.
+- **Railway workspace API token** — not stored in repo. Generate at `railway.com/account/tokens` when needed for GraphQL mutations (cron schedules, service config). CLI token only supports deployment-level operations.
+- **Never use `railway up` for redeployment** — it wipes custom domain registrations. Use `railway redeploy --yes` or Railway dashboard redeploy instead.
 
 ---
 
