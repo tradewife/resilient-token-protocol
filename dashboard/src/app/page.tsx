@@ -6,7 +6,7 @@ import { PublicKey, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import Link from "next/link";
 import Topbar from "./Topbar";
 
-const TREASURY_PDA = "FNQbK1Vw77aT7qM1EMSmeEPDGizSNhX4rkkYBKQNFotF";
+const TREASURY_PDA = "7oZTJWYBDjzqmbfRs5YkTv53CDa6vESAzfyjK3yhYshc";
 const DEVNET_RPC = "https://api.devnet.solana.com";
 const MAINNET_RPC = "https://api.mainnet-beta.solana.com";
 
@@ -34,6 +34,7 @@ const INVARIANTS = [
   "PDA owns treasury — no private key exists. No one can sign funds away.",
   "TransferFeeConfig fee % immutable once set on the mint.",
   "Per-token isolation — each mint gets its own Treasury PDA and vault.",
+  "Flash Trade CPI-only execution — Treasury PDA signs via invoke_signed, no human keypair involved in trading.",
   "Phase transitions irreversible — Sustenance → Ecosystem → Humanity, no downgrade.",
 ];
 
@@ -359,7 +360,7 @@ export default function Home() {
               <span className="hero-balance-value">{tBal} SOL</span>
               <div className="hero-balance-row">
                 <span className="hero-balance-label">
-                  TREASURY VAULT · FNQbK1...otF
+                  TREASURY VAULT · 7oZTJW...shc
                 </span>
 
                 <div className="hero-actions">
@@ -400,7 +401,7 @@ export default function Home() {
 
         <div className="hero-metrics">
           <div className="metric">
-            <span className="metric-value accent">307</span>
+            <span className="metric-value accent">308</span>
             <span className="metric-label">Tests Passing</span>
           </div>
           <div className="metric">
@@ -490,11 +491,9 @@ export default function Home() {
             { label: "→" },
             { label: "Treasury PDA", color: "var(--emerald)" },
             { label: "→" },
-            { label: "SOL → USDC", color: "var(--text-tertiary)" },
+            { label: "Flash Trade CPI", color: "var(--coral)" },
             { label: "→" },
-            { label: "HL Perps", color: "var(--coral)" },
-            { label: "→" },
-            { label: "USDC → SOL", color: "var(--text-tertiary)" },
+            { label: "SOL Yield", color: "var(--text-tertiary)" },
             { label: "→" },
             { label: "70/20/10 Split", color: "var(--emerald)" },
           ].map((item, i) => (
@@ -551,8 +550,8 @@ export default function Home() {
           <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-sm)" }}>
             {[
               { label: "Anchor program", detail: "14 on-chain instructions — fee collection, 70/20/10 redistribution, strategy lifecycle, phase evolution. Per-token treasury isolation. Deployed to devnet." },
-              { label: "Rust swarm runtime", detail: "6 wings (Trading, Security, Evolve, Knowledge, Audit, Futureproof), Coordinator message bus, 307 tests" },
-              { label: "Hyperliquid execution", detail: "Phantom MCP bridges SOL↔USDC. EIP-712 signed perps on HL testnet. BUY→fill→SELL→fill round-trip verified from Rust." },
+              { label: "Rust swarm runtime", detail: "6 wings (Trading, Security, Evolve, Knowledge, Audit, Futureproof), Coordinator message bus, 308 tests" },
+              { label: "Flash Trade CPI execution", detail: "Treasury PDA signs via invoke_signed. On-chain perps on Solana. Position open/close confirmed on mainnet. SOL stays on Solana — no bridge, no cross-chain." },
               { label: "Per-token isolation", detail: "Each token gets its own Treasury PDA + vault. Same strategy, isolated capital. No shared pool — one exploit can't drain all adopters." },
               { label: "TypeScript SDK", detail: "One function call to register any token with RTP. Launchpads integrate in minutes — no chain ops to run." },
             ].map((item, i) => (
@@ -614,7 +613,7 @@ export default function Home() {
                 <span className="hiw-num">3</span>
                 <div className="hiw-content">
                   <p className="hiw-text">
-                    The Trading Wing swaps SOL to USDC via Phantom MCP, then executes the validated strategy on Hyperliquid (USDC-margined, 20% max position). Soulguard enforces constitutional constraints before every trade.
+                    The Trading Wing submits the validated strategy to the Treasury PDA, which executes it on Flash Trade via CPI (invoke_signed). Positions are on-chain Solana perps. 20% max position enforced on-chain before CPI. Soulguard enforces constitutional constraints before every trade.
                   </p>
                 </div>
               </div>
@@ -622,11 +621,11 @@ export default function Home() {
                 <span className="hiw-num">4</span>
                 <div className="hiw-content">
                   <p className="hiw-text">
-                    USDC yield converts back to SOL, deposits to the treasury PDA. The Anchor program splits it 70% holders / 20% dev / 10% ecosystem — on-chain, deterministic, no discretion.
+                    SOL yield returns to the treasury PDA when positions close (single chain, no bridge). The Anchor program splits it 70% holders / 20% dev / 10% ecosystem — on-chain, deterministic, no discretion.
                   </p>
                   <a
                     className="hiw-link"
-                    href="https://explorer.solana.com/tx/9HzWgBfwYxs5ModdjF5mT6gdTfayQq8mMYipopyHfGPmYqk6KESHFqgDrc9Mcie573ttcdPqMHSyJP5nNBKK3bR?cluster=devnet"
+                    href="https://explorer.solana.com/tx/4RVehmPVpnFYHrsF6N64RjVh7mszRzKF9DQVHd8TUqBHwrnyDYavf3TnDYJC4b5PrJWVSubZkNuyVkF1oJzk71RT?cluster=devnet"
                     target="_blank"
                     rel="noopener noreferrer"
                   >
@@ -675,7 +674,7 @@ export default function Home() {
           <span className="vital-label">Program ID (Devnet)</span>
         </div>
         <div className="vital">
-          <span className="vital-value">FNQbK1...otF</span>
+          <span className="vital-value">7oZTJW...shc</span>
           <span className="vital-label">Treasury PDA</span>
         </div>
         <div className="vital">
@@ -689,11 +688,11 @@ export default function Home() {
         <div className="vital">
           <a
             className="vital-link"
-            href="https://explorer.solana.com/tx/9HzWgBfwYxs5ModdjF5mT6gdTfayQq8mMYipopyHfGPmYqk6KESHFqgDrc9Mcie573ttcdPqMHSyJP5nNBKK3bR?cluster=devnet"
+            href="https://explorer.solana.com/tx/4RVehmPVpnFYHrsF6N64RjVh7mszRzKF9DQVHd8TUqBHwrnyDYavf3TnDYJC4b5PrJWVSubZkNuyVkF1oJzk71RT?cluster=devnet"
             target="_blank"
             rel="noopener noreferrer"
           >
-            Redistribution tx ↗
+            On-Chain Proof ↗
           </a>
           <span className="vital-label">On-Chain Proof</span>
         </div>

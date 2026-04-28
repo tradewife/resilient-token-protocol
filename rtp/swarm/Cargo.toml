@@ -8,6 +8,9 @@ default = []
 # Devnet-only stubs that simulate mainnet-only functionality (e.g. SOL→USDC
 # conversion via Phantom perps bridge). These are never compiled for mainnet.
 devnet = []
+# Legacy Hyperliquid/Phantom MCP execution path. Archived — the Flash Trade
+# CPI path (default) replaces this. Enable only for backward compatibility.
+hyperliquid = []
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }

@@ -12,8 +12,8 @@ flowchart LR
     A[Trading<br/>Activity] -->|Fees| B[Treasury<br/>Vault PDA]
     B -->|withdraw_fees| C[Accumulated<br/>Fees]
     C -->|Fund trading| D[Phantom<br/>Bridge]
-    D -->|SOL → USDC| E[Hyperliquid<br/>Perps]
-    E -->|Yield| F[USDC → SOL]
+    D -->|invoke_signed| E[Flash Trade<br/>CPI]
+    E -->|SOL yield| F[Close position]
     F -->|Yield return| B
     B -->|Redistribute| G[70/20/10<br/>Split]
 ```
@@ -73,16 +73,16 @@ Raydium supports `updatePlatformCpCreator` to redirect all creator fees to a PDA
 
 When the vault has sufficient capital:
 
-1. **Bridge to Hyperliquid** — SOL converted to USDC via Phantom bridge (0.3% fee)
-2. **Execute strategy** — Trading Wing runs the validated SOL/USDT strategy on HL perps
-3. **Collect yield** — USDC profit from closed positions
-4. **Bridge back** — USDC converted back to SOL via Phantom bridge
-5. **Deposit to treasury** — SOL returned to the treasury PDA
+1. **Commit SOL via CPI** — Treasury PDA commits SOL via invoke_signed → Flash Trade CPI opens position
+2. **Execute strategy** — on-chain Flash Trade perps position opened via CPI (Treasury PDA signs)
+3. **Collect yield** — SOL returned when position closes via Flash Trade CPI
+4. **Return to treasury** — SOL yield deposited back to the treasury PDA (single chain)
 
-The entire cycle is visible on-chain: every bridge swap, every HL trade, every treasury deposit has a transaction signature.
+The entire cycle is visible on-chain: every CPI instruction, every position open/close, every treasury deposit has a transaction signature.
 
 ## Capital Safety
 
-- **USDC-margined only** — Hyperliquid positions use USDC, not SOL. SOL is never at risk of liquidation.
+- **SOL throughout** — positions opened with SOL via Flash Trade CPI. No USDC conversion, no cross-chain bridge.
 - **Max 20% position size** — no single trade risks more than 20% of treasury reserves
 - **Fee-only capital** — the swarm only trades with fee revenue, never with user deposits
+- **On-chain execution** — all trading happens on Solana via CPI. Funds never leave the chain.

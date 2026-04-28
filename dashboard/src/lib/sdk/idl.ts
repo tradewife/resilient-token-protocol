@@ -138,6 +138,144 @@ export const RAW_IDL =
       "args": []
     },
     {
+      "name": "close_flash_position",
+      "docs": [
+        "Close a Flash Trade perpetual position via CPI.",
+        "",
+        "Closing is permitted even if strategy is Suspended (exiting is always safe).",
+        "Treasury frozen check still applies.",
+        "",
+        "Flash Trade close_position accounts (18 accounts from IDL v15.2.0):",
+        "0: owner (treasury PDA, signer)",
+        "1: fee_payer (authority)",
+        "2: receiving_account (writable)",
+        "3: transfer_authority",
+        "4: perpetuals",
+        "5: pool (writable)",
+        "6: position (writable)",
+        "7: market (writable)",
+        "8: target_custody",
+        "9: target_oracle_account",
+        "10: collateral_custody (writable)",
+        "11: collateral_oracle_account",
+        "12: collateral_custody_token_account (writable)",
+        "13: token_program",
+        "14: event_authority",
+        "15: program",
+        "16: ix_sysvar",
+        "17: collateral_mint"
+      ],
+      "discriminator": [
+        65,
+        15,
+        74,
+        221,
+        107,
+        136,
+        176,
+        33
+      ],
+      "accounts": [
+        {
+          "name": "treasury",
+          "docs": [
+            "Treasury state account (PDA, mutable for event emission)."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  114,
+                  101,
+                  97,
+                  115,
+                  117,
+                  114,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "treasury.mint",
+                "account": "Treasury"
+              }
+            ]
+          }
+        },
+        {
+          "name": "strategy_record",
+          "docs": [
+            "Strategy record \u2014 mutable for position count update.",
+            "Close is permitted even if Suspended (exiting is always safe)."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  116,
+                  114,
+                  97,
+                  116,
+                  101,
+                  103,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "treasury"
+              },
+              {
+                "kind": "account",
+                "path": "strategy_record.strategy_id",
+                "account": "StrategyRecord"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "docs": [
+            "Fee payer."
+          ],
+          "writable": true,
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "side",
+          "type": {
+            "defined": {
+              "name": "FlashSide"
+            }
+          }
+        },
+        {
+          "name": "oracle_price",
+          "type": {
+            "defined": {
+              "name": "FlashOraclePrice"
+            }
+          }
+        },
+        {
+          "name": "slippage_bps",
+          "type": "u16"
+        },
+        {
+          "name": "committed_sol_lamports_delta",
+          "type": "u64"
+        }
+      ]
+    },
+    {
       "name": "create_swarm_vault",
       "docs": [
         "Create the swarm hydration PDA vault.",
@@ -243,6 +381,114 @@ export const RAW_IDL =
         }
       ],
       "args": []
+    },
+    {
+      "name": "emergency_close_all_positions",
+      "docs": [
+        "Emergency reset of Flash Trade position counters.",
+        "Authority-gated. Designed to be called *together with* `freeze_treasury`",
+        "(in either order) so it is intentionally NOT blocked by `treasury.frozen`.",
+        "",
+        "What it does:",
+        "1. Resets `open_position_count` and `committed_sol_lamports` to 0",
+        "2. Emits an `EmergencyPositionsReset` event for the audit trail",
+        "",
+        "What it does NOT do:",
+        "- It does **not** invoke Flash Trade CPI close. Operators must follow",
+        "up with explicit `close_flash_position` calls per position (or rely",
+        "on Flash Trade keeper liquidation) to actually unwind exposure.",
+        "- The event is deliberately distinct from `FlashPositionClosed` so",
+        "observers cannot mistake a counter reset for a real position close."
+      ],
+      "discriminator": [
+        7,
+        159,
+        254,
+        118,
+        225,
+        67,
+        115,
+        184
+      ],
+      "accounts": [
+        {
+          "name": "treasury",
+          "docs": [
+            "Treasury state account (PDA)."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  114,
+                  101,
+                  97,
+                  115,
+                  117,
+                  114,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "treasury.mint",
+                "account": "Treasury"
+              }
+            ]
+          }
+        },
+        {
+          "name": "strategy_record",
+          "docs": [
+            "Strategy record \u2014 counters reset to zero."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  116,
+                  114,
+                  97,
+                  116,
+                  101,
+                  103,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "treasury"
+              },
+              {
+                "kind": "account",
+                "path": "strategy_record.strategy_id",
+                "account": "StrategyRecord"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "docs": [
+            "Authority \u2014 must equal treasury.authority."
+          ],
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "position_pubkeys",
+          "type": {
+            "vec": "pubkey"
+          }
+        }
+      ]
     },
     {
       "name": "end_beta",
@@ -944,6 +1190,198 @@ export const RAW_IDL =
         {
           "name": "min_runway_balance",
           "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "open_flash_position",
+      "docs": [
+        "Open a Flash Trade perpetual position via CPI, signed by Treasury PDA.",
+        "",
+        "Constraints enforced before CPI:",
+        "1. Treasury not frozen",
+        "2. Strategy must be Live",
+        "3. open_position_count < MAX_CONCURRENT_POSITIONS (3)",
+        "4. Vault balance after commit >= min_runway_balance",
+        "5. input_sol_lamports <= vault * MAX_POSITION_SIZE_BPS / 10000",
+        "",
+        "Flash Trade accounts are passed via remaining_accounts in IDL v15.2.0 order:",
+        "0: owner (treasury PDA, signer via invoke_signed)",
+        "1: fee_payer (authority, pays rent)",
+        "2: funding_account (WSOL temp account)",
+        "3: transfer_authority (Flash Trade PDA)",
+        "4: perpetuals (Flash Trade PDA)",
+        "5: pool (writable)",
+        "6: position (writable, PDA)",
+        "7: market (writable)",
+        "8: target_custody",
+        "9: target_oracle_account",
+        "10: collateral_custody (writable)",
+        "11: collateral_oracle_account",
+        "12: collateral_custody_token_account (writable)",
+        "13: system_program",
+        "14: funding_token_program",
+        "15: event_authority (Flash Trade PDA)",
+        "16: program (Flash Trade program ID)",
+        "17: ix_sysvar",
+        "18: funding_mint"
+      ],
+      "discriminator": [
+        102,
+        68,
+        197,
+        231,
+        254,
+        69,
+        188,
+        127
+      ],
+      "accounts": [
+        {
+          "name": "treasury",
+          "docs": [
+            "Treasury state account (PDA, mutable for event emission)."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  114,
+                  101,
+                  97,
+                  115,
+                  117,
+                  114,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "treasury.mint",
+                "account": "Treasury"
+              }
+            ]
+          }
+        },
+        {
+          "name": "strategy_record",
+          "docs": [
+            "Strategy record \u2014 must be Live to open positions."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  116,
+                  114,
+                  97,
+                  116,
+                  101,
+                  103,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "treasury"
+              },
+              {
+                "kind": "account",
+                "path": "strategy_record.strategy_id",
+                "account": "StrategyRecord"
+              }
+            ]
+          }
+        },
+        {
+          "name": "treasury_vault",
+          "docs": [
+            "Treasury vault \u2014 Token-2022 token account whose token amount denominates",
+            "`min_runway_balance` and `input_sol_lamports`. Authority = treasury PDA.",
+            "Seeds verified; runway/position-size checks read `.amount`, not `.lamports()`."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  114,
+                  101,
+                  97,
+                  115,
+                  117,
+                  114,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "treasury.mint",
+                "account": "Treasury"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "docs": [
+            "Fee payer \u2014 pays for transaction gas and Flash Trade account rent.",
+            "Has NO authority over treasury funds (only pays gas)."
+          ],
+          "writable": true,
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "side",
+          "type": {
+            "defined": {
+              "name": "FlashSide"
+            }
+          }
+        },
+        {
+          "name": "input_sol_lamports",
+          "type": "u64"
+        },
+        {
+          "name": "leverage_bps",
+          "type": "u32"
+        },
+        {
+          "name": "slippage_bps",
+          "type": "u16"
+        },
+        {
+          "name": "oracle_price",
+          "type": {
+            "defined": {
+              "name": "FlashOraclePrice"
+            }
+          }
+        },
+        {
+          "name": "pool_name",
+          "type": "string"
         }
       ]
     },
@@ -1675,6 +2113,19 @@ export const RAW_IDL =
       ]
     },
     {
+      "name": "EmergencyPositionsReset",
+      "discriminator": [
+        5,
+        226,
+        219,
+        166,
+        101,
+        144,
+        16,
+        102
+      ]
+    },
+    {
       "name": "FeeDepositRecorded",
       "discriminator": [
         140,
@@ -1685,6 +2136,32 @@ export const RAW_IDL =
         255,
         131,
         240
+      ]
+    },
+    {
+      "name": "FlashPositionClosed",
+      "discriminator": [
+        203,
+        247,
+        76,
+        93,
+        1,
+        35,
+        157,
+        137
+      ]
+    },
+    {
+      "name": "FlashPositionOpened",
+      "discriminator": [
+        250,
+        242,
+        203,
+        152,
+        87,
+        88,
+        251,
+        57
       ]
     },
     {
@@ -1866,6 +2343,41 @@ export const RAW_IDL =
       "code": 6019,
       "name": "NotFrozen",
       "msg": "Treasury is not frozen"
+    },
+    {
+      "code": 6020,
+      "name": "TooManyOpenPositions",
+      "msg": "Too many concurrent Flash Trade positions (max 3)"
+    },
+    {
+      "code": 6021,
+      "name": "PositionSizeExceeded",
+      "msg": "Input SOL exceeds maximum position size (20% of vault)"
+    },
+    {
+      "code": 6022,
+      "name": "PositionNotOwnedByTreasury",
+      "msg": "Position PDA does not match Treasury PDA as owner"
+    },
+    {
+      "code": 6023,
+      "name": "FlashCpiFailed",
+      "msg": "Flash Trade CPI call failed"
+    },
+    {
+      "code": 6024,
+      "name": "InvalidFlashProgramId",
+      "msg": "Invalid Flash Trade program ID"
+    },
+    {
+      "code": 6025,
+      "name": "InvalidPoolName",
+      "msg": "Pool name must be 1-32 characters"
+    },
+    {
+      "code": 6026,
+      "name": "CommittedDeltaExceedsBalance",
+      "msg": "Decremented committed_sol_lamports exceeds tracked balance"
     }
   ],
   "types": [
@@ -1978,6 +2490,47 @@ export const RAW_IDL =
       }
     },
     {
+      "name": "EmergencyPositionsReset",
+      "docs": [
+        "Emitted by `emergency_close_all_positions`. Distinct from `FlashPositionClosed`",
+        "because the on-chain instruction does NOT itself fire Flash Trade CPI close",
+        "calls \u2014 it resets the position counters and records the operator's intent.",
+        "Operators MUST follow up with explicit `close_flash_position` calls (or rely",
+        "on Flash Trade liquidation) to actually close the on-chain positions."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "treasury",
+            "type": "pubkey"
+          },
+          {
+            "name": "strategy_id",
+            "type": "string"
+          },
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "position_pubkeys",
+            "type": {
+              "vec": "pubkey"
+            }
+          },
+          {
+            "name": "previous_committed_sol_lamports",
+            "type": "u64"
+          },
+          {
+            "name": "ts",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
       "name": "FeeDepositRecorded",
       "type": {
         "kind": "struct",
@@ -2001,6 +2554,122 @@ export const RAW_IDL =
           {
             "name": "ts",
             "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "FlashOraclePrice",
+      "docs": [
+        "Oracle price \u2014 matches Flash Trade on-chain struct (i64 price, i32 exponent)",
+        "Pyth uses exponent -8 (not -6 as originally assumed)"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "price",
+            "type": "i64"
+          },
+          {
+            "name": "exponent",
+            "type": "i32"
+          }
+        ]
+      }
+    },
+    {
+      "name": "FlashPositionClosed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "treasury",
+            "type": "pubkey"
+          },
+          {
+            "name": "strategy_id",
+            "type": "string"
+          },
+          {
+            "name": "position_pda",
+            "type": "pubkey"
+          },
+          {
+            "name": "realised_pnl_sol_lamports",
+            "type": "i64"
+          },
+          {
+            "name": "returned_sol_lamports",
+            "type": "u64"
+          },
+          {
+            "name": "ts",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "FlashPositionOpened",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "treasury",
+            "type": "pubkey"
+          },
+          {
+            "name": "strategy_id",
+            "type": "string"
+          },
+          {
+            "name": "side",
+            "type": {
+              "defined": {
+                "name": "FlashSide"
+              }
+            }
+          },
+          {
+            "name": "input_sol_lamports",
+            "type": "u64"
+          },
+          {
+            "name": "leverage_bps",
+            "type": "u32"
+          },
+          {
+            "name": "pool_name",
+            "type": "string"
+          },
+          {
+            "name": "position_pda",
+            "type": "pubkey"
+          },
+          {
+            "name": "ts",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "FlashSide",
+      "docs": [
+        "Position side \u2014 matches Flash Trade on-chain repr (None=0, Long=1, Short=2)"
+      ],
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "None"
+          },
+          {
+            "name": "Long"
+          },
+          {
+            "name": "Short"
           }
         ]
       }
@@ -2271,6 +2940,27 @@ export const RAW_IDL =
             "type": "i32"
           },
           {
+            "name": "open_position_count",
+            "docs": [
+              "Number of currently open Flash Trade positions (max 3)"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "committed_sol_lamports",
+            "docs": [
+              "Cumulative SOL (lamports) committed across all open positions"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "flash_pool_name",
+            "docs": [
+              "Flash Trade pool identifier for this strategy (e.g., \"Crypto.1\")"
+            ],
+            "type": "string"
+          },
+          {
             "name": "bump",
             "docs": [
               "PDA bump"
@@ -2475,4 +3165,4 @@ export const RAW_IDL =
       }
     }
   ]
-} as const;
+};

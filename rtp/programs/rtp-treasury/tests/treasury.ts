@@ -1192,17 +1192,27 @@ describe("rtp-treasury", () => {
   describe("freeze_treasury / unfreeze_treasury", () => {
     let fMint: PublicKey, fMintKp: Keypair, fAuth: Keypair;
     let fTreasury: PublicKey, fVault: PublicKey, fSwarmVault: PublicKey;
+    let fHoldersWallet: Keypair, fDevWallet: Keypair, fEcosystemWallet: Keypair;
+    let fHoldersATA: PublicKey, fDevATA: PublicKey, fEcosystemATA: PublicKey;
 
     beforeEach(async () => {
       fAuth = Keypair.generate();
       fMintKp = Keypair.generate();
       fMint = fMintKp.publicKey;
 
-      await createMintWithFee(fAuth, fMintKp, payer.publicKey);
-
       [fTreasury] = deriveTreasuryPDA(fMint);
+
+      await createMintWithFee(fAuth, fMintKp, fTreasury);
       [fVault] = deriveVaultPDA(fMint);
       [fSwarmVault] = deriveSwarmVaultPDA(fMint);
+
+      fHoldersWallet = Keypair.generate();
+      fDevWallet = Keypair.generate();
+      fEcosystemWallet = Keypair.generate();
+
+      fHoldersATA = await createATA(fMint, fHoldersWallet.publicKey);
+      fDevATA = await createATA(fMint, fDevWallet.publicKey);
+      fEcosystemATA = await createATA(fMint, fEcosystemWallet.publicKey);
 
       // Initialize treasury
       await program.methods
@@ -1212,9 +1222,9 @@ describe("rtp-treasury", () => {
           treasury: fTreasury,
           treasuryVault: fVault,
           authority: payer.publicKey,
-          holdersWallet: Keypair.generate().publicKey,
-          projectDevWallet: Keypair.generate().publicKey,
-          ecosystemWallet: Keypair.generate().publicKey,
+          holdersWallet: fHoldersWallet.publicKey,
+          projectDevWallet: fDevWallet.publicKey,
+          ecosystemWallet: fEcosystemWallet.publicKey,
           tokenProgram: TOKEN_2022_PROGRAM_ID,
           systemProgram: SystemProgram.programId,
         })
@@ -1366,14 +1376,14 @@ describe("rtp-treasury", () => {
 
       try {
         await program.methods
-          .checkRedistribute(new BN(DEFAULT_MIN_REDISTRIBUTE))
+          .checkRedistribute()
           .accounts({
             mint: fMint,
             treasury: fTreasury,
             treasuryVault: fVault,
-            holdersWallet: Keypair.generate().publicKey,
-            projectDevWallet: Keypair.generate().publicKey,
-            ecosystemWallet: Keypair.generate().publicKey,
+            holdersRecipient: fHoldersATA,
+            devRecipient: fDevATA,
+            ecosystemRecipient: fEcosystemATA,
             tokenProgram: TOKEN_2022_PROGRAM_ID,
           })
           .rpc();

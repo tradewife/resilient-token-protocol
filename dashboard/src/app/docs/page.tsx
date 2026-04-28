@@ -71,23 +71,23 @@ const DOC_GROUPS: DocGroup[] = [
         title: "What is RTP?",
         content: (
           <>
-            <p>RTP (Resilient Token Protocol) gives every token a program-enforced treasury vault on Solana. Trading fees accumulate in the vault, an autonomous swarm generates yield on Hyperliquid, and yield flows back to holders, developers, and ecosystem — 70/20/10 split, enforced on-chain. Forever.</p>
+            <p>RTP (Resilient Token Protocol) gives every token a program-enforced treasury vault on Solana. Trading fees accumulate in the vault, the Treasury PDA executes yield strategies via Flash Trade CPI on Solana, and yield flows back to holders, developers, and ecosystem — 70/20/10 split, enforced on-chain. Forever.</p>
             <p>There is no RTP token. RTP is infrastructure.</p>
 
             <h3>Why This Is Different</h3>
             <ul>
               <li><strong>Constitutional governance</strong> — soulcontract enforced in Rust AND on-chain (Anchor program). No one — not even the team — can override the rules. This is not a promise — it&apos;s a <code>require!</code> constraint.</li>
               <li><strong>Per-token isolation</strong> — every token gets its own Treasury PDA and vault. No shared pool means no honeypot. One token&apos;s bad trade cannot affect another&apos;s reserves. The swarm copy-trades the same validated strategy across all tokens with isolated capital.</li>
-              <li><strong>Self-funding economics</strong> — treasury generates its own yield via Hyperliquid perps, with irreversible phase evolution (Sustenance → Ecosystem → Humanity). No VC dependency.</li>
+              <li><strong>Self-funding economics</strong> — treasury generates its own yield via Flash Trade on-chain perps (Solana CPI), with irreversible phase evolution (Sustenance → Ecosystem → Humanity). No VC dependency.</li>
               <li><strong>Proven research engine</strong> — 30,000 strategy configs tested per night, 9-fold walk-forward validation, Darwinian evolution. Not a backtest screenshot — out-of-sample results across 9 independent time windows.</li>
-              <li><strong>Real execution</strong> — EIP-712 signed orders from Rust, fills on Hyperliquid testnet, USDC yield deposited to Solana treasury PDA. BUY→fill→SELL→fill→PnL round-trip verified.</li>
-              <li><strong>307 Rust tests, 0 failures</strong> — 6-wing swarm architecture with Security, Audit, Evolve, Knowledge, and Futureproof wings. Not a wrapper around an API — a real multi-agent system.</li>
+              <li><strong>Real execution</strong> — Treasury PDA signs via invoke_signed, positions open/close on Flash Trade (on-chain Solana perps). Mainnet CPI proofs: Open TX 2bLg1Fu..., Close TX dFqkoP2.... SOL never leaves Solana.</li>
+              <li><strong>308 Rust tests, 0 failures</strong> — 6-wing swarm architecture with Security, Audit, Evolve, Knowledge, and Futureproof wings. Not a wrapper around an API — a real multi-agent system.</li>
             </ul>
 
             <h3>How It Works</h3>
             <ol>
               <li><strong>Fees arrive</strong> — creator fees (SOL) from the token flow to its own per-mint treasury vault PDA — isolated from every other token</li>
-              <li><strong>Swarm trades</strong> — the autonomous swarm executes validated strategies on Hyperliquid (USDC-margined, no SOL liquidation risk). Each token&apos;s capital is traded independently.</li>
+              <li><strong>Swarm trades</strong> — the Treasury PDA executes validated strategies via Flash Trade CPI (on-chain Solana perps, invoke_signed). No cross-chain bridge. Each token&apos;s capital is traded independently.</li>
               <li><strong>Yield returns</strong> — generated yield flows back to that token&apos;s own treasury PDA</li>
               <li><strong>Redistribution</strong> — 70% to holders, 20% to project dev, 10% to ecosystem (enforced on-chain)</li>
             </ol>
@@ -101,19 +101,19 @@ const DOC_GROUPS: DocGroup[] = [
               <pre style={{ margin: 0, whiteSpace: "pre" }}>{`┌──────────────────────────────────────────────────────┐
 │              ON-CHAIN (Solana / Anchor)               │
 │  Treasury PDA: fees → yield → redistribute           │
-│  16 instructions · PDA-owned · CPI-only transfers     │
+│  14 instructions · PDA-owned · CPI-only transfers     │
 ├──────────────────────────────────────────────────────┤
-│              SWARM RUNTIME (Rust · 307 tests)         │
+│              SWARM RUNTIME (Rust · 308 tests)         │
 │  Coordinator → message bus → 6 wings                  │
-│  Trading → Hyperliquid perps → USDC yield → PDA       │
+│  Trading → Flash Trade CPI → on-chain perps → SOL     │
 │  Security · Evolve · Knowledge · Audit · Futureproof  │
 ├──────────────────────────────────────────────────────┤
 │              RESEARCH LAYER (Python)                   │
 │  Night Shift: 30K configs → WFA → Darwinian           │
 │  Validated: SOL/USDT Sharpe +3.96, 9/9 consistency    │
 └──────────────────────────────────────────────────────┘
-  Signing: Phantom MCP (agent wallet) + EIP-712 (HL)
-  Bridge:  SOL → USDC (Phantom) → HL → USDC yield → SOL → PDA`}</pre>
+  Signing: Treasury PDA (invoke_signed — no private key)
+  Capital: SOL → Treasury PDA → Flash Trade CPI → SOL yield → PDA`}</pre>
             </div>
 
             <h3>Why RTP, Not a Multisig or Yield Aggregator?</h3>
@@ -134,8 +134,8 @@ const DOC_GROUPS: DocGroup[] = [
               headers={["Component", "Status", "Detail"]}
               rows={[
                 ["Anchor treasury program", "✅ Deployed (devnet)", "Per-token isolation, 14 instructions, redistribution verified"],
-                ["Rust swarm runtime", "✅ 307 tests passing", "6 wings: Trading, Security, Evolve, Knowledge, Audit, Futureproof"],
-                ["Hyperliquid execution", "✅ Round-trip verified", "BUY→fill→SELL→fill→PnL from Rust, EIP-712 signed"],
+                ["Rust swarm runtime", "✅ 308 tests passing", "6 wings: Trading, Security, Evolve, Knowledge, Audit, Futureproof"],
+                ["Flash Trade CPI execution", "✅ Mainnet proofs", "Treasury PDA invoke_signed, positions open/close on-chain (Open TX 2bLg1Fu..., Close TX dFqkoP2...)"],
                 ["Treasury yield deposit", "✅ On-chain confirmed", "USDC yield → SOL → treasury PDA via CPI transfer"],
                 ["Autonomous daemon", "✅ 7 cycles completed", "6h cron, LLM-driven strategy evolution, auditable trail"],
                 ["SDK", "✅ Shipped", "<code>@resilient-protocol/sdk</code> — one function call to register any token"],
@@ -184,7 +184,7 @@ const result = await registerWithRTP(connection, wallet, {
             <h3>After Registration: What Happens</h3>
             <ol>
               <li><strong>Fees accumulate</strong> — trading fees flow into your treasury vault PDA</li>
-              <li><strong>Swarm activates</strong> — autonomous strategies execute on Hyperliquid (USDC-margined, no SOL liquidation risk)</li>
+              <li><strong>Swarm activates</strong> — Treasury PDA executes validated strategies via Flash Trade CPI (on-chain Solana perps, invoke_signed)</li>
               <li><strong>Yield returns</strong> — generated yield flows back to the treasury PDA</li>
               <li><strong>Redistribution</strong> — 70% to holders, 20% to project dev, 10% to ecosystem (enforced on-chain)</li>
             </ol>
@@ -675,7 +675,7 @@ PublicKey.findProgramAddressSync(
                 ["Devnet", "<code>8rt6yiBnRTyHy8F69jUd7exWwwShUs4Eokeq41auo2RB</code>"],
               ]}
             />
-            <p><a href="https://explorer.solana.com/address/FNQbK1Vw77aT7qM1EMSmeEPDGizSNhX4rkkYBKQNFotF?cluster=devnet" target="_blank" rel="noopener noreferrer" style={{ color: "var(--coral)" }}>View demo treasury on Solana Explorer</a></p>
+            <p><a href="https://explorer.solana.com/address/7oZTJWYBDjzqmbfRs5YkTv53CDa6vESAzfyjK3yhYshc?cluster=devnet" target="_blank" rel="noopener noreferrer" style={{ color: "var(--coral)" }}>View demo treasury on Solana Explorer</a></p>
           </>
         ),
       },
@@ -688,17 +688,17 @@ PublicKey.findProgramAddressSync(
 
             <h3>Yield Generation from Fees</h3>
             <ol>
-              <li><strong>Bridge to Hyperliquid</strong> — SOL converted to USDC via Phantom bridge (0.3% fee)</li>
-              <li><strong>Execute strategy</strong> — Trading Wing runs validated SOL/USDT strategy on HL perps</li>
-              <li><strong>Collect yield</strong> — USDC profit from closed positions</li>
-              <li><strong>Bridge back</strong> — USDC converted back to SOL via Phantom bridge</li>
+              <li><strong>Commit SOL via CPI</strong> — Treasury PDA commits SOL via invoke_signed → Flash Trade CPI opens position</li>
+              <li><strong>Execute strategy</strong> — on-chain Flash Trade perps position opened via CPI (Treasury PDA signs)</li>
+              <li><strong>Collect yield</strong> — SOL returned when position closes via Flash Trade CPI</li>
+              <li><strong>Return to treasury</strong> — SOL yield deposited back to the treasury PDA (single chain)</li>
               <li><strong>Deposit to treasury</strong> — SOL returned to the treasury PDA</li>
             </ol>
 
             <h3>Capital Safety</h3>
             <ul>
               <li><strong>Per-token isolation</strong> — each token&apos;s fees and yield are in a separate PDA. No cross-contamination between tokens.</li>
-              <li><strong>USDC-margined only</strong> — Hyperliquid positions use USDC, not SOL. SOL is never at risk of liquidation.</li>
+              <li><strong>SOL throughout</strong> — positions opened with SOL via Flash Trade CPI. No USDC conversion, no cross-chain bridge.</li>
               <li><strong>Max 20% position size</strong> — no single trade risks more than 20% of treasury reserves</li>
               <li><strong>Fee-only capital</strong> — the swarm only trades with fee revenue, never with user deposits</li>
             </ul>
@@ -715,17 +715,17 @@ PublicKey.findProgramAddressSync(
             <h3>Trading Wing Lifecycle</h3>
             <ol>
               <li><strong>Receive strategy</strong> — Coordinator delivers validated config from research layer</li>
-              <li><strong>Build order</strong> — Constructs EIP-712 signed order payload for Hyperliquid</li>
-              <li><strong>Submit</strong> — Sends REST API call to HL testnet</li>
+              <li><strong>Build instruction</strong> — Constructs Anchor instruction for open_flash_position (Treasury PDA signer)</li>
+              <li><strong>Submit</strong> — invoke_signed via Treasury PDA → Flash Trade CPI (on-chain Solana perps)</li>
               <li><strong>Track position</strong> — Monitors fills, computes PnL on close</li>
-              <li><strong>Return yield</strong> — Bridges USDC profit back to SOL, deposits to treasury PDA</li>
+              <li><strong>Return yield</strong> — close_flash_position returns SOL to treasury PDA (single chain)</li>
             </ol>
 
             <h3>Swarm Wings</h3>
             <Table
               headers={["Wing", "Purpose"]}
               rows={[
-                ["Trading", "Yield generation + Hyperliquid execution"],
+                ["Trading", "Yield generation + Flash Trade CPI execution"],
                 ["Security", "Threat detection, rate-limiting"],
                 ["Evolve", "Self-modification, adaptation, rollback"],
                 ["Knowledge", "In-memory knowledge graph"],
@@ -780,7 +780,7 @@ PublicKey.findProgramAddressSync(
             />
             <p>Phase transitions are <strong>irreversible</strong> — enforced on-chain by the Anchor program.</p>
 
-            <p><a href="https://explorer.solana.com/tx/9HzWgBfwYxs5ModdjF5mT6gdTfayQq8mMYipopyHfGPmYqk6KESHFqgDrc9Mcie573ttcdPqMHSyJP5nNBKK3bR?cluster=devnet" target="_blank" rel="noopener noreferrer" style={{ color: "var(--coral)" }}>View demo redistribution tx on Solana Explorer</a></p>
+            <p><a href="https://explorer.solana.com/tx/4RVehmPVpnFYHrsF6N64RjVh7mszRzKF9DQVHd8TUqBHwrnyDYavf3TnDYJC4b5PrJWVSubZkNuyVkF1oJzk71RT?cluster=devnet" target="_blank" rel="noopener noreferrer" style={{ color: "var(--coral)" }}>View demo redistribution tx on Solana Explorer</a></p>
           </>
         ),
       },

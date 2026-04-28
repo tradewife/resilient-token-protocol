@@ -89,7 +89,7 @@ Once a token is registered with RTP:
 
 1. **Fees accumulate** — trading fees build up in the treasury vault
 2. **Swarm activates** — the autonomous swarm monitors the treasury and executes strategies when capital is sufficient
-3. **Yield generates** — strategies run on Hyperliquid (USDC-margined perps), generating yield
+3. **Yield generates** — strategies execute via Flash Trade CPI (on-chain Solana perps), generating yield
 4. **Redistribution triggers** — when yield exceeds the runway threshold, 70/20/10 split happens automatically on-chain
 5. **Phase evolves** — as the treasury grows, it evolves through Sustenance → Ecosystem → Humanity phases
 
@@ -99,7 +99,7 @@ Once a token is registered with RTP:
 Token Launch Platform
   └── Trading fees → Treasury Vault PDA (Solana)
         └── RTP Swarm monitors vault
-              └── Executes strategies on Hyperliquid
+              └── Executes strategies via Flash Trade CPI on Solana
                     └── Yield returns → Treasury PDA
                           └── 70% holders / 20% dev / 10% ecosystem
 ```

@@ -1,11 +1,11 @@
 name: Deploy Dashboard to GitHub Pages
 
 on:
-  # push:
-  #   branches: [main]
-  #   paths:
-  #     - "dashboard/**"
-  #     - "data/**"             # paused — re-enable when needed
+  push:
+    branches: [main]
+    paths:
+      - "dashboard/**"
+      - "data/**"
   workflow_dispatch:
 
 permissions:

@@ -1,11 +1,11 @@
 ---
 title: Swarm Execution
-description: How the autonomous swarm executes yield strategies on Hyperliquid.
+description: How the autonomous swarm executes yield strategies via Flash Trade CPI on Solana.
 ---
 
 ## The Swarm Runtime
 
-RTP's swarm runtime is a Rust-based multi-wing agent system. The Trading Wing is the only wing that touches capital — it executes validated strategies on Hyperliquid.
+RTP's swarm runtime is a Rust-based multi-wing agent system. The Trading Wing is the only wing that touches capital — it executes validated strategies via Flash Trade CPI (on-chain Solana perps, Treasury PDA invoke_signed).
 
 ```mermaid
 flowchart TB
@@ -28,10 +28,8 @@ flowchart TB
     COORD --> EW
     COORD --> AW
 
-    TW -->|EIP-712 signed| HL[Hyperliquid<br/>Testnet]
-    HL -->|Fill confirm| TW
-    TW -->|USDC yield| BR[Phantom Bridge]
-    BR -->|SOL return| TPDA[Treasury PDA]
+    TW -->|invoke_signed| FT[Flash Trade<br/>On-chain CPI]
+    FT -->|SOL yield| TPDA[Treasury PDA]
 ```
 
 ## Trading Wing
@@ -39,16 +37,15 @@ flowchart TB
 The Trading Wing handles the full execution lifecycle:
 
 1. **Receive strategy** — Coordinator delivers validated config from the research layer
-2. **Build order** — Constructs EIP-712 signed order payload for Hyperliquid
-3. **Submit** — Sends REST API call to HL testnet (`api.hyperliquid-testnet.xyz`)
-4. **Track position** — Monitors fills, computes PnL on close
-5. **Return yield** — Bridges USDC profit back to SOL, deposits to treasury PDA
+2. **Build instruction** — Constructs Anchor instruction for `open_flash_position` (Treasury PDA signer)
+3. **Submit** — invoke_signed via Treasury PDA → Flash Trade CPI (on-chain Solana perps)
+4. **Track position** — Monitors on-chain state, computes PnL on close
+5. **Return yield** — `close_flash_position` returns SOL to treasury PDA (single chain)
 
 ### Signing Architecture
 
-- **HL order signing**: ETH keypair, EIP-712 typed data
-- **Solana CPI signing**: Phantom KMS (production) or local keypair (demo)
-- **Bridge signing**: Phantom MCP server (agent wallet)
+- **Flash Trade CPI signing**: Treasury PDA via `invoke_signed` — no private key exists. The program IS the only authority.
+- **Fee-payer wallet**: Funded keypair for Solana gas only (< 0.001 SOL/tx). Has zero authority over treasury funds.
 
 ### Position Tracking
 
@@ -96,7 +93,7 @@ Live paper trading on Binance validates strategies in real-time before capital d
 
 | Wing | Purpose |
 |------|---------|
-| **Trading** | Yield generation + Hyperliquid execution |
+| **Trading** | Yield generation + Flash Trade CPI execution |
 | **Security** | Threat detection, rate-limiting, suspicious proposal detection |
 | **Evolve** | Self-modification, adaptation, rollback |
 | **Knowledge** | In-memory knowledge graph, cross-wing queries |

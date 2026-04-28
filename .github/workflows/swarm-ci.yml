@@ -1,6 +1,16 @@
 name: Swarm CI — Build + Test + Lint
 
 on:
+  push:
+    branches: [main, feat/flashtrade-pda-execution]
+    paths:
+      - "rtp/**"
+      - "sdk/**"
+  pull_request:
+    branches: [main]
+    paths:
+      - "rtp/**"
+      - "sdk/**"
   workflow_dispatch:
 
 jobs:

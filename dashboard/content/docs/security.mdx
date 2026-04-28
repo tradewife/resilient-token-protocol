@@ -11,7 +11,7 @@ RTP enforces security at four layers, each independent and complementary:
 |-------|-----------|-------|
 | **On-chain** | Anchor program constraints, PDA authority checks | All fund movements |
 | **Runtime** | soulguard.rs validates every message against invariants | All swarm operations |
-| **Execution** | Trading Wing enforces position limits before HL API calls | Capital deployment |
+| **Execution** | On-chain `open_flash_position` re-checks 20% cap, runway floor, max-3 concurrent | Capital deployment |
 | **Governance** | soulcontract.md — constitutional invariants | All protocol changes |
 
 ## On-Chain Invariants
@@ -45,7 +45,7 @@ flowchart LR
 
 The soulcontract (`SOULCONTRACT.md`) defines immutable governance invariants enforced at the runtime level:
 
-- **No SOL liquidation** — SOL reserves are never sold. The Phantom bridge handles SOL↔USDC trustlessly.
+- **No SOL liquidation** — positions are on-chain Solana perps via Flash Trade CPI. SOL never leaves the chain. No cross-chain bridge.
 - **Max 20% position size** — no single trade risks more than 20% of treasury reserves
 - **Agent proposes, human approves** — irreversible actions require explicit human sign-off
 - **Auto-rollback on degradation** — if performance drops > 5% post-amendment, automatic revert
