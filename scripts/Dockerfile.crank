@@ -26,3 +26,4 @@ ENV KEYPAIR_PATH=/app/keys/fee-payer.json
 
 # Write keypair from env var at startup, then run the crank
 CMD sh -c 'echo "$FEE_PAYER_KEYPAIR" > /app/keys/fee-payer.json && npx tsx scripts/fee-crank.ts'
+
