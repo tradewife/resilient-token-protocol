@@ -12,6 +12,7 @@
 #   rtp-night-shift 0088cfc9-1310-4926-ab7e-1e3991028ed9
 #   rtp-swarm-ci    ca591cef-4b09-4797-b80d-fbbb04098ce4
 #   rtp-fee-crank   (new — fee withdrawal + redistribute cron)
+#   rtp-promote-strategy (new — reads night results, promotes strategy on-chain)
 #
 # Dockerfile paths configured in Railway dashboard Settings tab:
 #   rtp-dashboard   → dashboard/Dockerfile
@@ -23,6 +24,7 @@
 #   rtp-devnet-loop → 0 */6 * * * (every 6 hours)
 #   rtp-night-shift → 0 14 * * * (daily at 14:00 UTC)
 #   rtp-fee-crank   → 0 * * * * (every hour, with 0-30min jitter built into script)
+#   rtp-promote-strategy → 30 14 * * * (30 min after night shift, reads results + promotes on-chain)
 #   rtp-swarm-ci    → manual redeploy only
 #   rtp-dashboard   → always-on (no cron)
 #
@@ -40,6 +42,14 @@
 #   - Calls withdrawAndRedistribute for the demo treasury
 #   - Needs env vars: KEYPAIR_PATH (or default ~/.config/solana/id.json)
 #   - Gas paid by fee-payer keypair (Driyi8S...EF6R)
+#
+# Strategy promotion (rtp-promote-strategy):
+#   - Dockerfile: scripts/Dockerfile.promote
+#   - Runs at 14:30 UTC (30 min after night shift completes)
+#   - Reads data/night_results/<latest>/summary.json
+#   - Promotion gate: Sharpe>=2.5, Consistency>=70%, Trades/fold>=15, Fragility<=0.40
+#   - Calls register_strategy via SDK with fee-payer as authority
+#   - Night results baked into Docker image at build time (COPY data/night_results/)
 #
 # API:
 #   GraphQL endpoint: https://backboard.railway.com/graphql/v2
