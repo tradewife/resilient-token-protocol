@@ -2,6 +2,7 @@
 //! Loads config → runs one cycle → proposes mutations → writes output to data/devnet-cycles/.
 
 use chrono::Utc;
+use rtp_swarm::bridge::read_latest_night_results;
 use rtp_swarm::wings::evolve::{
     LlmProposerConfig, propose_strategy_mutation, validate_all_mutations,
 };
@@ -145,8 +146,7 @@ async fn main() {
     }
 
     // 1. Load config.
-    let config = load_config();
-    let params_used = config.clone();
+    let mut config = load_config();
     println!(
         "[DAEMON] params: signal_threshold={}, tp_atr={}, sl_atr={}, max_hold={}h, trailing_stop={}",
         config.signal_threshold,
@@ -155,6 +155,64 @@ async fn main() {
         config.max_hold_hours,
         config.trailing_stop_atr
     );
+
+    // 1b. Read latest Night Shift results and update config if a better strategy exists.
+    println!();
+    println!("=== NIGHT SHIFT RESULTS ===");
+    match read_latest_night_results() {
+        Ok(result) => {
+            println!("[DAEMON] latest results: {}", result.source_path);
+            println!("[DAEMON] run_at: {}, symbols: {}", result.summary.run_at, result.summary.symbols.join(", "));
+            let eligible: Vec<_> = result.summary.top_candidates.iter().filter(|c| !c.rejected).collect();
+            println!("[DAEMON] candidates: {} total, {} eligible", result.summary.top_candidates.len(), eligible.len());
+
+            if let Some(best) = eligible.iter().max_by(|a, b| {
+                a.survivor_score.partial_cmp(&b.survivor_score).unwrap_or(std::cmp::Ordering::Equal)
+            }) {
+                println!(
+                    "[DAEMON] best: {} — survivor={:.3}, sharpe={:.2}, cons={:.0}%, fragility={:.3}",
+                    best.symbol,
+                    best.survivor_score,
+                    best.oos_sharpe,
+                    best.oos_consistency * 100.0,
+                    best.fragility
+                );
+
+                // If the night shift found a better strategy, update the config.
+                // Map night shift params to StrategyConfig fields.
+                if let Some(threshold) = best.params.get("signal_threshold").and_then(|v| v.as_f64()) {
+                    config.signal_threshold = threshold;
+                }
+                if let Some(tp) = best.params.get("take_profit_atr").and_then(|v| v.as_f64()) {
+                    config.tp_atr = tp;
+                }
+                if let Some(sl) = best.params.get("stop_loss_atr").and_then(|v| v.as_f64()) {
+                    config.sl_atr = sl;
+                }
+                if let Some(mh) = best.params.get("max_hold_hours").and_then(|v| v.as_f64()) {
+                    config.max_hold_hours = mh;
+                }
+                if let Some(ts) = best.params.get("trailing_stop_atr").and_then(|v| v.as_f64()) {
+                    config.trailing_stop_atr = ts;
+                }
+                println!(
+                    "[DAEMON] updated config from night shift: signal_threshold={}, tp_atr={}, sl_atr={}, max_hold={}h, trailing_stop={}",
+                    config.signal_threshold,
+                    config.tp_atr,
+                    config.sl_atr,
+                    config.max_hold_hours,
+                    config.trailing_stop_atr
+                );
+            } else {
+                println!("[DAEMON] no eligible candidates — keeping current config");
+            }
+        }
+        Err(e) => {
+            println!("[DAEMON] no night shift results available ({}) — using current config", e);
+        }
+    }
+    let params_used = config;
+
 
     // 2. Run orchestrator cycle (reuses demo infrastructure).
     println!();

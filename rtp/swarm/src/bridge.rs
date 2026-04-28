@@ -1,14 +1,18 @@
 //! Bridge — Python↔Rust typed interface.
 //!
-//! Calls the Python fractal-swarm binary (cycle_report.bin) and receives
-//! typed JSON proposals back.
+//! Historical: called the Python fractal-swarm binary (cycle_report.bin) via subprocess.
+//! Current: reads Night Shift results directly from `data/night_results/latest/summary.json`.
+//! The subprocess path is retained for backward compatibility and tests.
 
 use serde::{Deserialize, Serialize};
 use std::io::Write as IoWrite;
 use thiserror::Error;
 
-/// Path to the Python fractal-swarm binary.
+/// Path to the Python fractal-swarm binary (legacy subprocess path).
 pub const CYCLE_BIN: &str = "cycle_report.bin";
+
+/// Directory containing Night Shift results (repo-relative).
+pub const NIGHT_RESULTS_DIR: &str = "data/night_results";
 
 /// Request sent to the Python fractal-swarm binary.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -45,7 +49,7 @@ pub struct BridgeResponse {
     pub consistency: f64,
 }
 
-/// Errors from the bridge subprocess call.
+/// Errors from the bridge subprocess call or file read.
 #[derive(Debug, Error)]
 pub enum BridgeError {
     #[error("Binary not found: {0}")]
@@ -54,6 +58,151 @@ pub enum BridgeError {
     ProcessFailed(String),
     #[error("Output parse error: {0}")]
     ParseError(String),
+    #[error("Night results not found: {0}")]
+    NightResultsNotFound(String),
+    #[error("Night results read error: {0}")]
+    NightResultsReadError(String),
+}
+
+// ---------------------------------------------------------------------------
+// Night Shift file reader (replaces subprocess bridge)
+// ---------------------------------------------------------------------------
+
+/// A single top candidate from the Night Shift summary.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NightShiftCandidate {
+    pub symbol: String,
+    pub params: serde_json::Value,
+    pub survivor_score: f64,
+    pub oos_sharpe: f64,
+    pub oos_consistency: f64,
+    pub oos_max_dd: f64,
+    pub overfitting_score: f64,
+    pub fragility: f64,
+    pub oos_avg_trades_per_fold: f64,
+    pub rejected: bool,
+    pub rejection_reason: Option<String>,
+}
+
+/// The Night Shift summary.json structure.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NightShiftSummary {
+    pub run_at: String,
+    pub runtime_seconds: f64,
+    pub num_folds: u32,
+    pub symbols: Vec<String>,
+    pub top_candidates: Vec<NightShiftCandidate>,
+}
+
+/// Result of reading the latest Night Shift output.
+#[derive(Debug, Clone)]
+pub struct NightShiftResult {
+    pub summary: NightShiftSummary,
+    pub source_path: String,
+}
+
+/// Find and read the latest `summary.json` from `data/night_results/`.
+///
+/// Searches for `data/night_results/<YYYY-MM-DD>/summary.json` and picks the
+/// most recent date directory. Returns `Err` if no results exist.
+pub fn read_latest_night_results() -> Result<NightShiftResult, BridgeError> {
+    let root = repo_root();
+    let night_dir = root.join(NIGHT_RESULTS_DIR);
+
+    if !night_dir.exists() {
+        return Err(BridgeError::NightResultsNotFound(format!(
+            "directory not found: {}",
+            night_dir.display()
+        )));
+    }
+
+    // Find the latest date directory with a summary.json
+    let mut latest: Option<(String, std::path::PathBuf)> = None;
+    for entry in std::fs::read_dir(&night_dir).map_err(|e| {
+        BridgeError::NightResultsReadError(format!("read_dir({}): {}", night_dir.display(), e))
+    })? {
+        let entry = entry.map_err(|e| {
+            BridgeError::NightResultsReadError(format!("dir entry: {}", e))
+        })?;
+        let name = entry.file_name().to_string_lossy().to_string();
+        if !name.chars().all(|c| c.is_ascii_digit() || c == '-') || name.len() != 10 {
+            continue; // skip non-date directories
+        }
+        let summary_path = entry.path().join("summary.json");
+        if summary_path.exists() {
+            match &latest {
+                None => latest = Some((name.clone(), summary_path.clone())),
+                Some((prev, _)) if &name > prev => {
+                    latest = Some((name.clone(), summary_path.clone()));
+                }
+                _ => {}
+            }
+        }
+    }
+
+    let (_, summary_path) = latest.ok_or_else(|| {
+        BridgeError::NightResultsNotFound(format!(
+            "no summary.json found in any date directory under {}",
+            night_dir.display()
+        ))
+    })?;
+
+    let content = std::fs::read_to_string(&summary_path).map_err(|e| {
+        BridgeError::NightResultsReadError(format!("read {}: {}", summary_path.display(), e))
+    })?;
+
+    let summary: NightShiftSummary = serde_json::from_str(&content).map_err(|e| {
+        BridgeError::ParseError(format!(
+            "parse {}: {} (first 200 chars: {})",
+            summary_path.display(),
+            e,
+            &content[..content.len().min(200)]
+        ))
+    })?;
+
+    Ok(NightShiftResult {
+        source_path: summary_path.display().to_string(),
+        summary,
+    })
+}
+
+/// Get the best non-rejected candidate from the latest Night Shift results.
+///
+/// Returns `None` if no candidates pass the night shift filters or
+/// no results exist.
+pub fn best_night_shift_candidate() -> Option<NightShiftCandidate> {
+    let result = read_latest_night_results().ok()?;
+    result
+        .summary
+        .top_candidates
+        .iter()
+        .filter(|c| !c.rejected)
+        .max_by(|a, b| a.survivor_score.partial_cmp(&b.survivor_score).unwrap_or(std::cmp::Ordering::Equal))
+        .cloned()
+}
+
+/// Resolve the repo root (two levels up from CARGO_MANIFEST_DIR, i.e. rtp/swarm/).
+fn repo_root() -> std::path::PathBuf {
+    let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".to_string());
+    std::path::Path::new(&manifest)
+        .join("../../")
+        .canonicalize()
+        .unwrap_or_else(|_| std::path::PathBuf::from("."))
+}
+
+/// Convert a `NightShiftCandidate` into a `BridgeResponse` for compatibility
+/// with existing code that expects the subprocess output format.
+impl NightShiftCandidate {
+    pub fn to_bridge_response(&self) -> BridgeResponse {
+        BridgeResponse {
+            strategy: self.symbol.replace("/", "_"),
+            yield_estimate: self.oos_sharpe * 30.0, // rough annualized estimate
+            confidence: 1.0 - self.fragility,
+            params: self.params.clone(),
+            folds_validated: 9, // standard WFA fold count
+            consistency: self.oos_consistency,
+        }
+    }
 }
 
 /// Call the Python binary with a typed request.
