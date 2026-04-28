@@ -11,6 +11,7 @@
 #   rtp-devnet-loop 006a2ac8-d74b-4f1d-ac4e-8a044ebfb46d
 #   rtp-night-shift 0088cfc9-1310-4926-ab7e-1e3991028ed9
 #   rtp-swarm-ci    ca591cef-4b09-4797-b80d-fbbb04098ce4
+#   rtp-fee-crank   (new — fee withdrawal + redistribute cron)
 #
 # Dockerfile paths configured in Railway dashboard Settings tab:
 #   rtp-dashboard   → dashboard/Dockerfile
@@ -21,6 +22,7 @@
 # Cron schedules (set via GraphQL serviceInstanceUpdate mutation):
 #   rtp-devnet-loop → 0 */6 * * * (every 6 hours)
 #   rtp-night-shift → 0 14 * * * (daily at 14:00 UTC)
+#   rtp-fee-crank   → 0 * * * * (every hour, with 0-30min jitter built into script)
 #   rtp-swarm-ci    → manual redeploy only
 #   rtp-dashboard   → always-on (no cron)
 #
@@ -31,6 +33,13 @@
 #   - Devnet-loop needs env vars: LLM_API_BASE_URL, LLM_API_KEY, LLM_MODEL
 #   - Night-shift uses --skip-fetch (Binance geo-blocked on Railway)
 #   - Dashboard uses output: "standalone" in next.config.ts (SSR mode)
+#
+# Fee crank (rtp-fee-crank):
+#   - Dockerfile: scripts/Dockerfile.crank
+#   - Runs every hour with 0-30min random jitter
+#   - Calls withdrawAndRedistribute for the demo treasury
+#   - Needs env vars: KEYPAIR_PATH (or default ~/.config/solana/id.json)
+#   - Gas paid by fee-payer keypair (Driyi8S...EF6R)
 #
 # API:
 #   GraphQL endpoint: https://backboard.railway.com/graphql/v2
