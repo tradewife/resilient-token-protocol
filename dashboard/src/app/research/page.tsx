@@ -40,12 +40,16 @@ interface NightData {
 
 export default function ResearchPage() {
   const [data, setData] = useState<NightData | null>(null);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     fetch("/data/night.json")
-      .then((r) => r.json())
-      .then((d) => { if (!d.error) setData(d); })
-      .catch(() => {});
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .then((d) => { if (!d.error) setData(d); else setLoadError(true); })
+      .catch(() => setLoadError(true));
   }, []);
 
   const runtimeMin = data ? Math.round(data.runtime_seconds / 60) : 0;
@@ -65,7 +69,11 @@ export default function ResearchPage() {
       {!data ? (
         <section className="launch-hero">
           <h1 className="launch-title">Night Shift Research</h1>
-          <p className="launch-subtitle">Loading latest results...</p>
+          {loadError ? (
+            <p className="launch-subtitle">Failed to load results. Try refreshing the page.</p>
+          ) : (
+            <p className="launch-subtitle">Loading latest results...</p>
+          )}
         </section>
       ) : (
         <>

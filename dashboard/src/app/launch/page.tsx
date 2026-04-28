@@ -548,7 +548,7 @@ export default function LaunchPage() {
     }
   }, [wallet, publicKey, projectName, tokenSymbol]);
 
-  // Check if treasury is frozen (read frozen flag from on-chain Treasury PDA)
+  // Check if treasury is frozen (via SDK Borsh decoder — no hardcoded byte offsets)
   const TREASURY_PDA = "7oZTJWYBDjzqmbfRs5YkTv53CDa6vESAzfyjK3yhYshc";
   const [isFrozen, setIsFrozen] = useState(false);
 
@@ -556,28 +556,14 @@ export default function LaunchPage() {
     let alive = true;
     const check = async () => {
       try {
-        const resp = await fetch("https://api.devnet.solana.com", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            jsonrpc: "2.0", id: 1,
-            method: "getAccountInfo",
-            params: [TREASURY_PDA, { encoding: "base64" }],
-          }),
-        });
-        const json = await resp.json();
-        const data = json?.result?.value?.data?.[0];
-        if (data && alive) {
-          const binary = atob(data);
-          const frozenOffset = 225;
-          if (binary.length > frozenOffset) {
-            setIsFrozen(binary.charCodeAt(frozenOffset) !== 0);
-          }
-        }
+        // Use the SDK's Borsh decoder to read the frozen field properly.
+        // The treasury PDA belongs to the demo mint on devnet.
+        const state = await fetchTreasuryState(connection, "FumRWMiDf6FCHuGSYJRPYknCD5F2QNgBmbABZsFJ6q5q");
+        if (alive) setIsFrozen(state.isFrozen);
       } catch { /* devnet unreachable */ }
     };
     check();
-  }, []);
+  }, [connection]);
 
   // Main launch handler
 

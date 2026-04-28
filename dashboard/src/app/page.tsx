@@ -5,8 +5,10 @@ import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { PublicKey, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import Link from "next/link";
 import Topbar from "./Topbar";
+import { fetchTreasuryState } from "../lib/sdk";
 
 const TREASURY_PDA = "7oZTJWYBDjzqmbfRs5YkTv53CDa6vESAzfyjK3yhYshc";
+const TREASURY_MINT = "FumRWMiDf6FCHuGSYJRPYknCD5F2QNgBmbABZsFJ6q5q";
 const DEVNET_RPC = "https://api.devnet.solana.com";
 const MAINNET_RPC = "https://api.mainnet-beta.solana.com";
 
@@ -188,43 +190,14 @@ export default function Home() {
     return () => { alive = false; clearInterval(id); };
   }, []);
 
-  // ── Treasury frozen state (devnet account data check) ──
+  // ── Treasury frozen state (devnet, via SDK Borsh decoder) ──
   useEffect(() => {
     let alive = true;
     const check = async () => {
       try {
-        const resp = await fetch("https://api.devnet.solana.com", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            jsonrpc: "2.0", id: 1, method: "getAccountInfo",
-            params: [TREASURY_PDA, { encoding: "jsonParsed" }],
-          }),
-        });
-        const json = await resp.json();
-        // The Treasury account uses Anchor's Borsh serialization.
-        // Fetch via the program's IDL to decode the frozen field.
-        // For now, use a lightweight byte-level check on the base64 data.
-        const data = json?.result?.value?.data?.[0];
-        if (data && alive) {
-          // Decode base64 account data to read the `frozen` bool.
-          // Treasury layout (Anchor 8-byte discriminator + fields):
-          //   mint(32) + authority(32) + phase(1) + total_fees_withdrawn(8) +
-          //   total_distributed_holders(8) + total_distributed_dev(8) +
-          //   total_distributed_ecosystem(8) + total_hydration(8) +
-          //   total_fees_received_lamports(8) + holders_wallet(32) +
-          //   project_dev_wallet(32) + ecosystem_wallet(32) +
-          //   min_runway_balance(8) + frozen(1) + bump(1)
-          // The frozen field is at byte offset 8+32+32+1+8+8+8+8+8+8+32+32+32+8 = 225
-          const binary = atob(data);
-          const frozenOffset = 225;
-          if (binary.length > frozenOffset) {
-            const frozenByte = binary.charCodeAt(frozenOffset);
-            setIsFrozen(frozenByte !== 0);
-          } else {
-            setIsFrozen(false);
-          }
-        }
+        const devnetConn = new (await import("@solana/web3.js")).Connection(DEVNET_RPC, "confirmed");
+        const state = await fetchTreasuryState(devnetConn, TREASURY_MINT);
+        if (alive) setIsFrozen(state.isFrozen);
       } catch {
         // Devnet RPC unreachable — keep current state
       }
@@ -245,18 +218,18 @@ export default function Home() {
 
     (async () => {
       try {
+        const devnetConn = new (await import("@solana/web3.js")).Connection(DEVNET_RPC, "confirmed");
         const treasuryPubkey = new PublicKey(TREASURY_PDA);
         const walletStr = publicKey.toBase58();
 
-        // Get recent signatures for treasury PDA
-        const signatures = await connection.getSignaturesForAddress(treasuryPubkey, { limit: 100 });
+        // Limit to 20 recent signatures to avoid rate limiting
+        const signatures = await devnetConn.getSignaturesForAddress(treasuryPubkey, { limit: 20 });
         let totalYieldLamports = 0;
 
-        // Check each transaction for SOL sent to the connected wallet
         for (const sigInfo of signatures) {
           if (cancelled) break;
           try {
-            const tx = await connection.getTransaction(sigInfo.signature, {
+            const tx = await devnetConn.getTransaction(sigInfo.signature, {
               maxSupportedTransactionVersion: 0,
             });
             if (!tx || !tx.meta) continue;
@@ -265,7 +238,6 @@ export default function Home() {
             const accountKeys = tx.transaction.message.staticAccountKeys
               ? tx.transaction.message.staticAccountKeys
               : (tx.transaction.message as { accountKeys: PublicKey[] }).accountKeys;
-            // Find the connected wallet's index in accountKeys
             for (let i = 0; i < accountKeys.length; i++) {
               const key = accountKeys[i] instanceof PublicKey
                 ? (accountKeys[i] as PublicKey).toBase58()
@@ -278,7 +250,7 @@ export default function Home() {
               }
             }
           } catch {
-            // Individual tx fetch failed (rate limit, dropped connection) — skip, continue scanning
+            // Individual tx fetch failed (rate limit, dropped connection) — skip
           }
         }
 
@@ -287,7 +259,6 @@ export default function Home() {
           setYieldLoading(false);
         }
       } catch {
-        // Bulk yield scan failed — show no yield rather than stale data
         if (!cancelled) {
           setYieldReceived(null);
           setYieldLoading(false);
@@ -296,7 +267,7 @@ export default function Home() {
     })();
 
     return () => { cancelled = true; };
-  }, [publicKey, connection]);
+  }, [publicKey]);
 
   // ── Derived state ──
   const tBal = treasurySol !== null ? treasurySol.toFixed(4) : "—";

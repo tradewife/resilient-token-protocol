@@ -367,7 +367,10 @@ impl EvolveWing {
             .set_baseline_score(&proposal_id, baseline.score);
 
         // Return the proposal with baseline set.
-        self.proposer.get(&proposal_id).unwrap()
+        match self.proposer.get(&proposal_id) {
+            Some(p) => p,
+            None => panic!("proposal not found after creation: {}", proposal_id),
+        }
     }
 
     /// Check if any applied changes need rollback.

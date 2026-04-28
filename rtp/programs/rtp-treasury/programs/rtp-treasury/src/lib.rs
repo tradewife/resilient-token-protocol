@@ -131,6 +131,8 @@ pub enum TreasuryError {
     InvalidPoolName,
     #[msg("Decremented committed_sol_lamports exceeds tracked balance")]
     CommittedDeltaExceedsBalance,
+    #[msg("FlashSide::None is not valid for open/close — position must have a direction")]
+    InvalidFlashSide,
 }
 
 // ---------------------------------------------------------------------------
@@ -1027,9 +1029,12 @@ pub mod rtp_treasury {
         record.consecutive_losses = consecutive_losses;
         record.drawdown_24h_bps = drawdown_24h_bps;
 
-        // 3. Increment soft decay strikes
+        // 3. Increment soft decay strikes, or reset on recovery
         if new_soft_strike {
             record.soft_decay_strikes = record.soft_decay_strikes.saturating_add(1);
+        } else if rolling_pnl_bps > 0 && rolling_sharpe_x100 > 0 {
+            // Recovery: positive PnL and positive Sharpe resets soft decay strikes
+            record.soft_decay_strikes = 0;
         }
 
         // 4. Increment total trades
@@ -1239,7 +1244,12 @@ pub mod rtp_treasury {
 
         // Build Flash Trade open_position instruction data
         // Discriminator (8 bytes) + OraclePrice (12 bytes) + collateralAmount (8) + sizeAmount (8) + privilege (1) = 37 bytes
+        // Reject FlashSide::None for open — a position must have a direction
+        require!(side != FlashSide::None, TreasuryError::InvalidFlashSide);
+
         let size_amount = input_sol_lamports as u128 * leverage_bps as u128 / 10000;
+        // Bounds check before truncation to u64
+        require!(size_amount <= u64::MAX as u128, TreasuryError::Overflow);
         let slippage_mult = 10000u32 + slippage_bps as u32;
         let slippage_price = if side == FlashSide::Long {
             oracle_price.price as i128 * slippage_mult as i128 / 10000
@@ -1254,7 +1264,7 @@ pub mod rtp_treasury {
         ix_data.extend_from_slice(&oracle_price.exponent.to_le_bytes());
         // collateralAmount (u64 LE)
         ix_data.extend_from_slice(&input_sol_lamports.to_le_bytes());
-        // sizeAmount (u64 LE)
+        // sizeAmount (u64 LE) — safe after bounds check above
         ix_data.extend_from_slice(&(size_amount as u64).to_le_bytes());
         // privilege (u8) — None = 0
         ix_data.push(0u8);
@@ -1346,6 +1356,8 @@ pub mod rtp_treasury {
         committed_sol_lamports_delta: u64,
     ) -> Result<()> {
         require!(!ctx.accounts.treasury.frozen, TreasuryError::TreasuryFrozen);
+        // Reject FlashSide::None for close — must specify direction for slippage
+        require!(side != FlashSide::None, TreasuryError::InvalidFlashSide);
         let treasury = &mut ctx.accounts.treasury;
         let strategy = &mut ctx.accounts.strategy_record;
 
@@ -1796,7 +1808,11 @@ pub mod rtp_treasury {
         pub adopter_record: Account<'info, AdopterRecord>,
 
         /// The treasury state account (must already be initialised)
-        #[account(mut)]
+        #[account(
+            mut,
+            seeds = [TREASURY_SEED, treasury.mint.as_ref()],
+            bump = treasury.bump,
+        )]
         pub treasury: Account<'info, Treasury>,
 
         /// The authority signing this registration
@@ -1817,7 +1833,11 @@ pub mod rtp_treasury {
         pub adopter_record: Account<'info, AdopterRecord>,
 
         /// Treasury state account — receives the total_fees_received_lamports increment
-        #[account(mut)]
+        #[account(
+            mut,
+            seeds = [TREASURY_SEED, treasury.mint.as_ref()],
+            bump = treasury.bump,
+        )]
         pub treasury: Account<'info, Treasury>,
 
         /// The authority that can record fee deposits

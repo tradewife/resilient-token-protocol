@@ -542,7 +542,7 @@ pub fn run_flash_trade_demo() -> Result<serde_json::Value, String> {
 
     // Step 1: Query SOL price
     println!("\n[FLASH DEMO] Step 1: Query Flash Trade REST API");
-    let sol_price = client.get_price("SOL");
+    let sol_price = client.get_price_blocking("SOL");
     match &sol_price {
         Ok(price) => println!(
             "[FLASH DEMO]   SOL oracle price: ${:.2} (Pyth mainnet)",
@@ -552,7 +552,7 @@ pub fn run_flash_trade_demo() -> Result<serde_json::Value, String> {
     }
 
     // Step 2: Query pool data
-    match client.get_pool_data() {
+    match client.get_pool_data_blocking() {
         Ok(pools) => {
             for pool in &pools {
                 if pool.pool.contains("Crypto") {

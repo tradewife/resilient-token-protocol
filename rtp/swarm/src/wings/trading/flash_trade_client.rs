@@ -79,8 +79,9 @@ pub struct FlashPoolData {
 
 /// Flash Trade REST API client (queries only, no execution).
 pub struct FlashTradeClient {
-    client: reqwest::blocking::Client,
+    client: reqwest::Client,
     base_url: String,
+    max_retries: u32,
 }
 
 impl Default for FlashTradeClient {
@@ -92,51 +93,51 @@ impl Default for FlashTradeClient {
 impl FlashTradeClient {
     pub fn new() -> Self {
         Self {
-            client: reqwest::blocking::Client::builder()
+            client: reqwest::Client::builder()
                 .timeout(std::time::Duration::from_secs(10))
                 .build()
-                .unwrap_or_else(|_| reqwest::blocking::Client::new()),
+                .unwrap_or_else(|_| reqwest::Client::new()),
             base_url: FLASH_API_BASE.to_string(),
+            max_retries: 3,
         }
+    }
+
+    /// Execute a GET request with retry logic.
+    async fn get_with_retry<T: serde::de::DeserializeOwned>(&self, path: &str) -> Result<T, String> {
+        let url = format!("{}{}", self.base_url, path);
+        let mut last_err = String::new();
+        for attempt in 0..=self.max_retries {
+            match self.client.get(&url).send().await {
+                Ok(resp) if resp.status().is_success() => {
+                    return resp.json::<T>().await.map_err(|e| format!("Parse error: {}", e));
+                }
+                Ok(resp) => {
+                    last_err = format!("Flash API returned status {}", resp.status());
+                }
+                Err(e) => {
+                    last_err = format!("Flash API request failed: {}", e);
+                }
+            }
+            if attempt < self.max_retries {
+                tokio::time::sleep(std::time::Duration::from_millis(500 * (attempt + 1) as u64)).await;
+            }
+        }
+        Err(last_err)
     }
 
     /// Get all available markets.
-    pub fn get_markets(&self) -> Result<Vec<FlashMarket>, String> {
-        let url = format!("{}/raw/markets", self.base_url);
-        let resp = self
-            .client
-            .get(&url)
-            .send()
-            .map_err(|e| format!("Flash API request failed: {}", e))?;
-
-        if !resp.status().is_success() {
-            return Err(format!("Flash API returned status {}", resp.status()));
-        }
-
-        resp.json::<Vec<FlashMarket>>()
-            .map_err(|e| format!("Failed to parse markets response: {}", e))
+    pub async fn get_markets(&self) -> Result<Vec<FlashMarket>, String> {
+        self.get_with_retry("/raw/markets").await
     }
 
     /// Get current oracle prices for all assets.
-    pub fn get_prices(&self) -> Result<Vec<FlashPrice>, String> {
-        let url = format!("{}/prices", self.base_url);
-        let resp = self
-            .client
-            .get(&url)
-            .send()
-            .map_err(|e| format!("Flash API request failed: {}", e))?;
-
-        if !resp.status().is_success() {
-            return Err(format!("Flash API returned status {}", resp.status()));
-        }
-
-        resp.json::<Vec<FlashPrice>>()
-            .map_err(|e| format!("Failed to parse prices response: {}", e))
+    pub async fn get_prices(&self) -> Result<Vec<FlashPrice>, String> {
+        self.get_with_retry("/prices").await
     }
 
     /// Get the oracle price for a specific symbol (e.g., "SOL").
-    pub fn get_price(&self, symbol: &str) -> Result<f64, String> {
-        let prices = self.get_prices()?;
+    pub async fn get_price(&self, symbol: &str) -> Result<f64, String> {
+        let prices = self.get_prices().await?;
         prices
             .iter()
             .find(|p| p.symbol == symbol)
@@ -145,37 +146,58 @@ impl FlashTradeClient {
     }
 
     /// Get all positions for a given owner wallet address.
-    pub fn get_positions(&self, owner: &str) -> Result<Vec<FlashPosition>, String> {
-        let url = format!("{}/positions/owner/{}", self.base_url, owner);
-        let resp = self
-            .client
-            .get(&url)
-            .send()
-            .map_err(|e| format!("Flash API request failed: {}", e))?;
-
-        if !resp.status().is_success() {
-            return Err(format!("Flash API returned status {}", resp.status()));
-        }
-
-        resp.json::<Vec<FlashPosition>>()
-            .map_err(|e| format!("Failed to parse positions response: {}", e))
+    pub async fn get_positions(&self, owner: &str) -> Result<Vec<FlashPosition>, String> {
+        self.get_with_retry(&format!("/positions/owner/{}", owner)).await
     }
 
     /// Get pool utilization data.
-    pub fn get_pool_data(&self) -> Result<Vec<FlashPoolData>, String> {
-        let url = format!("{}/pool-data", self.base_url);
-        let resp = self
-            .client
-            .get(&url)
-            .send()
-            .map_err(|e| format!("Flash API request failed: {}", e))?;
+    pub async fn get_pool_data(&self) -> Result<Vec<FlashPoolData>, String> {
+        self.get_with_retry("/pool-data").await
+    }
 
-        if !resp.status().is_success() {
-            return Err(format!("Flash API returned status {}", resp.status()));
-        }
+    /// Blocking wrapper: get all available markets.
+    pub fn get_markets_blocking(&self) -> Result<Vec<FlashMarket>, String> {
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .map_err(|e| format!("tokio runtime: {}", e))?;
+        rt.block_on(self.get_markets())
+    }
 
-        resp.json::<Vec<FlashPoolData>>()
-            .map_err(|e| format!("Failed to parse pool-data response: {}", e))
+    /// Blocking wrapper: get current oracle prices for all assets.
+    pub fn get_prices_blocking(&self) -> Result<Vec<FlashPrice>, String> {
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .map_err(|e| format!("tokio runtime: {}", e))?;
+        rt.block_on(self.get_prices())
+    }
+
+    /// Blocking wrapper: get the oracle price for a specific symbol.
+    pub fn get_price_blocking(&self, symbol: &str) -> Result<f64, String> {
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .map_err(|e| format!("tokio runtime: {}", e))?;
+        rt.block_on(self.get_price(symbol))
+    }
+
+    /// Blocking wrapper: get all positions for a given owner wallet address.
+    pub fn get_positions_blocking(&self, owner: &str) -> Result<Vec<FlashPosition>, String> {
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .map_err(|e| format!("tokio runtime: {}", e))?;
+        rt.block_on(self.get_positions(owner))
+    }
+
+    /// Blocking wrapper: get pool utilization data.
+    pub fn get_pool_data_blocking(&self) -> Result<Vec<FlashPoolData>, String> {
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .map_err(|e| format!("tokio runtime: {}", e))?;
+        rt.block_on(self.get_pool_data())
     }
 }
 

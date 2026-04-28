@@ -149,53 +149,53 @@ fn hl_action_hash(action: &serde_json::Value, nonce: u64) -> Result<[u8; 32], St
     let mut buf = Vec::with_capacity(128);
 
     // Outer map: 3 entries in Python SDK order: type, orders, grouping
-    rmp::encode::write_map_len(&mut buf, 3).unwrap();
+    rmp::encode::write_map_len(&mut buf, 3).map_err(|e| format!("msgpack encode map_len: {}", e))?;
 
     // "type" → "order"
-    rmp::encode::write_str(&mut buf, "type").unwrap();
-    rmp::encode::write_str(&mut buf, action["type"].as_str().unwrap_or("order")).unwrap();
+    rmp::encode::write_str(&mut buf, "type").map_err(|e| format!("msgpack encode str: {}", e))?;
+    rmp::encode::write_str(&mut buf, action["type"].as_str().unwrap_or("order")).map_err(|e| format!("msgpack encode str: {}", e))?;
 
     // "orders" → [order, ...]
-    rmp::encode::write_str(&mut buf, "orders").unwrap();
-    rmp::encode::write_array_len(&mut buf, orders.len() as u32).unwrap();
+    rmp::encode::write_str(&mut buf, "orders").map_err(|e| format!("msgpack encode str: {}", e))?;
+    rmp::encode::write_array_len(&mut buf, orders.len() as u32).map_err(|e| format!("msgpack encode array_len: {}", e))?;
 
     for order in orders {
         // Inner order map: keys in Python SDK order: a, b, p, s, r, t
-        rmp::encode::write_map_len(&mut buf, 6).unwrap();
+        rmp::encode::write_map_len(&mut buf, 6).map_err(|e| format!("msgpack encode map_len: {}", e))?;
 
         // "a" → asset index
-        rmp::encode::write_str(&mut buf, "a").unwrap();
-        rmp::encode::write_sint(&mut buf, order["a"].as_i64().unwrap_or(0)).unwrap();
+        rmp::encode::write_str(&mut buf, "a").map_err(|e| format!("msgpack encode str: {}", e))?;
+        rmp::encode::write_sint(&mut buf, order["a"].as_i64().unwrap_or(0)).map_err(|e| format!("msgpack encode sint: {}", e))?;
 
         // "b" → is_buy
-        rmp::encode::write_str(&mut buf, "b").unwrap();
-        rmp::encode::write_bool(&mut buf, order["b"].as_bool().unwrap_or(true)).unwrap();
+        rmp::encode::write_str(&mut buf, "b").map_err(|e| format!("msgpack encode str: {}", e))?;
+        rmp::encode::write_bool(&mut buf, order["b"].as_bool().unwrap_or(true)).map_err(|e| format!("msgpack encode bool: {}", e))?;
 
         // "p" → price
-        rmp::encode::write_str(&mut buf, "p").unwrap();
-        rmp::encode::write_str(&mut buf, order["p"].as_str().unwrap_or("0")).unwrap();
+        rmp::encode::write_str(&mut buf, "p").map_err(|e| format!("msgpack encode str: {}", e))?;
+        rmp::encode::write_str(&mut buf, order["p"].as_str().unwrap_or("0")).map_err(|e| format!("msgpack encode str: {}", e))?;
 
         // "s" → size
-        rmp::encode::write_str(&mut buf, "s").unwrap();
-        rmp::encode::write_str(&mut buf, order["s"].as_str().unwrap_or("0")).unwrap();
+        rmp::encode::write_str(&mut buf, "s").map_err(|e| format!("msgpack encode str: {}", e))?;
+        rmp::encode::write_str(&mut buf, order["s"].as_str().unwrap_or("0")).map_err(|e| format!("msgpack encode str: {}", e))?;
 
         // "r" → reduce_only
-        rmp::encode::write_str(&mut buf, "r").unwrap();
-        rmp::encode::write_bool(&mut buf, order["r"].as_bool().unwrap_or(false)).unwrap();
+        rmp::encode::write_str(&mut buf, "r").map_err(|e| format!("msgpack encode str: {}", e))?;
+        rmp::encode::write_bool(&mut buf, order["r"].as_bool().unwrap_or(false)).map_err(|e| format!("msgpack encode bool: {}", e))?;
 
         // "t" → {"limit": {"tif": ...}}
-        rmp::encode::write_str(&mut buf, "t").unwrap();
+        rmp::encode::write_str(&mut buf, "t").map_err(|e| format!("msgpack encode str: {}", e))?;
         let tif = order["t"]["limit"]["tif"].as_str().unwrap_or("Ioc");
-        rmp::encode::write_map_len(&mut buf, 1).unwrap();
-        rmp::encode::write_str(&mut buf, "limit").unwrap();
-        rmp::encode::write_map_len(&mut buf, 1).unwrap();
-        rmp::encode::write_str(&mut buf, "tif").unwrap();
-        rmp::encode::write_str(&mut buf, tif).unwrap();
+        rmp::encode::write_map_len(&mut buf, 1).map_err(|e| format!("msgpack encode map_len: {}", e))?;
+        rmp::encode::write_str(&mut buf, "limit").map_err(|e| format!("msgpack encode str: {}", e))?;
+        rmp::encode::write_map_len(&mut buf, 1).map_err(|e| format!("msgpack encode map_len: {}", e))?;
+        rmp::encode::write_str(&mut buf, "tif").map_err(|e| format!("msgpack encode str: {}", e))?;
+        rmp::encode::write_str(&mut buf, tif).map_err(|e| format!("msgpack encode str: {}", e))?;
     }
 
     // "grouping" → "na"
-    rmp::encode::write_str(&mut buf, "grouping").unwrap();
-    rmp::encode::write_str(&mut buf, action["grouping"].as_str().unwrap_or("na")).unwrap();
+    rmp::encode::write_str(&mut buf, "grouping").map_err(|e| format!("msgpack encode str: {}", e))?;
+    rmp::encode::write_str(&mut buf, action["grouping"].as_str().unwrap_or("na")).map_err(|e| format!("msgpack encode str: {}", e))?;
 
     // Append nonce (8 bytes big-endian) + vault flag (0x00).
     buf.extend_from_slice(&nonce.to_be_bytes());
@@ -673,9 +673,11 @@ fn derive_ata(
     mint: &solana_sdk::pubkey::Pubkey,
     token_program: &solana_sdk::pubkey::Pubkey,
 ) -> solana_sdk::pubkey::Pubkey {
+    let ata_program = solana_sdk::pubkey::Pubkey::try_from(ATA_PROGRAM_ID)
+        .unwrap_or_else(|_| solana_sdk::pubkey::Pubkey::from([0u8; 32]));
     let (address, _) = solana_sdk::pubkey::Pubkey::find_program_address(
         &[wallet.as_ref(), token_program.as_ref(), mint.as_ref()],
-        &solana_sdk::pubkey::Pubkey::try_from(ATA_PROGRAM_ID).expect("ATA program ID is valid"),
+        &ata_program,
     );
     address
 }
@@ -1410,13 +1412,13 @@ impl TradingWing {
 
                     // Query Flash Trade REST API for current price
                     let flash_client = FlashTradeClient::new();
-                    match flash_client.get_price("SOL") {
+                    match flash_client.get_price_blocking("SOL") {
                         Ok(sol_price) => {
                             flash_log.push(format!("[FLASH] SOL oracle price: ${:.2}", sol_price));
 
                             // Query existing positions for the treasury
                             if !treasury_pda.is_empty() {
-                                match flash_client.get_positions(treasury_pda) {
+                                match flash_client.get_positions_blocking(treasury_pda) {
                                     Ok(positions) => {
                                         flash_log.push(format!(
                                             "[FLASH] Open positions: {}",

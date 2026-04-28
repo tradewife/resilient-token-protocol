@@ -236,10 +236,16 @@ async fn main() {
         memory_files: collect_memory_files(),
     };
 
-    let cycle_json = serde_json::to_string_pretty(&output).expect("serialize cycle output");
+    let cycle_json = serde_json::to_string_pretty(&output).unwrap_or_else(|e| {
+        eprintln!("[DAEMON] ERROR: failed to serialize cycle output: {}", e);
+        "{}".to_string()
+    });
     let cycle_path = format!("{}/cycle.json", cycle_dir);
-    std::fs::write(&cycle_path, &cycle_json).expect("write cycle.json");
-    println!("[DAEMON] wrote {}", cycle_path);
+    if let Err(e) = std::fs::write(&cycle_path, &cycle_json) {
+        eprintln!("[DAEMON] ERROR: failed to write {}: {}", cycle_path, e);
+    } else {
+        println!("[DAEMON] wrote {}", cycle_path);
+    }
 
     // 6. Update latest directory (copy files — more portable than symlink for CI).
     let latest = root.join("data/devnet-cycles/latest");
@@ -252,7 +258,10 @@ async fn main() {
         let _ = std::fs::copy(&cycle_path, latest.join("cycle.json"));
         // Also copy config for next cycle.
         let config_json =
-            serde_json::to_string_pretty(&output.params_next).expect("serialize config");
+            serde_json::to_string_pretty(&output.params_next).unwrap_or_else(|e| {
+                eprintln!("[DAEMON] WARNING: failed to serialize config: {}", e);
+                "{}".to_string()
+            });
         let _ = std::fs::write(latest.join("config.json"), &config_json);
         println!("[DAEMON] updated data/devnet-cycles/latest/");
     }

@@ -1,21 +1,15 @@
 "use client";
 
-import React, { useMemo, useEffect } from "react";
-import { ConnectionProvider, WalletProvider, useWallet } from "@solana/wallet-adapter-react";
+import React, { useMemo, useCallback } from "react";
+import { ConnectionProvider, WalletProvider } from "@solana/wallet-adapter-react";
 import { PhantomWalletAdapter, SolflareWalletAdapter } from "@solana/wallet-adapter-wallets";
 import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
 
 import "@solana/wallet-adapter-react-ui/styles.css";
 
-// Use mainnet for platform launches (Pump.fun, Bags.fm, Raydium).
-// The dashboard still reads devnet treasury state directly via fetchTreasuryState.
-const RPC_ENDPOINT = "https://api.mainnet-beta.solana.com";
-
-function AutoConnectHandler({ children }: { children: React.ReactNode }) {
-  // No auto-connect on page load. The user must click "Connect Wallet" explicitly.
-  // Previous auto-connect caused Phantom to redirect/open on every page visit.
-  return <>{children}</>;
-}
+// Use devnet for treasury state reads and demo flows.
+// The /launch page creates a separate mainnet connection for platform launches.
+const RPC_ENDPOINT = "https://api.devnet.solana.com";
 
 export function WalletContextProvider({ children }: { children: React.ReactNode }) {
   const wallets = useMemo(
@@ -23,11 +17,15 @@ export function WalletContextProvider({ children }: { children: React.ReactNode 
     [],
   );
 
+  const onError = useCallback((error: unknown) => {
+    console.error("[RTP Wallet]", error instanceof Error ? error.message : String(error));
+  }, []);
+
   return (
     <ConnectionProvider endpoint={RPC_ENDPOINT}>
-      <WalletProvider wallets={wallets} autoConnect={false} onError={() => {}}>
+      <WalletProvider wallets={wallets} autoConnect={false} onError={onError}>
         <WalletModalProvider>
-          <AutoConnectHandler>{children}</AutoConnectHandler>
+          {children}
         </WalletModalProvider>
       </WalletProvider>
     </ConnectionProvider>
