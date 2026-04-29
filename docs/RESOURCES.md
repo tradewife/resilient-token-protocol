@@ -16,6 +16,36 @@ Extracted from BUILD_PLAN v2.2. Keep this file updated as new tools are integrat
 
 ---
 
+## Operator CLI
+
+The `rtp` CLI (`cli/`) consolidates all operational scripts into a single Commander.js tool.
+
+| Command | Description | Authority |
+|---------|-------------|-----------|
+| `rtp init` | Interactive onboarding wizard | None |
+| `rtp deploy treasury` | Deploy treasury PDA for a new token | Authority-gated |
+| `rtp deploy program` | Build and deploy Anchor program | Authority-gated |
+| `rtp register adopter` | Register adopter record | Permissionless |
+| `rtp register strategy` | Promote strategy to Live | Authority-gated |
+| `rtp crank fees` | Sweep TransferFeeConfig fees | Permissionless |
+| `rtp crank redistribute` | Trigger 70/20/10 split | Permissionless |
+| `rtp strategy list` | List strategy records | Read-only |
+| `rtp strategy promote` | Promote validated strategy | Authority-gated |
+| `rtp strategy retire` | Force-retire strategy | Authority-gated + `--yes` |
+| `rtp freeze` | Emergency freeze | Authority-gated + `--yes` |
+| `rtp unfreeze` | Resume operations | Authority-gated + `--yes` |
+| `rtp accounts derive` | Derive PDAs offline | Read-only |
+| `rtp accounts show` | Fetch live treasury state | Read-only |
+| `rtp status` | Protocol health overview | Read-only |
+| `rtp status services` | Railway service status | Read-only |
+| `rtp demo` | Full 8-step demo pipeline | `--execute` for live tx |
+
+Usage: `npx tsx cli/bin/rtp.ts <command> [options]`
+All commands support `--json`, `--quiet`, `--cluster <devnet|mainnet>`.
+See `cli/README.md` for full documentation.
+
+---
+
 ## Core Frameworks
 
 | Framework | Link | Use in RTP |

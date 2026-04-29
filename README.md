@@ -83,7 +83,14 @@ This is not a backtest screenshot. These are out-of-sample walk-forward results 
 ## Quick Demo
 
 ```bash
-./demo.sh    # Runs all three layers end-to-end
+# Run the full 3-layer demo (dry-run by default)
+npx tsx cli/bin/rtp.ts demo
+
+# Run with actual transactions
+npx tsx cli/bin/rtp.ts demo --execute
+
+# Legacy shell script (archived to scripts/archive/)
+# ./demo.sh
 ```
 
 See [docs/demo-flow.md](docs/demo-flow.md) for the 3-minute hackathon demo script.
@@ -122,6 +129,32 @@ const result = await registerWithRTP(connection, { publicKey, signTransaction },
 ```
 
 Core functions: `registerWithRTP()`, `fetchTreasuryState()`, `withdrawAndRedistribute()`, `registerAdopterBeta()`, `fetchAdopterState()`. See [sdk/README.md](sdk/README.md) for details.
+
+## Operator CLI
+
+A unified command-line tool for protocol operators. Consolidates all operational scripts (`fee-crank`, `promote-strategy`, `emergency-freeze`, account derivation) into a single Commander.js CLI.
+
+```bash
+# Interactive setup (first time)
+npx tsx cli/bin/rtp.ts init
+
+# Derive PDAs (offline, no RPC)
+npx tsx cli/bin/rtp.ts accounts derive --mint <MINT_PUBKEY>
+
+# Sweep fees into treasury vault
+npx tsx cli/bin/rtp.ts crank fees --mint <MINT_PUBKEY>
+
+# Emergency freeze (authority-gated, requires --yes)
+npx tsx cli/bin/rtp.ts freeze --mint <PUBKEY> --authority <KEYPAIR> --yes
+
+# Protocol health overview
+npx tsx cli/bin/rtp.ts status --all
+
+# Railway service status
+npx tsx cli/bin/rtp.ts status services
+```
+
+14 commands across 7 groups: `init`, `deploy`, `register`, `crank`, `strategy`, `freeze`/`unfreeze`, `accounts`, `status`, `demo`. All support `--json`, `--quiet`, `--cluster <devnet|mainnet>`. See [cli/README.md](cli/README.md) for the full reference.
 
 ## Live on Devnet
 
@@ -528,6 +561,7 @@ The Trading Wing's research layer is shipping today. Everything else is scaffold
 | Security Wing (threat detection, rate-limiting, alert tracking) | Security | Rust | **Built** |
 | Knowledge Wing (in-memory graph, cross-wing queries) | Knowledge | Rust | **Built** |
 | Future-proof Wing (deprecation monitoring, heartbeat) | Future-proof | Rust | **Built** |
+| Operator CLI (14 commands, onboarding wizard, demo, status, Railway) | — | TypeScript | **Built** |
 
 ## Project Structure
 
@@ -564,6 +598,13 @@ rtp/
 │
 ├── programs/                        # Solana (Anchor)
 │   └── rtp-treasury/              # Deposit, distribute, hydrate, evolve, strategy lifecycle
+│
+├── cli/                             # Operator CLI (TypeScript / Commander.js)
+│   ├── bin/rtp.ts                  # Entry point
+│   ├── src/commands/               # 14 commands across 7 groups
+│   ├── src/config.ts               # Config loading (~/.rtp/config.json)
+│   ├── src/lib/                    # RPC, Railway, safety helpers
+│   └── tests/                      # Unit tests (config, keypair, format)
 │
 ├── soulcontract.md                  # Constitutional governance
 ├── third-party-disclosure.md        # MIT framework disclosures
@@ -663,6 +704,16 @@ cargo run --bin rtp-demo
 
 # Run autonomous devnet cycle (6h CI cron)
 cargo run --bin rtp-daemon
+
+# Operator CLI — full 8-step demo (replaces demo.sh)
+npx tsx cli/bin/rtp.ts demo
+
+# Operator CLI — interactive setup
+npx tsx cli/bin/rtp.ts init
+
+# Operator CLI — derive PDAs, check status, emergency freeze
+npx tsx cli/bin/rtp.ts accounts derive --mint <PUBKEY>
+npx tsx cli/bin/rtp.ts status --all
 ```
 
 ## Hackathon

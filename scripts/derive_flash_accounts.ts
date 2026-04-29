@@ -55,7 +55,35 @@ const SOL_MARKETS: MarketConfig[] = [
 
 // ─── PDA Derivation ─────────────────────────────────────────────────────
 
-function derivePDAs(owner: PublicKey, network: "mainnet" | "devnet") {
+// Exported types and function for CLI import
+export interface DerivedMarketResult {
+  symbol: string;
+  side: string;
+  pool: string;
+  marketAddress: string;
+  custodyAddress: string;
+  oracleAddress: string;
+  custodyTokenAccount: string;
+  positionPda: string;
+  openAccounts: number;
+  closeAccounts: number;
+}
+
+export interface DerivedAccountsResult {
+  network: string;
+  programId: string;
+  owner: string;
+  perpetualsPda: string;
+  transferAuthority: string;
+  eventAuthority: string;
+  markets: DerivedMarketResult[];
+}
+
+export function exportDeriveAccounts(owner: PublicKey, network: "mainnet" | "devnet"): DerivedAccountsResult {
+  return derivePDAs(owner, network);
+}
+
+function derivePDAs(owner: PublicKey, network: "mainnet" | "devnet"): DerivedAccountsResult {
   const programId =
     network === "mainnet" ? FLASH_PROGRAM_ID : FLASH_DEVNET_PROGRAM_ID;
 
@@ -167,4 +195,8 @@ function main() {
   });
 }
 
-main();
+// Guard: only run main() when executed directly, not when imported
+const isDirectRun = typeof require !== "undefined"
+  ? require.main === module
+  : process.argv[1]?.includes("derive_flash_accounts");
+if (isDirectRun) main();

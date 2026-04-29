@@ -166,12 +166,67 @@ cd rtp/programs/rtp-treasury && anchor deploy --provider.cluster devnet
 ### Flash Trade (Demo + Account Derivation)
 
 ```bash
-# Flash Trade CPI demo (mainnet simulation, optionally execute with --execute)
-npx ts-node scripts/flash-trade-demo.ts
-
 # Derive all Flash Trade PDAs offline
-npx ts-node scripts/derive_flash_accounts.ts
+npx tsx cli/bin/rtp.ts accounts derive --mint <MINT_PUBKEY>
+
+# Flash Trade CPI demo (mainnet simulation)
+# NOTE: scripts/flash-trade-demo.ts archived to scripts/archive/ — use rtp demo instead
+npx tsx cli/bin/rtp.ts demo
+
+# Derive PDAs (legacy script — prefer rtp CLI)
+npx tsx scripts/derive_flash_accounts.ts
 ```
+
+### Operator CLI (`cli/`)
+
+The `rtp` CLI consolidates all operational scripts into a single Commander.js tool. It is the ops interface for whoever deploys, monitors, and controls the protocol.
+
+```bash
+# Interactive onboarding wizard
+npx tsx cli/bin/rtp.ts init
+
+# Deploy treasury PDA for a new token
+npx tsx cli/bin/rtp.ts deploy treasury --mint <PUBKEY> --authority <KEYPAIR>
+
+# Sweep fees into treasury vault
+npx tsx cli/bin/rtp.ts crank fees --mint <PUBKEY>
+
+# Trigger 70/20/10 redistribution
+npx tsx cli/bin/rtp.ts crank redistribute --mint <PUBKEY> --dry-run
+
+# Emergency freeze (authority-gated, --yes required)
+npx tsx cli/bin/rtp.ts freeze --mint <PUBKEY> --authority <KEYPAIR> --yes
+
+# Derive all PDAs offline (no RPC needed)
+npx tsx cli/bin/rtp.ts accounts derive --mint <PUBKEY>
+
+# Fetch live treasury state
+npx tsx cli/bin/rtp.ts accounts show --mint <PUBKEY>
+
+# Protocol health overview
+npx tsx cli/bin/rtp.ts status --mint <PUBKEY>
+
+# Railway service status
+npx tsx cli/bin/rtp.ts status services
+
+# Full 8-step demo (replaces demo.sh)
+npx tsx cli/bin/rtp.ts demo                    # dry-run (default)
+npx tsx cli/bin/rtp.ts demo --execute          # actually send transactions
+
+# Promote validated strategy to Live
+npx tsx cli/bin/rtp.ts strategy promote --id <STRATEGY_ID> --authority <KEYPAIR>
+
+# Force-retire a strategy (destructive, --yes required)
+npx tsx cli/bin/rtp.ts strategy retire --id <STRATEGY_ID> --authority <KEYPAIR> --yes
+```
+
+All commands support `--json` (machine-readable), `--quiet` (errors only), `--cluster <devnet|mainnet>`.
+
+**Implementation:** `cli/` with Commander.js, TypeScript, chalk, inquirer, ora, cli-table3. Imports from `sdk/` and refactored exports in `scripts/`. See `cli/README.md` for full command reference.
+
+**Script refactoring:** `fee-crank.ts`, `promote-strategy.ts`, `emergency-freeze.ts`, `derive_flash_accounts.ts` now export async functions (`exportSweepFees`, `exportPromoteStrategy`, `exportFreezeTreasury`/`exportUnfreezeTreasury`, `exportDeriveAccounts`) with guarded `main()` calls (only run when executed directly, not when imported). Railway Dockerfiles call the scripts directly and remain unchanged.
+
+**Archived:** `demo.sh` and `scripts/flash-trade-demo.ts` moved to `scripts/archive/`. Use `rtp demo` instead.
 
 ---
 
@@ -241,6 +296,27 @@ npx ts-node scripts/derive_flash_accounts.ts
 |------|---------|
 | `rtp/programs/rtp-treasury/` | Anchor: withdraw_fees, check_redistribute, hydrate_swarm, evolve_phase, **open_flash_position, close_flash_position, emergency_close_all_positions** |
 
+#### Operator CLI
+
+| File | Purpose |
+|------|---------|
+| `cli/bin/rtp.ts` | Entry point — `npx tsx cli/bin/rtp.ts <command>` |
+| `cli/src/index.ts` | Commander program setup, register all commands |
+| `cli/src/commands/init.ts` | `rtp init` — interactive onboarding wizard |
+| `cli/src/commands/demo.ts` | `rtp demo` — full 8-step demo pipeline (replaces demo.sh) |
+| `cli/src/commands/freeze.ts` | `rtp freeze` / `rtp unfreeze` — emergency halt/resume |
+| `cli/src/commands/crank.ts` | `rtp crank fees` / `rtp crank redistribute` |
+| `cli/src/commands/accounts.ts` | `rtp accounts derive` / `rtp accounts show` |
+| `cli/src/commands/status.ts` | `rtp status` / `rtp status services` (Railway) |
+| `cli/src/commands/strategy.ts` | `rtp strategy list` / `promote` / `retire` |
+| `cli/src/commands/deploy.ts` | `rtp deploy treasury` / `rtp deploy program` |
+| `cli/src/config.ts` | Config loading (`~/.rtp/config.json`), resolution order |
+| `cli/src/keypair.ts` | Keypair loading, pubkey truncation, SOL formatting |
+| `cli/src/format.ts` | Output formatting (human/JSON/quiet) |
+| `cli/src/errors.ts` | Error types with actionable hints |
+| `cli/src/lib/railway.ts` | Railway GraphQL API client |
+| `cli/src/lib/safety.ts` | Confirmation prompts, hot-wallet warnings |
+
 #### Governance
 
 | File | Purpose |
@@ -251,6 +327,7 @@ npx ts-node scripts/derive_flash_accounts.ts
 | `docs/SECURITY_AUDIT_2026-04-07.md` | Full security audit — 18 findings |
 | `docs/CODEREVIEW.md` | Code review protocol |
 | `docs/demo-flow.md` | 3-minute hackathon demo script |
+| `cli/README.md` | Operator CLI command reference |
 
 ---
 

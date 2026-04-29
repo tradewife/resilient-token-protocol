@@ -24,6 +24,37 @@ import os from "os";
 const DEMO_MINT = "FumRWMiDf6FCHuGSYJRPYknCD5F2QNgBmbABZsFJ6q5q";
 const RPC_URL = process.env.RPC_URL || "https://api.devnet.solana.com";
 
+// ─── Exported API (for CLI import) ──────────────────────────────────────
+
+export async function exportFreezeTreasury(
+  connection: Connection,
+  payer: Keypair,
+  mint: PublicKey,
+): Promise<{ signature: string }> {
+  const sdk = await import("../sdk/index.ts");
+  return sdk.freezeTreasury(connection, payer, mint);
+}
+
+export async function exportUnfreezeTreasury(
+  connection: Connection,
+  payer: Keypair,
+  mint: PublicKey,
+): Promise<{ signature: string }> {
+  const sdk = await import("../sdk/index.ts");
+  return sdk.unfreezeTreasury(connection, payer, mint);
+}
+
+export async function exportFreezeStatus(
+  connection: Connection,
+  mint: PublicKey,
+): Promise<{ frozen: boolean }> {
+  const sdk = await import("../sdk/index.ts");
+  const frozen = await sdk.isTreasuryFrozen(connection, mint);
+  return { frozen };
+}
+
+// ─── Standalone Runner ─────────────────────────────────────────────────
+
 function loadKeypair(): Keypair {
   const keypairPath = process.env.KEYPAIR_PATH ||
     path.join(os.homedir(), ".config", "solana", "id.json");
@@ -95,7 +126,13 @@ async function main() {
   }
 }
 
-main().catch((err) => {
-  console.error("\n  ❌ Error:", err instanceof Error ? err.message : String(err));
-  process.exit(1);
-});
+// Guard: only run main() when executed directly, not when imported
+const isDirectRun = typeof require !== "undefined"
+  ? require.main === module
+  : process.argv[1]?.includes("emergency-freeze");
+if (isDirectRun) {
+  main().catch((err) => {
+    console.error("\n  ❌ Error:", err instanceof Error ? err.message : String(err));
+    process.exit(1);
+  });
+}

@@ -2,7 +2,7 @@
 
 > **How to use this file:** Paste the relevant sections at the top of every fresh agent session. Do not paste the full papers or full repo. This file is the compressed institutional memory of the project. Update it after each significant session.
 
-**Last updated:** 2026-04-29 — Pipeline integrity audit complete (Stages 1–9), Railway workspace API token stored locally, all 6 Railway services green.
+**Last updated:** 2026-04-29 — Operator CLI (`cli/`) built and operational. 14 commands, interactive onboarding, replaces demo.sh. All 6 Railway services green. 308 Rust tests pass. Dashboard live (200 OK).
 **Current state:** All systems operational. 308 Rust tests pass. Dashboard live at resilientprotocol.xyz (200). On-chain program hardened (PDA seeds, overflow guards, FlashSide rejection, soft decay reset). Fee crank, strategy promotion, and Night Shift handoff all automated on Railway. Emergency freeze CLI script ready.
 
 ---
@@ -229,6 +229,47 @@ A judge must be able to verify these five things in under 3 minutes:
 ---
 
 ## 8. Session Status
+
+**Session 2026-04-29(ii) — Operator CLI (`cli/`) + Documentation Alignment**
+
+State as of Apr 29:
+- **308 Rust tests, 0 failures**
+- **Operator CLI built: 14 commands, interactive onboarding, replaces demo.sh**
+- **All 6 Railway services green (dashboard, devnet-loop, night-shift, fee-crank, promote-strategy, swarm-ci)**
+- **All root .md files aligned with current architecture**
+
+**What was done (this session):**
+
+| Category | Change | Files |
+|----------|--------|-------|
+| **New: Operator CLI** | `cli/` directory — Commander.js CLI with 14 commands across 7 groups | `cli/bin/rtp.ts`, `cli/src/commands/*.ts`, `cli/src/config.ts`, `cli/src/keypair.ts`, `cli/src/format.ts`, `cli/src/errors.ts`, `cli/src/lib/railway.ts`, `cli/src/lib/rpc.ts`, `cli/src/lib/safety.ts` |
+| **CLI commands** | init, deploy treasury/program, register adopter/strategy, crank fees/redistribute, strategy list/promote/retire, freeze, unfreeze, accounts derive/show, status, status services, demo | All in `cli/src/commands/` |
+| **Script refactoring** | Exported async functions from 4 scripts for CLI import: `exportSweepFees`, `exportPromoteStrategy`, `exportFreezeTreasury`/`exportUnfreezeTreasury`/`exportFreezeStatus`, `exportDeriveAccounts` | `scripts/fee-crank.ts`, `scripts/promote-strategy.ts`, `scripts/emergency-freeze.ts`, `scripts/derive_flash_accounts.ts` |
+| **Script guards** | All 4 refactored scripts guard `main()` — only runs when executed directly, not when imported | Same 4 files |
+| **Archived** | `demo.sh` → `scripts/archive/demo.sh`, `flash-trade-demo.ts` → `scripts/archive/flash-trade-demo.ts` | `scripts/archive/` |
+| **Tests** | Unit tests for config resolution, keypair loading, output formatting | `cli/tests/config.test.ts`, `cli/tests/keypair.test.ts`, `cli/tests/format.test.ts` |
+| **Docs: CLAUDE.md** | Added CLI commands section (full command reference), CLI key files table, archived script notes | `CLAUDE.md` |
+| **Docs: README.md** | Added Operator CLI section, updated Quick Demo (`rtp demo`), added `cli/` to project structure, added CLI to Quick Start and "What We Already Have" table | `README.md` |
+| **Docs: SESSION-CONTEXT.md** | Updated last-updated, added this session entry | `SESSION-CONTEXT.md` |
+| **Docs: RESOURCES.md** | Added CLI reference section | `docs/RESOURCES.md` |
+
+**CLI architecture:**
+- Runtime: `npx tsx cli/bin/rtp.ts <command>` (tsx resolves TypeScript natively)
+- Config: `~/.rtp/config.json` (created by `rtp init`), 5-tier resolution (flag > env > local > global > default)
+- Cross-directory imports: `../../../sdk/index.ts` and `../../../scripts/*.ts` with `.d.ts` type declarations
+- TypeScript compiles clean (`tsc --noEmit`)
+
+**Railway status (all 6 services SUCCESS):**
+| Service | Last Deploy |
+|---------|------------|
+| rtp-dashboard | 2026-04-29 03:04 UTC |
+| rtp-devnet-loop | 2026-04-29 03:04 UTC |
+| rtp-fee-crank | 2026-04-29 04:04 UTC |
+| rtp-promote-strategy | 2026-04-28 20:03 UTC |
+| rtp-night-shift | 2026-04-28 06:31 UTC |
+| rtp-swarm-ci | 2026-04-28 06:30 UTC |
+
+---
 
 **Session 2026-04-28 — Full Stack Security Audit + Remediation + Railway Deployment**
 

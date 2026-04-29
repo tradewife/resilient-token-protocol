@@ -67,6 +67,86 @@ interface SummaryJson {
   top_candidates: TopCandidate[];
 }
 
+// ─── Exported API (for CLI import) ──────────────────────────────────────
+
+export interface PromoteStrategyOptions {
+  dryRun?: boolean;
+  resultsDir?: string;
+}
+
+export interface PromoteStrategyResult {
+  strategyPDA?: string;
+  signature?: string;
+  strategyId?: string;
+}
+
+/**
+ * Programmable strategy promotion — called by `rtp strategy promote`.
+ * Reads night shift results, evaluates against promotion gate, submits on-chain.
+ */
+export async function exportPromoteStrategy(
+  connection: Connection,
+  payer: Keypair,
+  mint: string,
+  opts?: PromoteStrategyOptions,
+): Promise<PromoteStrategyResult | null> {
+  const dryRun = opts?.dryRun ?? false;
+  const resultsDir = opts?.resultsDir ?? "./data/night_results";
+
+  const summaryPath = findLatestSummaryInDir(resultsDir);
+  if (!summaryPath) return null;
+
+  const summary: SummaryJson = JSON.parse(fs.readFileSync(summaryPath, "utf-8"));
+  const eligible = summary.top_candidates.filter(c => !c.rejected);
+  if (eligible.length === 0) return null;
+
+  const passing = eligible
+    .map(c => ({ candidate: c, evaluation: evaluateCandidate(c) }))
+    .filter(({ evaluation }) => evaluation.passed);
+
+  if (passing.length === 0) return null;
+
+  const best = passing.reduce((a, b) =>
+    a.candidate.survivor_score > b.candidate.survivor_score ? a : b
+  );
+  const { candidate } = best;
+
+  const strategyId = makeStrategyId(candidate.symbol, candidate.survivor_score);
+  const promotionSharpeX100 = Math.round(candidate.oos_sharpe * 100);
+
+  if (dryRun) {
+    return { strategyId, strategyPDA: undefined, signature: undefined };
+  }
+
+  const sdk = await import("../sdk/index.ts");
+  const result = await sdk.registerStrategy(
+    connection,
+    payer,
+    mint,
+    strategyId,
+    promotionSharpeX100,
+  );
+
+  return {
+    strategyPDA: result.strategyPDA,
+    signature: result.signature,
+    strategyId,
+  };
+}
+
+function findLatestSummaryInDir(resultsDir: string): string | null {
+  if (!fs.existsSync(resultsDir)) return null;
+  const dateDirs = fs.readdirSync(resultsDir)
+    .filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d))
+    .sort()
+    .reverse();
+  for (const dateDir of dateDirs) {
+    const summaryPath = path.join(resultsDir, dateDir, "summary.json");
+    if (fs.existsSync(summaryPath)) return summaryPath;
+  }
+  return null;
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────────
 
 function banner() {
@@ -303,7 +383,13 @@ async function main() {
   }
 }
 
-main().catch((err) => {
-  console.error("[PROMOTE] Fatal:", err);
-  process.exit(1);
-});
+// Guard: only run main() when executed directly, not when imported
+const isDirectRun = typeof require !== "undefined"
+  ? require.main === module
+  : process.argv[1]?.includes("promote-strategy");
+if (isDirectRun) {
+  main().catch((err) => {
+    console.error("[PROMOTE] Fatal:", err);
+    process.exit(1);
+  });
+}

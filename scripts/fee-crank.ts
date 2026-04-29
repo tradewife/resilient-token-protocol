@@ -35,6 +35,68 @@ const RPC_URL = process.env.RPC_URL || "https://api.devnet.solana.com";
 const JITTER_MAX_MS = parseInt(process.env.JITTER_MAX_MS || "1800000", 10); // 30 min
 const FEE_THRESHOLD = parseInt(process.env.FEE_THRESHOLD || "5000000", 10); // 5 tokens (6 dp) ≈ $5
 
+// ─── Exported API (for CLI import) ──────────────────────────────────────
+
+export interface SweepFeesOptions {
+  dryRun?: boolean;
+  jitterMaxMs?: number;
+  feeThreshold?: number;
+}
+
+export interface SweepFeesResult {
+  withdrawSig?: string;
+  redistributeSig?: string;
+}
+
+/**
+ * Programmable fee sweep — called by `rtp crank fees`.
+ * Does NOT include jitter (pass jitterMaxMs > 0 to enable).
+ */
+export async function exportSweepFees(
+  connection: Connection,
+  payer: Keypair,
+  mint: PublicKey,
+  opts?: SweepFeesOptions,
+): Promise<SweepFeesResult> {
+  const dryRun = opts?.dryRun ?? false;
+  const jitterMaxMs = opts?.jitterMaxMs ?? 0;
+  const feeThreshold = opts?.feeThreshold ?? 5000000;
+
+  // Jitter delay (for Railway cron, not CLI)
+  if (jitterMaxMs > 0) {
+    const jitter = Math.floor(Math.random() * jitterMaxMs);
+    await new Promise((resolve) => setTimeout(resolve, jitter));
+  }
+
+  // Check payer SOL balance.
+  const solBalance = await connection.getBalance(payer.publicKey);
+  if (solBalance < 5000) {
+    throw new Error(`Insufficient SOL for gas: ${(solBalance / 1e9).toFixed(4)} SOL`);
+  }
+
+  if (dryRun) {
+    return { withdrawSig: undefined, redistributeSig: undefined };
+  }
+
+  const sdk = await import("../sdk/index.ts");
+
+  try {
+    const result = await sdk.withdrawAndRedistribute(connection, payer, mint);
+    return {
+      withdrawSig: result.withdrawSig,
+      redistributeSig: result.redistributeSig,
+    };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes("BelowThreshold")) {
+      return { withdrawSig: undefined, redistributeSig: undefined };
+    }
+    throw err;
+  }
+}
+
+// ─── Standalone Runner ─────────────────────────────────────────────────
+
 function banner() {
   console.log(`\n${"═".repeat(60)}`);
   console.log(`  RTP Fee Crank — ${new Date().toISOString()}`);
@@ -141,7 +203,13 @@ async function main() {
   }
 }
 
-main().catch((err) => {
-  console.error("[CRANK] Fatal:", err);
-  process.exit(1);
-});
+// Guard: only run main() when executed directly, not when imported
+const isDirectRun = typeof require !== "undefined"
+  ? require.main === module
+  : process.argv[1]?.includes("fee-crank");
+if (isDirectRun) {
+  main().catch((err) => {
+    console.error("[CRANK] Fatal:", err);
+    process.exit(1);
+  });
+}
