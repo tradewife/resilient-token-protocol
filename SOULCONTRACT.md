@@ -88,7 +88,7 @@ No strategy goes live or stays live without clearing codified gates. All thresho
 
 **Retirement** (LIVE → SUSPENDED or RETIRED):
 - **Hard stops** (immediate suspension): 10% 24h drawdown, 5 consecutive losses, rolling Sharpe < 0.5
-- **Soft decay** (3 strikes = retire): Sharpe drops below 50% of promotion Sharpe, win rate < 38%, regime mismatch > 5 days, funding rate below floor, correlation creep > 0.6
+- **Soft decay** (3 strikes = retire): Sharpe drops below 50% of promotion Sharpe, win rate < 38%, regime mismatch > 5 days, funding rate below floor, correlation creep > 0.6. Strikes only reset after 3 consecutive positive-performance updates (enforced on-chain via `recovery_counter`). A single lucky trade cannot clear the strike count.
 
 **Decay monitoring** uses risk-adjusted rolling windows: LOW (45 days), MEDIUM (30 days), HIGH (14 days) — matching the strategy's `decay_risk` classification in `strategy_library.md`.
 
@@ -109,7 +109,7 @@ No strategy goes live or stays live without clearing codified gates. All thresho
 | Layer | Mechanism |
 |-------|-----------|
 | **On-chain** | Anchor program constraints, PDA authority checks, CPI guards |
-| **On-chain lifecycle** | `StrategyRecord` PDA — hydrate_swarm requires Live status; hard stops auto-suspend; 3 soft strikes auto-retire |
+| **On-chain lifecycle** | `StrategyRecord` PDA — hydrate_swarm requires Live status; hard stops auto-suspend; 3 soft strikes auto-retire; strikes only reset after 3 consecutive positive updates (`recovery_counter >= MIN_RECOVERY_TRADES`); `update_strategy_performance` requires treasury.authority |
 | **Swarm runtime** | `coordinator/soulguard.rs` validates every message against invariants |
 | **Execution** | Trading Wing enforces position limits before every Flash Trade CPI submission; on-chain `open_flash_position` re-checks the 20% cap, runway floor, and max-3 concurrent positions |
 | **Lifecycle** | `promotion_criteria.py` gates strategy promotion and retirement; `DecayMonitor` tracks live performance against hard/soft thresholds |

@@ -589,7 +589,7 @@ rtp/
 │   │       │   ├── assessor.rs     # Treasury-native performance scoring
 │   │       │   ├── proposer.rs     # SPARC-inspired proposal lifecycle
 │   │       │   └── rollback.rs     # Auto-revert on >5% degradation
-│   │       ├── knowledge/mod.rs    # In-memory knowledge graph, cross-wing queries
+│   │       ├── knowledge/mod.rs    # Persistent knowledge store (JSON file-backed), cross-wing queries
 │   │       ├── audit/mod.rs        # 3-agent tribunal (Byzantine consensus)
 │   │       └── futureproof/mod.rs  # Deprecation monitoring, heartbeat
 │   └── src/bin/
@@ -655,7 +655,7 @@ Treasury program audit-remediated. All 6 wings built. Coordinator with full qual
 - ✅ Audit Wing (3-agent tribunal: Skeptic/UserProxy/Optimizer, Byzantine consensus)
 - ✅ Trading Wing (bridge-backed execution, 5 payload types, in-memory state)
 - ✅ Security Wing (threat detection, rate-limiting, suspicious-proposal flagging)
-- ✅ Knowledge Wing (in-memory knowledge graph, cross-wing queries)
+- ✅ Knowledge Wing (persistent knowledge store, file-backed, cross-wing queries)
 - ✅ Futureproof Wing (deprecation monitoring, heartbeat)
 - ✅ Treasury program on devnet (Anchor 1.0, audit remediated)
 - ✅ Python ↔ Rust typed bridge (`rtp/swarm/src/bridge.rs`)

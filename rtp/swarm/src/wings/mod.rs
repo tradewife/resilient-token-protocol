@@ -6,7 +6,7 @@
 //! - **Trading**: yield research, validation, execution (Week 4)
 //! - **Security**: threat detection, defense (Week 3)
 //! - **Evolve**: self-modification, adaptation (Week 2)
-//! - **Knowledge**: realtime knowledge graph (Week 3)
+//! - **Knowledge**: persistent knowledge store (file-backed) (Week 3)
 //! - **Audit**: soulcontract enforcement, compliance (Week 3)
 //! - **Futureproof**: quantum, deprecation monitoring (Week 5)
 

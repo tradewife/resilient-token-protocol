@@ -728,7 +728,7 @@ PublicKey.findProgramAddressSync(
                 ["Trading", "Yield generation + Flash Trade CPI execution"],
                 ["Security", "Threat detection, rate-limiting"],
                 ["Evolve", "Self-modification, adaptation, rollback"],
-                ["Knowledge", "In-memory knowledge graph"],
+                ["Knowledge", "Persistent knowledge store (file-backed)"],
                 ["Audit", "3-agent tribunal (Skeptic/UserProxy/Optimizer)"],
                 ["Future-proof", "Deprecation monitoring, quantum readiness"],
               ]}

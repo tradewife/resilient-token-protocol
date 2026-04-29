@@ -521,7 +521,7 @@ export default function Home() {
           <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-sm)" }}>
             {[
               { label: "Anchor program", detail: "19 on-chain instructions — fee collection, 70/20/10 redistribution, strategy lifecycle, Flash Trade CPI, emergency controls. Per-token isolation. Deployed to devnet." },
-              { label: "Rust swarm runtime", detail: "6 wings (Trading, Security, Evolve, Knowledge, Audit, Futureproof), Coordinator message bus, 308 tests" },
+              { label: "Rust swarm runtime", detail: "6 wings (Trading, Security, Evolve, Knowledge, Audit, Futureproof), Coordinator message bus, 308 unit + 5 integration tests" },
               { label: "Flash Trade CPI execution", detail: "Treasury PDA signs via invoke_signed. On-chain perps on Solana. Position open/close confirmed on mainnet. SOL stays on Solana — no bridge, no cross-chain." },
               { label: "Per-token isolation", detail: "Each token gets its own Treasury PDA + vault. Same strategy, isolated capital. No shared pool — one exploit can't drain all adopters." },
               { label: "TypeScript SDK", detail: "One function call to register any token with RTP. Launchpads integrate in minutes — no chain ops to run." },
