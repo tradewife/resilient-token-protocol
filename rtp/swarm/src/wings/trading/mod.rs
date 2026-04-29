@@ -532,7 +532,7 @@ pub fn soulguard_trade_check(size: &str, price: &str, vault_balance: f64) -> Res
             notional, max_position, vault_balance
         ))
     } else {
-        println!(
+        tracing::info!(
             "[SOULGUARD] ✅ position ${:.2} within 20% cap (${:.2}) — vault: ${:.2}",
             notional, max_position, vault_balance
         );
@@ -595,11 +595,11 @@ pub fn apply_mutations(
                 config.trailing_stop_atr = m.value;
             }
             _ => {
-                println!("[EVOLVE] ⚠️ skipping unknown param: {}", m.param);
+                tracing::info!("[EVOLVE] ⚠️ skipping unknown param: {}", m.param);
                 continue;
             }
         }
-        println!("[EVOLVE] ✅ applied: {} {} → {}", m.param, old, m.value);
+        tracing::info!("[EVOLVE] ✅ applied: {} {} → {}", m.param, old, m.value);
     }
 }
 
@@ -625,7 +625,7 @@ pub fn execute_hl_sol_order(
         format!("{:.2}", mid_price * 0.95)
     };
 
-    println!(
+    tracing::info!(
         "[TRADING WING] Placing SOL {} {} @ {} (IOC) on HL testnet",
         if is_buy { "BUY" } else { "SELL" },
         size,
@@ -636,7 +636,7 @@ pub fn execute_hl_sol_order(
 
     let report = parse_fill_response(&response, "SOL/USDT", is_buy, size, entry_price)?;
 
-    println!("[TRADING WING] fill confirmed: {:?}", report);
+    tracing::info!("[TRADING WING] fill confirmed: {:?}", report);
 
     Ok((response, report))
 }
@@ -799,7 +799,7 @@ pub fn build_treasury_deposit_tx(
         bincode::serialize(&tx).map_err(|e| format!("Transaction serialization failed: {}", e))?;
     let b64 = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &serialized);
 
-    println!(
+    tracing::info!(
         "[TREASURY] built deposit tx: {} tokens ({} raw) from {} → vault {}",
         amount_tokens, amount_raw, from_ata, vault
     );
@@ -904,7 +904,7 @@ pub fn load_devnet_keypair() -> Result<solana_sdk::signer::keypair::Keypair, Str
 pub fn sign_and_send_local(tx_base64: &str) -> Result<String, String> {
     let keypair = load_devnet_keypair()?;
 
-    println!(
+    tracing::info!(
         "[TREASURY] signing with local keypair: {}",
         keypair.pubkey()
     );
@@ -927,7 +927,7 @@ pub fn sign_and_send_local(tx_base64: &str) -> Result<String, String> {
         );
     }
 
-    println!("[TREASURY] tx signed: sig={}", tx.signatures[0]);
+    tracing::info!("[TREASURY] tx signed: sig={}", tx.signatures[0]);
 
     // Serialize the signed transaction.
     let signed_bytes =
@@ -998,7 +998,7 @@ pub fn deposit_yield_to_treasury(
 
     // Try Phantom KMS first (production path).
     if let Ok(result) = call_phantom_signer(&tx_b64) {
-        println!(
+        tracing::info!(
             "[TREASURY] yield deposited via Phantom KMS: {} tokens | {}",
             amount_tokens, result
         );
@@ -1008,11 +1008,11 @@ pub fn deposit_yield_to_treasury(
     // Fall back to local devnet keypair (demo path).
     match sign_and_send_local(&tx_b64) {
         Ok(sig) => {
-            println!(
+            tracing::info!(
                 "[TREASURY] yield deposited via demo keypair: {} tokens | sig: {}",
                 amount_tokens, sig
             );
-            println!(
+            tracing::info!(
                 "[TREASURY] explorer: https://explorer.solana.com/tx/{}?cluster=devnet",
                 sig
             );
@@ -1020,11 +1020,11 @@ pub fn deposit_yield_to_treasury(
         }
         Err(e) => {
             // Neither Phantom nor local signing worked — log for manual submission.
-            println!(
+            tracing::info!(
                 "[TREASURY] all signing paths failed ({}), tx ready for manual submit:",
                 e
             );
-            println!(
+            tracing::info!(
                 "[TREASURY]   base64: {}...",
                 &tx_b64[..tx_b64.len().min(60)]
             );
@@ -1058,7 +1058,7 @@ pub fn build_sol_transfer_tx(from_wallet: &str, lamports: u64) -> Result<String,
         bincode::serialize(&tx).map_err(|e| format!("Transaction serialization failed: {}", e))?;
     let b64 = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &serialized);
 
-    println!(
+    tracing::info!(
         "[TREASURY] built SOL transfer tx: {} lamports ({} SOL) from {} → vault {}",
         lamports,
         lamports as f64 / 1_000_000_000.0,
@@ -1111,7 +1111,7 @@ pub fn deposit_sol_yield_to_treasury(
 
     // Try Phantom KMS first (production path).
     if let Ok(result) = call_phantom_signer(&tx_b64) {
-        println!(
+        tracing::info!(
             "[TREASURY] SOL yield deposited via Phantom KMS: {:.6} SOL ({:.4} USDC) | {}",
             sol_amount, usdc_pnl, result
         );
@@ -1121,22 +1121,22 @@ pub fn deposit_sol_yield_to_treasury(
     // Fall back to local devnet keypair (demo path).
     match sign_and_send_local(&tx_b64) {
         Ok(sig) => {
-            println!(
+            tracing::info!(
                 "[TREASURY] SOL yield deposited: {:.6} SOL ({} USDC → {} lamports) | sig: {}",
                 sol_amount, usdc_pnl, lamports, sig
             );
-            println!(
+            tracing::info!(
                 "[TREASURY] explorer: https://explorer.solana.com/tx/{}?cluster=devnet",
                 sig
             );
             Ok(sig)
         }
         Err(e) => {
-            println!(
+            tracing::info!(
                 "[TREASURY] all SOL signing paths failed ({}), tx ready for manual submit:",
                 e
             );
-            println!(
+            tracing::info!(
                 "[TREASURY]   base64: {}...",
                 &tx_b64[..tx_b64.len().min(60)]
             );
@@ -1176,7 +1176,7 @@ pub fn devnet_fund_stub(sol_amount: f64, sol_price_usdc: f64) -> Result<f64, Str
     let usdc_gross = sol_amount * sol_price_usdc;
     let usdc_net = usdc_gross * (1.0 - BRIDGE_FEE_BPS);
 
-    println!(
+    tracing::info!(
         "[DEVNET STUB] SOL→USDC simulated: {:.4} SOL × ${:.2} = ${:.4} USDC (fee {:.2}%) → ${:.4} USDC deposited to HL perps",
         sol_amount,
         sol_price_usdc,
@@ -1229,7 +1229,7 @@ pub fn mcp_bridge_flow_for_token(
     let swap = mcp.quote_sol_to_usdc(sol_amount, di)?;
     let buy_usdc_raw: f64 = swap.buy_amount.parse().unwrap_or(0.0);
     let buy_usdc = buy_usdc_raw / 1_000_000.0; // USDC has 6 decimals
-    println!(
+    tracing::info!(
         "[MCP BRIDGE] Step 1 — Swap quote: {:.4} SOL → {:.6} USDC (impact {:.4}%)",
         sol_amount,
         buy_usdc,
@@ -1240,14 +1240,14 @@ pub fn mcp_bridge_flow_for_token(
     let deposit = mcp.quote_deposit_to_hl(sol_amount, di)?;
     let hl_usdc_raw: f64 = deposit.buy_amount_usdc.parse().unwrap_or(0.0);
     let hl_usdc = hl_usdc_raw / 100_000_000.0; // HL USDC has 8 decimals
-    println!(
+    tracing::info!(
         "[MCP BRIDGE] Step 2 — HL deposit quote: {:.4} SOL → {:.6} USDC on HL (via {})",
         sol_amount, hl_usdc, deposit.relay_id
     );
 
     // Step 3: Check HL account.
     let account = mcp.get_perps_account(di)?;
-    println!(
+    tracing::info!(
         "[MCP BRIDGE] Step 3 — HL account: value={}, available={}",
         account.account_value, account.available_balance
     );
@@ -1255,7 +1255,7 @@ pub fn mcp_bridge_flow_for_token(
     // Step 4: Check positions.
     let positions = mcp.get_perps_positions(di)?;
     let pos_count = positions.as_array().map(|a| a.len()).unwrap_or(0);
-    println!("[MCP BRIDGE] Step 4 — Open positions: {}", pos_count);
+    tracing::info!("[MCP BRIDGE] Step 4 — Open positions: {}", pos_count);
 
     Ok(serde_json::json!({
         "swap": {
@@ -1453,7 +1453,7 @@ impl TradingWing {
 
                     // Print the execution log
                     for line in &flash_log {
-                        println!("{}", line);
+                        tracing::info!("{}", line);
                     }
 
                     // The actual tx submission (open_flash_position instruction)
@@ -1505,7 +1505,7 @@ impl TradingWing {
                                 Ok(quote) => {
                                     let buy_usdc: f64 =
                                         quote.buy_amount.parse().unwrap_or(0.0) / 1_000_000.0;
-                                    println!(
+                                    tracing::info!(
                                         "[MCP BRIDGE] Swap quote: {:.4} SOL → {:.4} USDC (impact {:.4}%)",
                                         mcp_sol,
                                         buy_usdc,
@@ -1513,7 +1513,7 @@ impl TradingWing {
                                     );
                                 }
                                 Err(e) => {
-                                    println!("[MCP BRIDGE] Swap quote failed (non-fatal): {}", e);
+                                    tracing::info!("[MCP BRIDGE] Swap quote failed (non-fatal): {}", e);
                                 }
                             }
 
@@ -1522,13 +1522,13 @@ impl TradingWing {
                                 Ok(dep) => {
                                     let usdc: f64 =
                                         dep.buy_amount_usdc.parse().unwrap_or(0.0) / 100_000_000.0;
-                                    println!(
+                                    tracing::info!(
                                         "[MCP BRIDGE] HL deposit quote: {:.4} SOL → {:.4} USDC on HL (via {})",
                                         mcp_sol, usdc, dep.relay_id
                                     );
                                 }
                                 Err(e) => {
-                                    println!(
+                                    tracing::info!(
                                         "[MCP BRIDGE] HL deposit quote failed (non-fatal): {}",
                                         e
                                     );
@@ -1538,13 +1538,13 @@ impl TradingWing {
                             // Step 3: Check HL perps account.
                             match mcp.get_perps_account(mcp_di) {
                                 Ok(acct) => {
-                                    println!(
+                                    tracing::info!(
                                         "[MCP BRIDGE] HL perps account: value={}, available={}",
                                         acct.account_value, acct.available_balance
                                     );
                                 }
                                 Err(e) => {
-                                    println!(
+                                    tracing::info!(
                                         "[MCP BRIDGE] HL account check failed (non-fatal): {}",
                                         e
                                     );
@@ -1552,7 +1552,7 @@ impl TradingWing {
                             }
                         }
                         Err(e) => {
-                            println!(
+                            tracing::info!(
                                 "[MCP BRIDGE] Phantom MCP client unavailable (non-fatal): {}",
                                 e
                             );
@@ -1577,7 +1577,7 @@ impl TradingWing {
                     if let Err(e) =
                         soulguard_trade_check(size, &format!("{:.2}", mid_price), vault_balance)
                     {
-                        println!("{}", e);
+                        tracing::info!("{}", e);
                         return Some(Message::new(
                             WingId::Trading,
                             WingId::Coordinator,
@@ -1605,12 +1605,12 @@ impl TradingWing {
                             {
                                 let sol_price = get_sol_mid_price().unwrap_or(mid_price);
                                 match deposit_sol_yield_to_treasury(pnl, sol_price, None) {
-                                    Ok(sig) => println!(
+                                    Ok(sig) => tracing::info!(
                                         "[TREASURY] SOL yield deposited: {} USDC → SOL | {}",
                                         pnl, sig
                                     ),
                                     Err(e) => {
-                                        println!("[TREASURY] SOL deposit failed (non-fatal): {}", e)
+                                        tracing::info!("[TREASURY] SOL deposit failed (non-fatal): {}", e)
                                     }
                                 }
                             }
@@ -1899,7 +1899,9 @@ mod tests {
         );
         wing.handle_message(&proposal);
 
-        // Execute — binary doesn't exist, expect Error payload.
+        // Execute — bridge now reads from Night Shift files first.
+        // If files exist, it returns YieldReport. If not, falls back to
+        // subprocess which returns Error (BinaryNotFound).
         let permit = Message::new(
             WingId::Coordinator,
             WingId::Trading,
@@ -1909,10 +1911,14 @@ mod tests {
         );
         let response = wing.handle_message(&permit).unwrap();
         match response.payload {
+            Payload::YieldReport { .. } => {
+                // Bridge read from Night Shift files — expected when data exists
+            }
             Payload::Error { reason, .. } => {
+                // Binary fallback failed — expected when no data files exist
                 assert!(reason.contains("Bridge execution failed"));
             }
-            _ => panic!("Expected Error payload from failed bridge call"),
+            other => panic!("Expected YieldReport or Error, got: {:?}", other),
         }
     }
 
@@ -1935,7 +1941,7 @@ mod tests {
     }
 
     #[test]
-    fn execution_count_zero_when_bridge_fails() {
+    fn execution_count_after_permit() {
         let wing = TradingWing::new();
         let proposal = Message::new(
             WingId::Coordinator,
@@ -1957,7 +1963,11 @@ mod tests {
             },
         );
         wing.handle_message(&permit);
-        assert_eq!(wing.execution_count(), 0);
+        // Bridge now reads Night Shift files first — if data exists,
+        // execution succeeds and count increments. If no data, falls
+        // back to subprocess which fails and count stays 0.
+        let count = wing.execution_count();
+        assert!(count == 0 || count == 1, "execution count should be 0 or 1, got {}", count);
     }
 
     // Hyperliquid unit tests

@@ -75,13 +75,18 @@ pub struct FlashPoolData {
     pub utilization: String,
 }
 
+use std::sync::Mutex;
+
 // ---- REST API Client ----
 
 /// Flash Trade REST API client (queries only, no execution).
+/// Includes price caching for graceful degradation when API is unavailable.
 pub struct FlashTradeClient {
     client: reqwest::Client,
     base_url: String,
     max_retries: u32,
+    /// Cached prices: symbol → (price, timestamp_secs).
+    price_cache: Mutex<std::collections::HashMap<String, (f64, i64)>>,
 }
 
 impl Default for FlashTradeClient {
@@ -99,6 +104,7 @@ impl FlashTradeClient {
                 .unwrap_or_else(|_| reqwest::Client::new()),
             base_url: FLASH_API_BASE.to_string(),
             max_retries: 3,
+            price_cache: Mutex::new(std::collections::HashMap::new()),
         }
     }
 
@@ -136,13 +142,42 @@ impl FlashTradeClient {
     }
 
     /// Get the oracle price for a specific symbol (e.g., "SOL").
+    /// Caches the result for graceful degradation when API is unavailable.
     pub async fn get_price(&self, symbol: &str) -> Result<f64, String> {
-        let prices = self.get_prices().await?;
-        prices
-            .iter()
-            .find(|p| p.symbol == symbol)
-            .and_then(|p| p.oracle_price.parse::<f64>().ok())
-            .ok_or_else(|| format!("Price not found for symbol: {}", symbol))
+        match self.get_prices().await {
+            Ok(prices) => {
+                if let Some(price) = prices
+                    .iter()
+                    .find(|p| p.symbol == symbol)
+                    .and_then(|p| p.oracle_price.parse::<f64>().ok())
+                {
+                    // Cache the successful result
+                    let ts = chrono::Utc::now().timestamp();
+                    if let Ok(mut cache) = self.price_cache.lock() {
+                        cache.insert(symbol.to_string(), (price, ts));
+                    }
+                    Ok(price)
+                } else {
+                    Err(format!("Price not found for symbol: {}", symbol))
+                }
+            }
+            Err(api_err) => {
+                // API failed — try cached price
+                if let Ok(cache) = self.price_cache.lock() {
+                    if let Some((cached_price, ts)) = cache.get(symbol) {
+                        tracing::warn!(
+                            "[FlashTradeClient] API failed for {}, using cached price (${:.2} from {}s ago): {}",
+                            symbol,
+                            cached_price,
+                            chrono::Utc::now().timestamp() - ts,
+                            api_err
+                        );
+                        return Ok(*cached_price);
+                    }
+                }
+                Err(format!("Price unavailable for {} (API: {}, no cache)", symbol, api_err))
+            }
+        }
     }
 
     /// Get all positions for a given owner wallet address.
@@ -198,6 +233,20 @@ impl FlashTradeClient {
             .build()
             .map_err(|e| format!("tokio runtime: {}", e))?;
         rt.block_on(self.get_pool_data())
+    }
+
+    /// Expected Flash Trade program version (for discriminator compatibility).
+    /// If Flash Trade upgrades and changes discriminators, CPI calls silently fail.
+    /// This method queries the REST API as a lightweight health check.
+    pub async fn check_program_health(&self) -> Result<String, String> {
+        // Query markets as a liveness check — if the API responds, the program
+        // is active. Discriminator version can't be checked directly, but API
+        // availability is a strong signal.
+        let markets = self.get_markets().await?;
+        Ok(format!(
+            "Flash Trade API healthy: {} markets available",
+            markets.len()
+        ))
     }
 }
 

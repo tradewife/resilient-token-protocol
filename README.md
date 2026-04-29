@@ -30,7 +30,7 @@ A Solana-native, self-funding treasury governed by a modular Rust swarm. Any tok
 
 ## The One-Liner
 
-Any launch platform integrates RTP — one function call per token launch. Transfer fees route to a program-owned treasury vault. An autonomous swarm generates yield, returns it to the project and holders, forever. There is no RTP token. RTP is infrastructure.
+Any launch platform integrates RTP — one function call per token launch. Transfer fees route to a program-owned treasury vault. A cron-driven autonomous agent swarm generates yield, returns it to the project and holders, forever. No human approves individual steps. There is no RTP token. RTP is infrastructure.
 
 ## Why This Is Different
 
@@ -206,7 +206,7 @@ Treasury program deployed and operational on Solana devnet (Apr 11 2026).
 │  ├── Trading Wing    — yield generation + execution             │
 │  ├── Security Wing   — threat detection + defense               │
 │  ├── Evolve Wing     — self-modification + adaptation           │
-│  ├── Knowledge Wing  — realtime knowledge graph                 |
+│  ├── Knowledge Wing  — persistent knowledge store               |
 │  ├── Audit Wing      — efficiency + safety + intent compliance  │
 │  └── Future-proof Wing — quantum + existential monitoring      │
 ├─────────────────────────────────────────────────────────────────┤
@@ -273,7 +273,7 @@ The Evolve Wing cannot act without soulcontract compliance. Every modification i
 
 ### Knowledge Wing
 
-Builds and maintains a realtime knowledge graph spanning every aspect of the project — market data, strategy performance, security events, architectural decisions, and external research.
+Builds and maintains a persistent knowledge store spanning every aspect of the project — market data, strategy performance, security events, architectural decisions, and external research. Knowledge is serialized to disk after every write, surviving process restarts and enabling cross-cycle recall.
 
 | Capability | Description |
 |-----------|-------------|

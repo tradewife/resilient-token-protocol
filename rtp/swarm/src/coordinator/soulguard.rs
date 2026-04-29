@@ -86,7 +86,7 @@ impl Soulguard {
 
         let spec = if spec_path.exists() {
             SoulcontractSpec::from_file(&spec_path).unwrap_or_else(|e| {
-                eprintln!(
+                tracing::error!(
                     "WARNING: Failed to parse soulcontract.md: {}. Using defaults.",
                     e
                 );

@@ -206,8 +206,38 @@ impl NightShiftCandidate {
 }
 
 /// Call the Python binary with a typed request.
+///
+/// Resolution order:
+/// 1. Read Night Shift results from `data/night_results/latest/summary.json`
+/// 2. Fall back to subprocess call to `cycle_report.bin` (legacy)
 pub fn call_bridge(request: &BridgeRequest) -> Result<BridgeResponse, BridgeError> {
+    // Try file-based Night Shift results first (no subprocess needed).
+    match read_night_shift_for_symbol(&request.symbol) {
+        Ok(response) => return Ok(response),
+        Err(_) => {} // Fall through to subprocess path
+    }
+
+    // Legacy subprocess path (cycle_report.bin).
     call_bridge_with_bin(CYCLE_BIN, request)
+}
+
+/// Read the latest Night Shift summary.json and find the best candidate
+/// matching the requested symbol.
+fn read_night_shift_for_symbol(symbol: &str) -> Result<BridgeResponse, BridgeError> {
+    let summary = read_latest_night_results()?;
+    let candidate = summary
+        .summary
+        .top_candidates
+        .iter()
+        .filter(|c| c.symbol == symbol && !c.rejected)
+        .max_by(|a, b| {
+            a.survivor_score
+                .partial_cmp(&b.survivor_score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })
+        .ok_or_else(|| BridgeError::ParseError(format!("No eligible candidate for {}", symbol)))?;
+
+    Ok(candidate.to_bridge_response())
 }
 
 /// Call the bridge using a custom binary path (for testing).

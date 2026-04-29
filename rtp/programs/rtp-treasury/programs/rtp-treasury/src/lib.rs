@@ -51,6 +51,10 @@ const HARD_ROLLING_SHARPE_MIN_X100: i32 = 50;   // 0.5 * 100 — mirrors Retirem
 /// Soft decay retirement — mirrors Python RetirementGate.SOFT_STRIKE_THRESHOLD
 const SOFT_STRIKE_THRESHOLD: u8 = 3;
 
+/// Minimum consecutive positive-performance updates before soft decay strikes reset.
+/// Prevents a single lucky trade from clearing the strike count.
+const MIN_RECOVERY_TRADES: u8 = 3;
+
 /// Flash Trade Perpetuals program ID (mainnet)
 const FLASH_TRADE_PROGRAM_ID: &str = "FLASH6Lo6h3iasJKWDs2F8TkW2UKf3s15C8PMGuVfgBn";
 
@@ -210,6 +214,8 @@ impl Default for Phase {
 pub struct AdopterRecord {
     /// The SPL token mint of the adopting project
     pub token_mint: Pubkey,
+    /// The treasury this adopter belongs to (back-reference for cross-validation)
+    pub treasury: Pubkey,
     /// Cumulative fee contributions (in lamports) since adoption
     pub fees_contributed_lamports: u64,
     /// Unix timestamp of first fee deposit (adoption date)
@@ -254,6 +260,9 @@ pub struct StrategyRecord {
     pub consecutive_losses: u8,
     /// Number of soft decay strikes accumulated
     pub soft_decay_strikes: u8,
+    /// Consecutive positive-performance updates since last strike (recovery gate).
+    /// Strikes only reset after MIN_RECOVERY_TRADES consecutive positive updates.
+    pub recovery_counter: u8,
     /// Largest single drawdown observed in the last 24h, in basis points
     pub drawdown_24h_bps: u16,
     /// Cumulative total trades executed on-chain
@@ -355,6 +364,7 @@ pub struct StrategyPerformanceUpdated {
     pub rolling_sharpe_x100: i32,
     pub consecutive_losses: u8,
     pub soft_decay_strikes: u8,
+    pub recovery_counter: u8,
     pub drawdown_24h_bps: u16,
     pub status: StrategyLifecycleStatus,
     pub ts: i64,
@@ -842,6 +852,7 @@ pub mod rtp_treasury {
         let clock = Clock::get()?;
 
         record.token_mint = token_mint;
+        record.treasury = ctx.accounts.treasury.key();
         record.fees_contributed_lamports = 0;
         record.adopted_at = clock.unix_timestamp;
         record.last_deposit_ts = clock.unix_timestamp;
@@ -881,6 +892,7 @@ pub mod rtp_treasury {
         let record = &mut ctx.accounts.adopter_record;
 
         record.token_mint = token_mint;
+        record.treasury = ctx.accounts.treasury.key();
         record.fees_contributed_lamports = 0;
         record.adopted_at = clock.unix_timestamp;
         record.last_deposit_ts = clock.unix_timestamp;
@@ -942,10 +954,7 @@ pub mod rtp_treasury {
     /// Yield already generated stays with the project.
     pub fn end_beta(ctx: Context<EndBeta>) -> Result<()> {
         require!(!ctx.accounts.treasury.frozen, TreasuryError::TreasuryFrozen);
-        require!(
-            ctx.accounts.authority.key() == ctx.accounts.treasury.authority,
-            TreasuryError::UnauthorizedBetaOp,
-        );
+        // Authority validated by Anchor constraint on EndBeta struct.
 
         let record = &mut ctx.accounts.adopter_record;
         let clock = Clock::get()?;
@@ -972,10 +981,7 @@ pub mod rtp_treasury {
             strategy_id.len() >= 1 && strategy_id.len() <= 16,
             TreasuryError::InvalidStrategyId,
         );
-        require!(
-            ctx.accounts.authority.key() == ctx.accounts.treasury.authority,
-            TreasuryError::UnauthorizedStrategyOp,
-        );
+        // Authority validated by Anchor constraint on RegisterStrategy struct.
 
         let clock = Clock::get()?;
         let record = &mut ctx.accounts.strategy_record;
@@ -987,6 +993,7 @@ pub mod rtp_treasury {
         record.rolling_pnl_bps = 0;
         record.consecutive_losses = 0;
         record.soft_decay_strikes = 0;
+        record.recovery_counter = 0;
         record.drawdown_24h_bps = 0;
         record.total_trades = 0;
         record.promotion_sharpe_x100 = promotion_sharpe_x100;
@@ -1016,6 +1023,13 @@ pub mod rtp_treasury {
         drawdown_24h_bps: u16,
         new_soft_strike: bool,
     ) -> Result<()> {
+        // Authority gate — only treasury.authority can update strategy metrics.
+        // Without this, any signer could write arbitrary PnL/Sharpe/strikes
+        // and keep a bad strategy Live forever.
+        require!(
+            ctx.accounts.authority.key() == ctx.accounts.treasury.authority,
+            TreasuryError::UnauthorizedStrategyOp,
+        );
         require!(!ctx.accounts.treasury.frozen, TreasuryError::TreasuryFrozen);
         let record = &mut ctx.accounts.strategy_record;
         require!(
@@ -1029,12 +1043,22 @@ pub mod rtp_treasury {
         record.consecutive_losses = consecutive_losses;
         record.drawdown_24h_bps = drawdown_24h_bps;
 
-        // 3. Increment soft decay strikes, or reset on recovery
+        // 3. Increment soft decay strikes, or track recovery toward a reset.
+        // Strikes only reset after MIN_RECOVERY_TRADES consecutive positive
+        // updates — a single lucky trade cannot clear the strike count.
         if new_soft_strike {
             record.soft_decay_strikes = record.soft_decay_strikes.saturating_add(1);
+            record.recovery_counter = 0; // New strike resets recovery progress
         } else if rolling_pnl_bps > 0 && rolling_sharpe_x100 > 0 {
-            // Recovery: positive PnL and positive Sharpe resets soft decay strikes
-            record.soft_decay_strikes = 0;
+            record.recovery_counter = record.recovery_counter.saturating_add(1);
+            if record.recovery_counter >= MIN_RECOVERY_TRADES {
+                // Sustained recovery: reset strikes
+                record.soft_decay_strikes = 0;
+                record.recovery_counter = 0;
+            }
+        } else {
+            // Neither strike nor recovery — reset recovery counter
+            record.recovery_counter = 0;
         }
 
         // 4. Increment total trades
@@ -1083,6 +1107,7 @@ pub mod rtp_treasury {
             rolling_sharpe_x100: record.rolling_sharpe_x100,
             consecutive_losses: record.consecutive_losses,
             soft_decay_strikes: record.soft_decay_strikes,
+            recovery_counter: record.recovery_counter,
             drawdown_24h_bps: record.drawdown_24h_bps,
             status: record.status,
             ts: clock.unix_timestamp,
@@ -1094,10 +1119,7 @@ pub mod rtp_treasury {
     /// Emergency manual retirement by treasury authority. Bypasses thresholds.
     pub fn force_retire_strategy(ctx: Context<ForceRetireStrategy>) -> Result<()> {
         require!(!ctx.accounts.treasury.frozen, TreasuryError::TreasuryFrozen);
-        require!(
-            ctx.accounts.authority.key() == ctx.accounts.treasury.authority,
-            TreasuryError::UnauthorizedStrategyOp,
-        );
+        // Authority validated by Anchor constraint on ForceRetireStrategy struct.
 
         let record = &mut ctx.accounts.strategy_record;
         let clock = Clock::get()?;
@@ -1273,6 +1295,20 @@ pub mod rtp_treasury {
         let remaining = ctx.remaining_accounts;
         require!(
             remaining.len() >= 19,
+            TreasuryError::FlashCpiFailed,
+        );
+
+        // Validate Flash Trade program ID at remaining[15].
+        // Close handler validates position PDA; open handler validates program ID.
+        // This ensures the CPI targets the expected program, not a malicious substitute.
+        require!(
+            remaining[15].key() == flash_program_id,
+            TreasuryError::InvalidFlashProgramId,
+        );
+
+        // Validate treasury PDA at remaining[0] matches our treasury signer.
+        require!(
+            remaining[0].key() == treasury.key(),
             TreasuryError::FlashCpiFailed,
         );
 
@@ -1865,7 +1901,10 @@ pub mod rtp_treasury {
         pub strategy_record: Account<'info, StrategyRecord>,
 
         /// Authority — must equal treasury.authority
-        #[account(mut)]
+        #[account(
+            mut,
+            constraint = authority.key() == treasury.authority @ TreasuryError::UnauthorizedStrategyOp,
+        )]
         pub authority: Signer<'info>,
 
         pub system_program: Program<'info, System>,
@@ -1890,6 +1929,9 @@ pub mod rtp_treasury {
         pub strategy_record: Account<'info, StrategyRecord>,
 
         /// Authority — must equal treasury.authority
+        #[account(
+            constraint = authority.key() == treasury.authority @ TreasuryError::UnauthorizedStrategyOp,
+        )]
         pub authority: Signer<'info>,
     }
 
@@ -1911,7 +1953,10 @@ pub mod rtp_treasury {
         )]
         pub strategy_record: Account<'info, StrategyRecord>,
 
-        /// Authority — must equal treasury.authority (enforced in handler)
+        /// Authority — must equal treasury.authority
+        #[account(
+            constraint = authority.key() == treasury.authority @ TreasuryError::UnauthorizedStrategyOp,
+        )]
         pub authority: Signer<'info>,
     }
 
@@ -1932,7 +1977,10 @@ pub mod rtp_treasury {
         )]
         pub treasury: Account<'info, Treasury>,
 
-        /// Authority — must equal treasury.authority (enforced in handler)
+        /// Authority — must equal treasury.authority
+        #[account(
+            constraint = authority.key() == treasury.authority @ TreasuryError::UnauthorizedBetaOp,
+        )]
         pub authority: Signer<'info>,
     }
 

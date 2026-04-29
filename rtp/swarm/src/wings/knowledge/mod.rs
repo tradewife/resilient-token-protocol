@@ -1,13 +1,15 @@
-//! Knowledge Wing — in-memory knowledge graph and cross-wing recall.
+//! Knowledge Wing — persistent knowledge store and cross-wing recall.
 //!
 //! Stores strategy results, wing metrics, and decisions in a HashMap.
 //! Any wing can query the knowledge store via `KnowledgeQuery`.
-//!
-//! Handles: KnowledgeQuery, YieldReport, Assessment, Heartbeat.
+//! When persistence is enabled, the store serializes to JSON on every write
+//! and loads from disk on startup — surviving process restarts.
 
 use crate::types::{Message, Payload, WingId};
 use chrono::Utc;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::Mutex;
 use std::sync::MutexGuard;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -26,18 +28,21 @@ fn lock_store<'a>(
     }
 }
 
-/// A single knowledge entry.
-#[derive(Debug, Clone)]
+/// A single knowledge entry (serializable for persistence).
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct KnowledgeEntry {
     values: Vec<String>,
     last_updated: chrono::DateTime<chrono::Utc>,
 }
 
-/// The Knowledge Wing — realtime knowledge store.
+/// The Knowledge Wing — persistent knowledge store.
 pub struct KnowledgeWing {
     /// Key → list of values (append-only log per key).
     store: Mutex<HashMap<String, KnowledgeEntry>>,
     query_count: AtomicU64,
+    /// Optional file path for JSON persistence. When set, the store is
+    /// serialized to this path after every write and loaded on construction.
+    persist_path: Option<PathBuf>,
 }
 
 impl KnowledgeWing {
@@ -45,6 +50,46 @@ impl KnowledgeWing {
         Self {
             store: Mutex::new(HashMap::new()),
             query_count: AtomicU64::new(0),
+            persist_path: None,
+        }
+    }
+
+    /// Create a KnowledgeWing that persists its store to a JSON file.
+    /// Loads existing data from disk on construction.
+    pub fn new_with_persistence(path: PathBuf) -> Self {
+        let mut store = HashMap::new();
+        if path.exists() {
+            if let Ok(data) = std::fs::read_to_string(&path) {
+                if let Ok(loaded) = serde_json::from_str::<HashMap<String, KnowledgeEntry>>(&data) {
+                    store = loaded;
+                    tracing::info!(
+                        "[KnowledgeWing] loaded {} entries from {}",
+                        store.len(),
+                        path.display()
+                    );
+                }
+            }
+        }
+        Self {
+            store: Mutex::new(store),
+            query_count: AtomicU64::new(0),
+            persist_path: Some(path),
+        }
+    }
+
+    /// Serialize the store to disk (if persistence is enabled).
+    fn persist(&self) {
+        if let Some(path) = &self.persist_path {
+            if let Ok(store) = self.store.lock() {
+                if let Some(parent) = path.parent() {
+                    let _ = std::fs::create_dir_all(parent);
+                }
+                if let Ok(json) = serde_json::to_string_pretty(&*store) {
+                    if let Err(e) = std::fs::write(path, &json) {
+                        tracing::warn!("[KnowledgeWing] persist failed: {}", e);
+                    }
+                }
+            }
         }
     }
 
@@ -85,6 +130,8 @@ impl KnowledgeWing {
                     Utc::now().to_rfc3339()
                 ));
                 entry.last_updated = Utc::now();
+                drop(store); // Release lock before persist
+                self.persist();
                 Some(Message::new(
                     WingId::Knowledge,
                     WingId::Coordinator,
@@ -114,6 +161,8 @@ impl KnowledgeWing {
                     Utc::now().to_rfc3339()
                 ));
                 entry.last_updated = Utc::now();
+                drop(store); // Release lock before persist
+                self.persist();
                 Some(Message::new(
                     WingId::Knowledge,
                     WingId::Coordinator,
@@ -195,6 +244,8 @@ impl KnowledgeWing {
                 });
             entry.values.push(value.to_string());
             entry.last_updated = Utc::now();
+            drop(store);
+            self.persist();
         }
     }
 

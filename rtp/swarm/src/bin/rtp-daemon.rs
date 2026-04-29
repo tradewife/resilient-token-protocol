@@ -13,6 +13,9 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Serialize, Deserialize)]
 struct CycleOutput {
     cycle_id: String,
+    health: CycleHealth,
+    retry_count: u32,
+    error_message: Option<String>,
     params_used: StrategyConfig,
     mutations_proposed: Vec<rtp_swarm::wings::evolve::StrategyMutation>,
     mutations_accepted: Vec<rtp_swarm::wings::evolve::StrategyMutation>,
@@ -21,6 +24,17 @@ struct CycleOutput {
     used_llm: bool,
     model_label: String,
     memory_files: Vec<String>,
+}
+
+/// Health status of a completed cycle.
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+enum CycleHealth {
+    /// All steps completed successfully.
+    Healthy,
+    /// Cycle completed but some non-critical steps failed.
+    Degraded,
+    /// Cycle failed — could not complete core steps.
+    Failed,
 }
 
 /// Resolve the repo root (two levels up from CARGO_MANIFEST_DIR, i.e. rtp/swarm/).
@@ -40,15 +54,15 @@ fn load_config() -> StrategyConfig {
         match std::fs::read_to_string(&path) {
             Ok(content) => match serde_json::from_str(&content) {
                 Ok(config) => {
-                    println!("[DAEMON] loaded config from {}", path_display);
+                    tracing::info!("[DAEMON] loaded config from {}", path_display);
                     return config;
                 }
-                Err(e) => println!("[DAEMON] config parse error: {} — using defaults", e),
+                Err(e) => tracing::info!("[DAEMON] config parse error: {} — using defaults", e),
             },
-            Err(e) => println!("[DAEMON] config read error: {} — using defaults", e),
+            Err(e) => tracing::info!("[DAEMON] config read error: {} — using defaults", e),
         }
     } else {
-        println!("[DAEMON] no prior config found — using SOL/USDT Survivor 2.69 defaults");
+        tracing::info!("[DAEMON] no prior config found — using SOL/USDT Survivor 2.69 defaults");
     }
     StrategyConfig::default()
 }
@@ -105,17 +119,17 @@ async fn check_stale_positions(max_hold_hours: f64) {
     match client.get_positions(treasury_pda).await {
         Ok(positions) => {
             if positions.is_empty() {
-                println!("[DAEMON] no open positions — stale check clean");
+                tracing::info!("[DAEMON] no open positions — stale check clean");
                 return;
             }
-            println!("[DAEMON] {} open position(s) found", positions.len());
+            tracing::info!("[DAEMON] {} open position(s) found", positions.len());
             let now = Utc::now();
             for pos in &positions {
                 // Parse created_at — Flash Trade returns ISO 8601 timestamps.
                 let opened = chrono::DateTime::parse_from_rfc3339(&pos.created_at)
                     .map(|dt| dt.with_timezone(&Utc))
                     .unwrap_or_else(|e| {
-                        println!(
+                        tracing::info!(
                             "[DAEMON] warning: could not parse created_at '{}' — {}",
                             pos.created_at, e
                         );
@@ -123,7 +137,7 @@ async fn check_stale_positions(max_hold_hours: f64) {
                     });
                 let age_hours = (now - opened).num_seconds() as f64 / 3600.0;
                 let stale = age_hours > timeout_hours;
-                println!(
+                tracing::info!(
                     "[DAEMON] position {} — side={}, size_usd={}, age={:.1}h{}",
                     &pos.position_address[..8],
                     pos.side,
@@ -132,7 +146,7 @@ async fn check_stale_positions(max_hold_hours: f64) {
                     if stale { " *** STALE ***" } else { "" }
                 );
                 if stale {
-                    println!(
+                    tracing::info!(
                         "[DAEMON] ALERT: position {} is stale ({:.1}h > {:.1}h timeout). \
                          Manual close_flash_position recommended.",
                         pos.position_address, age_hours, timeout_hours
@@ -141,7 +155,7 @@ async fn check_stale_positions(max_hold_hours: f64) {
             }
         }
         Err(e) => {
-            println!(
+            tracing::info!(
                 "[DAEMON] could not query Flash Trade positions ({}). \
                  Stale check skipped — on-chain CPI will still gate.",
                 e
@@ -201,7 +215,7 @@ fn check_treasury_frozen() -> Result<bool, String> {
     let treasury: TreasuryAccount = bincode::deserialize(&bytes[8..])
         .map_err(|e| format!("Treasury deserialize error: {}", e))?;
 
-    println!(
+    tracing::info!(
         "[DAEMON] treasury decoded: mint={}, phase={}, frozen={}, runway={}",
         treasury.mint, treasury.phase, treasury.frozen, treasury.min_runway_balance
     );
@@ -211,31 +225,103 @@ fn check_treasury_frozen() -> Result<bool, String> {
 
 #[tokio::main]
 async fn main() {
-    println!("┌─────────────────────────────────────────────────┐");
-    println!("│  RTP — Devnet Loop Daemon                       │");
-    println!(
+    tracing_subscriber::fmt::init();
+
+    let watch_mode = std::env::var("RTP_WATCHDOG").is_ok();
+    let interval_secs: u64 = std::env::var("RTP_CYCLE_INTERVAL_SECS")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(21600); // 6h default
+
+    if watch_mode {
+        tracing::info!("[DAEMON] Watchdog mode — cycling every {}s until interrupted", interval_secs);
+        loop {
+            run_cycle_with_retry(3).await;
+            tracing::info!("[DAEMON] sleeping {}s until next cycle", interval_secs);
+            tokio::time::sleep(std::time::Duration::from_secs(interval_secs)).await;
+        }
+    } else {
+        // Single-shot mode (current behavior, for Railway cron).
+        run_cycle_with_retry(3).await;
+    }
+}
+
+/// Run a single cycle with retry logic.
+/// Retries up to `max_retries` times with exponential backoff.
+/// Always exits cleanly (exit 0) — never panics or fails the Railway cron.
+async fn run_cycle_with_retry(max_retries: u32) {
+    for attempt in 1..=max_retries {
+        match run_single_cycle().await {
+            Ok(()) => return,
+            Err(e) => {
+                tracing::warn!(
+                    "[DAEMON] cycle attempt {}/{} failed: {}",
+                    attempt,
+                    max_retries,
+                    e
+                );
+                if attempt < max_retries {
+                    let delay = 30 * attempt as u64;
+                    tracing::info!("[DAEMON] retrying in {}s", delay);
+                    tokio::time::sleep(std::time::Duration::from_secs(delay)).await;
+                } else {
+                    // All retries exhausted — write a degraded cycle output.
+                    tracing::error!(
+                        "[DAEMON] all {} attempts failed. Writing degraded output.",
+                        max_retries
+                    );
+                    let root = repo_root();
+                    let now = Utc::now();
+                    let cycle_id = now.format("%Y-%m-%dT%H").to_string();
+                    let cycle_dir = root.join("data/devnet-cycles").join(&cycle_id);
+                    let _ = std::fs::create_dir_all(&cycle_dir);
+                    let degraded = CycleOutput {
+                        cycle_id: now.to_rfc3339(),
+                        health: CycleHealth::Failed,
+                        retry_count: max_retries,
+                        error_message: Some(e.to_string()),
+                        params_used: StrategyConfig::default(),
+                        mutations_proposed: vec![],
+                        mutations_accepted: vec![],
+                        mutations_rejected: vec![],
+                        params_next: StrategyConfig::default(),
+                        used_llm: false,
+                        model_label: "none".to_string(),
+                        memory_files: vec![],
+                    };
+                    let json = serde_json::to_string_pretty(&degraded).unwrap_or_default();
+                    let _ = std::fs::write(cycle_dir.join("cycle.json"), &json);
+                }
+            }
+        }
+    }
+}
+
+/// Run a single daemon cycle. Returns Ok(()) on success, Err on failure.
+async fn run_single_cycle() -> Result<(), String> {
+    tracing::info!("┌─────────────────────────────────────────────────┐");
+    tracing::info!("│  RTP — Devnet Loop Daemon                       │");
+    tracing::info!(
         "│  Autonomous cycle: {}        │",
         Utc::now().format("%Y-%m-%d %H:%M UTC")
     );
-    println!("└─────────────────────────────────────────────────┘");
-    println!();
+    tracing::info!("└─────────────────────────────────────────────────┘");
+    tracing::info!(" ");
 
     // 0. Check if treasury is frozen before running cycle.
-    // The on-chain program will reject operations, but checking early
-    // avoids wasting a full cycle of work.
     match check_treasury_frozen() {
         Ok(true) => {
-            println!(
+            tracing::info!(
                 "[DAEMON] Treasury is FROZEN — skipping cycle. Unfreeze required by authority."
             );
-            println!("[DAEMON] exit 0 (frozen is not an error)");
-            return;
+            tracing::info!("[DAEMON] exit 0 (frozen is not an error)");
+            return Ok(());
         }
         Ok(false) => {
-            println!("[DAEMON] Treasury status: ACTIVE");
+            tracing::info!("[DAEMON] Treasury status: ACTIVE");
         }
         Err(e) => {
-            println!(
+            tracing::info!(
                 "[DAEMON] Could not check frozen status ({}). Continuing — on-chain CPI will gate.",
                 e
             );
@@ -244,16 +330,16 @@ async fn main() {
 
     // 0b. Check execution mode.
     let mainnet_execute = std::env::var("RTP_MAINNET_EXECUTE").is_ok();
-    println!();
+    tracing::info!(" ");
     if mainnet_execute {
-        println!("[DAEMON] *** MAINNET EXECUTION MODE — real transactions will be sent ***");
+        tracing::info!("[DAEMON] *** MAINNET EXECUTION MODE — real transactions will be sent ***");
     } else {
-        println!("[DAEMON] Simulation mode (set RTP_MAINNET_EXECUTE=1 for live execution)");
+        tracing::info!("[DAEMON] Simulation mode (set RTP_MAINNET_EXECUTE=1 for live execution)");
     }
 
     // 1. Load config.
     let mut config = load_config();
-    println!(
+    tracing::info!(
         "[DAEMON] params: signal_threshold={}, tp_atr={}, sl_atr={}, max_hold={}h, trailing_stop={}",
         config.signal_threshold,
         config.tp_atr,
@@ -262,20 +348,20 @@ async fn main() {
         config.trailing_stop_atr
     );
 
-    // 1b. Read latest Night Shift results and update config if a better strategy exists.
-    println!();
-    println!("=== NIGHT SHIFT RESULTS ===");
+    // 1b. Read latest Night Shift results.
+    tracing::info!(" ");
+    tracing::info!("=== NIGHT SHIFT RESULTS ===");
     match read_latest_night_results() {
         Ok(result) => {
-            println!("[DAEMON] latest results: {}", result.source_path);
-            println!("[DAEMON] run_at: {}, symbols: {}", result.summary.run_at, result.summary.symbols.join(", "));
+            tracing::info!("[DAEMON] latest results: {}", result.source_path);
+            tracing::info!("[DAEMON] run_at: {}, symbols: {}", result.summary.run_at, result.summary.symbols.join(", "));
             let eligible: Vec<_> = result.summary.top_candidates.iter().filter(|c| !c.rejected).collect();
-            println!("[DAEMON] candidates: {} total, {} eligible", result.summary.top_candidates.len(), eligible.len());
+            tracing::info!("[DAEMON] candidates: {} total, {} eligible", result.summary.top_candidates.len(), eligible.len());
 
             if let Some(best) = eligible.iter().max_by(|a, b| {
                 a.survivor_score.partial_cmp(&b.survivor_score).unwrap_or(std::cmp::Ordering::Equal)
             }) {
-                println!(
+                tracing::info!(
                     "[DAEMON] best: {} — survivor={:.3}, sharpe={:.2}, cons={:.0}%, fragility={:.3}",
                     best.symbol,
                     best.survivor_score,
@@ -284,8 +370,6 @@ async fn main() {
                     best.fragility
                 );
 
-                // If the night shift found a better strategy, update the config.
-                // Map night shift params to StrategyConfig fields.
                 if let Some(threshold) = best.params.get("signal_threshold").and_then(|v| v.as_f64()) {
                     config.signal_threshold = threshold;
                 }
@@ -301,7 +385,7 @@ async fn main() {
                 if let Some(ts) = best.params.get("trailing_stop_atr").and_then(|v| v.as_f64()) {
                     config.trailing_stop_atr = ts;
                 }
-                println!(
+                tracing::info!(
                     "[DAEMON] updated config from night shift: signal_threshold={}, tp_atr={}, sl_atr={}, max_hold={}h, trailing_stop={}",
                     config.signal_threshold,
                     config.tp_atr,
@@ -310,51 +394,53 @@ async fn main() {
                     config.trailing_stop_atr
                 );
             } else {
-                println!("[DAEMON] no eligible candidates — keeping current config");
+                tracing::info!("[DAEMON] no eligible candidates — keeping current config");
             }
         }
         Err(e) => {
-            println!("[DAEMON] no night shift results available ({}) — using current config", e);
+            tracing::info!("[DAEMON] no night shift results available ({}) — using current config", e);
         }
     }
     let params_used = config;
 
     // 1c. Stale position check.
-    // If positions have been open longer than max_hold_hours * 1.1, they're stale.
-    // This handles the case where the daemon crashes after opening a position
-    // and never closes it.
     {
         let max_hold = params_used.max_hold_hours;
         let stale_timeout_hours = max_hold * 1.1;
-        println!(
+        tracing::info!(
             "[DAEMON] stale position timeout: {:.1}h (max_hold={}h × 1.1)",
             stale_timeout_hours, max_hold
         );
         check_stale_positions(max_hold).await;
     }
 
-    // 2. Run orchestrator cycle (reuses demo infrastructure).
-    println!();
-    println!("=== ORCHESTRATOR CYCLE ===");
+    // 2. Run orchestrator cycle.
+    tracing::info!(" ");
+    tracing::info!("=== ORCHESTRATOR CYCLE ===");
     if mainnet_execute {
-        println!("[DAEMON] Live execution requested — orchestrator will submit real transactions");
+        tracing::info!("[DAEMON] Live execution requested — orchestrator will submit real transactions");
     } else {
-        println!("[DAEMON] Simulation mode — orchestrator runs paper cycle only");
+        tracing::info!("[DAEMON] Simulation mode — orchestrator runs paper cycle only");
     }
     let demo_result = rtp_swarm::demo::run_two_cycle_demo().await;
-    if demo_result.success {
-        println!("[DAEMON] orchestrator cycle completed successfully");
+    let cycle_health = if demo_result.success {
+        CycleHealth::Healthy
     } else {
-        println!("[DAEMON] orchestrator cycle completed with issues (non-fatal)");
+        CycleHealth::Degraded
+    };
+    if demo_result.success {
+        tracing::info!("[DAEMON] orchestrator cycle completed successfully");
+    } else {
+        tracing::info!("[DAEMON] orchestrator cycle completed with issues (non-fatal)");
     }
 
     // 3. Propose mutations.
-    println!();
-    println!("=== STRATEGY MUTATION PROPOSAL ===");
+    tracing::info!(" ");
+    tracing::info!("=== STRATEGY MUTATION PROPOSAL ===");
     let llm_config = LlmProposerConfig::from_env();
     let propose_result = propose_strategy_mutation(llm_config).await;
 
-    println!(
+    tracing::info!(
         "[DAEMON] proposer: {} (model: {})",
         if propose_result.used_llm {
             "LLM"
@@ -365,7 +451,7 @@ async fn main() {
     );
 
     for m in &propose_result.mutations {
-        println!(
+        tracing::info!(
             "[DAEMON] proposed: {} → {} ({})",
             m.param, m.value, m.rationale
         );
@@ -380,9 +466,9 @@ async fn main() {
         .cloned()
         .collect();
 
-    println!();
-    println!("=== APPLY MUTATIONS ===");
-    println!(
+    tracing::info!(" ");
+    tracing::info!("=== APPLY MUTATIONS ===");
+    tracing::info!(
         "[DAEMON] accepted: {}, rejected: {}",
         accepted.len(),
         rejected.len()
@@ -401,13 +487,14 @@ async fn main() {
         .display()
         .to_string();
 
-    if let Err(e) = std::fs::create_dir_all(&cycle_dir) {
-        eprintln!("[DAEMON] failed to create {}: {}", cycle_dir, e);
-        std::process::exit(1);
-    }
+    std::fs::create_dir_all(&cycle_dir)
+        .map_err(|e| format!("failed to create {}: {}", cycle_dir, e))?;
 
     let output = CycleOutput {
         cycle_id: now.to_rfc3339(),
+        health: cycle_health,
+        retry_count: 0,
+        error_message: None,
         params_used,
         mutations_proposed: all_proposed,
         mutations_accepted: accepted,
@@ -418,41 +505,36 @@ async fn main() {
         memory_files: collect_memory_files(),
     };
 
-    let cycle_json = serde_json::to_string_pretty(&output).unwrap_or_else(|e| {
-        eprintln!("[DAEMON] ERROR: failed to serialize cycle output: {}", e);
-        "{}".to_string()
-    });
+    let cycle_json = serde_json::to_string_pretty(&output)
+        .map_err(|e| format!("failed to serialize cycle output: {}", e))?;
     let cycle_path = format!("{}/cycle.json", cycle_dir);
-    if let Err(e) = std::fs::write(&cycle_path, &cycle_json) {
-        eprintln!("[DAEMON] ERROR: failed to write {}: {}", cycle_path, e);
-    } else {
-        println!("[DAEMON] wrote {}", cycle_path);
-    }
+    std::fs::write(&cycle_path, &cycle_json)
+        .map_err(|e| format!("failed to write {}: {}", cycle_path, e))?;
+    tracing::info!("[DAEMON] wrote {}", cycle_path);
 
-    // 6. Update latest directory (copy files — more portable than symlink for CI).
+    // 6. Update latest directory.
     let latest = root.join("data/devnet-cycles/latest");
     if latest.exists() || latest.is_symlink() {
         let _ = std::fs::remove_dir_all(&latest);
     }
     if let Err(e) = std::fs::create_dir_all(&latest) {
-        println!("[DAEMON] ⚠️ could not create latest dir: {}", e);
+        tracing::info!("[DAEMON] could not create latest dir: {}", e);
     } else {
         let _ = std::fs::copy(&cycle_path, latest.join("cycle.json"));
-        // Also copy config for next cycle.
         let config_json =
-            serde_json::to_string_pretty(&output.params_next).unwrap_or_else(|e| {
-                eprintln!("[DAEMON] WARNING: failed to serialize config: {}", e);
-                "{}".to_string()
-            });
+            serde_json::to_string_pretty(&output.params_next).unwrap_or_default();
         let _ = std::fs::write(latest.join("config.json"), &config_json);
-        println!("[DAEMON] updated data/devnet-cycles/latest/");
+        tracing::info!("[DAEMON] updated data/devnet-cycles/latest/");
     }
 
     // 7. Summary.
-    println!();
-    println!("=== CYCLE COMPLETE ===");
-    println!("[DAEMON] cycle_id: {}", output.cycle_id);
-    println!("[DAEMON] used_llm: {}", output.used_llm);
-    println!("[DAEMON] output: {}", cycle_path);
-    println!("[DAEMON] exit 0");
+    tracing::info!(" ");
+    tracing::info!("=== CYCLE COMPLETE ===");
+    tracing::info!("[DAEMON] health: {:?}", output.health);
+    tracing::info!("[DAEMON] cycle_id: {}", output.cycle_id);
+    tracing::info!("[DAEMON] used_llm: {}", output.used_llm);
+    tracing::info!("[DAEMON] output: {}", cycle_path);
+    tracing::info!("[DAEMON] exit 0");
+
+    Ok(())
 }
