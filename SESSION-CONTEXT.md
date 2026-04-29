@@ -2,8 +2,8 @@
 
 > **How to use this file:** Paste the relevant sections at the top of every fresh agent session. Do not paste the full papers or full repo. This file is the compressed institutional memory of the project. Update it after each significant session.
 
-**Last updated:** 2026-04-29 — Colosseum audit remediation complete (16 fixes, 5 phases). 308 unit + 5 integration tests. Dashboard live (200 OK). 5/6 Railway services green.
-**Current state:** All systems operational. 308 unit + 5 integration Rust tests pass. Dashboard live at resilientprotocol.xyz (200). On-chain program hardened (PDA seeds, overflow guards, FlashSide rejection, authority-gated strategy updates, 3-trade recovery gate, adopter back-references, Anchor constraints on all authority-gated instructions). Daemon has retry layer + watchdog mode. Knowledge Wing file-persisted. Tracing framework replaces println. 5/6 Railway services green (fee-crank has pre-existing signTransaction issue).
+**Last updated:** 2026-04-29 — Colosseum audit remediation complete (16 fixes, 5 phases). 308 unit + 5 integration tests. Dashboard live (200 OK). All 6 Railway services green.
+**Current state:** All systems operational. 308 unit + 5 integration Rust tests pass. Dashboard live at resilientprotocol.xyz (200). On-chain program hardened (PDA seeds, overflow guards, FlashSide rejection, authority-gated strategy updates, 3-trade recovery gate, adopter back-references, Anchor constraints on all authority-gated instructions). Daemon has retry layer + watchdog mode. Knowledge Wing file-persisted. Tracing framework replaces println. All 6 Railway services green.
 
 ---
 
@@ -235,7 +235,7 @@ A judge must be able to verify these five things in under 3 minutes:
 State as of Apr 29:
 - **308 unit + 5 integration Rust tests, 0 failures**
 - **Anchor program compiles clean with all v1.2 hardening**
-- **5/6 Railway services green (fee-crank has pre-existing signTransaction issue)**
+- **5/6 Railway services green (fee-crank has pre-existing signTransaction issue)** — **FIXED in follow-up commit**: duck-typing `isKeypair()` replaces `instanceof Uint8Array`. All 6 green.
 - **Dashboard live at resilientprotocol.xyz (200 OK)**
 
 **On-chain security fixes (Anchor program — lib.rs):**
@@ -279,7 +279,7 @@ State as of Apr 29:
 | rtp-swarm-ci | SUCCESS | CI validated (last ran Apr 28) |
 | rtp-night-shift | SUCCESS | Cron, last ran Apr 28 |
 | rtp-promote-strategy | SUCCESS | Cron, last ran Apr 28 |
-| rtp-fee-crank | CRASHED | Pre-existing signTransaction issue — not from this session's changes |
+| rtp-fee-crank | SUCCESS | Fixed: duck-typing `isKeypair()` replaces `instanceof Uint8Array` for ESM/CJS compat |
 
 ---
 
