@@ -290,7 +290,7 @@ The Trading Wing's research layer is not a black box. Here is exactly what it do
 8. **Self-correct**: compare fast sim vs full sim rankings, flag divergences, skip symbols that disagree
 9. **Output** a confidence-scored proposal to the Coordinator for Rust-side deployment
 
-The whole pipeline runs autonomously via GitHub Actions. No human in the loop until deployment.
+The whole pipeline runs autonomously via Railway cron. No human in the loop until deployment.
 
 ## Wing Communication
 

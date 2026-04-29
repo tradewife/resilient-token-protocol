@@ -2,8 +2,8 @@
 
 > **How to use this file:** Paste the relevant sections at the top of every fresh agent session. Do not paste the full papers or full repo. This file is the compressed institutional memory of the project. Update it after each significant session.
 
-**Last updated:** 2026-04-28 — Full stack security audit remediation, Railway deployment, custom domain restored.
-**Current state:** All systems operational. 308 Rust tests pass. Dashboard live at resilientprotocol.xyz (200). On-chain program hardened (PDA seeds, overflow guards, FlashSide rejection, soft decay reset).
+**Last updated:** 2026-04-29 — Pipeline integrity audit complete (Stages 1–9), Railway workspace API token stored locally, all 6 Railway services green.
+**Current state:** All systems operational. 308 Rust tests pass. Dashboard live at resilientprotocol.xyz (200). On-chain program hardened (PDA seeds, overflow guards, FlashSide rejection, soft decay reset). Fee crank, strategy promotion, and Night Shift handoff all automated on Railway. Emergency freeze CLI script ready.
 
 ---
 
@@ -1078,3 +1078,60 @@ All 4 GitHub Actions workflows paused (triggers commented out, `workflow_dispatc
 - `a6cea5d` feat: Railway deployment — 3/4 services live, GitHub Actions paused
 - `840b7bc` feat: Flash Trade CPI integration + audit fixes + CI re-enable (#1)
 - `6b0c11a` fix: Dockerfile.daemon — use repo-root COPY paths, rust 1.88, add pkg-config for OpenSSL
+
+---
+
+**Session 2026-04-29 — Pipeline Integrity Audit (Stages 1–9) + Railway Fixes**
+
+State as of Apr 29:
+- **308 Rust tests, 0 failures**
+- **6 Railway services all green** (dashboard, devnet-loop, fee-crank, promote-strategy, night-shift, swarm-ci)
+- **Pipeline integrity spec executed** — all 10 stages audited, critical gaps fixed
+- **Dashboard rendering correctly** at resilientprotocol.xyz
+
+**Pipeline integrity audit results (PIPELINE-INTEGRITY-SPEC.md):**
+
+| Stage | Gap | Fix |
+|-------|-----|-----|
+| **1+6: Fee Crank** | No automated fee withdrawal/redistribution | Created `scripts/fee-crank.ts` + Dockerfile — Railway cron hourly with 0-30min jitter, $5 threshold |
+| **3: Strategy Promotion** | No automated strategy registration on-chain | Created `scripts/promote-strategy.ts` + Dockerfile — reads Night Shift summary.json, evaluates against calibrated gate (Sharpe≥2.5, Cons≥70%, Trades/fold≥15, Fragility≤0.40), calls `register_strategy` on-chain |
+| **2: Night Shift Handoff** | Bridge subprocess, no shared filesystem between Railway containers | Added `NightShiftSummary`/`NightShiftCandidate` types to `bridge.rs`; daemon reads latest results directly; Night Shift git commits results back to repo |
+| **4+5: Daemon Fixes** | Hardcoded byte offset 225 for frozen check; no stale position monitor; no execution mode flag | Replaced with `TreasuryAccount` struct + bincode deserialization; added `check_stale_positions()` with `max_hold_hours × 1.1` timeout; added `RTP_MAINNET_EXECUTE` env flag |
+| **9: Emergency Controls** | No cold-start emergency halt path | Created `scripts/emergency-freeze.ts` — CLI freeze/unfreeze/status with local keypair signing |
+
+**SDK fix (isKeypair):**
+- `instanceof Keypair` fails across ESM/CJS module boundaries when SDK is dynamically imported
+- Replaced with duck-typing: `isKeypair(payer)` checks `secretKey` property instead
+- Fixed fee-crank crash (`payer.signTransaction is not a function`)
+
+**Railway infrastructure fixes:**
+- Dashboard root directory was `/dashboard` — changed to `/` via GraphQL API (Dockerfile needs `sdk/` from outside `dashboard/`)
+- Dashboard Dockerfile static asset paths were wrong — `.next/static` not `dashboard/.next/static`
+- Added `RAILPACK_DOCKERFILE_PATH=Dockerfile.dashboard` env var
+- Workspace API token stored at `.secrets/railway-workspace-token` (gitignored)
+- All service configs verified: root `/`, correct dockerfiles, RAILPACK builder
+
+**Railway services (all green):**
+
+| Service | Type | Schedule | Status |
+|---------|------|----------|--------|
+| rtp-dashboard | Always-on SSR | — | Online |
+| rtp-devnet-loop | Cron | `0 */6 * * *` | Online |
+| rtp-fee-crank | Cron | `0 * * * *` | Online |
+| rtp-night-shift | Cron | `0 14 * * *` | Completed |
+| rtp-promote-strategy | Cron | `30 14 * * *` | Online |
+| rtp-swarm-ci | Manual | — | Completed |
+
+**Commits this session:**
+- `89a5339` feat: add fee crank cron service
+- `c7b82b5` chore: trigger fee-crank rebuild on Railway
+- `7798519` feat: add strategy promotion pipeline
+- `7c4b719` docs: add rtp-promote-strategy to railway.toml
+- `2dd3b96` feat: wire Night Shift → daemon
+- `e1d0c90` fix: daemon Stage 4+5 — frozen decode, stale check, mainnet flag
+- `14f641b` fix: dashboard static asset paths
+- `ff9dd55` chore: bust Docker layer cache
+- `20fb95d` docs: Railway config updates
+- `258ab65` docs: Railway workspace token location
+- `ffb0595` fix: SDK isKeypair() duck-typing
+- `9aa6242` feat: add emergency freeze CLI script

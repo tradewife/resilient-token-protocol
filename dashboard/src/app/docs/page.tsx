@@ -101,7 +101,7 @@ const DOC_GROUPS: DocGroup[] = [
               <pre style={{ margin: 0, whiteSpace: "pre" }}>{`┌──────────────────────────────────────────────────────┐
 │              ON-CHAIN (Solana / Anchor)               │
 │  Treasury PDA: fees → yield → redistribute           │
-│  14 instructions · PDA-owned · CPI-only transfers     │
+│  19 instructions · PDA-owned · CPI-only transfers     │
 ├──────────────────────────────────────────────────────┤
 │              SWARM RUNTIME (Rust · 308 tests)         │
 │  Coordinator → message bus → 6 wings                  │
@@ -133,7 +133,7 @@ const DOC_GROUPS: DocGroup[] = [
             <Table
               headers={["Component", "Status", "Detail"]}
               rows={[
-                ["Anchor treasury program", "✅ Deployed (devnet)", "Per-token isolation, 14 instructions, redistribution verified"],
+                ["Anchor treasury program", "✅ Deployed (devnet)", "Per-token isolation, 19 instructions, redistribution verified"],
                 ["Rust swarm runtime", "✅ 308 tests passing", "6 wings: Trading, Security, Evolve, Knowledge, Audit, Futureproof"],
                 ["Flash Trade CPI execution", "✅ Mainnet proofs", "Treasury PDA invoke_signed, positions open/close on-chain (Open TX 2bLg1Fu..., Close TX dFqkoP2...)"],
                 ["Treasury yield deposit", "✅ On-chain confirmed", "USDC yield → SOL → treasury PDA via CPI transfer"],
