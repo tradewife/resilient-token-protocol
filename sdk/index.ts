@@ -144,9 +144,16 @@ export interface TreasuryState {
   isFrozen: boolean;
 }
 
-/** Check if a signer is a Keypair (works across ESM/CJS module boundaries). */
+/** Check if a signer is a Keypair (works across ESM/CJS module boundaries).
+ *  Uses duck-typing: checks for `secretKey` as a byte-like object.
+ *  Avoids `instanceof Uint8Array` which fails when the Keypair class is loaded
+ *  from a different module realm (e.g., ESM tsx vs CJS node_modules). */
 function isKeypair(payer: Keypair | WalletAdapter): payer is Keypair {
-  return "secretKey" in payer && payer.secretKey instanceof Uint8Array;
+  if (!("secretKey" in payer)) return false;
+  const sk = (payer as Record<string, unknown>).secretKey;
+  // Duck-type: must be a typed array or Buffer with byte length > 0
+  return (typeof sk === "object" && sk !== null &&
+    ("byteLength" in (sk as object) || "length" in (sk as object)));
 }
 
 /** Wrap a Keypair as a minimal wallet for AnchorProvider (avoids anchor.Wallet ESM issue). */
