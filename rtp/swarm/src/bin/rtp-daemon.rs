@@ -3,11 +3,16 @@
 
 use chrono::Utc;
 use rtp_swarm::bridge::read_latest_night_results;
+use rtp_swarm::chain_client::{
+    ChainConfig, ExecutionMode, FlashMarketAccounts, FlashSide, OraclePrice,
+    build_open_flash_position_ix, build_close_flash_position_ix, submit_or_simulate,
+};
 use rtp_swarm::wings::evolve::{
     LlmProposerConfig, propose_strategy_mutation, validate_all_mutations,
 };
 use rtp_swarm::wings::trading::{StrategyConfig, apply_mutations};
 use serde::{Deserialize, Serialize};
+use solana_sdk::signature::Signer;
 
 /// Cycle output written to data/devnet-cycles/{timestamp}/cycle.json.
 #[derive(Debug, Serialize, Deserialize)]
@@ -87,6 +92,7 @@ fn collect_memory_files() -> Vec<String> {
 /// Minimal Anchor-compatible Treasury struct for decoding on-chain state.
 /// Must match the field order in rtp-treasury/src/lib.rs exactly.
 #[derive(Debug, serde::Deserialize)]
+#[allow(dead_code)]
 struct TreasuryAccount {
     mint: solana_sdk::pubkey::Pubkey,       // 32
     authority: solana_sdk::pubkey::Pubkey,    // 32
@@ -108,19 +114,30 @@ struct TreasuryAccount {
 /// Check for stale positions that have exceeded max_hold_hours * 1.1.
 ///
 /// Queries the Flash Trade REST API for open positions belonging to the
-/// treasury PDA. Any position open longer than the timeout is logged as
-/// a warning — actual close requires an on-chain `close_flash_position`
-/// CPI call, which the daemon does not auto-trigger (requires authority).
-async fn check_stale_positions(max_hold_hours: f64) {
-    let treasury_pda = "FNQbK1Vw77aT7qM1EMSmeEPDGizSNN4h4rkkYBKQNFotF";
+/// treasury PDA. Any position open longer than the timeout is logged and,
+/// when `RTP_EXECUTION_MODE != demo` and a chain config is available, the
+/// daemon builds a `close_flash_position` instruction and either simulates
+/// or submits it depending on the active execution mode.
+async fn check_stale_positions(
+    max_hold_hours: f64,
+    chain_cfg: Option<&ChainConfig>,
+) -> Vec<StalePositionAction> {
+    let mut actions: Vec<StalePositionAction> = Vec::new();
+    let Some(cfg) = chain_cfg else {
+        tracing::info!(
+            "[DAEMON] stale-position check skipped — RTP_MINT not set, no treasury PDA derivable"
+        );
+        return actions;
+    };
+    let treasury_pda = cfg.treasury_pda.to_string();
     let timeout_hours = max_hold_hours * 1.1;
 
     let client = rtp_swarm::wings::trading::flash_trade_client::FlashTradeClient::new();
-    match client.get_positions(treasury_pda).await {
+    match client.get_positions(&treasury_pda).await {
         Ok(positions) => {
             if positions.is_empty() {
                 tracing::info!("[DAEMON] no open positions — stale check clean");
-                return;
+                return actions;
             }
             tracing::info!("[DAEMON] {} open position(s) found", positions.len());
             let now = Utc::now();
@@ -147,10 +164,15 @@ async fn check_stale_positions(max_hold_hours: f64) {
                 );
                 if stale {
                     tracing::info!(
-                        "[DAEMON] ALERT: position {} is stale ({:.1}h > {:.1}h timeout). \
-                         Manual close_flash_position recommended.",
+                        "[DAEMON] queued close_flash_position for stale position {} ({:.1}h > {:.1}h)",
                         pos.position_address, age_hours, timeout_hours
                     );
+                    actions.push(StalePositionAction {
+                        position_address: pos.position_address.clone(),
+                        side: pos.side.clone(),
+                        size_usd: pos.size_usd.clone(),
+                        age_hours,
+                    });
                 }
             }
         }
@@ -162,14 +184,26 @@ async fn check_stale_positions(max_hold_hours: f64) {
             );
         }
     }
+    actions
 }
 
-/// Check if the demo treasury is frozen by reading the on-chain account data.
-/// Uses Anchor Borsh deserialization — no hardcoded byte offsets.
-/// Returns Ok(true) if frozen, Ok(false) if not, Err if RPC unreachable.
-fn check_treasury_frozen() -> Result<bool, String> {
-    let treasury_pda = "FNQbK1Vw77aT7qM1EMSmeEPDGizSNhX4rkkYBKQNFotF";
-    let rpc_url = "https://api.devnet.solana.com";
+/// A stale position the daemon decided to close. Captured here so the cycle
+/// output can record what was closed (or attempted) and at what age.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct StalePositionAction {
+    position_address: String,
+    side: String,
+    size_usd: String,
+    age_hours: f64,
+}
+
+/// Check if the configured treasury is frozen by reading the on-chain
+/// account data. Uses bincode deserialization (Anchor's account layout
+/// without the 8-byte discriminator). Returns Ok(true) if frozen, Ok(false)
+/// if not, Err if the RPC is unreachable or the account is missing.
+fn check_treasury_frozen(cfg: &ChainConfig) -> Result<bool, String> {
+    let treasury_pda = cfg.treasury_pda.to_string();
+    let rpc_url = cfg.rpc_url.as_str();
 
     let client = reqwest::blocking::Client::new();
     let resp = client
@@ -308,33 +342,52 @@ async fn run_single_cycle() -> Result<(), String> {
     tracing::info!("└─────────────────────────────────────────────────┘");
     tracing::info!(" ");
 
-    // 0. Check if treasury is frozen before running cycle.
-    match check_treasury_frozen() {
-        Ok(true) => {
-            tracing::info!(
-                "[DAEMON] Treasury is FROZEN — skipping cycle. Unfreeze required by authority."
-            );
-            tracing::info!("[DAEMON] exit 0 (frozen is not an error)");
-            return Ok(());
-        }
-        Ok(false) => {
-            tracing::info!("[DAEMON] Treasury status: ACTIVE");
+    // 0. Load chain config (env-driven, no hardcoded PDAs).
+    let chain_cfg = match ChainConfig::from_env() {
+        Ok(cfg) => {
+            cfg.log_summary();
+            Some(cfg)
         }
         Err(e) => {
             tracing::info!(
-                "[DAEMON] Could not check frozen status ({}). Continuing — on-chain CPI will gate.",
+                "[DAEMON] chain config not loaded ({}). Running in demo-only mode.",
                 e
             );
+            None
+        }
+    };
+
+    // 0a. Check if treasury is frozen before running cycle.
+    if let Some(ref cfg) = chain_cfg {
+        match check_treasury_frozen(cfg) {
+            Ok(true) => {
+                tracing::info!(
+                    "[DAEMON] Treasury is FROZEN — skipping cycle. Unfreeze required by authority."
+                );
+                tracing::info!("[DAEMON] exit 0 (frozen is not an error)");
+                return Ok(());
+            }
+            Ok(false) => {
+                tracing::info!("[DAEMON] Treasury status: ACTIVE");
+            }
+            Err(e) => {
+                tracing::info!(
+                    "[DAEMON] Could not check frozen status ({}). Continuing — on-chain CPI will gate.",
+                    e
+                );
+            }
         }
     }
 
-    // 0b. Check execution mode.
-    let mainnet_execute = std::env::var("RTP_MAINNET_EXECUTE").is_ok();
+    // 0b. Execution mode (replaces legacy RTP_MAINNET_EXECUTE).
+    let execution_mode = chain_cfg.as_ref().map(|c| c.mode).unwrap_or(ExecutionMode::Simulate);
     tracing::info!(" ");
-    if mainnet_execute {
-        tracing::info!("[DAEMON] *** MAINNET EXECUTION MODE — real transactions will be sent ***");
-    } else {
-        tracing::info!("[DAEMON] Simulation mode (set RTP_MAINNET_EXECUTE=1 for live execution)");
+    tracing::info!("[DAEMON] execution mode: {}", execution_mode.label());
+    if execution_mode.submits() {
+        tracing::info!(
+            "[DAEMON] *** {} — real transactions will be sent ***",
+            execution_mode.label().to_uppercase()
+        );
     }
 
     // 1. Load config.
@@ -404,6 +457,7 @@ async fn run_single_cycle() -> Result<(), String> {
     let params_used = config;
 
     // 1c. Stale position check.
+    let stale_actions;
     {
         let max_hold = params_used.max_hold_hours;
         let stale_timeout_hours = max_hold * 1.1;
@@ -411,17 +465,126 @@ async fn run_single_cycle() -> Result<(), String> {
             "[DAEMON] stale position timeout: {:.1}h (max_hold={}h × 1.1)",
             stale_timeout_hours, max_hold
         );
-        check_stale_positions(max_hold).await;
+        stale_actions = check_stale_positions(max_hold, chain_cfg.as_ref()).await;
+
+        // Submit close instructions for stale positions when chain config is available.
+        if !stale_actions.is_empty() {
+            if let Some(ref cfg) = chain_cfg {
+                tracing::info!(
+                    "[DAEMON] building close_flash_position for {} stale position(s)",
+                    stale_actions.len()
+                );
+                let market = FlashMarketAccounts::sol_long_default();
+                let auth_kp = cfg.load_authority();
+                match auth_kp {
+                    Ok(authority) => {
+                        for stale in &stale_actions {
+                            let side = match stale.side.as_str() {
+                                "Long" | "long" => FlashSide::Long,
+                                _ => FlashSide::Short,
+                            };
+                            let close_ix = build_close_flash_position_ix(
+                                cfg,
+                                &authority.pubkey(),
+                                &cfg.vault_pda,
+                                &market,
+                                side,
+                                OraclePrice { price: 0, exponent: -8 }, // placeholder — real oracle from Flash API
+                                500, // 5% slippage buffer
+                                0,   // delta — let program figure this out
+                            );
+                            tracing::info!(
+                                "[DAEMON] close ix built for {} ({}), submitting via {}",
+                                &stale.position_address[..8],
+                                stale.side,
+                                cfg.mode.label()
+                            );
+                            match submit_or_simulate(cfg, vec![close_ix], &authority) {
+                                Ok(result) => {
+                                    tracing::info!("[DAEMON] close result: {}", &result[..result.len().min(200)]);
+                                }
+                                Err(e) => {
+                                    tracing::info!("[DAEMON] close failed for {}: {}", &stale.position_address[..8], e);
+                                }
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        tracing::info!(
+                            "[DAEMON] cannot close stale positions — authority keypair not loaded: {}",
+                            e
+                        );
+                    }
+                }
+            } else {
+                tracing::info!(
+                    "[DAEMON] {} stale position(s) detected but no chain config — skipping close",
+                    stale_actions.len()
+                );
+            }
+        }
     }
 
-    // 2. Run orchestrator cycle.
+    // 2. Execute: real chain interaction when config available, demo fallback.
     tracing::info!(" ");
-    tracing::info!("=== ORCHESTRATOR CYCLE ===");
-    if mainnet_execute {
-        tracing::info!("[DAEMON] Live execution requested — orchestrator will submit real transactions");
+    tracing::info!("=== EXECUTION ===");
+
+    let mut _open_tx_result: Option<String> = None;
+
+    if let Some(ref cfg) = chain_cfg {
+        // Real chain path — build and submit/simulate open_flash_position.
+        match cfg.load_authority() {
+            Ok(authority) => {
+                let market = FlashMarketAccounts::sol_long_default();
+                tracing::info!(
+                    "[DAEMON] building open_flash_position: side=Long, leverage=1x, mode={}",
+                    cfg.mode.label()
+                );
+                let open_ix = build_open_flash_position_ix(
+                    cfg,
+                    &authority.pubkey(),
+                    &cfg.vault_pda, // funding_account — treasury vault ATA for wSOL
+                    &market,
+                    FlashSide::Long,
+                    10_000_000, // 0.01 SOL
+                    10_000,     // 1x leverage (100%)
+                    500,        // 5% slippage
+                    OraclePrice {
+                        price: 170_000_000_000, // placeholder — production should query Pyth/Flash
+                        exponent: -8,
+                    },
+                    "Crypto.1",
+                );
+
+                match submit_or_simulate(cfg, vec![open_ix], &authority) {
+                    Ok(result) => {
+                        tracing::info!(
+                            "[DAEMON] open_flash_position result: {}",
+                            &result[..result.len().min(300)]
+                        );
+                        _open_tx_result = Some(result);
+                    }
+                    Err(e) => {
+                        tracing::info!(
+                            "[DAEMON] open_flash_position failed: {}. On-chain CPI gates will enforce.",
+                            e
+                        );
+                    }
+                }
+            }
+            Err(e) => {
+                tracing::info!(
+                    "[DAEMON] authority keypair not loaded ({}). Skipping open execution.",
+                    e
+                );
+            }
+        }
     } else {
-        tracing::info!("[DAEMON] Simulation mode — orchestrator runs paper cycle only");
+        // Demo fallback — no chain config available.
+        tracing::info!("[DAEMON] no chain config — running demo orchestrator cycle");
     }
+
+    // Always run the in-process orchestrator (trading state, audit, knowledge).
     let demo_result = rtp_swarm::demo::run_two_cycle_demo().await;
     let cycle_health = if demo_result.success {
         CycleHealth::Healthy

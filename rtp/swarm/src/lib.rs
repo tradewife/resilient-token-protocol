@@ -5,6 +5,7 @@
 //! All cross-wing communication via Coordinator through soulguard.
 
 pub mod bridge;
+pub mod chain_client;
 pub mod config;
 pub mod coordinator;
 pub mod demo;

@@ -137,6 +137,16 @@ pub enum TreasuryError {
     CommittedDeltaExceedsBalance,
     #[msg("FlashSide::None is not valid for open/close — position must have a direction")]
     InvalidFlashSide,
+    #[msg("remaining_accounts[15] does not match the Flash Trade event authority PDA")]
+    InvalidFlashEventAuthority,
+    #[msg("remaining_accounts[13] is not the expected System Program")]
+    InvalidFlashSystemProgram,
+    #[msg("remaining_accounts[14] is not an expected token program (SPL token or token-2022)")]
+    InvalidFlashTokenProgram,
+    #[msg("Adopter record does not belong to this treasury")]
+    AdopterTreasuryMismatch,
+    #[msg("Only the treasury authority can record fee deposits")]
+    UnauthorizedFeeAttribution,
 }
 
 // ---------------------------------------------------------------------------
@@ -1298,12 +1308,43 @@ pub mod rtp_treasury {
             TreasuryError::FlashCpiFailed,
         );
 
-        // Validate Flash Trade program ID at remaining[15].
+        // Validate Flash Trade program ID at remaining[16] (per IDL v15.2.0 layout).
         // Close handler validates position PDA; open handler validates program ID.
         // This ensures the CPI targets the expected program, not a malicious substitute.
         require!(
-            remaining[15].key() == flash_program_id,
+            remaining[16].key() == flash_program_id,
             TreasuryError::InvalidFlashProgramId,
+        );
+
+        // Validate Flash Trade event authority PDA at remaining[15].
+        // Anchor #[event_cpi] derives this PDA from ["__event_authority"] under
+        // the Flash Trade program. Substituting another account here would let
+        // a caller redirect Flash Trade's emitted CPI events to a fake authority.
+        let (expected_event_authority, _evt_bump) = Pubkey::find_program_address(
+            &[b"__event_authority"],
+            &flash_program_id,
+        );
+        require!(
+            remaining[15].key() == expected_event_authority,
+            TreasuryError::InvalidFlashEventAuthority,
+        );
+
+        // Validate canonical System Program at remaining[13]. A malicious
+        // substitute could front-run lamport math during CPI account creation.
+        require!(
+            remaining[13].key() == anchor_lang::system_program::ID,
+            TreasuryError::InvalidFlashSystemProgram,
+        );
+
+        // Validate funding_token_program at remaining[14]. Flash Trade's
+        // funding flow uses either the legacy SPL Token program or Token-2022.
+        // Reject anything else so the CPI cannot be tricked into using a
+        // counterfeit token program.
+        let token_program_key = remaining[14].key();
+        require!(
+            token_program_key == anchor_spl::token::ID
+                || token_program_key == anchor_spl::token_2022::ID,
+            TreasuryError::InvalidFlashTokenProgram,
         );
 
         // Validate treasury PDA at remaining[0] matches our treasury signer.
@@ -1736,6 +1777,7 @@ pub mod rtp_treasury {
         #[account(
             seeds = [b"adopter", adopter_record.token_mint.as_ref()],
             bump = adopter_record.bump,
+            constraint = adopter_record.treasury == treasury.key() @ TreasuryError::AdopterTreasuryMismatch,
         )]
         pub adopter_record: Account<'info, AdopterRecord>,
 
@@ -1865,6 +1907,7 @@ pub mod rtp_treasury {
             mut,
             seeds = [b"adopter", adopter_record.token_mint.as_ref()],
             bump = adopter_record.bump,
+            constraint = adopter_record.treasury == treasury.key() @ TreasuryError::AdopterTreasuryMismatch,
         )]
         pub adopter_record: Account<'info, AdopterRecord>,
 
@@ -1876,7 +1919,10 @@ pub mod rtp_treasury {
         )]
         pub treasury: Account<'info, Treasury>,
 
-        /// The authority that can record fee deposits
+        /// The authority — must equal treasury.authority to prevent arbitrary fee inflation.
+        #[account(
+            constraint = authority.key() == treasury.authority @ TreasuryError::UnauthorizedFeeAttribution,
+        )]
         pub authority: Signer<'info>,
     }
 
@@ -1967,6 +2013,7 @@ pub mod rtp_treasury {
             mut,
             seeds = [b"adopter", adopter_record.token_mint.as_ref()],
             bump = adopter_record.bump,
+            constraint = adopter_record.treasury == treasury.key() @ TreasuryError::AdopterTreasuryMismatch,
         )]
         pub adopter_record: Account<'info, AdopterRecord>,
 

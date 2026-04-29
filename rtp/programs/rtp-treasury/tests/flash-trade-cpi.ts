@@ -26,12 +26,14 @@ import {
 } from "@solana/web3.js";
 import {
   TOKEN_2022_PROGRAM_ID,
+  TOKEN_PROGRAM_ID,
   ExtensionType,
   MINT_SIZE,
   getAssociatedTokenAddressSync,
   createAssociatedTokenAccountInstruction,
   createInitializeMint2Instruction,
   mintTo,
+  mintToChecked,
   getAccount,
   getMintLen,
   createInitializeTransferFeeConfigInstruction,
@@ -66,6 +68,14 @@ const FLASH_PROGRAM_ID = new PublicKey(
 const PLACEHOLDER_POOL = Keypair.generate().publicKey;
 const PLACEHOLDER_POSITION = Keypair.generate().publicKey;
 const PLACEHOLDER_MARKET = Keypair.generate().publicKey;
+
+// Anchor event_cpi PDA: ["__event_authority"] under the Flash Trade program.
+const FLASH_EVENT_AUTHORITY = PublicKey.findProgramAddressSync(
+  [Buffer.from("__event_authority")],
+  FLASH_PROGRAM_ID
+)[0];
+
+const SYSTEM_PROGRAM_ID = SystemProgram.programId;
 
 // ---------------------------------------------------------------------------
 // PDA helpers
@@ -483,6 +493,315 @@ describe("flash-trade-cpi", () => {
       assert.equal(strategy.strategyId, strategyId);
       assert.deepEqual(strategy.status, { live: {} });
       assert.equal(strategy.promotionSharpeX100, 396);
+    });
+
+    // -----------------------------------------------------------------------
+    // remaining_accounts validation (P0 — RTP-REMEDIATION-SPEC.md §1)
+    //
+    // open_flash_position validates the IDL v15.2.0 layout *before* invoking
+    // the Flash Trade CPI. These tests fund the vault, then probe each
+    // validated remaining_accounts slot:
+    //
+    //   remaining[13] = system_program
+    //   remaining[14] = funding_token_program (token / token-2022)
+    //   remaining[15] = event_authority PDA (["__event_authority"], flash_pid)
+    //   remaining[16] = Flash Trade program ID
+    //
+    // The Flash Trade program is not deployed to the local validator, so a
+    // valid layout still fails — but it fails inside `invoke_signed` with
+    // FlashCpiFailed, *after* the validation gates. That is what we assert.
+    // -----------------------------------------------------------------------
+    describe("remaining_accounts validation", () => {
+      // Build a 19-account remaining_accounts list that satisfies every
+      // pre-CPI check. Override individual indices to exercise the rejects.
+      function buildValidRemainingAccounts(
+        overrides: Partial<Record<number, PublicKey>> = {}
+      ) {
+        const accs: PublicKey[] = [];
+        for (let i = 0; i < 19; i++) {
+          accs.push(Keypair.generate().publicKey);
+        }
+        accs[0] = treasuryPDA;
+        accs[13] = SYSTEM_PROGRAM_ID;
+        accs[14] = TOKEN_PROGRAM_ID;
+        accs[15] = FLASH_EVENT_AUTHORITY;
+        accs[16] = FLASH_PROGRAM_ID;
+        for (const [idxStr, key] of Object.entries(overrides)) {
+          accs[Number(idxStr)] = key as PublicKey;
+        }
+        // Mark every passed account as writable+nonsigner — except the
+        // signer slot 0 (treasury PDA) which is set up as readonly+signer
+        // by the program when the metas are built. `remainingAccounts` uses
+        // its own metas, so the boolean flags here only affect simulation,
+        // not the on-chain validation we are exercising.
+        return accs.map((pubkey) => ({
+          pubkey,
+          isWritable: false,
+          isSigner: false,
+        }));
+      }
+
+      // Fund the vault so the position size cap and runway floor pass.
+      async function fundVault(amount: bigint): Promise<void> {
+        await mintTo(
+          provider.connection,
+          payer,
+          mint,
+          vaultPDA,
+          mintAuthKp,
+          amount,
+          [],
+          undefined,
+          TOKEN_2022_PROGRAM_ID
+        );
+      }
+
+      it("valid 19-account layout passes pre-CPI validation", async () => {
+        await setupFresh();
+        // Vault must satisfy: post_commit >= MIN_RUNWAY (10_000_000)
+        // and input <= 20% of vault.
+        await fundVault(BigInt(100_000_000));
+
+        const oraclePrice = { price: new BN(170_000_000_000), exponent: -8 };
+        const remaining = buildValidRemainingAccounts();
+
+        try {
+          await program.methods
+            .openFlashPosition(
+              FLASH_SIDE_LONG,
+              new BN(1_000_000), // 1% of vault
+              new BN(10000),
+              new BN(500),
+              oraclePrice,
+              "Crypto.1"
+            )
+            .accounts({
+              treasury: treasuryPDA,
+              strategyRecord: strategyPDA,
+              treasuryVault: vaultPDA,
+              authority: payer.publicKey,
+            })
+            .remainingAccounts(remaining)
+            .rpc();
+          assert.fail(
+            "Expected CPI to fail because Flash Trade isn't on localnet"
+          );
+        } catch (err: any) {
+          const msg = err.toString();
+          // Pre-CPI gates pass; failure comes from invoke_signed itself.
+          // This proves all our remaining_accounts validations accepted
+          // the layout; otherwise we'd see the validation error first.
+          assert.notInclude(msg, "InvalidFlashProgramId", msg);
+          assert.notInclude(msg, "InvalidFlashEventAuthority", msg);
+          assert.notInclude(msg, "InvalidFlashSystemProgram", msg);
+          assert.notInclude(msg, "InvalidFlashTokenProgram", msg);
+        }
+      });
+
+      it("rejects with InvalidFlashProgramId when remaining[16] is wrong", async () => {
+        await setupFresh();
+        await fundVault(BigInt(100_000_000));
+
+        const oraclePrice = { price: new BN(170_000_000_000), exponent: -8 };
+        const remaining = buildValidRemainingAccounts({
+          16: Keypair.generate().publicKey, // wrong program id
+        });
+
+        try {
+          await program.methods
+            .openFlashPosition(
+              FLASH_SIDE_LONG,
+              new BN(1_000_000),
+              new BN(10000),
+              new BN(500),
+              oraclePrice,
+              "Crypto.1"
+            )
+            .accounts({
+              treasury: treasuryPDA,
+              strategyRecord: strategyPDA,
+              treasuryVault: vaultPDA,
+              authority: payer.publicKey,
+            })
+            .remainingAccounts(remaining)
+            .rpc();
+          assert.fail("Expected InvalidFlashProgramId");
+        } catch (err: any) {
+          assert.include(err.toString(), "InvalidFlashProgramId");
+        }
+      });
+
+      it("rejects with InvalidFlashEventAuthority when remaining[15] is wrong", async () => {
+        await setupFresh();
+        await fundVault(BigInt(100_000_000));
+
+        const oraclePrice = { price: new BN(170_000_000_000), exponent: -8 };
+        const remaining = buildValidRemainingAccounts({
+          15: Keypair.generate().publicKey, // wrong event authority
+        });
+
+        try {
+          await program.methods
+            .openFlashPosition(
+              FLASH_SIDE_LONG,
+              new BN(1_000_000),
+              new BN(10000),
+              new BN(500),
+              oraclePrice,
+              "Crypto.1"
+            )
+            .accounts({
+              treasury: treasuryPDA,
+              strategyRecord: strategyPDA,
+              treasuryVault: vaultPDA,
+              authority: payer.publicKey,
+            })
+            .remainingAccounts(remaining)
+            .rpc();
+          assert.fail("Expected InvalidFlashEventAuthority");
+        } catch (err: any) {
+          assert.include(err.toString(), "InvalidFlashEventAuthority");
+        }
+      });
+
+      it("rejects with InvalidFlashSystemProgram when remaining[13] is wrong", async () => {
+        await setupFresh();
+        await fundVault(BigInt(100_000_000));
+
+        const oraclePrice = { price: new BN(170_000_000_000), exponent: -8 };
+        const remaining = buildValidRemainingAccounts({
+          13: Keypair.generate().publicKey, // wrong system program
+        });
+
+        try {
+          await program.methods
+            .openFlashPosition(
+              FLASH_SIDE_LONG,
+              new BN(1_000_000),
+              new BN(10000),
+              new BN(500),
+              oraclePrice,
+              "Crypto.1"
+            )
+            .accounts({
+              treasury: treasuryPDA,
+              strategyRecord: strategyPDA,
+              treasuryVault: vaultPDA,
+              authority: payer.publicKey,
+            })
+            .remainingAccounts(remaining)
+            .rpc();
+          assert.fail("Expected InvalidFlashSystemProgram");
+        } catch (err: any) {
+          assert.include(err.toString(), "InvalidFlashSystemProgram");
+        }
+      });
+
+      it("rejects with InvalidFlashTokenProgram when remaining[14] is wrong", async () => {
+        await setupFresh();
+        await fundVault(BigInt(100_000_000));
+
+        const oraclePrice = { price: new BN(170_000_000_000), exponent: -8 };
+        const remaining = buildValidRemainingAccounts({
+          14: Keypair.generate().publicKey, // wrong token program
+        });
+
+        try {
+          await program.methods
+            .openFlashPosition(
+              FLASH_SIDE_LONG,
+              new BN(1_000_000),
+              new BN(10000),
+              new BN(500),
+              oraclePrice,
+              "Crypto.1"
+            )
+            .accounts({
+              treasury: treasuryPDA,
+              strategyRecord: strategyPDA,
+              treasuryVault: vaultPDA,
+              authority: payer.publicKey,
+            })
+            .remainingAccounts(remaining)
+            .rpc();
+          assert.fail("Expected InvalidFlashTokenProgram");
+        } catch (err: any) {
+          assert.include(err.toString(), "InvalidFlashTokenProgram");
+        }
+      });
+
+      it("accepts Token-2022 as funding_token_program at remaining[14]", async () => {
+        await setupFresh();
+        await fundVault(BigInt(100_000_000));
+
+        const oraclePrice = { price: new BN(170_000_000_000), exponent: -8 };
+        const remaining = buildValidRemainingAccounts({
+          14: TOKEN_2022_PROGRAM_ID,
+        });
+
+        try {
+          await program.methods
+            .openFlashPosition(
+              FLASH_SIDE_LONG,
+              new BN(1_000_000),
+              new BN(10000),
+              new BN(500),
+              oraclePrice,
+              "Crypto.1"
+            )
+            .accounts({
+              treasury: treasuryPDA,
+              strategyRecord: strategyPDA,
+              treasuryVault: vaultPDA,
+              authority: payer.publicKey,
+            })
+            .remainingAccounts(remaining)
+            .rpc();
+          assert.fail(
+            "Expected CPI to fail because Flash Trade isn't on localnet"
+          );
+        } catch (err: any) {
+          // Token-2022 must be accepted; we should NOT see the token-program
+          // rejection here.
+          assert.notInclude(err.toString(), "InvalidFlashTokenProgram");
+        }
+      });
+
+      it("rejects with FlashCpiFailed when fewer than 19 accounts are passed", async () => {
+        await setupFresh();
+        await fundVault(BigInt(100_000_000));
+
+        const oraclePrice = { price: new BN(170_000_000_000), exponent: -8 };
+        // Only 10 placeholder accounts → len < 19 → FlashCpiFailed.
+        const tooFew = Array.from({ length: 10 }, () => ({
+          pubkey: Keypair.generate().publicKey,
+          isWritable: false,
+          isSigner: false,
+        }));
+
+        try {
+          await program.methods
+            .openFlashPosition(
+              FLASH_SIDE_LONG,
+              new BN(1_000_000),
+              new BN(10000),
+              new BN(500),
+              oraclePrice,
+              "Crypto.1"
+            )
+            .accounts({
+              treasury: treasuryPDA,
+              strategyRecord: strategyPDA,
+              treasuryVault: vaultPDA,
+              authority: payer.publicKey,
+            })
+            .remainingAccounts(tooFew)
+            .rpc();
+          assert.fail("Expected FlashCpiFailed");
+        } catch (err: any) {
+          assert.include(err.toString(), "FlashCpiFailed");
+        }
+      });
     });
   });
 

@@ -1394,4 +1394,193 @@ describe("rtp-treasury", () => {
       }
     });
   });
+
+  // =========================================================================
+  // AdopterRecord.treasury cross-validation (P0 #4)
+  // =========================================================================
+
+  describe("adopter_record.treasury cross-validation", () => {
+    // Create a second treasury (mintB) and register an adopter on it.
+    // Then try to use that adopter record with the first treasury — must fail.
+    let mintB: PublicKey, mintBKp: Keypair, authB: Keypair;
+    let treasuryB: PublicKey, vaultB: PublicKey;
+    let adopterB: PublicKey;
+
+    beforeEach(async () => {
+      authB = Keypair.generate();
+      mintBKp = Keypair.generate();
+      mintB = mintBKp.publicKey;
+
+      [treasuryB] = deriveTreasuryPDA(mintB);
+      [vaultB] = deriveVaultPDA(mintB);
+
+      await createMintWithFee(authB, mintBKp, treasuryB);
+
+      const bHolders = Keypair.generate();
+      const bDev = Keypair.generate();
+      const bEco = Keypair.generate();
+      const bHoldersATA = await createATA(mintB, bHolders.publicKey);
+      const bDevATA = await createATA(mintB, bDev.publicKey);
+      const bEcoATA = await createATA(mintB, bEco.publicKey);
+
+      await program.methods
+        .initialize(
+          new BN(MIN_RUNWAY),
+          new BN(DEFAULT_MIN_REDISTRIBUTE),
+        )
+        .accounts({
+          mint: mintB,
+          treasury: treasuryB,
+          treasuryVault: vaultB,
+          authority: authB.publicKey,
+          holdersWallet: bHolders.publicKey,
+          projectDevWallet: bDev.publicKey,
+          ecosystemWallet: bEco.publicKey,
+          tokenProgram: TOKEN_2022_PROGRAM_ID,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([authB])
+        .rpc();
+
+      // Register adopter for mintB under treasuryB
+      [adopterB] = PublicKey.findProgramAddressSync(
+        [Buffer.from("adopter"), mintB.toBuffer()],
+        PROGRAM_ID
+      );
+      await program.methods
+        .registerAdopter(mintB)
+        .accounts({
+          adopterRecord: adopterB,
+          treasury: treasuryB,
+          authority: payer.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+    });
+
+    it("hydrate_swarm rejects cross-treasury adopter record", async () => {
+      // Register a Live strategy on treasury A (the main test treasury)
+      const stratId = "CROSS_HYD";
+      const [stratPDA] = deriveStrategyPDA(treasuryPDA, stratId);
+      await program.methods
+        .registerStrategy(stratId, 300)
+        .accounts({
+          treasury: treasuryPDA,
+          strategyRecord: stratPDA,
+          authority: payer.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+
+      // Create swarm vault for treasury A
+      const [swVA] = deriveSwarmVaultPDA(mint);
+      try {
+        await program.methods
+          .createSwarmVault()
+          .accounts({
+            mint,
+            treasury: treasuryPDA,
+            swarmVault: swVA,
+            authority: payer.publicKey,
+            tokenProgram: TOKEN_2022_PROGRAM_ID,
+            systemProgram: SystemProgram.programId,
+          })
+          .rpc();
+      } catch { /* may already exist */ }
+
+      try {
+        await program.methods
+          .hydrateSwarm(new BN(1))
+          .accounts({
+            mint,
+            treasury: treasuryPDA,
+            treasuryVault: vaultPDA,
+            swarmVault: swVA,
+            strategyRecord: stratPDA,
+            adopterRecord: adopterB, // WRONG — belongs to treasuryB, not treasuryPDA
+            authority: payer.publicKey,
+            tokenProgram: TOKEN_2022_PROGRAM_ID,
+            systemProgram: SystemProgram.programId,
+          })
+          .rpc();
+        assert.fail("hydrate_swarm should reject cross-treasury adopter");
+      } catch (err: any) {
+        assert.include(
+          err.toString(),
+          "AdopterTreasuryMismatch",
+          `Expected AdopterTreasuryMismatch, got: ${err}`
+        );
+      }
+    });
+
+    it("record_fee_deposit rejects cross-treasury adopter record", async () => {
+      try {
+        await program.methods
+          .recordFeeDeposit(new BN(1_000_000))
+          .accounts({
+            adopterRecord: adopterB, // WRONG — belongs to treasuryB
+            treasury: treasuryPDA,   // treasury A
+            authority: payer.publicKey,
+          })
+          .rpc();
+        assert.fail("record_fee_deposit should reject cross-treasury adopter");
+      } catch (err: any) {
+        assert.include(
+          err.toString(),
+          "AdopterTreasuryMismatch",
+          `Expected AdopterTreasuryMismatch, got: ${err}`
+        );
+      }
+    });
+
+    it("end_beta rejects cross-treasury adopter record", async () => {
+      // Register a beta adopter for mintB under treasuryB
+      const [betaAdopterB] = PublicKey.findProgramAddressSync(
+        [Buffer.from("adopter"), mintB.toBuffer()],
+        PROGRAM_ID
+      );
+      // adopterB is already registered (non-beta). We can't easily create a beta
+      // adopter for a different treasury because the PDA is the same.
+      // Instead, test with the existing adopterB against treasuryA.
+      try {
+        await program.methods
+          .endBeta()
+          .accounts({
+            adopterRecord: adopterB, // WRONG — belongs to treasuryB
+            treasury: treasuryPDA,   // treasury A
+            authority: payer.publicKey,
+          })
+          .rpc();
+        assert.fail("end_beta should reject cross-treasury adopter");
+      } catch (err: any) {
+        assert.include(
+          err.toString(),
+          "AdopterTreasuryMismatch",
+          `Expected AdopterTreasuryMismatch, got: ${err}`
+        );
+      }
+    });
+
+    it("record_fee_deposit rejects unauthorized signer", async () => {
+      // Use adopterB with its own treasuryB, but with a non-authority signer.
+      const randomSigner = Keypair.generate();
+      try {
+        await program.methods
+          .recordFeeDeposit(new BN(1_000_000))
+          .accounts({
+            adopterRecord: adopterB,
+            treasury: treasuryB,
+            authority: randomSigner.publicKey, // not authB
+          })
+          .rpc();
+        assert.fail("record_fee_deposit should reject unauthorized signer");
+      } catch (err: any) {
+        assert.include(
+          err.toString(),
+          "UnauthorizedFeeAttribution",
+          `Expected UnauthorizedFeeAttribution, got: ${err}`
+        );
+      }
+    });
+  });
 });

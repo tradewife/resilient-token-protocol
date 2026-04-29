@@ -1,5 +1,4 @@
-export const RAW_IDL = 
-{
+export const IDL = {
   "address": "8rt6yiBnRTyHy8F69jUd7exWwwShUs4Eokeq41auo2RB",
   "metadata": {
     "name": "rtp_treasury",
@@ -570,7 +569,7 @@ export const RAW_IDL =
         {
           "name": "authority",
           "docs": [
-            "Authority \u2014 must equal treasury.authority (enforced in handler)"
+            "Authority \u2014 must equal treasury.authority"
           ],
           "signer": true
         }
@@ -771,7 +770,7 @@ export const RAW_IDL =
         {
           "name": "authority",
           "docs": [
-            "Authority \u2014 must equal treasury.authority (enforced in handler)"
+            "Authority \u2014 must equal treasury.authority"
           ],
           "signer": true
         }
@@ -1439,12 +1438,34 @@ export const RAW_IDL =
           "docs": [
             "Treasury state account \u2014 receives the total_fees_received_lamports increment"
           ],
-          "writable": true
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  114,
+                  101,
+                  97,
+                  115,
+                  117,
+                  114,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "treasury.mint",
+                "account": "Treasury"
+              }
+            ]
+          }
         },
         {
           "name": "authority",
           "docs": [
-            "The authority that can record fee deposits"
+            "The authority \u2014 must equal treasury.authority to prevent arbitrary fee inflation."
           ],
           "signer": true
         }
@@ -1508,7 +1529,29 @@ export const RAW_IDL =
           "docs": [
             "The treasury state account (must already be initialised)"
           ],
-          "writable": true
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  114,
+                  101,
+                  97,
+                  115,
+                  117,
+                  114,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "treasury.mint",
+                "account": "Treasury"
+              }
+            ]
+          }
         },
         {
           "name": "authority",
@@ -1585,7 +1628,29 @@ export const RAW_IDL =
           "docs": [
             "The treasury state account (must already be initialised)"
           ],
-          "writable": true
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  114,
+                  101,
+                  97,
+                  115,
+                  117,
+                  114,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "treasury.mint",
+                "account": "Treasury"
+              }
+            ]
+          }
         },
         {
           "name": "authority",
@@ -2378,6 +2443,36 @@ export const RAW_IDL =
       "code": 6026,
       "name": "CommittedDeltaExceedsBalance",
       "msg": "Decremented committed_sol_lamports exceeds tracked balance"
+    },
+    {
+      "code": 6027,
+      "name": "InvalidFlashSide",
+      "msg": "FlashSide::None is not valid for open/close \u2014 position must have a direction"
+    },
+    {
+      "code": 6028,
+      "name": "InvalidFlashEventAuthority",
+      "msg": "remaining_accounts[15] does not match the Flash Trade event authority PDA"
+    },
+    {
+      "code": 6029,
+      "name": "InvalidFlashSystemProgram",
+      "msg": "remaining_accounts[13] is not the expected System Program"
+    },
+    {
+      "code": 6030,
+      "name": "InvalidFlashTokenProgram",
+      "msg": "remaining_accounts[14] is not an expected token program (SPL token or token-2022)"
+    },
+    {
+      "code": 6031,
+      "name": "AdopterTreasuryMismatch",
+      "msg": "Adopter record does not belong to this treasury"
+    },
+    {
+      "code": 6032,
+      "name": "UnauthorizedFeeAttribution",
+      "msg": "Only the treasury authority can record fee deposits"
     }
   ],
   "types": [
@@ -2397,6 +2492,13 @@ export const RAW_IDL =
             "name": "token_mint",
             "docs": [
               "The SPL token mint of the adopting project"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "treasury",
+            "docs": [
+              "The treasury this adopter belongs to (back-reference for cross-validation)"
             ],
             "type": "pubkey"
           },
@@ -2799,6 +2901,10 @@ export const RAW_IDL =
             "type": "u8"
           },
           {
+            "name": "recovery_counter",
+            "type": "u8"
+          },
+          {
             "name": "drawdown_24h_bps",
             "type": "u16"
           },
@@ -2908,6 +3014,14 @@ export const RAW_IDL =
             "name": "soft_decay_strikes",
             "docs": [
               "Number of soft decay strikes accumulated"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "recovery_counter",
+            "docs": [
+              "Consecutive positive-performance updates since last strike (recovery gate).",
+              "Strikes only reset after MIN_RECOVERY_TRADES consecutive positive updates."
             ],
             "type": "u8"
           },
@@ -3165,4 +3279,4 @@ export const RAW_IDL =
       }
     }
   ]
-};
+} as const;
