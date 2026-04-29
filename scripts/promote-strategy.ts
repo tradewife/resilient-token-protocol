@@ -111,7 +111,7 @@ export async function exportPromoteStrategy(
   );
   const { candidate } = best;
 
-  const strategyId = makeStrategyId(candidate.symbol, candidate.survivor_score);
+ const strategyId = makeStrategyId(candidate.symbol, candidate.survivor_score, candidate.params, summary.date);
   const promotionSharpeX100 = Math.round(candidate.oos_sharpe * 100);
 
   if (dryRun) {
@@ -229,14 +229,33 @@ function evaluateCandidate(candidate: TopCandidate): {
  * Generate a short strategy ID from the symbol and survivor score.
  * Must be 1-16 chars.
  */
-function makeStrategyId(symbol: string, score: number): string {
-  // e.g. "SOL_2.69" from SOL/USDT, score 2.69
+function makeStrategyId(symbol: string, score: number, params?: Record<string, unknown>, runDate?: string): string {
+  // Collision-resistant ID: {SYMBOL}_{DATE}_{HASH}
+  // Example: "SOL_260429_A1F3"
+  // DATE = YYMMDD of Night Shift run, HASH = simple hash of strategy params
   const base = symbol.split("/")[0]; // SOL from SOL/USDT
-  const id = `${base}_${score.toFixed(1)}`;
+  const date = runDate ? runDate.replace(/-/g, "").slice(2, 8) : new Date().toISOString().slice(2, 10).replace(/-/g, "");
+
+  let hashSuffix: string;
+  if (params) {
+    // Hash the sorted JSON of params for collision resistance across different configs
+    const sortedKeys = Object.keys(params).sort();
+    const paramsStr = sortedKeys.map(k => JSON.stringify(k) + ":" + JSON.stringify(params[k])).join("|");
+    const hashBytes = Array.from(new TextEncoder().encode(paramsStr));
+    const hashNum = hashBytes.reduce((acc, b) => acc + b, 0) % (36 * 36 * 36 * 36);
+    hashSuffix = hashNum.toString(36).toUpperCase().padStart(4, "0");
+  } else {
+    hashSuffix = score.toFixed(1).replace(".", "");
+  }
+
+  const id = `${base}_${date}_${hashSuffix}`;
   if (id.length > 16) {
-    return id.substring(0, 16);
+    const keepFront = base.length + 1 + 6; // base_DATE
+    return id.slice(0, keepFront) + id.slice(-(16 - keepFront));
   }
   return id;
+}
+
 }
 
 // ─── Main ───────────────────────────────────────────────────────────────
@@ -315,7 +334,7 @@ async function main() {
   console.log(`[PROMOTE]   Fragility: ${candidate.fragility.toFixed(3)}`);
   console.log(`[PROMOTE]   Params: ${JSON.stringify(candidate.params)}`);
 
-  const strategyId = makeStrategyId(candidate.symbol, candidate.survivor_score);
+ const strategyId = makeStrategyId(candidate.symbol, candidate.survivor_score, candidate.params, summary.date);
   const promotionSharpeX100 = Math.round(candidate.oos_sharpe * 100);
 
   console.log(`[PROMOTE] Strategy ID: ${strategyId}`);

@@ -390,6 +390,27 @@ async fn run_single_cycle() -> Result<(), String> {
         );
     }
 
+
+// 0c. Knowledge Wing with persistence (P1.3).
+// If RTP_KNOWLEDGE_PATH is set (e.g. /data/swarm-memory/knowledge/wing-state.json),
+// the daemon creates a persistent KnowledgeWing that survives container restarts.
+// This is separate from the demo loop's in-memory KnowledgeWing.
+let knowledge_wing: Option<rtp_swarm::wings::knowledge::KnowledgeWing> =
+    if let Ok(path_str) = std::env::var("RTP_KNOWLEDGE_PATH") {
+        let path = std::path::PathBuf::from(&path_str);
+        let wing = rtp_swarm::wings::knowledge::KnowledgeWing::new_with_persistence(path);
+        tracing::info!(
+            "[DAEMON] Knowledge Wing persistence enabled: {}",
+            path_str
+        );
+        Some(wing)
+    } else {
+        tracing::info!(
+            "[DAEMON] RTP_KNOWLEDGE_PATH not set — knowledge not persisted across restarts"
+        );
+        None
+    };
+
     // 1. Load config.
     let mut config = load_config();
     tracing::info!(
@@ -639,6 +660,26 @@ async fn run_single_cycle() -> Result<(), String> {
 
     let mut next_config = params_used.clone();
     apply_mutations(&mut next_config, &accepted);
+
+    // Record cycle metadata in the persistent Knowledge Wing (P1.3).
+    // This data survives container restarts on Railway volumes.
+    if let Some(ref wing) = knowledge_wing {
+        let cycle_summary = format!(
+            "cycle_id={} health={:?} used_llm={} model={} params_next=signal:{} tp:{} sl:{}",
+            Utc::now().format("%Y-%m-%dT%H"),
+            cycle_health,
+            propose_result.used_llm,
+            propose_result.model_label,
+            next_config.signal_threshold,
+            next_config.tp_atr,
+            next_config.sl_atr,
+        );
+        wing.put("daemon_cycle", &cycle_summary);
+        tracing::info!(
+            "[DAEMON] recorded cycle in persistent knowledge wing ({} keys)",
+            wing.store_size()
+        );
+    }
 
     // 5. Write cycle output.
     let now = Utc::now();

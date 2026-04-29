@@ -784,3 +784,213 @@ export async function registerStrategy(
   const signature = await sendTx(connection, tx, payer);
   return { signature, strategyPDA: strategyPDA.toBase58() };
 }
+
+// ---------------------------------------------------------------------------
+// Emergency / Positions Functions (P1.4)
+// ---------------------------------------------------------------------------
+
+/**
+ * Result of querying open Flash Trade positions for a treasury.
+ */
+export interface FlashPositionInfo {
+  position_address: string;
+  side: "Long" | "Short";
+  size_usd: number;
+  entry_price: number;
+  unrealized_pnl?: number;
+  created_at: string; // ISO 8601
+  market: string;
+}
+
+/**
+ * Fetch open Flash Trade positions for a treasury PDA.
+ * Uses the Flash Trade REST API. Returns empty array if no positions or API unavailable.
+ *
+ * Note: This requires knowing the treasury's position addresses, which can be
+ * obtained by querying Flash Trade's position list endpoint with the treasury address.
+ */
+export async function listFlashPositions(
+  treasuryAddress: string,
+  rpcUrl: string = RTP_DEVNET_RPC,
+): Promise<FlashPositionInfo[]> {
+  try {
+    const response = await fetch(
+      `https://flashapi.trade/api/v1/positions?owner=${treasuryAddress}`,
+      { signal: AbortSignal.timeout(5000) },
+    );
+    if (!response.ok) {
+      console.warn(`[listFlashPositions] Flash API returned ${response.status}`);
+      return [];
+    }
+    const data = await response.json() as { positions?: FlashPositionInfo[] };
+    return data.positions ?? [];
+  } catch (err) {
+    console.warn(`[listFlashPositions] Flash API unavailable: ${err}`);
+    return [];
+  }
+}
+
+export interface CloseFlashPositionResult {
+  signature: string;
+  positionAddress: string;
+}
+
+/**
+ * Close a single Flash Trade perpetual position via `close_flash_position` CPI.
+ *
+ * Authority-gated. Treasury must not be frozen. Strategy can be Suspended (exiting is always safe).
+ *
+ * The `flashAccounts` parameter should contain the pre-derived Flash Trade program
+ * accounts for the specific market/position being closed. Derive these offline using
+ * the same PDA seeds as the open instruction, or use the positions list to retrieve them.
+ */
+export async function closeFlashPosition(
+  connection: Connection,
+  payer: Keypair | WalletAdapter,
+  mintAddress: string | PublicKey,
+  positionAddress: string,
+  flashAccounts: {
+    owner: string;
+    feePayer: string;
+    receivingAccount: string;
+    transferAuthority: string;
+    perpetuals: string;
+    pool: string;
+    market: string;
+    targetCustody: string;
+    targetOracle: string;
+    collateralCustody: string;
+    collateralOracle: string;
+    collateralCustodyTokenAccount: string;
+    tokenProgram: string;
+    eventAuthority: string;
+    flashProgram: string;
+    ixSysvar: string;
+    collateralMint: string;
+  },
+  /** Oracle price for close (fetch from Flash Trade API or Pyth). Defaults to 0 (program fetches). */
+  oraclePrice?: number,
+  /** Slippage tolerance in basis points. Default 500 (5%). */
+  slippageBps: number = 500,
+): Promise<CloseFlashPositionResult> {
+  const mint = typeof mintAddress === "string" ? new PublicKey(mintAddress) : mintAddress;
+  const [treasuryPDA] = deriveTreasuryPDA(mint);
+  const [vaultPDA] = deriveVaultPDA(mint);
+  const [strategyPDA] = deriveStrategyPDA(treasuryPDA, "SOL_2.69"); // Use existing strategy PDA
+
+  const idl = loadPatchedIdl();
+  const provider = new AnchorProvider(
+    connection,
+    isKeypair(payer) ? kpWallet(payer) : walletToAnchorWallet(payer),
+    { commitment: "confirmed" },
+  );
+  const program = new Program(idl, provider);
+
+  // Build remaining accounts array (Flash Trade close_position expects 18 accounts)
+  const remainingAccounts = [
+    // 0: owner (treasury PDA, signer)
+    { pubkey: new PublicKey(flashAccounts.owner), isSigner: true, isWritable: false },
+    // 1: fee_payer
+    { pubkey: new PublicKey(flashAccounts.feePayer), isSigner: true, isWritable: true },
+    // 2: receiving_account
+    { pubkey: new PublicKey(flashAccounts.receivingAccount), isSigner: false, isWritable: true },
+    // 3: transfer_authority
+    { pubkey: new PublicKey(flashAccounts.transferAuthority), isSigner: false, isWritable: false },
+    // 4: perpetuals
+    { pubkey: new PublicKey(flashAccounts.perpetuals), isSigner: false, isWritable: false },
+    // 5: pool
+    { pubkey: new PublicKey(flashAccounts.pool), isSigner: false, isWritable: true },
+    // 6: position
+    { pubkey: new PublicKey(positionAddress), isSigner: false, isWritable: true },
+    // 7: market
+    { pubkey: new PublicKey(flashAccounts.market), isSigner: false, isWritable: true },
+    // 8: target_custody
+    { pubkey: new PublicKey(flashAccounts.targetCustody), isSigner: false, isWritable: false },
+    // 9: target_oracle_account
+    { pubkey: new PublicKey(flashAccounts.targetOracle), isSigner: false, isWritable: false },
+    // 10: collateral_custody
+    { pubkey: new PublicKey(flashAccounts.collateralCustody), isSigner: false, isWritable: true },
+    // 11: collateral_oracle_account
+    { pubkey: new PublicKey(flashAccounts.collateralOracle), isSigner: false, isWritable: false },
+    // 12: collateral_custody_token_account
+    { pubkey: new PublicKey(flashAccounts.collateralCustodyTokenAccount), isSigner: false, isWritable: true },
+    // 13: token_program
+    { pubkey: new PublicKey(flashAccounts.tokenProgram), isSigner: false, isWritable: false },
+    // 14: event_authority
+    { pubkey: new PublicKey(flashAccounts.eventAuthority), isSigner: false, isWritable: false },
+    // 15: program (Flash Trade program)
+    { pubkey: new PublicKey(flashAccounts.flashProgram), isSigner: false, isWritable: false },
+    // 16: ix_sysvar
+    { pubkey: new PublicKey(flashAccounts.ixSysvar), isSigner: false, isWritable: false },
+    // 17: collateral_mint
+    { pubkey: new PublicKey(flashAccounts.collateralMint), isSigner: false, isWritable: false },
+  ];
+
+  const tx = await program.methods
+    .closeFlashPosition(
+      oraclePrice ?? 0, // 0 = program fetches oracle price
+      slippageBps,
+      0, // delta — program computes
+    )
+    .accounts({
+      treasury: treasuryPDA,
+      strategyRecord: strategyPDA,
+      treasuryVault: vaultPDA,
+      feePayer: isKeypair(payer) ? payer.publicKey : (payer as WalletAdapter).publicKey!,
+    })
+    .remainingAccounts(remainingAccounts)
+    .transaction();
+
+  const signature = await sendTx(connection, tx, payer);
+  return { signature, positionAddress };
+}
+
+export interface EmergencyResetCountersResult {
+  signature: string;
+  positionsReset: number;
+}
+
+/**
+ * Emergency reset of Flash Trade position counters.
+ *
+ * Authority-gated. **Does NOT close actual Flash Trade positions on-chain.**
+ * This only zeroes the `open_position_count` and `committed_sol_lamports` fields.
+ *
+ * Operators MUST call `closeFlashPosition` for each open position separately,
+ * or rely on Flash Trade keeper liquidation, to actually unwind exposure.
+ *
+ * Use together with `freezeTreasury` for a full emergency halt.
+ */
+export async function emergencyResetPositionCounters(
+  connection: Connection,
+  payer: Keypair | WalletAdapter,
+  mintAddress: string | PublicKey,
+  /** List of Flash Trade position addresses that were open. Used only for the event. */
+  positionAddresses: string[],
+): Promise<EmergencyResetCountersResult> {
+  const mint = typeof mintAddress === "string" ? new PublicKey(mintAddress) : mintAddress;
+  const [treasuryPDA] = deriveTreasuryPDA(mint);
+  const [strategyPDA] = deriveStrategyPDA(treasuryPDA, "SOL_2.69");
+
+  const idl = loadPatchedIdl();
+  const provider = new AnchorProvider(
+    connection,
+    isKeypair(payer) ? kpWallet(payer) : walletToAnchorWallet(payer),
+    { commitment: "confirmed" },
+  );
+  const program = new Program(idl, provider);
+
+  const positionPdas = positionAddresses.map((addr) => new PublicKey(addr));
+
+  const tx = await program.methods
+    .emergencyCloseAllPositions(positionPdas)
+    .accounts({
+      treasury: treasuryPDA,
+      strategyRecord: strategyPDA,
+      authority: isKeypair(payer) ? payer.publicKey : (payer as WalletAdapter).publicKey!,
+    })
+    .transaction();
+
+  const signature = await sendTx(connection, tx, payer);
+  return { signature, positionsReset: positionAddresses.length };
+}

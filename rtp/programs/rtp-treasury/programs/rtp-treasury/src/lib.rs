@@ -614,7 +614,7 @@ pub mod rtp_treasury {
     /// Check redistribution threshold and execute 70/20/10 split.
     ///
     /// Distributes the vault's excess above `min_runway_balance`:
-    /// - 70% → holders
+    /// - 70% → holders_recipient wallet (an associated token account, not individual holders)
     /// - 20% → project dev wallet
     /// - 10% → ecosystem wallet (+ rounding dust)
     ///
@@ -642,7 +642,7 @@ pub mod rtp_treasury {
         let token_program = &ctx.accounts.token_program;
         let mint_info = ctx.accounts.mint.to_account_info();
 
-        // 70% → holders
+        // 70% → holders_recipient wallet (an associated token account, not individual holders)
         if holders_amt > 0 {
             token_interface::transfer_checked(
                 CpiContext::new_with_signer(
@@ -678,7 +678,7 @@ pub mod rtp_treasury {
             )?;
         }
 
-        // 10% → ecosystem (+ rounding dust)
+        // 10% → ecosystem wallet (receives rounding remainder from 70/20 split)
         if eco_amt > 0 {
             token_interface::transfer_checked(
                 CpiContext::new_with_signer(

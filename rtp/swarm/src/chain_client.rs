@@ -201,6 +201,25 @@ pub enum FlashSide {
     Short,
 }
 
+impl ChainConfig {
+    /// Create a ChainConfig with placeholder values (always available for tests and local dev).
+    /// Does NOT read from environment — safe for unit/integration tests.
+    pub fn test_default() -> Self {
+        Self {
+            mint: Pubkey::new_unique(),
+            program_id: Pubkey::new_unique(),
+            treasury_pda: Pubkey::new_unique(),
+            strategy_id: "SOL_2.69".into(),
+            vault_pda: Pubkey::new_unique(),
+            strategy_pda: Pubkey::new_unique(),
+            authority_keypair_path: None,
+            rpc_url: "http://localhost:8899".to_string(),
+            flash_program_id: Pubkey::new_unique(),
+            mode: ExecutionMode::Simulate,
+        }
+    }
+}
+
 impl FlashSide {
     pub fn discriminant(self) -> u8 {
         match self {

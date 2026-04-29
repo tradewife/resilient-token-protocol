@@ -37,7 +37,8 @@ EOF
 cd /app
 git remote set-url origin "git@github.com:tradewife/resilient-token-protocol.git" 2>/dev/null || true
 
-# Check if there are changes to commit
+# Check if there are changes to commit.
+# Night results live in /data/night_results (shared volume) — check there.
 if git diff --quiet data/night_results/ 2>/dev/null && [ -z "$(git ls-files --others --exclude-standard data/night_results/)" ]; then
   echo "[COMMIT] No changes in data/night_results/ — nothing to commit"
   exit 0
@@ -45,7 +46,9 @@ fi
 
 # Commit and push
 DATE=$(date -u +%Y-%m-%d)
+# Add from both the symlink working dir (for staged changes) and the volume (for new files)
 git add data/night_results/
+git add /data/night_results/ 2>/dev/null || true
 git commit -m "night-shift: results for ${DATE} [skip ci]" || true
 
 # Retry push up to 3 times (network flakiness on Railway)

@@ -167,7 +167,7 @@ Treasury program deployed and operational on Solana devnet (Apr 11 2026).
 | Explorer | [View demo treasury](https://explorer.solana.com/address/7oZTJWYBDjzqmbfRs5YkTv53CDa6vESAzfyjK3yhYshc?cluster=devnet) |
 | Init tx | [View transaction](https://explorer.solana.com/tx/4RVehmPVpnFYHrsF6N64RjVh7mszRzKF9DQVHd8TUqBHwrnyDYavf3TnDYJC4b5PrJWVSubZkNuyVkF1oJzk71RT?cluster=devnet) |
 
-8/8 on-chain steps completed including live redistribution (70/20/10 split).
+8/8 on-chain steps completed including live redistribution (70/20/10 split to respective wallets).
 
 ## Architecture
 
@@ -180,7 +180,7 @@ Treasury program deployed and operational on Solana devnet (Apr 11 2026).
 │  ├── Strategy lifecycle (register → update → suspend/retire)    │
 │  ├── Hydration gate (only Live strategies receive funding)      │
 │  ├── Flash Trade CPI: invoke_signed → open/close perps positions │
-│  ├── Threshold-triggered redistribution (70/20/10 split)        │
+│  ├── Threshold-triggered redistribution (70/20/10 split to respective wallets)        │
 │  ├── Self-hydration CPI (fund swarm ops from yield)            │
 │  ├── Ecosystem auto-invest (excess → top RTP token LPs)        │
 │  └── Phase evolution (sustenance → ecosystem → humanity fund)   │
@@ -386,7 +386,7 @@ SOL fees → Treasury PDA → invoke_signed → Flash Trade CPI (on-chain perps)
 | 1. Fees arrive | SOL | Treasury PDA (Solana) | Platform creator fees (Pump.fun, Bags.fm, Raydium) → treasury PDA |
 | 2. Execute strategies | SOL | Flash Trade (on-chain CPI) | Treasury PDA invoke_signed → Composability swap-and-open → perps position on Solana |
 | 3. Yield returns | SOL | Treasury PDA (Solana) | Close position → SOL returned to treasury vault via CPI |
-| 4. Redistribute | SOL | Treasury PDA | 70% holders / 20% dev / 10% ecosystem (on-chain) |
+| 4. Redistribute | SOL | Treasury PDA | 70% to holders wallet / 20% dev / 10% ecosystem (on-chain) |
 
 **Why this model:**
 - **Single asset, single chain** — the treasury PDA holds SOL, Flash Trade positions are on Solana, yield returns as SOL. No bridge. No USDC. No cross-chain risk.
@@ -467,7 +467,7 @@ AdopterRecord_A             AdopterRecord_B             AdopterRecord_C
       │                           │                           │
   Yield_A → SOL_A            Yield_B → SOL_B            Yield_C → SOL_C
       │                           │                           │
-  70/20/10 split_A           70/20/10 split_B           70/20/10 split_C
+  70/20/10 split to respective wallets_A           70/20/10 split to respective wallets_B           70/20/10 split to respective wallets_C
 ```
 
 **On-chain proof:** `register_adopter` and `record_fee_deposit` instructions are live on devnet. Each token's `AdopterRecord` PDA (`seeds: ["adopter", token_mint]`) tracks its own fees independently. The `Treasury` PDA (`seeds: ["treasury", mint]`) is per-mint. See `scripts/compute_adopter_yield_share.ts` for the attribution formula.
@@ -737,7 +737,7 @@ npx tsx cli/bin/rtp.ts status --all
 3. "Here's the best one — +118% PnL, 78% consistency, 9 independent validation folds"
 4. "The Trading Wing proposes deployment — the Audit Wing checks it against the soulcontract"
 5. "Approved — the Treasury PDA signs a Flash Trade CPI call via invoke_signed, the position opens on Solana, yield flows back to the project and holders"
-6. "At threshold, it auto-redistributes — 70% holders, 20% project dev, 10% ecosystem — all on-chain"
+6. "At threshold, it auto-redistributes — 70% to holders wallet, 20% project dev, 10% ecosystem — all on-chain"
 
 ## Third-Party Components
 

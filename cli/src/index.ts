@@ -11,6 +11,7 @@ import { makeFreezeCommand, makeUnfreezeCommand } from "./commands/freeze.js";
 import { makeAccountsCommand } from "./commands/accounts.js";
 import { makeStatusCommand } from "./commands/status.js";
 import { makeDemoCommand } from "./commands/demo.js";
+import { makePositionsCommand } from "./commands/positions.js";
 import { printError } from "./errors.js";
 
 export function createProgram(): Command {
@@ -31,6 +32,7 @@ export function createProgram(): Command {
   program.addCommand(makeUnfreezeCommand());
   program.addCommand(makeAccountsCommand());
   program.addCommand(makeStatusCommand());
+program.addCommand(makePositionsCommand());
   program.addCommand(makeDemoCommand());
 
   return program;

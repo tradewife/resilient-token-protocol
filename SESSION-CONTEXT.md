@@ -2,8 +2,8 @@
 
 > **How to use this file:** Paste the relevant sections at the top of every fresh agent session. Do not paste the full papers or full repo. This file is the compressed institutional memory of the project. Update it after each significant session.
 
-**Last updated:** 2026-04-29 — P0 remediation complete (5 tasks). 312 unit + 5 integration tests. Daemon has real chain execution. Dashboard live (200 OK). 5/6 Railway services green.
-**Current state:** All P0 remediation tasks complete. 312 unit + 5 integration Rust tests pass (was 308 — chain_client added 4). Daemon builds/submits real open/close Flash Trade instructions via chain_client.rs (ChainConfig from env, ExecutionMode simulate/devnet/mainnet). Stale positions auto-close. On-chain program hardened: AdopterRecord.treasury cross-validated on HydrateSwarm/RecordFeeDeposit/EndBeta, record_fee_deposit authority-gated, Flash Trade CPI accounts validated at remaining[13–16]. Dashboard live at resilientprotocol.xyz (200). 5/6 Railway services green (fee-crank transient crash — devnet RPC issue).
+**Last updated:** 2026-04-30 — P0 + P1 remediation complete. 312 unit + 12 integration tests pass. Docker volume mounts for night results (P1.1). Knowledge wing persistence via RTP_KNOWLEDGE_PATH (P1.3). Positions CLI + SDK with close path (P1.4). Promotion idempotency fixed (P2.1). CLI TypeScript builds clean.
+**Current state:** P0 + P1 + P2.1 remediation complete (10 tasks). 312 unit + 12 integration Rust tests pass. Docker volume mounts: night results dir shared via VOLUME ["/data/night_results"] across promote/daemon/night-shift images (P1.1). Knowledge Wing persistence via RTP_KNOWLEDGE_PATH env var — daemon records cycle metadata to persistent JSON file (P1.3). Positions CLI: `rtp positions list/close/reset-counters` + SDK methods closeFlashPosition/emergencyResetPositionCounters/listFlashPositions (P1.4). Promotion idempotency: makeStrategyId uses {SYMBOL}_{DATE}_{HASH} collision-resistant format (P2.1). Anchor program on-chain tests: deployed to devnet (rate-limited SOL faucet — no code failures). CLI TypeScript compiles clean.
 
 ---
 
@@ -86,7 +86,7 @@ Trading Wing (Rust)
         ▼ update_strategy_performance with realized PnL
         │
         ▼ check_redistribute (on-chain)
-           70% holders / 20% project dev / 10% ecosystem
+           70% to holders wallet / 20% project dev / 10% ecosystem
 ```
 
 ### Current State of Execution Path
@@ -871,7 +871,7 @@ State as of Apr 11:
   3. ✅ Adoption verified
   4. ✅ Swarm hydration vault created
   5. ✅ 10 simulated trades → fees withdrawn (10,000 tokens)
-  6. ✅ Redistribution: 70.0% holders / 20.0% dev / 10.0% ecosystem
+  6. ✅ Redistribution: 70.0% to holders wallet / 20.0% dev / 10.0% ecosystem
   7. ✅ Swarm hydrated (runway invariant enforced)
   8. ✅ Phase evolution correctly rejected (BelowThreshold)
 - Init TX: https://explorer.solana.com/tx/4RVehmPVpnFYHrsF6N64RjVh7mszRzKF9DQVHd8TUqBHwrnyDYavf3TnDYJC4b5PrJWVSubZkNuyVkF1oJzk71RT?cluster=devnet

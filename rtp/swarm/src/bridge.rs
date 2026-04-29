@@ -14,6 +14,15 @@ pub const CYCLE_BIN: &str = "cycle_report.bin";
 /// Directory containing Night Shift results (repo-relative).
 pub const NIGHT_RESULTS_DIR: &str = "data/night_results";
 
+/// Resolve the Night Shift results directory.
+/// Priority: `NIGHT_RESULTS_DIR` env var > repo-relative default.
+fn night_results_dir() -> std::path::PathBuf {
+    if let Ok(env_dir) = std::env::var("NIGHT_RESULTS_DIR") {
+        return std::path::PathBuf::from(env_dir);
+    }
+    repo_root().join(NIGHT_RESULTS_DIR)
+}
+
 /// Request sent to the Python fractal-swarm binary.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BridgeRequest {
@@ -106,8 +115,7 @@ pub struct NightShiftResult {
 /// Searches for `data/night_results/<YYYY-MM-DD>/summary.json` and picks the
 /// most recent date directory. Returns `Err` if no results exist.
 pub fn read_latest_night_results() -> Result<NightShiftResult, BridgeError> {
-    let root = repo_root();
-    let night_dir = root.join(NIGHT_RESULTS_DIR);
+    let night_dir = night_results_dir();
 
     if !night_dir.exists() {
         return Err(BridgeError::NightResultsNotFound(format!(
