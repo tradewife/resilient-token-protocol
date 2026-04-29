@@ -104,7 +104,7 @@ Fee-Payer Wallet (gas only, DONE)
 
 This repo has three layers:
 1. **Proven Python fractal-swarm** (shipping) — backtesting, optimization, paper trading
-2. **Rust swarm + Solana treasury** (built, 308 unit + 5 integration tests) — 6-wing architecture, Coordinator, soulcontract, Flash Trade CPI execution, emergency freeze, zero-address guard
+2. **Rust swarm + Solana treasury** (built, 312 unit + 5 integration tests) — 6-wing architecture, Coordinator, soulcontract, Flash Trade CPI execution, emergency freeze, zero-address guard
 3. **Flash Trade CPI execution** (done — mainnet verified) — Trading Wing → Treasury PDA invoke_signed → Flash Trade Perpetuals CPI → on-chain positions → SOL yield → treasury PDA
 
 ---
@@ -293,7 +293,8 @@ All commands support `--json` (machine-readable), `--quiet` (errors only), `--cl
 | `rtp/swarm/src/wings/trading/types.rs` | Trading types — StrategyConfig, PositionState, TradingState |
 | `rtp/swarm/src/wings/trading/flash_trade_client.rs` | **Flash Trade REST API client — markets, prices, positions, pool data queries** |
 | `rtp/swarm/src/wings/trading/phantom_mcp.rs` | **[ARCHIVED]** Phantom MCP client — gated behind `#[cfg(feature = "hyperliquid")]`, not compiled by default |
-| `rtp/swarm/src/bin/rtp-daemon.rs` | **Devnet loop daemon — single-cycle (Railway cron) or watchdog mode (RTP_WATCHDOG=1), retry layer, LLM evolution** |
+| `rtp/swarm/src/bin/rtp-daemon.rs` | **Devnet loop daemon — real chain execution via chain_client, stale position close, single-cycle (Railway cron) or watchdog mode (RTP_WATCHDOG=1)** |
+| `rtp/swarm/src/chain_client.rs` | **On-chain client — ChainConfig from env, ExecutionMode simulate/devnet/mainnet, PDA derivation, open/close instruction builders, submit/simulate with retry** |
 | `rtp/swarm/src/wings/security/mod.rs` | Threat detection, rate-limiting, suspicious-proposal detection |
 | `rtp/swarm/src/wings/evolve/` | Assessor, proposer, rollback (complete, tested) |
 | `rtp/swarm/src/wings/knowledge/mod.rs` | Persistent knowledge store (JSON file-backed), cross-wing queries |
@@ -366,7 +367,7 @@ Flash Trade uses **Pyth Network** oracles for pricing. Pyth prices are **mainnet
 # Run Flash Trade CPI tests (local validator):
 cd rtp/programs/rtp-treasury && anchor test
 
-# Run Rust swarm tests (308 tests):
+# Run Rust swarm tests (312 tests):
 cd rtp/swarm && cargo test --lib
 ```
 
@@ -390,6 +391,8 @@ cd rtp/swarm && cargo test --lib
 14. **size_amount bounds check** — `u128` to `u64` truncation guarded by `require!(size_amount <= u64::MAX as u128)`
 15. **Soft decay recovery** — strikes reset to 0 after 3 consecutive positive updates (`recovery_counter >= MIN_RECOVERY_TRADES`). Single lucky trade cannot clear strikes.
 16. **PDA seed validation** — `RecordFeeDeposit.treasury` and `RegisterAdopter.treasury` have seeds constraints, preventing cross-treasury corruption
+17. **AdopterRecord.treasury cross-validation** — `HydrateSwarm`, `RecordFeeDeposit`, and `EndBeta` enforce `adopter_record.treasury == treasury.key()`. Cross-treasury adopter records rejected with `AdopterTreasuryMismatch`.
+18. **Fee attribution authority-gated** — `record_fee_deposit` requires `authority.key() == treasury.authority`. Random signers cannot inflate adopter contributions.
 
 ## Trust Model — Permissionless Recording, Authority-Gated Actions
 
@@ -414,7 +417,7 @@ The on-chain program separates instructions into two categories:
 - `create_swarm_vault` — anyone can pay to create the hydration vault (no authority check)
 - `hydrate_swarm` — anyone can propose hydration (gated by strategy Live status + beta check + runway invariant)
 - `register_adopter` / `register_adopter_beta` — anyone can create an adopter record (caller pays rent)
-- `record_fee_deposit` — anyone can record fee accounting (no fund movement, just counters)
+- `record_fee_deposit` — authority-gated (v1.3). Only treasury.authority can record fee accounting. Prevents arbitrary metric inflation. AdopterRecord.treasury cross-validated against treasury.
 - `verify_adoption` — read-only verification
 
 **Flash Trade CPI instructions (fee-payer submits, Treasury PDA signs via invoke_signed):**

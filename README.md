@@ -30,7 +30,7 @@ A Solana-native, self-funding treasury governed by a modular Rust swarm. Any tok
 
 ## The One-Liner
 
-Any launch platform integrates RTP — one function call per token launch. Transfer fees route to a program-owned treasury vault. A cron-driven autonomous agent swarm generates yield, returns it to the project and holders, forever. No human approves individual steps. There is no RTP token. RTP is infrastructure.
+Any launch platform integrates RTP — one function call per token launch. Transfer fees route to a program-owned treasury vault. A cron-driven autonomous agent swarm researches, validates, and executes yield strategies (open/close Flash Trade positions via on-chain CPI), returning yield to the project and holders, forever. There is no RTP token. RTP is infrastructure.
 
 ## Why This Is Different
 
@@ -549,12 +549,12 @@ The Trading Wing's research layer is shipping today. Everything else is scaffold
 | Paper Trader (live Binance, ADX filter, state persistence) | Trading | Python | **Shipping** |
 | Self-Correction (fast sim vs full sim calibration) | Trading | Python | **Shipping** |
 | CI Pipeline (nightly cron, auto-commit, 300min timeout) | Trading | Infra | **Shipping** |
-| Devnet Loop (6h cron, LLM mutations, config chaining) | Evolve | Infra | **Shipping** |
+| Devnet Loop (6h cron, real chain execution, LLM mutations, config chaining) | Evolve | Infra | **Shipping** |
 | SOL Optimized Config (+118.3% PnL, 78% consistency, 429 trades) | Trading | Python | **Shipping** |
 | Treasury Program (Anchor: deposit, distribute, hydrate, evolve, Flash Trade CPI) | — | Solana | **Built** (audit remediated, M0–M5 complete) |
 | soulcontract.md (constitutional governance layer) | — | Governance | **Defined** |
 | Python ↔ Rust Bridge (typed JSON, bridge-mode subprocess) | Trading | Both | **Built** |
-| Coordinator (soulguard + router + lifecycle) | — | Rust | **Built** (308 tests) |
+| Coordinator (soulguard + router + lifecycle) | — | Rust | **Built** (312 tests) |
 | Evolve Wing (assessor + proposer + rollback) | Evolve | Rust | **Built** |
 | Audit Wing (3-agent tribunal, Byzantine consensus) | Audit | Rust | **Built** |
 | Trading Wing (Flash Trade CPI execution, REST API client, in-memory state) | Trading | Rust | **Built** |
@@ -573,6 +573,7 @@ rtp/
 │   │   ├── lib.rs                  # Re-exports, module declarations
 │   │   ├── types.rs                # Message, Payload, WingId, Priority
 │   │   ├── bridge.rs               # Python ↔ Rust typed subprocess interface
+│   │   ├── chain_client.rs          # On-chain client — ChainConfig, ExecutionMode, open/close builders, submit/simulate
 │   │   ├── config.rs               # Swarm configuration
 │   │   ├── demo.rs                 # End-to-end demo loop (8-step pipeline)
 │   │   ├── coordinator/
@@ -594,7 +595,7 @@ rtp/
 │   │       └── futureproof/mod.rs  # Deprecation monitoring, heartbeat
 │   └── src/bin/
 │       ├── demo.rs                 # One-shot demo binary (5 judge points)
-│       └── daemon.rs               # Autonomous devnet loop (6h CI cron)
+│       └── daemon.rs               # Autonomous devnet loop (real chain execution, 6h CI cron)
 │
 ├── programs/                        # Solana (Anchor)
 │   └── rtp-treasury/              # Deposit, distribute, hydrate, evolve, strategy lifecycle
@@ -660,8 +661,8 @@ Treasury program audit-remediated. All 6 wings built. Coordinator with full qual
 - ✅ Treasury program on devnet (Anchor 1.0, audit remediated)
 - ✅ Python ↔ Rust typed bridge (`rtp/swarm/src/bridge.rs`)
 - ✅ End-to-end demo loop (`rtp/swarm/src/demo.rs`, 8-step pipeline)
-- ✅ Autonomous devnet loop (`rtp-daemon` binary, 6h CI cron, LLM mutations)
-- ✅ Test suite: 308 tests, 0 failures, 0 clippy warnings (anchor: 32 passing, 9/9 Flash Trade CPI tests).
+- ✅ Autonomous devnet loop (`rtp-daemon` binary, real chain execution via chain_client.rs, 6h CI cron, LLM mutations)
+- ✅ Test suite: 312 tests, 0 failures, 0 clippy warnings (anchor: 32 passing, 9/9 Flash Trade CPI tests).
 
 ### Phase 2: End-to-End Integration + Full Loop
 

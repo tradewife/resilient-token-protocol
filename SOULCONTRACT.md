@@ -22,6 +22,9 @@ Amendments require a human signature and a 24-hour monitoring window before taki
 11. **Zero-address rejection** — `Pubkey::default()` is rejected on all critical fields (authority, mint, wallet addresses). No misconfiguration attacks.
 12. **PDA-validated treasury accounts** — all instructions that accept a `treasury` account enforce `seeds = [TREASURY_SEED, treasury.mint.as_ref()], bump = treasury.bump`. No cross-treasury accounting corruption.
 13. **Overflow-safe position sizing** — `open_flash_position` validates `size_amount <= u64::MAX` before truncation. Flash Trade CPI rejects `FlashSide::None` (positions must have a direction).
+14. **AdopterRecord.treasury cross-validation** — `HydrateSwarm`, `RecordFeeDeposit`, and `EndBeta` enforce `adopter_record.treasury == treasury.key()`. An adopter record from another treasury cannot influence funding, accounting, or beta expiry. Rejected with `AdopterTreasuryMismatch`.
+15. **Fee attribution authority-gated** — `record_fee_deposit` requires `authority.key() == treasury.authority`. Random signers cannot inflate adopter fee contributions. Rejected with `UnauthorizedFeeAttribution`.
+16. **Flash Trade CPI account validation** — `open_flash_position` validates all remaining accounts: program ID at `remaining[16]`, event authority at `remaining[15]`, system program at `remaining[13]`, token program at `remaining[14]`. Token-2022 accepted at `remaining[14]`.
 
 ---
 

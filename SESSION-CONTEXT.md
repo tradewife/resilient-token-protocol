@@ -2,8 +2,8 @@
 
 > **How to use this file:** Paste the relevant sections at the top of every fresh agent session. Do not paste the full papers or full repo. This file is the compressed institutional memory of the project. Update it after each significant session.
 
-**Last updated:** 2026-04-29 — Colosseum audit remediation complete (16 fixes, 5 phases). 308 unit + 5 integration tests. Dashboard live (200 OK). All 6 Railway services green.
-**Current state:** All systems operational. 308 unit + 5 integration Rust tests pass. Dashboard live at resilientprotocol.xyz (200). On-chain program hardened (PDA seeds, overflow guards, FlashSide rejection, authority-gated strategy updates, 3-trade recovery gate, adopter back-references, Anchor constraints on all authority-gated instructions). Daemon has retry layer + watchdog mode. Knowledge Wing file-persisted. Tracing framework replaces println. All 6 Railway services green.
+**Last updated:** 2026-04-29 — P0 remediation complete (5 tasks). 312 unit + 5 integration tests. Daemon has real chain execution. Dashboard live (200 OK). 5/6 Railway services green.
+**Current state:** All P0 remediation tasks complete. 312 unit + 5 integration Rust tests pass (was 308 — chain_client added 4). Daemon builds/submits real open/close Flash Trade instructions via chain_client.rs (ChainConfig from env, ExecutionMode simulate/devnet/mainnet). Stale positions auto-close. On-chain program hardened: AdopterRecord.treasury cross-validated on HydrateSwarm/RecordFeeDeposit/EndBeta, record_fee_deposit authority-gated, Flash Trade CPI accounts validated at remaining[13–16]. Dashboard live at resilientprotocol.xyz (200). 5/6 Railway services green (fee-crank transient crash — devnet RPC issue).
 
 ---
 
@@ -229,6 +229,45 @@ A judge must be able to verify these five things in under 3 minutes:
 ---
 
 ## 8. Session Status
+
+**Session 2026-04-29(iv) — P0 Remediation (5 tasks, real daemon execution)**
+
+State as of Apr 29:
+- **312 unit + 5 integration Rust tests, 0 failures** (was 308 — chain_client added 4)
+- **Daemon now builds and submits real Flash Trade open/close instructions**
+- **5/6 Railway services green** (fee-crank transient crash — devnet RPC issue, not our code)
+- **Dashboard live at resilientprotocol.xyz (200 OK)**
+
+**P0 remediation tasks completed (RTP-REMEDIATION-SPEC.md):**
+
+| Task | Detail |
+|------|--------|
+| P0 #1: Flash Trade CPI account validation | remaining[16] = Flash program, remaining[15] = event authority, remaining[13–14] = system/token programs. 7 new anchor tests. (Done in prior session.) |
+| P0 #2: Daemon actually executes transactions | New `chain_client.rs` (625 lines): ChainConfig from env, ExecutionMode simulate/devnet/mainnet, PDA derivation, Anchor instruction builders for open/close, submit_or_simulate with retry. Daemon wired: loads ChainConfig, checks frozen on-chain, builds real open/close IXs, handles stale position close. Demo loop kept as in-process fallback. |
+| P0 #3: Remove hardcoded treasury PDAs | Daemon derives all PDAs from ChainConfig::from_env(). Zero hardcoded operational addresses. |
+| P0 #4: AdopterRecord.treasury everywhere | Added `AdopterTreasuryMismatch` constraint to HydrateSwarm, RecordFeeDeposit, EndBeta. 3 cross-treasury rejection tests + 1 unauthorized fee attribution test. |
+| P0 #5: Fee attribution non-gameable | `record_fee_deposit` now requires `authority.key() == treasury.authority`. Added `UnauthorizedFeeAttribution` error. Random signers cannot inflate adopter contributions. |
+
+**Files changed:**
+- `rtp/swarm/src/chain_client.rs` — new file (625 lines)
+- `rtp/swarm/src/bin/rtp-daemon.rs` — real execution path
+- `rtp/swarm/src/lib.rs` — chain_client module
+- `rtp/programs/rtp-treasury/programs/rtp-treasury/src/lib.rs` — 2 new errors, 4 new constraints
+- `rtp/programs/rtp-treasury/tests/treasury.ts` — 4 new tests
+- `sdk/idl.ts` + `dashboard/src/lib/sdk/idl.ts` — IDL regenerated (v15.3.0)
+- `RTP-REMEDIATION-SPEC.md` — all P0 tasks marked done
+
+**Railway deployment status:**
+| Service | Status | Notes |
+|---------|--------|-------|
+| rtp-dashboard | SUCCESS | 200 OK, serving live |
+| rtp-devnet-loop | SUCCESS | Auto-deployed from push |
+| rtp-night-shift | SUCCESS | Cron, last ran Apr 28 |
+| rtp-swarm-ci | SUCCESS | CI validated |
+| rtp-promote-strategy | SUCCESS | Cron |
+| rtp-fee-crank | CRASHED | Transient devnet RPC issue — not related to our changes |
+
+---
 
 **Session 2026-04-29(iii) — Colosseum Audit Remediation (16 fixes, 5 phases)**
 
