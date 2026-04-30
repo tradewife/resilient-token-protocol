@@ -23,9 +23,6 @@ COPY --from=builder /app/dashboard/.next/standalone ./
 COPY --from=builder /app/dashboard/.next/static .next/static
 COPY --from=builder /app/dashboard/public ./public
 EXPOSE 3000
-# HEALTHCHECK: Railway injects PORT=8080 at runtime. The standalone Next.js server
-# respects $PORT from ENV — Railway overwrites our ENV PORT=3000 with PORT=8080.
-# Probe the dynamically-injected port so Railway sees 200 instead of failing.
-HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:' + (process.env.PORT || '3000') + '/', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"
+# HEALTHCHECK is handled by Railway via healthcheckPath=/ (set via GraphQL).
+# Removing from Dockerfile to avoid interference with Railway's own health check.
 CMD ["node", "server.js"]
