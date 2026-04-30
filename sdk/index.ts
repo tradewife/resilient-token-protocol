@@ -229,6 +229,16 @@ async function sendTx(
   if (isKeypair(payer)) {
     return sendAndConfirmTransaction(connection, tx, [payer, ...extraSigners]);
   } else {
+    // Belt-and-suspenders: if isKeypair returned false but secretKey is present,
+    // the object is a Keypair from a different module realm (e.g., dynamic ESM
+    // import via tsx). Reconstruct and use the keypair signing path to avoid
+    // calling WalletAdapter.signTransaction on a Keypair object.
+    const maybeSecret = (payer as Record<string, unknown>).secretKey;
+    if (maybeSecret && typeof maybeSecret === "object" &&
+        ("byteLength" in (maybeSecret as object) || "length" in (maybeSecret as object))) {
+      const kp = Keypair.fromSecretKey(maybeSecret as Uint8Array);
+      return sendAndConfirmTransaction(connection, tx, [kp, ...extraSigners]);
+    }
     if (extraSigners.length > 0) tx.partialSign(...extraSigners);
     const signed = await payer.signTransaction(tx);
     return sendSignedTx(connection, signed);

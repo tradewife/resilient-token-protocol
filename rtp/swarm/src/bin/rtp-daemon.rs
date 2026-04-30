@@ -259,6 +259,20 @@ fn check_treasury_frozen(cfg: &ChainConfig) -> Result<bool, String> {
 
 #[tokio::main]
 async fn main() {
+    // Immediate stderr log — visible even if later tracing setup fails.
+    // Railway captures stderr for one-shot cron containers, so this is the
+    // most reliable way to diagnose startup failures (missing env vars, binary
+    // crash before tracing init, etc.).
+    eprintln!(
+        "[DAEMON] startup: RPC={}, MODE={}, WATCHDOG={}, LLM_KEY_SET={}",
+        std::env::var("SOLANA_RPC_URL")
+            .or_else(|_| std::env::var("RTP_SOLANA_RPC_URL"))
+            .unwrap_or_else(|_| "default-devnet".into()),
+        std::env::var("RTP_EXECUTION_MODE")
+            .unwrap_or_else(|_| "simulate".into()),
+        std::env::var("RTP_WATCHDOG").is_ok(),
+        std::env::var("LLM_API_KEY").is_ok(),
+    );
     tracing_subscriber::fmt::init();
 
     let watch_mode = std::env::var("RTP_WATCHDOG").is_ok();
