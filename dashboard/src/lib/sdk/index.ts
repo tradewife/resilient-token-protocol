@@ -71,10 +71,10 @@ function deriveAdopterPDA(mint: PublicKey): [PublicKey, number] {
 
 // IDL (bundled inline — no runtime file dependency)
 
-import { RAW_IDL } from "./idl";
+import { IDL } from "./idl";
 
 function loadPatchedIdl(): Idl {
-  const idl = JSON.parse(JSON.stringify(RAW_IDL));
+  const idl = JSON.parse(JSON.stringify(IDL));
   idl.address = RTP_PROGRAM_ID.toBase58();
   // Anchor 0.31 workaround: accounts array entries are missing 'type'
   const typeMap: Record<string, any> = {};
@@ -150,7 +150,7 @@ export interface TreasuryState {
  *  from a different module realm (e.g., ESM tsx vs CJS node_modules). */
 function isKeypair(payer: Keypair | WalletAdapter): payer is Keypair {
   if (!("secretKey" in payer)) return false;
-  const sk = (payer as Record<string, unknown>).secretKey;
+  const sk = ((payer as unknown) as Record<string, unknown>).secretKey;
   // Duck-type: must be a typed array or Buffer with byte length > 0
   return (typeof sk === "object" && sk !== null &&
     ("byteLength" in (sk as object) || "length" in (sk as object)));

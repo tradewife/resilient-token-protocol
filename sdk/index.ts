@@ -71,10 +71,10 @@ function deriveAdopterPDA(mint: PublicKey): [PublicKey, number] {
 
 // IDL (bundled inline — no runtime file dependency)
 
-import { RAW_IDL } from "./idl";
+import { IDL } from "./idl";
 
 function loadPatchedIdl(): Idl {
-  const idl = JSON.parse(JSON.stringify(RAW_IDL));
+  const idl = JSON.parse(JSON.stringify(IDL));
   idl.address = RTP_PROGRAM_ID.toBase58();
   // Anchor 0.31 workaround: accounts array entries are missing 'type'
   const typeMap: Record<string, any> = {};
