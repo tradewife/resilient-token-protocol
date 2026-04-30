@@ -13,11 +13,4 @@ FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /build/target/release/rtp-daemon /usr/local/bin/
 
-# Night Shift results shared via /data volume mount (same path across all services).
-# Night Shift writes to /data/night_results/, daemon reads from it — no image rebuild needed.
-# Knowledge Wing persistence via /data/swarm-memory/ — survives container restarts.
-ENV NIGHT_RESULTS_DIR=/data/night_results
-ENV RTP_KNOWLEDGE_PATH=/data/swarm-memory/knowledge/wing-state.json
-VOLUME ["/data"]
-
 CMD ["rtp-daemon"]

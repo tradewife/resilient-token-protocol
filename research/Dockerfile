@@ -22,9 +22,5 @@ RUN mkdir -p /data && ln -s /data/night_results /app/data/night_results 2>/dev/n
 # Promote and daemon services mount the same volume and read without rebuilding.
 ENV NIGHT_RESULTS_DIR=/data/night_results
 
-# Declare shared volume — Railway mounts this across all services.
-# Night Shift writes, promote + daemon read. Persistent across cron runs.
-VOLUME ["/data"]
-
 # Run night shift, then commit results back to repo (symlink ensures git sees them)
 CMD ["sh", "-c", "python3 -m research.orchestration.night_shift --skip-fetch && sh commit-night-results.sh"]

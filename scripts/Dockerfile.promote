@@ -25,9 +25,4 @@ RUN mkdir -p /app/keys
 ENV RPC_URL=https://api.devnet.solana.com
 ENV NIGHT_RESULTS_DIR=/data/night_results
 
-# Declare shared volume for Night Shift handoff — Railway mounts this across all services.
-# Night Shift writes to /data/night_results/, promote and daemon read from it (no image rebuild needed).
-VOLUME ["/data/night_results"]
-
-# Write keypair from env var at startup, then run the promotion
 CMD sh -c 'echo "$FEE_PAYER_KEYPAIR" > /app/keys/fee-payer.json && KEYPAIR_PATH=/app/keys/fee-payer.json npx tsx scripts/promote-strategy.ts'
