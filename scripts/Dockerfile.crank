@@ -2,28 +2,27 @@ FROM node:20-slim
 
 WORKDIR /app
 
-# Copy SDK source (the crank imports ../sdk/index.ts)
+# Copy SDK source (the redistribute script imports ../sdk/index.ts)
 COPY sdk/package.json sdk/tsconfig.json sdk/idl.ts sdk/index.ts ./sdk/
 
-# Copy the crank script
-COPY scripts/fee-crank.ts ./scripts/fee-crank.ts
+# Copy the redistribute script
+COPY scripts/redistribute.ts ./scripts/redistribute.ts
 
 # Create a minimal package.json for the crank service
-RUN echo '{"name":"rtp-fee-crank","type":"commonjs","dependencies":{"@coral-xyz/anchor":"^0.32.1","@solana/web3.js":"^1.98.4","@solana/spl-token":"^0.4.14","tsx":"^4.19.0","typescript":"^5.0.0"}}' > package.json
+RUN echo '{"name":"rtp-fee-crank","type":"commonjs","dependencies":{"@coral-xyz/anchor":"^0.32.1","@solana/web3.js":"^1.98.4","tsx":"^4.19.0","typescript":"^5.0.0"}}' > package.json
 
 RUN npm install
 
 # Install SDK peer deps inside the sdk directory
-RUN cd sdk && npm install @coral-xyz/anchor@^0.32.1 @solana/web3.js@^1.98.4 @solana/spl-token@^0.4.14 --save-dev || true
+RUN cd sdk && npm install @coral-xyz/anchor@^0.32.1 @solana/web3.js@^1.98.4 --save-dev || true
 
 # Create keypair directory
 RUN mkdir -p /app/keys
 
 ENV RPC_URL=https://api.devnet.solana.com
 ENV JITTER_MAX_MS=1800000
-ENV FEE_THRESHOLD=5000000
+ENV AUTHORITY=
 ENV KEYPAIR_PATH=/app/keys/fee-payer.json
 
-# Write keypair from env var at startup, then run the crank
-CMD sh -c 'echo "$FEE_PAYER_KEYPAIR" > /app/keys/fee-payer.json && npx tsx scripts/fee-crank.ts'
-
+# Write keypair from env var at startup, then run redistribute
+CMD sh -c 'echo "$FEE_PAYER_KEYPAIR" > /app/keys/fee-payer.json && npx tsx scripts/redistribute.ts'
