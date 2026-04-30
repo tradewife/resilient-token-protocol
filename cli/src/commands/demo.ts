@@ -166,7 +166,7 @@ export function makeDemoCommand(): Command {
       console.log("");
       console.log("  Invariants (enforced on-chain):");
       console.log("    ✓ PDA owns treasury (no private key risk)");
-      console.log("    ✓ TransferFeeConfig immutable (withdraw authority = PDA)");
+      console.log("    ✓ Native SOL redistribution (70/20/10)");
       console.log("    ✓ CPI-only transfers (atomic, verifiable)");
       console.log("    ✓ Phase transitions irreversible + threshold enforced");
       console.log("    ✓ Self-hydration only if > 90-day runway");

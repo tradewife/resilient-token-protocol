@@ -9,6 +9,7 @@ export interface RtpConfig {
   feePayerKeypairPath: string;
   authorityKeypairPath: string;
   defaultMint: string | null;
+  defaultAuthority: string | null;
   rpcUrl: string | null;
   railwayTokenPath: string | null;
   nightResultsDir: string;
@@ -22,6 +23,7 @@ const DEFAULTS: RtpConfig = {
   feePayerKeypairPath: path.join(os.homedir(), ".config", "solana", "id.json"),
   authorityKeypairPath: path.join(os.homedir(), ".config", "solana", "id.json"),
   defaultMint: null,
+  defaultAuthority: null,
   rpcUrl: null,
   railwayTokenPath: null,
   nightResultsDir: "./data/night_results",

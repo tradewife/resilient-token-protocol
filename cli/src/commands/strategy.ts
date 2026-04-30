@@ -4,7 +4,7 @@ import { Command } from "commander";
 import chalk from "chalk";
 import Table from "cli-table3";
 
-import { loadConfig, resolveMint, resolveKeypair } from "../config.js";
+import { loadConfig, resolveKeypair } from "../config.js";
 import { loadKeypair, truncatePubkey, formatSol } from "../keypair.js";
 import { printOk, printInfo, printNote, getOutputMode } from "../format.js";
 import { printError, missingYesFlagError } from "../errors.js";
@@ -19,7 +19,7 @@ export function makeStrategyCommand(): Command {
   cmd.addCommand(
     new Command("list")
       .description("List strategy records for a treasury")
-      .option("--mint <pubkey>", "Token mint address")
+      .option("--authority <pubkey>", "Treasury authority address")
       .option("--status <status>", "Filter by status (live|suspended|retired|all)", "all")
       .option("--cluster <cluster>", "Cluster (devnet|mainnet)", "devnet")
       .option("--json", "JSON output")
@@ -28,14 +28,18 @@ export function makeStrategyCommand(): Command {
         const mode = getOutputMode(opts);
         try {
           const config = loadConfig();
-          const mint = resolveMint(opts.mint, config);
+          const authorityStr = opts.authority ?? config.defaultAuthority;
+          if (!authorityStr) {
+            throw new Error("No authority specified. Use --authority <pubkey>.");
+          }
           const connection = createConnection(config);
           const PublicKey = (await import("@solana/web3.js")).PublicKey;
-          const mintPk = new PublicKey(mint);
+          const authorityPk = new PublicKey(authorityStr);
 
           // Fetch treasury state to get linked info
           const sdk = await import("../../../sdk/index.ts");
-          const state = await sdk.fetchTreasuryState(connection, mintPk);
+          const state = await sdk.fetchTreasuryState(connection, authorityPk);
+          const [treasuryPda] = sdk.deriveTreasuryPDA(authorityPk);
 
           if (mode === "json") {
             console.log(JSON.stringify(state, null, 2));
@@ -48,10 +52,11 @@ export function makeStrategyCommand(): Command {
             style: { head: ["cyan"] },
           });
 
-          table.push(["Mint", truncatePubkey(mint)]);
+          table.push(["Authority", truncatePubkey(authorityStr)]);
+          table.push(["Treasury", truncatePubkey(treasuryPda.toBase58())]);
           table.push(["Frozen", state.isFrozen ? chalk.red("YES") : chalk.green("NO")]);
           table.push(["Phase", state.phase]);
-          table.push(["Balance", `${formatSol(state.vaultBalance)} SOL`]);
+          table.push(["Balance", `${formatSol(state.solBalance)} SOL`]);
 
           console.log(table.toString());
           printNote("Use getProgramAccounts for full strategy enumeration (not yet implemented).");
@@ -68,7 +73,7 @@ export function makeStrategyCommand(): Command {
       .description("Promote a validated strategy to Live (authority-gated)")
       .requiredOption("--id <strategy-id>", "Strategy ID to promote")
       .requiredOption("--authority <path>", "Authority keypair path")
-      .option("--mint <pubkey>", "Token mint address")
+      .option("--authority-pubkey <pubkey>", "Treasury authority address (derived from authority keypair if omitted)")
       .option("--cluster <cluster>", "Cluster (devnet|mainnet)", "devnet")
       .option("--json", "JSON output")
       .option("--quiet", "Suppress output except errors")
@@ -76,20 +81,21 @@ export function makeStrategyCommand(): Command {
         const mode = getOutputMode(opts);
         try {
           const config = loadConfig();
-          const mint = resolveMint(opts.mint, config);
           const authorityPath = resolveKeypair(opts.authority, "AUTHORITY_KEYPAIR_PATH", config.authorityKeypairPath);
           const authority = loadKeypair(authorityPath);
           const connection = createConnection(config);
 
+          const authorityStr = opts.authorityPubkey ?? authority.publicKey.toBase58();
+
           if (mode !== "quiet") {
-            printInfo(`Promoting strategy "${opts.id}" for mint: ${truncatePubkey(mint)}`);
+            printInfo(`Promoting strategy "${opts.id}" for authority: ${truncatePubkey(authorityStr)}`);
             warnHotWallet(authorityPath);
           }
 
           const sdk = await import("../../../sdk/index.ts");
           // The SDK needs promotionSharpeX100; read from night shift results
           const { exportPromoteStrategy } = await import("../../../scripts/promote-strategy.ts");
-          const result = await exportPromoteStrategy(connection, authority, mint, {
+          const result = await exportPromoteStrategy(connection, authority, authorityStr, {
             dryRun: false,
           });
 
@@ -118,7 +124,7 @@ export function makeStrategyCommand(): Command {
       .description("Force-retire a strategy (authority-gated, destructive)")
       .requiredOption("--id <strategy-id>", "Strategy ID to retire")
       .requiredOption("--authority <path>", "Authority keypair path")
-      .option("--mint <pubkey>", "Token mint address")
+      .option("--authority-pubkey <pubkey>", "Treasury authority address")
       .option("--cluster <cluster>", "Cluster (devnet|mainnet)", "devnet")
       .option("--yes", "Confirm destructive operation")
       .option("--json", "JSON output")
@@ -127,15 +133,16 @@ export function makeStrategyCommand(): Command {
         const mode = getOutputMode(opts);
         try {
           const config = loadConfig();
-          const mint = resolveMint(opts.mint, config);
           const authorityPath = resolveKeypair(opts.authority, "AUTHORITY_KEYPAIR_PATH", config.authorityKeypairPath);
           const authority = loadKeypair(authorityPath);
           const connection = createConnection(config);
 
+          const authorityPubkey = opts.authorityPubkey ?? authority.publicKey.toBase58();
+
           if (!confirmDestructive(
             `RETIRE strategy "${opts.id}"`,
             [
-              `Mint:          ${truncatePubkey(mint)}`,
+              `Authority:     ${truncatePubkey(authorityPubkey)}`,
               `Strategy ID:   ${opts.id}`,
               `Status:        LIVE → RETIRED`,
               ``,

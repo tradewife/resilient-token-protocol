@@ -4,7 +4,7 @@ import { Command } from "commander";
 import chalk from "chalk";
 import { execSync } from "child_process";
 
-import { loadConfig, resolveMint, resolveKeypair } from "../config.js";
+import { loadConfig, resolveKeypair } from "../config.js";
 import { loadKeypair, truncatePubkey, formatSol } from "../keypair.js";
 import { printOk, printInfo, printNote, getOutputMode } from "../format.js";
 import { printError, missingYesFlagError } from "../errors.js";
@@ -19,7 +19,6 @@ export function makeDeployCommand(): Command {
   cmd.addCommand(
     new Command("treasury")
       .description("Deploy the treasury PDA for a new adopting token")
-      .requiredOption("--mint <pubkey>", "Token mint address")
       .requiredOption("--authority <path>", "Authority keypair path")
       .option("--cluster <cluster>", "Cluster (devnet|mainnet)", "devnet")
       .option("--json", "JSON output")
@@ -28,21 +27,17 @@ export function makeDeployCommand(): Command {
         const mode = getOutputMode(opts);
         try {
           const config = loadConfig();
-          const mint = resolveMint(opts.mint, config);
           const authorityPath = resolveKeypair(opts.authority, "AUTHORITY_KEYPAIR_PATH", config.authorityKeypairPath);
           const authority = loadKeypair(authorityPath);
           const connection = createConnection(config);
 
           if (mode !== "quiet") {
-            printInfo(`Deploying treasury for mint: ${truncatePubkey(mint)}`);
-            printInfo(`Authority: ${truncatePubkey(authority.publicKey)}`);
+            printInfo(`Deploying treasury for authority: ${truncatePubkey(authority.publicKey)}`);
             warnHotWallet(authorityPath);
           }
 
           const sdk = await import("../../../sdk/index.ts");
-          const { PublicKey } = await import("@solana/web3.js");
-          const mintPk = new PublicKey(mint);
-          const result = await sdk.registerWithRTP(connection, authority, { mint: mintPk, platform: "pumpfun", name: "RTP Token", symbol: "RTP" });
+          const result = await sdk.registerWithRTP(connection, authority, { authority: authority.publicKey });
 
           if (mode === "json") {
             console.log(JSON.stringify(result, null, 2));

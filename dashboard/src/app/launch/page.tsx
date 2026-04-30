@@ -65,7 +65,8 @@ interface LaunchResult {
   explorerUrl: string;
   platform: Platform;
   treasuryPDA?: string;
-  vaultPDA?: string;
+  adopterPDA?: string;
+  authority?: string;
 }
 
 // Helpers
@@ -510,12 +511,9 @@ export default function LaunchPage() {
 
       setStatusMsg("Mint created. Initializing RTP treasury...");
 
-      // Step 2: Register with RTP (creates treasury PDA + vault + adopter)
+      // Step 2: Register with RTP (creates authority-seeded treasury PDA + adopter)
       const rtp = await registerWithRTP(devnetConn, wallet, {
-        mint: mintKeypair.publicKey,
-        platform: "pumpfun",
-        name: projectName || "Demo Token",
-        symbol: tokenSymbol || "DEMO",
+        authority: publicKey!,
       });
 
       const launchResult: LaunchResult = {
@@ -524,7 +522,8 @@ export default function LaunchPage() {
         explorerUrl: `https://explorer.solana.com/tx/${mintSig}?cluster=devnet`,
         platform: "pumpfun",
         treasuryPDA: rtp.treasuryPDA,
-        vaultPDA: rtp.vaultPDA,
+        adopterPDA: rtp.adopterPDA,
+        authority: rtp.authority,
       };
       setResult(launchResult);
       setRtpResult(rtp);
@@ -533,11 +532,11 @@ export default function LaunchPage() {
       // Fetch treasury state
       setTimeout(async () => {
         try {
-          const state = await fetchTreasuryState(devnetConn, launchResult.mint);
+          const state = await fetchTreasuryState(devnetConn, rtp.authority);
           setTreasuryState(state);
         } catch { /* best effort */ }
         try {
-          const adopter = await fetchAdopterState(devnetConn, launchResult.mint);
+          const adopter = await fetchAdopterState(devnetConn, rtp.authority, rtp.authority);
           setAdopterState(adopter);
         } catch { /* best effort */ }
       }, 2000);
@@ -622,14 +621,12 @@ export default function LaunchPage() {
         setStatusMsg("Initializing RTP treasury for new mint...");
         try {
           const rtp = await registerWithRTP(connection, wallet, {
-            mint: new PublicKey(launchResult.mint),
-            platform: platform,
-            name: projectName || "My Token",
-            symbol: tokenSymbol || "TKN",
+            authority: publicKey!,
           });
           setRtpResult(rtp);
           launchResult.treasuryPDA = rtp.treasuryPDA;
-          launchResult.vaultPDA = rtp.vaultPDA;
+          launchResult.adopterPDA = rtp.adopterPDA;
+          launchResult.authority = rtp.authority;
         } catch (e: unknown) {
           console.warn("[Launch] RTP treasury init skipped:", e instanceof Error ? e.message : String(e));
         }
@@ -639,16 +636,16 @@ export default function LaunchPage() {
 
       // Fetch treasury state (best-effort)
       setTimeout(async () => {
+        const authorityAddr = launchResult.authority || rtpResult?.authority;
+        if (!authorityAddr) return;
         try {
-          const mint = launchResult.treasuryPDA ? launchResult.mint : rtpResult?.mint || launchResult.mint;
-          const state = await fetchTreasuryState(connection, mint);
+          const state = await fetchTreasuryState(connection, authorityAddr);
           setTreasuryState(state);
         } catch (e: unknown) {
           console.warn("[Launch] Treasury state fetch failed:", e instanceof Error ? e.message : String(e));
         }
         try {
-          const mint = launchResult.treasuryPDA ? launchResult.mint : rtpResult?.mint || launchResult.mint;
-          const adopter = await fetchAdopterState(connection, mint);
+          const adopter = await fetchAdopterState(connection, authorityAddr, authorityAddr);
           setAdopterState(adopter);
         } catch (e: unknown) {
           console.warn("[Launch] Adopter state fetch failed:", e instanceof Error ? e.message : String(e));
@@ -1019,11 +1016,11 @@ export default function LaunchPage() {
                 </a>
               </div>
             )}
-            {(result.vaultPDA || rtpResult?.vaultPDA) && (
+            {(result.adopterPDA || rtpResult?.adopterPDA) && (
               <div className="info-card">
-                <span className="info-label">Vault PDA</span>
+                <span className="info-label">Adopter PDA</span>
                 <span className="info-value" style={{ fontSize: "0.75rem", wordBreak: "break-all" }}>
-                  {result.vaultPDA || rtpResult?.vaultPDA}
+                  {result.adopterPDA || rtpResult?.adopterPDA}
                 </span>
               </div>
             )}
@@ -1068,7 +1065,7 @@ export default function LaunchPage() {
               <h3 style={{ fontSize: "0.875rem", color: "var(--coral)", marginBottom: "12px" }}>Treasury State (on-chain)</h3>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", fontSize: "0.8125rem" }}>
                 <div><span style={{ color: "var(--text-secondary)" }}>Phase:</span> {treasuryState.phase}</div>
-                <div><span style={{ color: "var(--text-secondary)" }}>Vault Balance:</span> {treasuryState.vaultBalance}</div>
+                <div><span style={{ color: "var(--text-secondary)" }}>SOL Balance:</span> {treasuryState.solBalance}</div>
                 <div><span style={{ color: "var(--text-secondary)" }}>Fees Withdrawn:</span> {treasuryState.totalFeesWithdrawn}</div>
                 <div><span style={{ color: "var(--text-secondary)" }}>Runway Floor:</span> {treasuryState.minRunwayBalance}</div>
               </div>

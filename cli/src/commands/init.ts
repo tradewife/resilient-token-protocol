@@ -241,6 +241,7 @@ export function makeInitCommand(): Command {
         feePayerKeypairPath: feePayerPath,
         authorityKeypairPath: authorityPath,
         defaultMint: defaultMint || null,
+        defaultAuthority: null,
         rpcUrl: null,
         railwayTokenPath: railwayTokenPath || null,
         nightResultsDir: "./data/night_results",

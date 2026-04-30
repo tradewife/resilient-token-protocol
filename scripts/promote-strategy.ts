@@ -256,8 +256,6 @@ function makeStrategyId(symbol: string, score: number, params?: Record<string, u
   return id;
 }
 
-}
-
 // ─── Main ───────────────────────────────────────────────────────────────
 
 async function main() {

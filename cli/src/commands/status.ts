@@ -5,7 +5,7 @@ import Table from "cli-table3";
 import chalk from "chalk";
 import fs from "fs";
 
-import { loadConfig, resolveMint } from "../config.js";
+import { loadConfig } from "../config.js";
 import { truncatePubkey, formatSol } from "../keypair.js";
 import { printOk, printInfo, printNote, printWarn, printBanner, getOutputMode } from "../format.js";
 import { printError } from "../errors.js";
@@ -18,7 +18,7 @@ export function makeStatusCommand(): Command {
 
   // rtp status
   cmd
-    .option("--mint <pubkey>", "Token mint address")
+    .option("--authority <pubkey>", "Treasury authority address")
     .option("--all", "Show status for all known treasuries")
     .option("--cluster <cluster>", "Cluster (devnet|mainnet)", "devnet")
     .option("--json", "JSON output")
@@ -31,11 +31,15 @@ export function makeStatusCommand(): Command {
         const sdk = await import("../../../sdk/index.ts");
         const PublicKey = (await import("@solana/web3.js")).PublicKey;
 
-        const mintStr = resolveMint(opts.mint, config);
-        const mintPk = new PublicKey(mintStr);
+        const authorityStr = opts.authority ?? config.defaultAuthority;
+        if (!authorityStr) {
+          throw new Error("No authority specified. Use --authority <pubkey> or set defaultAuthority in config.");
+        }
+        const authorityPk = new PublicKey(authorityStr);
 
         // Treasury state
-        const state = await sdk.fetchTreasuryState(connection, mintPk);
+        const state = await sdk.fetchTreasuryState(connection, authorityPk);
+        const [treasuryPda] = sdk.deriveTreasuryPDA(authorityPk);
 
         // Night shift results
         let nightShiftInfo: Record<string, unknown> | null = null;
@@ -53,8 +57,9 @@ export function makeStatusCommand(): Command {
 
         if (mode === "json") {
           console.log(JSON.stringify({
-            mint: mintStr,
-            treasury: state,
+            authority: authorityStr,
+            treasury: treasuryPda.toBase58(),
+            treasuryState: state,
             nightShift: nightShiftInfo ? { date: nightShiftInfo.date } : null,
             devnetCycle: cycleInfo ? { mutations: cycleInfo.mutations_accepted } : null,
           }, null, 2));
@@ -68,11 +73,12 @@ export function makeStatusCommand(): Command {
           style: { head: ["cyan"] },
         });
 
-        table.push(["Mint", truncatePubkey(mintStr)]);
+        table.push(["Authority", truncatePubkey(authorityStr)]);
+        table.push(["Treasury", truncatePubkey(treasuryPda.toBase58())]);
         table.push(["Cluster", config.cluster]);
         table.push(["Frozen", state.isFrozen ? chalk.red("YES") : chalk.green("NO")]);
         table.push(["Phase", state.phase ?? "Sustenance"]);
-        table.push(["Vault Balance", `${formatSol(state.vaultBalance)} SOL`]);
+        table.push(["Vault Balance", `${formatSol(state.solBalance)} SOL`]);
         table.push(["Open Positions", "N/A (fetch on-chain)"]);
         table.push(["Strategy", "N/A (fetch on-chain)"]);
 

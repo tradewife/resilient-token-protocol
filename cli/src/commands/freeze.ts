@@ -1,8 +1,9 @@
 // RTP CLI — rtp freeze / rtp unfreeze: Emergency halt and resume.
+// Uses SDK's freezeTreasury and unfreezeTreasury directly.
 
 import { Command } from "commander";
 
-import { loadConfig, resolveMint, resolveKeypair } from "../config.js";
+import { loadConfig, resolveKeypair } from "../config.js";
 import { loadKeypair, truncatePubkey, formatSol } from "../keypair.js";
 import { printOk, printInfo, printNote, getOutputMode } from "../format.js";
 import { printError } from "../errors.js";
@@ -12,8 +13,8 @@ import { confirmDestructive, warnHotWallet } from "../lib/safety.js";
 export function makeFreezeCommand(): Command {
   const cmd = new Command("freeze")
     .description("Emergency freeze — halt all treasury operations")
-    .requiredOption("--mint <pubkey>", "Token mint address")
-    .requiredOption("--authority <path>", "Authority keypair path")
+    .requiredOption("--authority <pubkey>", "Treasury authority address")
+    .requiredOption("--authority-keypair <path>", "Authority keypair path")
     .option("--cluster <cluster>", "Cluster (devnet|mainnet)", "devnet")
     .option("--yes", "Confirm destructive operation")
     .option("--json", "JSON output")
@@ -22,26 +23,25 @@ export function makeFreezeCommand(): Command {
       const mode = getOutputMode(opts);
       try {
         const config = loadConfig();
-        const mint = resolveMint(opts.mint, config);
-        const authorityPath = resolveKeypair(opts.authority, "AUTHORITY_KEYPAIR_PATH", config.authorityKeypairPath);
+        const authorityPath = resolveKeypair(opts.authorityKeypair, "AUTHORITY_KEYPAIR_PATH", config.authorityKeypairPath);
         const authority = loadKeypair(authorityPath);
         const connection = createConnection(config);
         const PublicKey = (await import("@solana/web3.js")).PublicKey;
-        const mintPk = new PublicKey(mint);
+        const authorityPk = new PublicKey(opts.authority);
 
         // Fetch current state for display
         const sdk = await import("../../../sdk/index.ts");
-        const state = await sdk.fetchTreasuryState(connection, mintPk);
+        const state = await sdk.fetchTreasuryState(connection, authorityPk);
 
         if (!confirmDestructive(
           "FREEZE treasury",
           [
-            `Mint:          ${truncatePubkey(mint)}`,
-            `Vault balance: ${formatSol(state.vaultBalance)} SOL`,
+            `Authority:     ${truncatePubkey(opts.authority)}`,
+            `Balance:       ${formatSol(state.solBalance)} SOL`,
             `Frozen:        ${state.isFrozen ? "YES" : "NO → YES"}`,
             ``,
-            `This will block ALL 15 state-mutating instructions.`,
-            `To resume: rtp unfreeze --mint ${truncatePubkey(mint)} --authority <path>`,
+            `This will block ALL state-mutating instructions.`,
+            `To resume: rtp unfreeze --authority <pubkey> --authority-keypair <path>`,
           ],
           opts.yes,
         )) {
@@ -50,11 +50,10 @@ export function makeFreezeCommand(): Command {
 
         warnHotWallet(authorityPath);
 
-        const { exportFreezeTreasury } = await import("../../../scripts/emergency-freeze.ts");
-        const result = await exportFreezeTreasury(connection, authority, mintPk);
+        const result = await sdk.freezeTreasury(connection, authority, authorityPk);
 
         if (mode === "json") {
-          console.log(JSON.stringify({ mint, frozen: true, ...result }, null, 2));
+          console.log(JSON.stringify({ authority: opts.authority, frozen: true, ...result }, null, 2));
           return;
         }
 
@@ -62,7 +61,7 @@ export function makeFreezeCommand(): Command {
         if (result.signature) {
           printInfo(`TX: ${explorerTxUrl(result.signature, opts.cluster)}`);
         }
-        printNote(`To resume: rtp unfreeze --mint ${truncatePubkey(mint)} --authority <path>`);
+        printNote(`To resume: rtp unfreeze --authority ${truncatePubkey(opts.authority)} --authority-keypair <path>`);
       } catch (e) {
         printError(e);
         process.exit(1);
@@ -75,8 +74,8 @@ export function makeFreezeCommand(): Command {
 export function makeUnfreezeCommand(): Command {
   return new Command("unfreeze")
     .description("Resume operations — unfreeze treasury")
-    .requiredOption("--mint <pubkey>", "Token mint address")
-    .requiredOption("--authority <path>", "Authority keypair path")
+    .requiredOption("--authority <pubkey>", "Treasury authority address")
+    .requiredOption("--authority-keypair <path>", "Authority keypair path")
     .option("--cluster <cluster>", "Cluster (devnet|mainnet)", "devnet")
     .option("--yes", "Confirm operation")
     .option("--json", "JSON output")
@@ -85,17 +84,16 @@ export function makeUnfreezeCommand(): Command {
       const mode = getOutputMode(opts);
       try {
         const config = loadConfig();
-        const mint = resolveMint(opts.mint, config);
-        const authorityPath = resolveKeypair(opts.authority, "AUTHORITY_KEYPAIR_PATH", config.authorityKeypairPath);
+        const authorityPath = resolveKeypair(opts.authorityKeypair, "AUTHORITY_KEYPAIR_PATH", config.authorityKeypairPath);
         const authority = loadKeypair(authorityPath);
         const connection = createConnection(config);
         const PublicKey = (await import("@solana/web3.js")).PublicKey;
-        const mintPk = new PublicKey(mint);
+        const authorityPk = new PublicKey(opts.authority);
 
         if (!confirmDestructive(
           "UNFREEZE treasury",
           [
-            `Mint:          ${truncatePubkey(mint)}`,
+            `Authority:     ${truncatePubkey(opts.authority)}`,
             `Frozen:        YES → NO`,
             ``,
             `Operations will resume.`,
@@ -107,11 +105,11 @@ export function makeUnfreezeCommand(): Command {
 
         warnHotWallet(authorityPath);
 
-        const { exportUnfreezeTreasury } = await import("../../../scripts/emergency-freeze.ts");
-        const result = await exportUnfreezeTreasury(connection, authority, mintPk);
+        const sdk = await import("../../../sdk/index.ts");
+        const result = await sdk.unfreezeTreasury(connection, authority, authorityPk);
 
         if (mode === "json") {
-          console.log(JSON.stringify({ mint, frozen: false, ...result }, null, 2));
+          console.log(JSON.stringify({ authority: opts.authority, frozen: false, ...result }, null, 2));
           return;
         }
 

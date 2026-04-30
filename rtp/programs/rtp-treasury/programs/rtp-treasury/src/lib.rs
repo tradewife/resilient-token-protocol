@@ -3,11 +3,6 @@ use anchor_lang::solana_program::{
     instruction::{AccountMeta, Instruction},
     program::invoke_signed,
 };
-use anchor_spl::token_interface::{self, Mint, TokenAccount, TokenInterface, TransferChecked};
-use spl_token_2022_interface::{
-    extension::{transfer_fee::TransferFeeConfig, BaseStateWithExtensions, StateWithExtensions},
-    state::Mint as SplMint,
-};
 
 declare_id!("8rt6yiBnRTyHy8F69jUd7exWwwShUs4Eokeq41auo2RB");
 
@@ -40,7 +35,6 @@ const DEFAULT_MIN_RUNWAY: u64 = 10_000_000;
 
 /// PDA seeds
 const TREASURY_SEED: &[u8] = b"treasury";
-const SWARM_HYDRATION_SEED: &[u8] = b"swarm-hydration";
 const STRATEGY_SEED: &[u8] = b"strategy";
 
 /// Hard stop thresholds — mirrors Python RetirementGate in research/promotion_criteria.py
@@ -91,10 +85,6 @@ pub enum TreasuryError {
     AlreadyMaxPhase,
     #[msg("Only the treasury authority can evolve phases")]
     UnauthorizedPhaseEvolution,
-    #[msg("Mint's withdraw_withheld_authority does not match Treasury PDA")]
-    WithdrawAuthorityMismatch,
-    #[msg("Mint does not have TransferFeeConfig enabled — cannot adopt RTP")]
-    MintNotConfigured,
     #[msg("Fee deposit amount must be greater than zero")]
     ZeroAmount,
     #[msg("Arithmetic overflow in fee accounting")]
@@ -156,21 +146,19 @@ pub enum TreasuryError {
 #[account]
 #[derive(InitSpace)]
 pub struct Treasury {
-    /// The Token-2022 mint this treasury serves
-    pub mint: Pubkey,
     /// The phase authority (set at initialization).
     pub authority: Pubkey,
     /// Current evolution phase (Sustenance → Ecosystem → Humanity)
     pub phase: Phase,
-    /// Cumulative fees withdrawn from mint via TransferFeeConfig
+    /// Cumulative fees withdrawn (native SOL lamports)
     pub total_fees_withdrawn: u64,
-    /// Cumulative tokens distributed to holders (70%)
+    /// Cumulative tokens distributed to holders (70%) — kept for metric continuity
     pub total_distributed_holders: u64,
-    /// Cumulative tokens distributed to project dev (20%)
+    /// Cumulative tokens distributed to project dev (20%) — kept for metric continuity
     pub total_distributed_dev: u64,
-    /// Cumulative tokens distributed to ecosystem (10%)
+    /// Cumulative tokens distributed to ecosystem (10%) — kept for metric continuity
     pub total_distributed_ecosystem: u64,
-    /// Cumulative tokens sent to swarm hydration vault
+    /// Cumulative tokens sent to swarm hydration wallet
     pub total_hydration: u64,
     /// Cumulative fee contributions recorded from all adopters via record_fee_deposit.
     /// Denominator for pro-rata yield attribution:
@@ -184,11 +172,13 @@ pub struct Treasury {
     pub ecosystem_wallet: Pubkey,
     /// Minimum balance that must remain after hydration.
     /// Enforces the 90-day runway invariant (CLAUDE.md #9).
-    /// Production: set to USDC-denominated 90-day ops cost via oracle.
     pub min_runway_balance: u64,
     /// Whether the treasury is frozen (emergency halt).
     /// When true, all non-read operations are rejected.
     pub frozen: bool,
+    /// SOL lamports already committed to open Flash Trade positions.
+    /// Deducted from available balance for redistribution/hydration.
+    pub committed_sol_lamports: u64,
     /// PDA bump
     pub bump: u8,
 }
@@ -211,21 +201,21 @@ impl Default for Phase {
 }
 
 // ---------------------------------------------------------------------------
-// AdopterRecord — per-token fee tracking for multi-token attribution
+// AdopterRecord — per-adopter fee tracking for multi-token attribution
 // ---------------------------------------------------------------------------
 
 /// Tracks a single token project's cumulative fee contributions to the RTP treasury.
-/// One AdopterRecord PDA per adopting token mint.
-/// Seeds: ["adopter", token_mint.key()]
+/// Seeds: ["adopter", treasury.key(), adopter_id]
 /// This enables pro-rata yield attribution:
 ///   adopter_yield_share = fees_contributed_lamports / treasury.total_fees_received_lamports
 #[account]
 #[derive(InitSpace)]
 pub struct AdopterRecord {
-    /// The SPL token mint of the adopting project
-    pub token_mint: Pubkey,
     /// The treasury this adopter belongs to (back-reference for cross-validation)
     pub treasury: Pubkey,
+    /// Unique adopter identifier (caller-defined, max 32 bytes)
+    #[max_len(32)]
+    pub adopter_id: String,
     /// Cumulative fee contributions (in lamports) since adoption
     pub fees_contributed_lamports: u64,
     /// Unix timestamp of first fee deposit (adoption date)
@@ -345,13 +335,15 @@ pub enum FlashPrivilege {
 
 #[event]
 pub struct AdopterRegistered {
-    pub token_mint: Pubkey,
+    pub treasury: Pubkey,
+    pub adopter_id: String,
     pub adopted_at: i64,
 }
 
 #[event]
 pub struct FeeDepositRecorded {
-    pub token_mint: Pubkey,
+    pub treasury: Pubkey,
+    pub adopter_id: String,
     pub amount_lamports: u64,
     pub cumulative: u64,
     pub total_treasury_fees: u64,
@@ -391,14 +383,15 @@ pub struct StrategyRetired {
 
 #[event]
 pub struct BetaEnded {
-    pub token_mint: Pubkey,
+    pub treasury: Pubkey,
+    pub adopter_id: String,
     pub ended_at: i64,
     pub fees_contributed_lamports: u64,
 }
 
 #[event]
 pub struct Redistribution {
-    pub mint: Pubkey,
+    pub treasury: Pubkey,
     pub excess: u64,
     pub holders_amount: u64,
     pub dev_amount: u64,
@@ -408,14 +401,14 @@ pub struct Redistribution {
 
 #[event]
 pub struct TreasuryFrozen {
-    pub mint: Pubkey,
+    pub treasury: Pubkey,
     pub authority: Pubkey,
     pub timestamp: i64,
 }
 
 #[event]
 pub struct TreasuryUnfrozen {
-    pub mint: Pubkey,
+    pub treasury: Pubkey,
     pub authority: Pubkey,
     pub timestamp: i64,
 }
@@ -461,37 +454,43 @@ pub struct EmergencyPositionsReset {
 // Shared Helpers (outside #[program] so Anchor doesn't treat as instructions)
 // ---------------------------------------------------------------------------
 
-/// Verify that the given mint account has TransferFeeConfig enabled and
-/// that `treasury_key` is the `withdraw_withheld_authority`.
-///
-/// Shared by `initialize` (M-1 fix) and `verify_adoption` — no code
-/// duplication.
-fn verify_transfer_fee_config(
-    mint_info: &AccountInfo,
-    treasury_key: &Pubkey,
+/// Rent-exempt minimum lamports for a Treasury account.
+fn treasury_rent_exempt_minimum() -> Result<u64> {
+    Ok(Rent::get()?.minimum_balance(8 + Treasury::INIT_SPACE))
+}
+
+/// Current lamports held in the treasury account.
+fn treasury_lamports(treasury: &Account<Treasury>) -> u64 {
+    treasury.to_account_info().lamports()
+}
+
+/// Available lamports: total - rent exemption - committed positions.
+fn available_treasury_lamports(treasury: &Account<Treasury>) -> Result<u64> {
+    Ok(treasury_lamports(treasury)
+        .saturating_sub(treasury_rent_exempt_minimum()?)
+        .saturating_sub(treasury.committed_sol_lamports))
+}
+
+/// Transfer lamports from the treasury account to a recipient.
+fn transfer_from_treasury(
+    treasury: &Account<'_, Treasury>,
+    recipient: &AccountInfo<'_>,
+    amount: u64,
 ) -> Result<()> {
-    let data = mint_info.try_borrow_data()?;
+    require!(amount > 0, TreasuryError::ZeroAmount);
+    let available = available_treasury_lamports(treasury)?;
+    require!(available >= amount, TreasuryError::HydrationExceedsBalance);
 
-    // Unpack the full mint account: 82 bytes base Mint + TLV extensions.
-    let mint_with_extensions =
-        StateWithExtensions::<SplMint>::unpack(data.as_ref())
-            .map_err(|_| TreasuryError::MintNotConfigured)?;
+    **treasury.to_account_info().try_borrow_mut_lamports()? = treasury
+        .to_account_info()
+        .lamports()
+        .checked_sub(amount)
+        .ok_or(TreasuryError::Overflow)?;
 
-    // Extract the TransferFeeConfig extension. If the extension is
-    // missing (mint doesn't have TransferFeeConfig), this fails.
-    let fee_config = mint_with_extensions
-        .get_extension::<TransferFeeConfig>()
-        .map_err(|_| TreasuryError::MintNotConfigured)?;
-
-    // Verify the withdraw_withheld_authority matches the Treasury PDA.
-    let auth: Option<Pubkey> = fee_config.withdraw_withheld_authority.into();
-    match auth {
-        Some(key) => require!(
-            key == *treasury_key,
-            TreasuryError::WithdrawAuthorityMismatch
-        ),
-        None => return Err(TreasuryError::WithdrawAuthorityMismatch.into()),
-    }
+    **recipient.try_borrow_mut_lamports()? = recipient
+        .lamports()
+        .checked_add(amount)
+        .ok_or(TreasuryError::Overflow)?;
 
     Ok(())
 }
@@ -511,29 +510,24 @@ fn reject_zero_address(addr: Pubkey) -> Result<()> {
 #[program]
 pub mod rtp_treasury {
     use super::*;
-    use anchor_spl::token_2022_extensions::transfer_fee::withdraw_withheld_tokens_from_mint;
 
-    /// Initialize a new Treasury for a given Token-2022 mint.
+    /// Initialize a new Treasury owned by the given authority.
     ///
-    /// Prerequisites:
-    /// - The mint MUST have TransferFeeConfig enabled with the Treasury PDA
-    ///   set as `withdraw_withheld_authority`. This is immutable once set.
-    /// - The mint MUST be a Token-2022 mint.
-    ///
-    /// Called once per adopting token. Sets the PDA authority and vault.
+    /// Authority is stored in the Treasury account and used as the PDA seed.
+    /// Anyone can call this on behalf of an authority — fees are paid by caller.
     pub fn initialize(
         ctx: Context<Initialize>,
+        holders_wallet: Pubkey,
+        project_dev_wallet: Pubkey,
+        ecosystem_wallet: Pubkey,
         min_runway_balance: u64,
     ) -> Result<()> {
-        // Zero-address guard: reject Pubkey::default() on all critical fields.
         reject_zero_address(ctx.accounts.authority.key())?;
-        reject_zero_address(ctx.accounts.mint.key())?;
-        reject_zero_address(ctx.accounts.holders_wallet.key())?;
-        reject_zero_address(ctx.accounts.project_dev_wallet.key())?;
-        reject_zero_address(ctx.accounts.ecosystem_wallet.key())?;
+        reject_zero_address(holders_wallet)?;
+        reject_zero_address(project_dev_wallet)?;
+        reject_zero_address(ecosystem_wallet)?;
 
         let treasury = &mut ctx.accounts.treasury;
-        treasury.mint = ctx.accounts.mint.key();
         treasury.authority = ctx.accounts.authority.key();
         treasury.phase = Phase::default();
         treasury.total_fees_withdrawn = 0;
@@ -543,168 +537,100 @@ pub mod rtp_treasury {
         treasury.total_hydration = 0;
         treasury.total_fees_received_lamports = 0;
         treasury.frozen = false;
-        treasury.holders_wallet = ctx.accounts.holders_wallet.key();
-        treasury.project_dev_wallet = ctx.accounts.project_dev_wallet.key();
-        treasury.ecosystem_wallet = ctx.accounts.ecosystem_wallet.key();
-        // Enforce explicit non-zero runway floor.
-        // H-3 fix: reject 0 explicitly — caller MUST provide a runway value.
+        treasury.holders_wallet = holders_wallet;
+        treasury.project_dev_wallet = project_dev_wallet;
+        treasury.ecosystem_wallet = ecosystem_wallet;
         require!(
             min_runway_balance >= DEFAULT_MIN_RUNWAY,
             TreasuryError::InsufficientRunway,
         );
         treasury.min_runway_balance = min_runway_balance;
+        treasury.committed_sol_lamports = 0;
         treasury.bump = ctx.bumps.treasury;
 
-        // M-1 fix: verify mint has TransferFeeConfig with Treasury PDA as
-        // withdraw_withheld_authority BEFORE storing state. Fails early
-        // with a clear error if the mint is not properly configured.
-        verify_transfer_fee_config(
-            &ctx.accounts.mint.to_account_info(),
-            &treasury.key(),
+        Ok(())
+    }
+
+    /// Deposit native SOL into the treasury.
+    ///
+    /// Increments total_fees_withdrawn and total_fees_received_lamports.
+    /// Caller pays via system program transfer; treasury lamports increase directly.
+    pub fn deposit_sol(ctx: Context<DepositSol>, amount_lamports: u64) -> Result<()> {
+        require!(!ctx.accounts.treasury.frozen, TreasuryError::TreasuryFrozen);
+        require!(amount_lamports > 0, TreasuryError::ZeroAmount);
+
+        let treasury = &mut ctx.accounts.treasury;
+
+        anchor_lang::system_program::transfer(
+            CpiContext::new(
+                ctx.accounts.system_program.key(),
+                anchor_lang::system_program::Transfer {
+                    from: ctx.accounts.payer.to_account_info(),
+                    to: treasury.to_account_info(),
+                },
+            ),
+            amount_lamports,
         )?;
 
+        treasury.total_fees_withdrawn = treasury
+            .total_fees_withdrawn
+            .saturating_add(amount_lamports);
+        treasury.total_fees_received_lamports = treasury
+            .total_fees_received_lamports
+            .saturating_add(amount_lamports);
+
         Ok(())
     }
 
-    /// Withdraw accumulated TransferFeeConfig fees from mint into treasury vault.
+    /// Check redistribution threshold and execute 70/20/10 split in native SOL.
     ///
-    /// Uses CPI: `spl_token_2022::withdraw_withheld_tokens_from_mint`
-    /// The Treasury PDA (set as `withdraw_withheld_authority` on the mint at
-    /// adoption time) signs for the withdrawal. Anyone can call this — fees
-    /// are permissionlessly pulled into the PDA.
-    pub fn withdraw_fees(ctx: Context<WithdrawFees>) -> Result<()> {
-        require!(!ctx.accounts.treasury.frozen, TreasuryError::TreasuryFrozen);
-        let treasury = &mut ctx.accounts.treasury;
-        let mint = &ctx.accounts.mint;
-        let mint_key = mint.key();
-
-        // Snapshot balance BEFORE withdrawal to compute delta (F-002 fix)
-        let balance_before = ctx.accounts.treasury_vault.amount;
-
-        let seeds = &[
-            TREASURY_SEED,
-            mint_key.as_ref(),
-            &[treasury.bump],
-        ];
-        let signer_seeds = &[&seeds[..]];
-
-        let cpi_ctx = CpiContext::new_with_signer(
-            ctx.accounts.token_program.key(),
-            anchor_spl::token_2022_extensions::transfer_fee::WithdrawWithheldTokensFromMint {
-                token_program_id: ctx.accounts.token_program.to_account_info(),
-                mint: mint.to_account_info(),
-                destination: ctx.accounts.treasury_vault.to_account_info(),
-                authority: treasury.to_account_info(),
-            },
-            signer_seeds,
-        );
-        withdraw_withheld_tokens_from_mint(cpi_ctx)?;
-
-        // H-2 fix: reload vault to get post-CPI balance.
-        ctx.accounts.treasury_vault.reload()?;
-
-        // Track actual delta withdrawn (not just vault balance)
-        let withdrawn = ctx.accounts.treasury_vault.amount.saturating_sub(balance_before);
-        if withdrawn > 0 {
-            treasury.total_fees_withdrawn = treasury.total_fees_withdrawn.saturating_add(withdrawn);
-        }
-        Ok(())
-    }
-
-    /// Check redistribution threshold and execute 70/20/10 split.
-    ///
-    /// Distributes the vault's excess above `min_runway_balance`:
-    /// - 70% → holders_recipient wallet (an associated token account, not individual holders)
-    /// - 20% → project dev wallet
-    /// - 10% → ecosystem wallet (+ rounding dust)
+    /// Distributes the excess above `min_runway_balance`:
+    /// - 70% → holders_wallet
+    /// - 20% → project_dev_wallet
+    /// - 10% → ecosystem_wallet (+ rounding dust)
     ///
     /// Callable by anyone. The split is deterministic on-chain.
     pub fn check_redistribute(ctx: Context<CheckRedistribute>) -> Result<()> {
         require!(!ctx.accounts.treasury.frozen, TreasuryError::TreasuryFrozen);
         let treasury = &mut ctx.accounts.treasury;
-        let vault = &ctx.accounts.treasury_vault;
-        let balance = vault.amount;
-        let decimals = ctx.accounts.mint.decimals;
 
-        // Only distribute the EXCESS above the runway floor.
-        // The floor always remains in the vault for ops funding.
+        let balance = available_treasury_lamports(treasury)?;
         let excess = balance.saturating_sub(treasury.min_runway_balance);
         require!(excess > DEFAULT_MIN_REDISTRIBUTE, TreasuryError::BelowThreshold);
 
-        // Calculate 70/20/10 split on excess (ecosystem gets rounding remainder)
         let holders_amt = (excess as u128 * HOLDERS_BPS as u128 / 10000) as u64;
         let dev_amt = (excess as u128 * PROJECT_DEV_BPS as u128 / 10000) as u64;
         let eco_amt = excess.saturating_sub(holders_amt).saturating_sub(dev_amt);
 
-        let mint_key = ctx.accounts.mint.key();
-        let seeds = &[TREASURY_SEED, mint_key.as_ref(), &[treasury.bump]];
-        let signer = &[&seeds[..]];
-        let token_program = &ctx.accounts.token_program;
-        let mint_info = ctx.accounts.mint.to_account_info();
-
-        // 70% → holders_recipient wallet (an associated token account, not individual holders)
         if holders_amt > 0 {
-            token_interface::transfer_checked(
-                CpiContext::new_with_signer(
-                    token_program.key(),
-                    TransferChecked {
-                        from: vault.to_account_info(),
-                        to: ctx.accounts.holders_recipient.to_account_info(),
-                        mint: mint_info.clone(),
-                        authority: treasury.to_account_info(),
-                    },
-                    signer,
-                ),
+            transfer_from_treasury(
+                treasury,
+                &ctx.accounts.holders_wallet.to_account_info(),
                 holders_amt,
-                decimals,
             )?;
         }
-
-        // 20% → project dev
         if dev_amt > 0 {
-            token_interface::transfer_checked(
-                CpiContext::new_with_signer(
-                    token_program.key(),
-                    TransferChecked {
-                        from: vault.to_account_info(),
-                        to: ctx.accounts.dev_recipient.to_account_info(),
-                        mint: mint_info.clone(),
-                        authority: treasury.to_account_info(),
-                    },
-                    signer,
-                ),
+            transfer_from_treasury(
+                treasury,
+                &ctx.accounts.project_dev_wallet.to_account_info(),
                 dev_amt,
-                decimals,
             )?;
         }
-
-        // 10% → ecosystem wallet (receives rounding remainder from 70/20 split)
         if eco_amt > 0 {
-            token_interface::transfer_checked(
-                CpiContext::new_with_signer(
-                    token_program.key(),
-                    TransferChecked {
-                        from: vault.to_account_info(),
-                        to: ctx.accounts.ecosystem_recipient.to_account_info(),
-                        mint: mint_info,
-                        authority: treasury.to_account_info(),
-                    },
-                    signer,
-                ),
+            transfer_from_treasury(
+                treasury,
+                &ctx.accounts.ecosystem_wallet.to_account_info(),
                 eco_amt,
-                decimals,
             )?;
         }
 
-        // Update cumulative tracking
         treasury.total_distributed_holders = treasury.total_distributed_holders.saturating_add(holders_amt);
         treasury.total_distributed_dev = treasury.total_distributed_dev.saturating_add(dev_amt);
         treasury.total_distributed_ecosystem = treasury.total_distributed_ecosystem.saturating_add(eco_amt);
 
-        // Audit event — every redistribution is on-chain verifiable
         let clock = Clock::get()?;
         emit!(Redistribution {
-            mint: mint_key,
+            treasury: treasury.key(),
             excess,
             holders_amount: holders_amt,
             dev_amount: dev_amt,
@@ -715,25 +641,19 @@ pub mod rtp_treasury {
         Ok(())
     }
 
-    /// Fund swarm operations from the treasury vault.
+    /// Fund swarm operations from the treasury.
     ///
     /// Enforces the 90-day runway invariant (CLAUDE.md #9):
     /// post-hydration balance MUST remain >= `min_runway_balance`.
-    /// Transfers tokens to the swarm hydration PDA for swap to USDC.
     pub fn hydrate_swarm(ctx: Context<HydrateSwarm>, amount: u64) -> Result<()> {
         require!(!ctx.accounts.treasury.frozen, TreasuryError::TreasuryFrozen);
         let treasury = &mut ctx.accounts.treasury;
-        let vault = &ctx.accounts.treasury_vault;
 
-        // Strategy lifecycle gate: only Live strategies can receive funding
         require!(
             ctx.accounts.strategy_record.status == StrategyLifecycleStatus::Live,
             TreasuryError::StrategyNotLive,
         );
 
-        // Beta expiry gate: if this treasury has an adopter record with a
-        // beta expiry set, refuse funding after expiry or manual end.
-        // Permanent adopters (beta_expires_at == 0) are not affected.
         let adopter = &ctx.accounts.adopter_record;
         if adopter.beta_expires_at > 0 {
             let clock = Clock::get()?;
@@ -743,33 +663,15 @@ pub mod rtp_treasury {
             );
         }
 
-        require!(amount > 0, TreasuryError::HydrationExceedsBalance);
-        require!(vault.amount >= amount, TreasuryError::HydrationExceedsBalance);
+        require!(amount > 0, TreasuryError::ZeroAmount);
 
-        // F-001 fix: enforce the stored runway floor, not a percentage heuristic
-        let post_balance = vault.amount.saturating_sub(amount);
+        let post_balance = available_treasury_lamports(treasury)?.saturating_sub(amount);
         require!(
             post_balance >= treasury.min_runway_balance,
             TreasuryError::InsufficientRunway,
         );
 
-        let mint_key = ctx.accounts.mint.key();
-        let seeds = &[TREASURY_SEED, mint_key.as_ref(), &[treasury.bump]];
-
-        token_interface::transfer_checked(
-            CpiContext::new_with_signer(
-                ctx.accounts.token_program.key(),
-                TransferChecked {
-                    from: vault.to_account_info(),
-                    to: ctx.accounts.swarm_vault.to_account_info(),
-                    mint: ctx.accounts.mint.to_account_info(),
-                    authority: treasury.to_account_info(),
-                },
-                &[seeds],
-            ),
-            amount,
-            ctx.accounts.mint.decimals,
-        )?;
+        transfer_from_treasury(treasury, &ctx.accounts.swarm_wallet.to_account_info(), amount)?;
 
         treasury.total_hydration = treasury.total_hydration.saturating_add(amount);
         Ok(())
@@ -777,39 +679,29 @@ pub mod rtp_treasury {
 
     /// Evolve the treasury phase. IRREVERSIBLE.
     ///
-    /// Phase thresholds (USDC value of treasury reserves):
-    /// - Sustenance → Ecosystem:  >= $50k   (SUSTENANCE_CAP)
-    /// - Ecosystem   → Humanity:  >= $1M    (ECOSYSTEM_CAP)
+    /// Phase thresholds (native SOL lamports in treasury):
+    /// - Sustenance → Ecosystem:  >= SUSTENANCE_CAP
+    /// - Ecosystem   → Humanity:  >= ECOSYSTEM_CAP
     ///
     /// Production: these thresholds should be validated against an on-chain
     /// oracle (e.g. Pyth). For devnet, the phase_authority signature is
     /// the guard — the authority is responsible for checking reserves.
-    ///
-    /// Only the treasury authority can trigger (Squads Multisig compatible).
     pub fn evolve_phase(ctx: Context<EvolvePhase>) -> Result<()> {
         require!(!ctx.accounts.treasury.frozen, TreasuryError::TreasuryFrozen);
         let treasury = &mut ctx.accounts.treasury;
-        let vault_balance = ctx.accounts.treasury_vault.amount;
-
-        // Authority is verified by Anchor constraint on the account struct.
-        // S-002 fix: removed duplicate manual check — single guard is
-        // the canonical source of truth (spec-lock principle).
+        let balance = available_treasury_lamports(treasury)?;
 
         let next = match treasury.phase {
             Phase::Sustenance => {
-                // C-1 fix: enforce vault balance against SUSTENANCE_CAP.
-                // Production: replace with oracle-denominated USDC value.
                 require!(
-                    vault_balance >= SUSTENANCE_CAP,
+                    balance >= SUSTENANCE_CAP,
                     TreasuryError::BelowThreshold,
                 );
                 Phase::Ecosystem
             }
             Phase::Ecosystem => {
-                // C-1 fix: enforce vault balance against ECOSYSTEM_CAP.
-                // Production: replace with oracle-denominated USDC value.
                 require!(
-                    vault_balance >= ECOSYSTEM_CAP,
+                    balance >= ECOSYSTEM_CAP,
                     TreasuryError::BelowThreshold,
                 );
                 Phase::Humanity
@@ -817,62 +709,31 @@ pub mod rtp_treasury {
             Phase::Humanity => return Err(TreasuryError::AlreadyMaxPhase.into()),
         };
 
-        // F-005: production path — validate USDC reserves against phase cap
-        // via on-chain oracle (Pyth/Switchboard). For devnet, vault balance
-        // denominated in the mint's native token serves as the guard.
-        // Thresholds are documented here for auditability.
-
         treasury.phase = next;
         Ok(())
     }
 
-    /// Verify that the mint has TransferFeeConfig enabled and that the
-    /// Treasury PDA is the `withdraw_withheld_authority`.
+    /// Register a new adopter with the treasury.
     ///
-    /// READ-ONLY instruction — no state mutation. Deserializes the mint
-    /// account data (base Mint + TLV extensions) and confirms the withdraw
-    /// authority matches the Treasury PDA.
-    ///
-    /// SL-001/SL-002 fix: on-chain adoption verification instead of
-    /// relying on off-chain "did you configure the mint?" trust.
-    pub fn verify_adoption(ctx: Context<VerifyAdoption>) -> Result<()> {
-        let mint_info = ctx.accounts.mint.to_account_info();
-        let treasury_key = ctx.accounts.treasury.key();
-        verify_transfer_fee_config(&mint_info, &treasury_key)
-    }
-
-    /// Create the swarm hydration PDA vault.
-    ///
-    /// Must be called once after `initialize` and before `hydrate_swarm`.
-    /// S-001 fix: replaces `init_if_needed` with explicit initialization
-    /// to prevent re-initialization attacks on the swarm vault.
-    pub fn create_swarm_vault(ctx: Context<CreateSwarmVault>) -> Result<()> {
-        require!(!ctx.accounts.treasury.frozen, TreasuryError::TreasuryFrozen);
-        Ok(())
-    }
-
-    /// Register a new token project as an RTP adopter (permanent — no expiry).
-    ///
-    /// Creates an AdopterRecord PDA for the given token mint. Called once
-    /// per adopting token project at adoption time. The AdopterRecord tracks
-    /// cumulative fee contributions for pro-rata yield attribution.
-    pub fn register_adopter(ctx: Context<RegisterAdopter>, token_mint: Pubkey) -> Result<()> {
+    /// Seeds: ["adopter", treasury.key(), adopter_id]
+    pub fn register_adopter(ctx: Context<RegisterAdopter>, adopter_id: String) -> Result<()> {
         require!(!ctx.accounts.treasury.frozen, TreasuryError::TreasuryFrozen);
         let record = &mut ctx.accounts.adopter_record;
         let clock = Clock::get()?;
 
-        record.token_mint = token_mint;
         record.treasury = ctx.accounts.treasury.key();
+        record.adopter_id = adopter_id.clone();
         record.fees_contributed_lamports = 0;
         record.adopted_at = clock.unix_timestamp;
         record.last_deposit_ts = clock.unix_timestamp;
         record.deposit_count = 0;
-        record.beta_expires_at = 0; // permanent — no expiry
+        record.beta_expires_at = 0;
         record.beta_ended = false;
         record.bump = ctx.bumps.adopter_record;
 
         emit!(AdopterRegistered {
-            token_mint,
+            treasury: ctx.accounts.treasury.key(),
+            adopter_id,
             adopted_at: clock.unix_timestamp,
         });
 
@@ -880,16 +741,9 @@ pub mod rtp_treasury {
     }
 
     /// Register a beta adopter with an automatic expiry timestamp.
-    ///
-    /// Same as register_adopter but sets `beta_expires_at`. After this
-    /// timestamp, hydrate_swarm will refuse to fund strategies for this
-    /// adopter. The beta can also be ended early via `end_beta`.
-    ///
-    /// Typical use: Colosseum hackathon beta — expires 1 week after the
-    /// hackathon deadline.
     pub fn register_adopter_beta(
         ctx: Context<RegisterAdopter>,
-        token_mint: Pubkey,
+        adopter_id: String,
         beta_expires_at: i64,
     ) -> Result<()> {
         require!(!ctx.accounts.treasury.frozen, TreasuryError::TreasuryFrozen);
@@ -901,8 +755,8 @@ pub mod rtp_treasury {
 
         let record = &mut ctx.accounts.adopter_record;
 
-        record.token_mint = token_mint;
         record.treasury = ctx.accounts.treasury.key();
+        record.adopter_id = adopter_id.clone();
         record.fees_contributed_lamports = 0;
         record.adopted_at = clock.unix_timestamp;
         record.last_deposit_ts = clock.unix_timestamp;
@@ -912,7 +766,8 @@ pub mod rtp_treasury {
         record.bump = ctx.bumps.adopter_record;
 
         emit!(AdopterRegistered {
-            token_mint,
+            treasury: ctx.accounts.treasury.key(),
+            adopter_id,
             adopted_at: clock.unix_timestamp,
         });
 
@@ -920,11 +775,7 @@ pub mod rtp_treasury {
     }
 
     /// Record a fee deposit from an adopting token project.
-    ///
-    /// Increments the AdopterRecord's cumulative fees and the treasury's
-    /// total_fees_received_lamports. This is the accounting hook called
-    /// alongside (or composed into) any fee deposit. It does not move
-    /// funds — it only updates accounting state for pro-rata attribution.
+    /// Accounting only — does not move funds.
     pub fn record_fee_deposit(ctx: Context<RecordFeeDeposit>, amount_lamports: u64) -> Result<()> {
         require!(!ctx.accounts.treasury.frozen, TreasuryError::TreasuryFrozen);
         require!(amount_lamports > 0, TreasuryError::ZeroAmount);
@@ -940,16 +791,19 @@ pub mod rtp_treasury {
         record.last_deposit_ts = clock.unix_timestamp;
         record.deposit_count = record.deposit_count.saturating_add(1);
 
-        treasury.total_fees_received_lamports = treasury
+        let treasury_key = treasury.key();
+        let total_fees = treasury
             .total_fees_received_lamports
             .checked_add(amount_lamports)
             .ok_or(TreasuryError::Overflow)?;
+        treasury.total_fees_received_lamports = total_fees;
 
         emit!(FeeDepositRecorded {
-            token_mint: record.token_mint,
+            treasury: treasury_key,
+            adopter_id: record.adopter_id.clone(),
             amount_lamports,
             cumulative: record.fees_contributed_lamports,
-            total_treasury_fees: treasury.total_fees_received_lamports,
+            total_treasury_fees: total_fees,
             ts: clock.unix_timestamp,
         });
 
@@ -957,21 +811,16 @@ pub mod rtp_treasury {
     }
 
     /// End a beta adopter's RTP participation early.
-    ///
-    /// Only callable by `treasury.authority`. Sets `beta_ended = true`,
-    /// which prevents further hydrate_swarm funding for this adopter.
-    /// The adopter's fee contributions remain on record for attribution.
-    /// Yield already generated stays with the project.
     pub fn end_beta(ctx: Context<EndBeta>) -> Result<()> {
         require!(!ctx.accounts.treasury.frozen, TreasuryError::TreasuryFrozen);
-        // Authority validated by Anchor constraint on EndBeta struct.
 
         let record = &mut ctx.accounts.adopter_record;
         let clock = Clock::get()?;
         record.beta_ended = true;
 
         emit!(BetaEnded {
-            token_mint: record.token_mint,
+            treasury: ctx.accounts.treasury.key(),
+            adopter_id: record.adopter_id.clone(),
             ended_at: clock.unix_timestamp,
             fees_contributed_lamports: record.fees_contributed_lamports,
         });
@@ -1156,7 +1005,7 @@ pub mod rtp_treasury {
         treasury.frozen = true;
         let clock = Clock::get()?;
         emit!(TreasuryFrozen {
-            mint: treasury.mint,
+            treasury: treasury.key(),
             authority: ctx.accounts.authority.key(),
             timestamp: clock.unix_timestamp,
         });
@@ -1172,7 +1021,7 @@ pub mod rtp_treasury {
         treasury.frozen = false;
         let clock = Clock::get()?;
         emit!(TreasuryUnfrozen {
-            mint: treasury.mint,
+            treasury: treasury.key(),
             authority: ctx.accounts.authority.key(),
             timestamp: clock.unix_timestamp,
         });
@@ -1248,25 +1097,19 @@ pub mod rtp_treasury {
             TreasuryError::TooManyOpenPositions,
         );
 
-        // Read the *token* balance of the treasury vault.
-        // Units MUST match `min_runway_balance` and `input_sol_lamports`
-        // (callers commit a wSOL/SOL-denominated token whose decimals match
-        // SOL lamports — see Initialize). Previously this read .lamports()
-        // off an UncheckedAccount which only returned rent dust and made the
-        // runway check vacuous. P0 fix: use the typed TokenAccount amount.
-        let vault_balance = ctx.accounts.treasury_vault.amount;
+        // Read native SOL available balance (excludes rent exemption + committed positions)
+        let available = available_treasury_lamports(treasury)?;
 
-        // Position size cap (20% of vault)
-        let max_input = vault_balance as u128 * MAX_POSITION_SIZE_BPS as u128 / 10000;
+        // Position size cap (20% of available)
+        let max_input = available as u128 * MAX_POSITION_SIZE_BPS as u128 / 10000;
         require!(
             input_sol_lamports as u128 <= max_input,
             TreasuryError::PositionSizeExceeded,
         );
 
-        // Runway floor: vault after commit must still cover min_runway_balance
-        let post_commit = vault_balance.saturating_sub(input_sol_lamports);
+        // Runway floor: available after commit must still cover min_runway_balance
         require!(
-            post_commit >= treasury.min_runway_balance,
+            available.saturating_sub(input_sol_lamports) >= treasury.min_runway_balance,
             TreasuryError::InsufficientRunway,
         );
 
@@ -1309,17 +1152,12 @@ pub mod rtp_treasury {
         );
 
         // Validate Flash Trade program ID at remaining[16] (per IDL v15.2.0 layout).
-        // Close handler validates position PDA; open handler validates program ID.
-        // This ensures the CPI targets the expected program, not a malicious substitute.
         require!(
             remaining[16].key() == flash_program_id,
             TreasuryError::InvalidFlashProgramId,
         );
 
         // Validate Flash Trade event authority PDA at remaining[15].
-        // Anchor #[event_cpi] derives this PDA from ["__event_authority"] under
-        // the Flash Trade program. Substituting another account here would let
-        // a caller redirect Flash Trade's emitted CPI events to a fake authority.
         let (expected_event_authority, _evt_bump) = Pubkey::find_program_address(
             &[b"__event_authority"],
             &flash_program_id,
@@ -1329,17 +1167,13 @@ pub mod rtp_treasury {
             TreasuryError::InvalidFlashEventAuthority,
         );
 
-        // Validate canonical System Program at remaining[13]. A malicious
-        // substitute could front-run lamport math during CPI account creation.
+        // Validate canonical System Program at remaining[13].
         require!(
             remaining[13].key() == anchor_lang::system_program::ID,
             TreasuryError::InvalidFlashSystemProgram,
         );
 
-        // Validate funding_token_program at remaining[14]. Flash Trade's
-        // funding flow uses either the legacy SPL Token program or Token-2022.
-        // Reject anything else so the CPI cannot be tricked into using a
-        // counterfeit token program.
+        // Validate funding_token_program at remaining[14].
         let token_program_key = remaining[14].key();
         require!(
             token_program_key == anchor_spl::token::ID
@@ -1373,9 +1207,8 @@ pub mod rtp_treasury {
             data: ix_data,
         };
 
-        // Sign with Treasury PDA seeds
-        let mint_key = treasury.mint;
-        let seeds = &[TREASURY_SEED, mint_key.as_ref(), &[treasury.bump]];
+        // Sign with Treasury PDA seeds (authority-seeded)
+        let seeds = &[TREASURY_SEED, treasury.authority.as_ref(), &[treasury.bump]];
         let signer_seeds = &[&seeds[..]];
 
         invoke_signed(&flash_ix, &remaining.iter().map(|a| a.to_account_info()).collect::<Vec<_>>(), signer_seeds)
@@ -1383,8 +1216,17 @@ pub mod rtp_treasury {
 
         // Update strategy state
         strategy.open_position_count = strategy.open_position_count.saturating_add(1);
-        strategy.committed_sol_lamports = strategy.committed_sol_lamports.saturating_add(input_sol_lamports);
+        strategy.committed_sol_lamports = strategy
+            .committed_sol_lamports
+            .checked_add(input_sol_lamports)
+            .ok_or(TreasuryError::Overflow)?;
         strategy.flash_pool_name = pool_name.clone();
+
+        // Update treasury global commitment counter
+        treasury.committed_sol_lamports = treasury
+            .committed_sol_lamports
+            .checked_add(input_sol_lamports)
+            .ok_or(TreasuryError::Overflow)?;
 
         let clock = Clock::get()?;
         emit!(FlashPositionOpened {
@@ -1502,24 +1344,23 @@ pub mod rtp_treasury {
             data: ix_data,
         };
 
-        let mint_key = treasury.mint;
-        let seeds = &[TREASURY_SEED, mint_key.as_ref(), &[treasury.bump]];
+        let seeds = &[TREASURY_SEED, treasury.authority.as_ref(), &[treasury.bump]];
         let signer_seeds = &[&seeds[..]];
 
         invoke_signed(&flash_ix, &remaining.iter().map(|a| a.to_account_info()).collect::<Vec<_>>(), signer_seeds)
             .map_err(|_| TreasuryError::FlashCpiFailed)?;
 
-        // §2.9 fix: decrement both counters. The caller passes the input
-        // amount that was committed at open time (typically the same value
-        // they passed to open_flash_position). For a partial close, the
-        // caller can pass the proportional delta. Reject under-flow rather
-        // than silently saturating to keep accounting honest.
+        // Decrement both strategy and treasury commitment counters.
         strategy.open_position_count = strategy.open_position_count.saturating_sub(1);
         require!(
             strategy.committed_sol_lamports >= committed_sol_lamports_delta,
             TreasuryError::CommittedDeltaExceedsBalance,
         );
         strategy.committed_sol_lamports -= committed_sol_lamports_delta;
+        treasury.committed_sol_lamports = treasury
+            .committed_sol_lamports
+            .checked_sub(committed_sol_lamports_delta)
+            .ok_or(TreasuryError::CommittedDeltaExceedsBalance)?;
 
         let clock = Clock::get()?;
         emit!(FlashPositionClosed {
@@ -1562,12 +1403,16 @@ pub mod rtp_treasury {
         );
 
         let strategy = &mut ctx.accounts.strategy_record;
+        let treasury = &mut ctx.accounts.treasury;
         let previous_committed = strategy.committed_sol_lamports;
         let clock = Clock::get()?;
 
         // Reset counters first (audit captures the post-state intent).
         strategy.open_position_count = 0;
         strategy.committed_sol_lamports = 0;
+        treasury.committed_sol_lamports = treasury
+            .committed_sol_lamports
+            .saturating_sub(previous_committed);
 
         emit!(EmergencyPositionsReset {
             treasury: ctx.accounts.treasury.key(),
@@ -1584,186 +1429,77 @@ pub mod rtp_treasury {
     // ==== Account Contexts ==================================================
 
     #[derive(Accounts)]
+    #[instruction(holders_wallet: Pubkey, project_dev_wallet: Pubkey, ecosystem_wallet: Pubkey, min_runway_balance: u64)]
     pub struct Initialize<'info> {
-        /// The Token-2022 mint adopting RTP.
-        /// MUST have TransferFeeConfig enabled with the Treasury PDA as
-        /// `withdraw_withheld_authority` (immutable once set).
-        #[account(mint::token_program = token_program)]
-        pub mint: InterfaceAccount<'info, Mint>,
-
-        /// Treasury state account (PDA). No private key exists.
+        /// Treasury state account (PDA, authority-seeded). No private key exists.
         #[account(
             init,
             payer = authority,
             space = 8 + Treasury::INIT_SPACE,
-            seeds = [TREASURY_SEED, mint.key().as_ref()],
+            seeds = [TREASURY_SEED, authority.key().as_ref()],
             bump,
         )]
         pub treasury: Account<'info, Treasury>,
-
-        /// PDA-owned vault that receives withdrawn fees.
-        /// Authority = treasury PDA (no human can sign for this).
-        #[account(
-            init,
-            payer = authority,
-            token::mint = mint,
-            token::authority = treasury,
-            seeds = [TREASURY_SEED, mint.key().as_ref(), b"vault"],
-            bump,
-        )]
-        pub treasury_vault: InterfaceAccount<'info, TokenAccount>,
-
-        /// Holders wallet — receives 70% of redistribution.
-        /// Stored as pubkey in treasury state for on-chain verification.
-        /// CHECK: plain pubkey, no data read
-        pub holders_wallet: UncheckedAccount<'info>,
-
-        /// Project dev wallet — receives 20% of redistribution.
-        /// Stored as pubkey in treasury state for on-chain verification.
-        /// CHECK: plain pubkey, no data read
-        pub project_dev_wallet: UncheckedAccount<'info>,
-
-        /// Ecosystem wallet — receives 10% of redistribution.
-        /// Stored as pubkey in treasury state for on-chain verification.
-        /// CHECK: plain pubkey, no data read
-        pub ecosystem_wallet: UncheckedAccount<'info>,
 
         /// Authority paying for initialization (anyone can initialize).
         #[account(mut)]
         pub authority: Signer<'info>,
 
-        pub token_program: Interface<'info, TokenInterface>,
         pub system_program: Program<'info, System>,
     }
 
     #[derive(Accounts)]
-    pub struct WithdrawFees<'info> {
-        /// The Token-2022 mint with TransferFeeConfig enabled.
-        /// `mut` required: CPI `withdraw_withheld_tokens_from_mint` marks
-        /// mint as writable in its account metas.
-        #[account(mut, mint::token_program = token_program)]
-        pub mint: InterfaceAccount<'info, Mint>,
-
-        /// Treasury state account (PDA).
+    pub struct DepositSol<'info> {
         #[account(
             mut,
-            seeds = [TREASURY_SEED, mint.key().as_ref()],
+            seeds = [TREASURY_SEED, treasury.authority.as_ref()],
             bump = treasury.bump,
         )]
         pub treasury: Account<'info, Treasury>,
 
-        /// Treasury vault where withdrawn fees land.
-        /// Authority = treasury PDA.
-        #[account(
-            mut,
-            token::mint = mint,
-            token::authority = treasury,
-            seeds = [TREASURY_SEED, mint.key().as_ref(), b"vault"],
-            bump,
-        )]
-        pub treasury_vault: InterfaceAccount<'info, TokenAccount>,
+        #[account(mut)]
+        pub payer: Signer<'info>,
 
-        pub token_program: Interface<'info, TokenInterface>,
+        pub system_program: Program<'info, System>,
     }
 
     #[derive(Accounts)]
     pub struct CheckRedistribute<'info> {
-        /// The Token-2022 mint.
-        #[account(mint::token_program = token_program)]
-        pub mint: InterfaceAccount<'info, Mint>,
-
-        /// Treasury state account (PDA).
         #[account(
             mut,
-            seeds = [TREASURY_SEED, mint.key().as_ref()],
+            seeds = [TREASURY_SEED, treasury.authority.as_ref()],
             bump = treasury.bump,
         )]
         pub treasury: Account<'info, Treasury>,
 
-        /// Treasury vault (source of redistribution).
-        /// Authority = treasury PDA.
-        #[account(
-            mut,
-            token::mint = mint,
-            token::authority = treasury,
-            seeds = [TREASURY_SEED, mint.key().as_ref(), b"vault"],
-            bump,
-        )]
-        pub treasury_vault: InterfaceAccount<'info, TokenAccount>,
+        /// CHECK: must equal treasury.holders_wallet
+        #[account(mut, address = treasury.holders_wallet)]
+        pub holders_wallet: UncheckedAccount<'info>,
 
-        /// Holder distribution recipient token account.
-        /// Authority verified against `treasury.holders_wallet`.
-        /// Boxed to reduce stack frame size (BPF 4KB limit).
-        #[account(
-            mut,
-            token::mint = mint,
-            token::authority = treasury.holders_wallet,
-        )]
-        pub holders_recipient: Box<InterfaceAccount<'info, TokenAccount>>,
+        /// CHECK: must equal treasury.project_dev_wallet
+        #[account(mut, address = treasury.project_dev_wallet)]
+        pub project_dev_wallet: UncheckedAccount<'info>,
 
-        /// Project dev wallet token account. Authority verified against
-        /// `treasury.project_dev_wallet` stored at initialization.
-        /// Boxed to reduce stack frame size (BPF 4KB limit).
-        #[account(
-            mut,
-            token::mint = mint,
-            token::authority = treasury.project_dev_wallet,
-        )]
-        pub dev_recipient: Box<InterfaceAccount<'info, TokenAccount>>,
+        /// CHECK: must equal treasury.ecosystem_wallet
+        #[account(mut, address = treasury.ecosystem_wallet)]
+        pub ecosystem_wallet: UncheckedAccount<'info>,
 
-        /// Ecosystem wallet token account. Authority verified against
-        /// `treasury.ecosystem_wallet` stored at initialization.
-        /// Boxed to reduce stack frame size (BPF 4KB limit).
-        #[account(
-            mut,
-            token::mint = mint,
-            token::authority = treasury.ecosystem_wallet,
-        )]
-        pub ecosystem_recipient: Box<InterfaceAccount<'info, TokenAccount>>,
-
-        pub token_program: Interface<'info, TokenInterface>,
+        pub system_program: Program<'info, System>,
     }
 
     #[derive(Accounts)]
     pub struct HydrateSwarm<'info> {
-        /// The Token-2022 mint.
-        #[account(mint::token_program = token_program)]
-        pub mint: InterfaceAccount<'info, Mint>,
-
-        /// Treasury state account (PDA).
         #[account(
             mut,
-            seeds = [TREASURY_SEED, mint.key().as_ref()],
+            seeds = [TREASURY_SEED, treasury.authority.as_ref()],
             bump = treasury.bump,
         )]
         pub treasury: Account<'info, Treasury>,
 
-        /// Treasury vault (hydration source).
-        /// Authority = treasury PDA.
-        #[account(
-            mut,
-            token::mint = mint,
-            token::authority = treasury,
-            seeds = [TREASURY_SEED, mint.key().as_ref(), b"vault"],
-            bump,
-        )]
-        pub treasury_vault: InterfaceAccount<'info, TokenAccount>,
+        /// CHECK: swarm/operator wallet receiving native SOL
+        #[account(mut)]
+        pub swarm_wallet: UncheckedAccount<'info>,
 
-        /// Swarm hydration PDA vault. Receives tokens for swap to USDC.
-        /// Authority = treasury PDA. Must be explicitly initialized via
-        /// `create_swarm_vault` before first hydration (S-001 fix:
-        /// removed init_if_needed to prevent re-initialization attack).
-        #[account(
-            mut,
-            token::mint = mint,
-            token::authority = treasury,
-            seeds = [SWARM_HYDRATION_SEED, mint.key().as_ref()],
-            bump,
-        )]
-        pub swarm_vault: InterfaceAccount<'info, TokenAccount>,
-
-        /// Strategy record — MUST be Live to receive funding.
-        /// Seeds: [STRATEGY_SEED, treasury.key(), strategy_id]
         #[account(
             seeds = [STRATEGY_SEED, treasury.key().as_ref(), strategy_record.strategy_id.as_bytes()],
             bump = strategy_record.bump,
@@ -1771,129 +1507,54 @@ pub mod rtp_treasury {
         )]
         pub strategy_record: Account<'info, StrategyRecord>,
 
-        /// Adopter record for beta expiry check. Seeds: ["adopter", token_mint]
-        /// If beta_expires_at > 0 and the beta has expired or been ended,
-        /// hydrate_swarm is refused.
         #[account(
-            seeds = [b"adopter", adopter_record.token_mint.as_ref()],
+            seeds = [b"adopter", treasury.key().as_ref(), adopter_record.adopter_id.as_bytes()],
             bump = adopter_record.bump,
             constraint = adopter_record.treasury == treasury.key() @ TreasuryError::AdopterTreasuryMismatch,
         )]
         pub adopter_record: Account<'info, AdopterRecord>,
 
-        /// Authority initiating hydration (anyone can trigger).
         #[account(mut)]
         pub authority: Signer<'info>,
 
-        pub token_program: Interface<'info, TokenInterface>,
         pub system_program: Program<'info, System>,
     }
 
     #[derive(Accounts)]
     pub struct EvolvePhase<'info> {
-        /// The Token-2022 mint.
-        #[account(mint::token_program = token_program)]
-        pub mint: InterfaceAccount<'info, Mint>,
-
-        /// Treasury state account (PDA).
         #[account(
             mut,
-            seeds = [TREASURY_SEED, mint.key().as_ref()],
+            seeds = [TREASURY_SEED, treasury.authority.as_ref()],
             bump = treasury.bump,
         )]
         pub treasury: Account<'info, Treasury>,
 
-        /// Treasury vault — balance checked against phase caps (C-1 fix).
-        /// Authority = treasury PDA.
-        #[account(
-            token::mint = mint,
-            token::authority = treasury,
-            seeds = [TREASURY_SEED, mint.key().as_ref(), b"vault"],
-            bump,
-        )]
-        pub treasury_vault: InterfaceAccount<'info, TokenAccount>,
-
-        /// Phase authority — MUST be `treasury.authority`.
-        /// Can be a Squads Multisig PDA for governance.
-        /// S-002 fix: moved check here as Anchor constraint (single guard,
-        /// spec-lock principle) — previously duplicated in handler body.
         #[account(constraint = phase_authority.key() == treasury.authority @ TreasuryError::UnauthorizedPhaseEvolution)]
         pub phase_authority: Signer<'info>,
 
-        pub token_program: Interface<'info, TokenInterface>,
-    }
-
-    #[derive(Accounts)]
-    pub struct VerifyAdoption<'info> {
-        /// The Token-2022 mint — MUST have TransferFeeConfig enabled.
-        #[account(mint::token_program = token_program)]
-        pub mint: InterfaceAccount<'info, Mint>,
-
-        /// Treasury state account (PDA).
-        #[account(
-            seeds = [TREASURY_SEED, mint.key().as_ref()],
-            bump = treasury.bump,
-        )]
-        pub treasury: Account<'info, Treasury>,
-
-        pub token_program: Interface<'info, TokenInterface>,
-    }
-
-    #[derive(Accounts)]
-    pub struct CreateSwarmVault<'info> {
-        /// The Token-2022 mint.
-        #[account(mint::token_program = token_program)]
-        pub mint: InterfaceAccount<'info, Mint>,
-
-        /// Treasury state account (PDA).
-        #[account(
-            seeds = [TREASURY_SEED, mint.key().as_ref()],
-            bump = treasury.bump,
-        )]
-        pub treasury: Account<'info, Treasury>,
-
-        /// Swarm hydration PDA vault. Created exactly once.
-        /// Authority = treasury PDA.
-        #[account(
-            init,
-            payer = authority,
-            token::mint = mint,
-            token::authority = treasury,
-            seeds = [SWARM_HYDRATION_SEED, mint.key().as_ref()],
-            bump,
-        )]
-        pub swarm_vault: InterfaceAccount<'info, TokenAccount>,
-
-        /// Authority paying for vault creation (anyone can create).
-        #[account(mut)]
-        pub authority: Signer<'info>,
-
-        pub token_program: Interface<'info, TokenInterface>,
         pub system_program: Program<'info, System>,
     }
 
     #[derive(Accounts)]
-    #[instruction(token_mint: Pubkey)]
+    #[instruction(adopter_id: String)]
     pub struct RegisterAdopter<'info> {
-        /// AdopterRecord PDA — one per token mint. Seeds: ["adopter", token_mint]
+        /// Seeds: ["adopter", treasury.key(), adopter_id]
         #[account(
             init,
             payer = authority,
             space = 8 + AdopterRecord::INIT_SPACE,
-            seeds = [b"adopter", token_mint.as_ref()],
+            seeds = [b"adopter", treasury.key().as_ref(), adopter_id.as_bytes()],
             bump,
         )]
         pub adopter_record: Account<'info, AdopterRecord>,
 
-        /// The treasury state account (must already be initialised)
         #[account(
             mut,
-            seeds = [TREASURY_SEED, treasury.mint.as_ref()],
+            seeds = [TREASURY_SEED, treasury.authority.as_ref()],
             bump = treasury.bump,
         )]
         pub treasury: Account<'info, Treasury>,
 
-        /// The authority signing this registration
         #[account(mut)]
         pub authority: Signer<'info>,
 
@@ -1902,24 +1563,21 @@ pub mod rtp_treasury {
 
     #[derive(Accounts)]
     pub struct RecordFeeDeposit<'info> {
-        /// AdopterRecord PDA — seeds: ["adopter", token_mint]
         #[account(
             mut,
-            seeds = [b"adopter", adopter_record.token_mint.as_ref()],
+            seeds = [b"adopter", treasury.key().as_ref(), adopter_record.adopter_id.as_bytes()],
             bump = adopter_record.bump,
             constraint = adopter_record.treasury == treasury.key() @ TreasuryError::AdopterTreasuryMismatch,
         )]
         pub adopter_record: Account<'info, AdopterRecord>,
 
-        /// Treasury state account — receives the total_fees_received_lamports increment
         #[account(
             mut,
-            seeds = [TREASURY_SEED, treasury.mint.as_ref()],
+            seeds = [TREASURY_SEED, treasury.authority.as_ref()],
             bump = treasury.bump,
         )]
         pub treasury: Account<'info, Treasury>,
 
-        /// The authority — must equal treasury.authority to prevent arbitrary fee inflation.
         #[account(
             constraint = authority.key() == treasury.authority @ TreasuryError::UnauthorizedFeeAttribution,
         )]
@@ -1927,16 +1585,14 @@ pub mod rtp_treasury {
     }
 
     #[derive(Accounts)]
-    #[instruction(strategy_id: String, promotion_sharpe_x100: i32)]
+    #[instruction(strategy_id: String, _promotion_sharpe_x100: i32)]
     pub struct RegisterStrategy<'info> {
-        /// Treasury state account (PDA, read-only).
         #[account(
-            seeds = [TREASURY_SEED, treasury.mint.as_ref()],
+            seeds = [TREASURY_SEED, treasury.authority.as_ref()],
             bump = treasury.bump,
         )]
         pub treasury: Account<'info, Treasury>,
 
-        /// Strategy record PDA — init, seeds: [STRATEGY_SEED, treasury, strategy_id]
         #[account(
             init,
             payer = authority,
@@ -1946,7 +1602,6 @@ pub mod rtp_treasury {
         )]
         pub strategy_record: Account<'info, StrategyRecord>,
 
-        /// Authority — must equal treasury.authority
         #[account(
             mut,
             constraint = authority.key() == treasury.authority @ TreasuryError::UnauthorizedStrategyOp,
@@ -1958,14 +1613,12 @@ pub mod rtp_treasury {
 
     #[derive(Accounts)]
     pub struct UpdateStrategyPerformance<'info> {
-        /// Treasury state account (PDA, read-only).
         #[account(
-            seeds = [TREASURY_SEED, treasury.mint.as_ref()],
+            seeds = [TREASURY_SEED, treasury.authority.as_ref()],
             bump = treasury.bump,
         )]
         pub treasury: Account<'info, Treasury>,
 
-        /// Strategy record PDA — mutable, seeds verified.
         #[account(
             mut,
             seeds = [STRATEGY_SEED, treasury.key().as_ref(), strategy_record.strategy_id.as_bytes()],
@@ -1974,7 +1627,6 @@ pub mod rtp_treasury {
         )]
         pub strategy_record: Account<'info, StrategyRecord>,
 
-        /// Authority — must equal treasury.authority
         #[account(
             constraint = authority.key() == treasury.authority @ TreasuryError::UnauthorizedStrategyOp,
         )]
@@ -1983,14 +1635,12 @@ pub mod rtp_treasury {
 
     #[derive(Accounts)]
     pub struct ForceRetireStrategy<'info> {
-        /// Treasury state account (PDA, read-only, seeds verified).
         #[account(
-            seeds = [TREASURY_SEED, treasury.mint.as_ref()],
+            seeds = [TREASURY_SEED, treasury.authority.as_ref()],
             bump = treasury.bump,
         )]
         pub treasury: Account<'info, Treasury>,
 
-        /// Strategy record PDA — mutable, seeds verified.
         #[account(
             mut,
             seeds = [STRATEGY_SEED, treasury.key().as_ref(), strategy_record.strategy_id.as_bytes()],
@@ -1999,7 +1649,6 @@ pub mod rtp_treasury {
         )]
         pub strategy_record: Account<'info, StrategyRecord>,
 
-        /// Authority — must equal treasury.authority
         #[account(
             constraint = authority.key() == treasury.authority @ TreasuryError::UnauthorizedStrategyOp,
         )]
@@ -2008,23 +1657,20 @@ pub mod rtp_treasury {
 
     #[derive(Accounts)]
     pub struct EndBeta<'info> {
-        /// AdopterRecord PDA — seeds: ["adopter", token_mint]
         #[account(
             mut,
-            seeds = [b"adopter", adopter_record.token_mint.as_ref()],
+            seeds = [b"adopter", treasury.key().as_ref(), adopter_record.adopter_id.as_bytes()],
             bump = adopter_record.bump,
             constraint = adopter_record.treasury == treasury.key() @ TreasuryError::AdopterTreasuryMismatch,
         )]
         pub adopter_record: Account<'info, AdopterRecord>,
 
-        /// Treasury state account (PDA, read-only, seeds verified).
         #[account(
-            seeds = [TREASURY_SEED, treasury.mint.as_ref()],
+            seeds = [TREASURY_SEED, treasury.authority.as_ref()],
             bump = treasury.bump,
         )]
         pub treasury: Account<'info, Treasury>,
 
-        /// Authority — must equal treasury.authority
         #[account(
             constraint = authority.key() == treasury.authority @ TreasuryError::UnauthorizedBetaOp,
         )]
@@ -2033,31 +1679,27 @@ pub mod rtp_treasury {
 
     #[derive(Accounts)]
     pub struct FreezeTreasury<'info> {
-        /// Treasury state account (PDA).
         #[account(
             mut,
-            seeds = [TREASURY_SEED, treasury.mint.as_ref()],
+            seeds = [TREASURY_SEED, treasury.authority.as_ref()],
             bump = treasury.bump,
             constraint = authority.key() == treasury.authority @ TreasuryError::UnauthorizedPhaseEvolution,
         )]
         pub treasury: Account<'info, Treasury>,
 
-        /// Authority — must equal treasury.authority.
         pub authority: Signer<'info>,
     }
 
     #[derive(Accounts)]
     pub struct UnfreezeTreasury<'info> {
-        /// Treasury state account (PDA).
         #[account(
             mut,
-            seeds = [TREASURY_SEED, treasury.mint.as_ref()],
+            seeds = [TREASURY_SEED, treasury.authority.as_ref()],
             bump = treasury.bump,
             constraint = authority.key() == treasury.authority @ TreasuryError::UnauthorizedPhaseEvolution,
         )]
         pub treasury: Account<'info, Treasury>,
 
-        /// Authority — must equal treasury.authority.
         pub authority: Signer<'info>,
     }
 
@@ -2065,15 +1707,13 @@ pub mod rtp_treasury {
 
     #[derive(Accounts)]
     pub struct OpenFlashPosition<'info> {
-        /// Treasury state account (PDA, mutable for event emission).
         #[account(
             mut,
-            seeds = [TREASURY_SEED, treasury.mint.as_ref()],
+            seeds = [TREASURY_SEED, treasury.authority.as_ref()],
             bump = treasury.bump,
         )]
         pub treasury: Account<'info, Treasury>,
 
-        /// Strategy record — must be Live to open positions.
         #[account(
             mut,
             seeds = [STRATEGY_SEED, treasury.key().as_ref(), strategy_record.strategy_id.as_bytes()],
@@ -2082,35 +1722,19 @@ pub mod rtp_treasury {
         )]
         pub strategy_record: Account<'info, StrategyRecord>,
 
-        /// Treasury vault — Token-2022 token account whose token amount denominates
-        /// `min_runway_balance` and `input_sol_lamports`. Authority = treasury PDA.
-        /// Seeds verified; runway/position-size checks read `.amount`, not `.lamports()`.
-        #[account(
-            mut,
-            token::authority = treasury,
-            seeds = [TREASURY_SEED, treasury.mint.as_ref(), b"vault"],
-            bump,
-        )]
-        pub treasury_vault: InterfaceAccount<'info, TokenAccount>,
-
-        /// Fee payer — pays for transaction gas and Flash Trade account rent.
-        /// Has NO authority over treasury funds (only pays gas).
         #[account(mut)]
         pub authority: Signer<'info>,
     }
 
     #[derive(Accounts)]
     pub struct CloseFlashPosition<'info> {
-        /// Treasury state account (PDA, mutable for event emission).
         #[account(
             mut,
-            seeds = [TREASURY_SEED, treasury.mint.as_ref()],
+            seeds = [TREASURY_SEED, treasury.authority.as_ref()],
             bump = treasury.bump,
         )]
         pub treasury: Account<'info, Treasury>,
 
-        /// Strategy record — mutable for position count update.
-        /// Close is permitted even if Suspended (exiting is always safe).
         #[account(
             mut,
             seeds = [STRATEGY_SEED, treasury.key().as_ref(), strategy_record.strategy_id.as_bytes()],
@@ -2119,22 +1743,19 @@ pub mod rtp_treasury {
         )]
         pub strategy_record: Account<'info, StrategyRecord>,
 
-        /// Fee payer.
         #[account(mut)]
         pub authority: Signer<'info>,
     }
 
     #[derive(Accounts)]
     pub struct EmergencyCloseAllPositions<'info> {
-        /// Treasury state account (PDA).
         #[account(
             mut,
-            seeds = [TREASURY_SEED, treasury.mint.as_ref()],
+            seeds = [TREASURY_SEED, treasury.authority.as_ref()],
             bump = treasury.bump,
         )]
         pub treasury: Account<'info, Treasury>,
 
-        /// Strategy record — counters reset to zero.
         #[account(
             mut,
             seeds = [STRATEGY_SEED, treasury.key().as_ref(), strategy_record.strategy_id.as_bytes()],
@@ -2143,7 +1764,6 @@ pub mod rtp_treasury {
         )]
         pub strategy_record: Account<'info, StrategyRecord>,
 
-        /// Authority — must equal treasury.authority.
         pub authority: Signer<'info>,
     }
 }

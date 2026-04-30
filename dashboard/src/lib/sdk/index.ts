@@ -1,6 +1,10 @@
+// Browser globals
+const fetch = (globalThis as any).fetch;
+const AbortSignal = (globalThis as any).AbortSignal;
+
 // @resilient-protocol/sdk
 // The launchpad integration SDK for the Resilient Token Protocol.
-// Core functions: registerWithRTP, fetchTreasuryState, withdrawAndRedistribute.
+// Core functions: registerWithRTP, fetchTreasuryState, depositSol, checkRedistribute.
 
 import { AnchorProvider, BorshCoder, Program, Idl } from "@coral-xyz/anchor";
 import { BN } from "@coral-xyz/anchor";
@@ -14,20 +18,6 @@ import {
   VersionedTransaction,
   sendAndConfirmTransaction,
 } from "@solana/web3.js";
-
-import {
-  TOKEN_2022_PROGRAM_ID,
-  createInitializeMintInstruction,
-  createInitializeTransferFeeConfigInstruction,
-  getMintLen,
-  ExtensionType,
-  createMintToInstruction,
-  createAssociatedTokenAccountInstruction,
-  getAssociatedTokenAddressSync,
-  getAccount,
-  getMint,
-  Account,
-} from "@solana/spl-token";
 
 // Constants
 
@@ -45,26 +35,18 @@ export const RTP_MAINNET_RPC = "https://api.mainnet-beta.solana.com";
 // PDA Seeds
 
 const SEED_TREASURY = Buffer.from("treasury");
-const SEED_VAULT = Buffer.from("vault");
 const SEED_ADOPTER = Buffer.from("adopter");
 
-function deriveTreasuryPDA(mint: PublicKey): [PublicKey, number] {
+function deriveTreasuryPDA(authority: PublicKey): [PublicKey, number] {
   return PublicKey.findProgramAddressSync(
-    [SEED_TREASURY, mint.toBuffer()],
+    [SEED_TREASURY, authority.toBuffer()],
     RTP_PROGRAM_ID,
   );
 }
 
-function deriveVaultPDA(mint: PublicKey): [PublicKey, number] {
+function deriveAdopterPDA(treasury: PublicKey, adopterId: string): [PublicKey, number] {
   return PublicKey.findProgramAddressSync(
-    [SEED_TREASURY, mint.toBuffer(), SEED_VAULT],
-    RTP_PROGRAM_ID,
-  );
-}
-
-function deriveAdopterPDA(mint: PublicKey): [PublicKey, number] {
-  return PublicKey.findProgramAddressSync(
-    [SEED_ADOPTER, mint.toBuffer()],
+    [SEED_ADOPTER, treasury.toBuffer(), Buffer.from(adopterId)],
     RTP_PROGRAM_ID,
   );
 }
@@ -88,35 +70,27 @@ function loadPatchedIdl(): Idl {
 // Types
 
 export interface RTPRegistrationConfig {
-  /** The token mint to register with RTP */
-  mint: PublicKey;
-  /** The platform the token was launched on */
-  platform: "pumpfun" | "bags" | "raydium";
-  /** Token display name */
-  name: string;
-  /** Token ticker symbol */
-  symbol: string;
-  /** Wallet receiving 70% holder distributions (default: payer) */
+  /** The authority that owns the treasury (used as PDA seed) */
+  authority: PublicKey;
+  /** Wallet receiving 70% holder distributions */
   holdersWallet?: PublicKey;
-  /** Wallet receiving 20% dev distributions (default: payer) */
+  /** Wallet receiving 20% dev distributions */
   projectDevWallet?: PublicKey;
-  /** Wallet receiving 10% ecosystem distributions (default: payer) */
+  /** Wallet receiving 10% ecosystem distributions */
   ecosystemWallet?: PublicKey;
-  /** Minimum runway balance in token lamports (default: 10_000_000) */
+  /** Minimum runway balance in lamports (default: 10_000_000) */
   minRunwayBalance?: number;
 }
 
 export interface RTPRegistrationResult {
-  /** The mint address (base58) */
-  mint: string;
-  /** Transaction signature of the registration */
+  /** The authority pubkey (base58) */
+  authority: string;
+  /** Transaction signature of the initialization */
   signature: string;
   /** Solana Explorer link */
   explorerUrl: string;
-  /** Per-mint treasury state account */
+  /** Treasury state account */
   treasuryPDA: string;
-  /** Token account receiving fees */
-  vaultPDA: string;
   /** Adopter registration account */
   adopterPDA: string;
 }
@@ -130,9 +104,11 @@ export interface WalletAdapter {
 }
 
 export interface TreasuryState {
-  mint: string;
+  authority: string;
   phase: "Sustenance" | "Ecosystem" | "Humanity";
-  vaultBalance: number;
+  solBalance: number;          // native SOL lamports in treasury
+  committedSolLamports: number; // committed to open Flash positions
+  availableSolLamports: number; // solBalance - committed - rent_exempt
   totalFeesWithdrawn: number;
   totalDistributedHolders: number;
   totalDistributedDev: number;
@@ -150,7 +126,7 @@ export interface TreasuryState {
  *  from a different module realm (e.g., ESM tsx vs CJS node_modules). */
 function isKeypair(payer: Keypair | WalletAdapter): payer is Keypair {
   if (!("secretKey" in payer)) return false;
-  const sk = ((payer as unknown) as Record<string, unknown>).secretKey;
+  const sk = (payer as unknown as Record<string, unknown>).secretKey;
   // Duck-type: must be a typed array or Buffer with byte length > 0
   return (typeof sk === "object" && sk !== null &&
     ("byteLength" in (sk as object) || "length" in (sk as object)));
@@ -229,6 +205,16 @@ async function sendTx(
   if (isKeypair(payer)) {
     return sendAndConfirmTransaction(connection, tx, [payer, ...extraSigners]);
   } else {
+    // Belt-and-suspenders: if isKeypair returned false but secretKey is present,
+    // the object is a Keypair from a different module realm (e.g., dynamic ESM
+    // import via tsx). Reconstruct and use the keypair signing path to avoid
+    // calling WalletAdapter.signTransaction on a Keypair object.
+    const maybeSecret = (payer as unknown as Record<string, unknown>).secretKey;
+    if (maybeSecret && typeof maybeSecret === "object" &&
+        ("byteLength" in (maybeSecret as object) || "length" in (maybeSecret as object))) {
+      const kp = Keypair.fromSecretKey(maybeSecret as Uint8Array);
+      return sendAndConfirmTransaction(connection, tx, [kp, ...extraSigners]);
+    }
     if (extraSigners.length > 0) tx.partialSign(...extraSigners);
     const signed = await payer.signTransaction(tx);
     return sendSignedTx(connection, signed);
@@ -238,11 +224,10 @@ async function sendTx(
 // Implementation
 
 /**
- * Register an existing token mint with the RTP protocol.
- * Creates the per-mint treasury PDA, vault PDA, and adopter record on-chain.
+ * Initialize a new Treasury with the given authority.
+ * Creates the treasury PDA (authority-seeded) and registers the first adopter.
  *
- * This is the single integration point for launchpads — call it after
- * your platform has created the token mint.
+ * This is the single integration point for launchpads — one call per project.
  */
 export async function registerWithRTP(
   connection: Connection,
@@ -250,38 +235,20 @@ export async function registerWithRTP(
   config: RTPRegistrationConfig,
 ): Promise<RTPRegistrationResult> {
   const payerPubkey = isKeypair(payer) ? payer.publicKey : payer.publicKey!;
-  const mintPubkey = config.mint;
+  const authority = config.authority;
 
-  // Derive per-mint PDAs
-  const [treasuryPDA] = deriveTreasuryPDA(mintPubkey);
-  const [vaultPDA] = deriveVaultPDA(mintPubkey);
-  const [adopterPDA] = deriveAdopterPDA(mintPubkey);
+  // Derive authority-seeded treasury PDA
+  const [treasuryPDA] = deriveTreasuryPDA(authority);
 
   const holdersWallet = config.holdersWallet ?? payerPubkey;
   const projectDevWallet = config.projectDevWallet ?? payerPubkey;
   const ecosystemWallet = config.ecosystemWallet ?? payerPubkey;
   const minRunwayBalance = config.minRunwayBalance ?? 10_000_000;
 
-  // Read mint decimals from on-chain
-  let decimals = 6;
-  try {
-    const mintInfo = await getMint(connection, mintPubkey, "confirmed", TOKEN_2022_PROGRAM_ID);
-    decimals = mintInfo.decimals;
-  } catch {
-    // Token-2022 fetch may fail for standard SPL tokens — try standard program
-    try {
-      const mintInfo = await getMint(connection, mintPubkey, "confirmed");
-      decimals = mintInfo.decimals;
-    } catch {
-      // Use default 6 decimals
-    }
-  }
+  // Default adopter_id = authority.toBase58() (any string works, this is backwards-compatible)
+  const adopterId = authority.toBase58();
+  const [adopterPDA] = deriveAdopterPDA(treasuryPDA, adopterId);
 
-  // Detect token program for this mint
-  const mintAccount = await connection.getAccountInfo(mintPubkey);
-  const tokenProgram = mintAccount?.owner || TOKEN_2022_PROGRAM_ID;
-
-  // Build the initialize instruction via Anchor
   const idl = loadPatchedIdl();
   const provider = new AnchorProvider(
     connection,
@@ -290,28 +257,22 @@ export async function registerWithRTP(
   );
   const program = new Program(idl, provider);
 
-  // Step 1: Initialize treasury
+  // Step 1: Initialize treasury (authority-seeded, no mint/vault)
   const initTx = await program.methods
-    .initialize(new BN(minRunwayBalance))
+    .initialize(holdersWallet, projectDevWallet, ecosystemWallet, new BN(minRunwayBalance))
     .accounts({
-      mint: mintPubkey,
       treasury: treasuryPDA,
-      treasuryVault: vaultPDA,
-      holdersWallet,
-      projectDevWallet,
-      ecosystemWallet,
       authority: payerPubkey,
-      tokenProgram,
       systemProgram: SystemProgram.programId,
     })
     .transaction();
 
   const signature = await sendTx(connection, initTx, payer);
 
-  // Step 2: Register adopter
+  // Step 2: Register the first adopter (adopterId = authority as string)
   try {
     const adopterTx = await program.methods
-      .registerAdopter(mintPubkey)
+      .registerAdopter(adopterId)
       .accounts({
         adopterRecord: adopterPDA,
         treasury: treasuryPDA,
@@ -322,45 +283,47 @@ export async function registerWithRTP(
 
     await sendTx(connection, adopterTx, payer);
   } catch (e: unknown) {
-    // Adopter registration is best-effort — treasury is the critical path
     console.warn("[RTP SDK] Adopter registration skipped:", e instanceof Error ? e.message : String(e));
   }
 
   const cluster = connection.rpcEndpoint.includes("devnet") ? "devnet" : "mainnet-beta";
 
   return {
-    mint: mintPubkey.toBase58(),
+    authority: authority.toBase58(),
     signature,
     explorerUrl: `https://explorer.solana.com/tx/${signature}?cluster=${cluster}`,
     treasuryPDA: treasuryPDA.toBase58(),
-    vaultPDA: vaultPDA.toBase58(),
     adopterPDA: adopterPDA.toBase58(),
   };
 }
 
 /**
- * Fetch the on-chain treasury state for a given mint.
+ * Fetch the on-chain treasury state for a given authority.
  * Read-only — no transactions, no signing required.
  * Returns zeros if the treasury account doesn't exist yet.
  */
 export async function fetchTreasuryState(
   connection: Connection,
-  mintAddress: string | PublicKey,
+  authorityAddress: string | PublicKey,
 ): Promise<TreasuryState> {
-  const mint = typeof mintAddress === "string" ? new PublicKey(mintAddress) : mintAddress;
-  const [treasuryPDA] = deriveTreasuryPDA(mint);
-  const [vaultPDA] = deriveVaultPDA(mint);
+  const authority = typeof authorityAddress === "string" ? new PublicKey(authorityAddress) : authorityAddress;
+  const [treasuryPDA] = deriveTreasuryPDA(authority);
 
   const idl = loadPatchedIdl();
   const coder = new BorshCoder(idl);
 
-  // Fetch treasury account
+  // Fetch treasury lamport balance directly
+  const treasuryLamports = await connection.getBalance(treasuryPDA);
+
+  // Fetch treasury account data
   const accountInfo = await connection.getAccountInfo(treasuryPDA);
   if (!accountInfo) {
     return {
-      mint: mint.toBase58(),
+      authority: authority.toBase58(),
       phase: "Sustenance",
-      vaultBalance: 0,
+      solBalance: 0,
+      committedSolLamports: 0,
+      availableSolLamports: 0,
       totalFeesWithdrawn: 0,
       totalDistributedHolders: 0,
       totalDistributedDev: 0,
@@ -378,56 +341,44 @@ export async function fetchTreasuryState(
   const phaseKey = Object.keys(treasury.phase)[0];
   const phase = (phaseKey.charAt(0).toUpperCase() + phaseKey.slice(1)) as TreasuryState["phase"];
 
-  // Fetch vault token balance
-  let vaultBalance = 0;
-  try {
-    const vaultAccount = await getAccount(connection, vaultPDA, "confirmed", TOKEN_2022_PROGRAM_ID);
-    vaultBalance = Number(vaultAccount.amount);
-  } catch {
-    // Vault token account doesn't exist yet — expected before first fee deposit
-  }
+  // Rent-exempt minimum for treasury account (8 + INIT_SPACE)
+  const RENT_EXEMPT_MINIMUM = await connection.getMinimumBalanceForRentExemption(8 + 324); // Approximate INIT_SPACE
 
-  // Read actual decimals from the mint account (not hardcoded)
-  let decimals = 6;
-  try {
-    const mintInfo = await getMint(connection, mint, "confirmed", TOKEN_2022_PROGRAM_ID);
-    decimals = mintInfo.decimals;
-  } catch {
-    // Mint not reachable (network error, wrong cluster) — use default 6 decimals
-  }
+  const solBalance = treasuryLamports;
+  const committedSolLamports = Number(treasury.committedSolLamports);
+  const availableSolLamports = Math.max(0, solBalance - RENT_EXEMPT_MINIMUM - committedSolLamports);
 
   return {
-    mint: mint.toBase58(),
+    authority: authority.toBase58(),
     phase,
-    vaultBalance: vaultBalance / 10 ** decimals,
-    totalFeesWithdrawn: Number(treasury.totalFeesWithdrawn) / 10 ** decimals,
-    totalDistributedHolders: Number(treasury.totalDistributedHolders) / 10 ** decimals,
-    totalDistributedDev: Number(treasury.totalDistributedDev) / 10 ** decimals,
-    totalDistributedEcosystem: Number(treasury.totalDistributedEcosystem) / 10 ** decimals,
-    totalHydration: Number(treasury.totalHydration) / 10 ** decimals,
-    totalFeesReceived: Number(treasury.totalFeesReceivedLamports) / 10 ** decimals,
-    minRunwayBalance: Number(treasury.minRunwayBalance) / 10 ** decimals,
+    solBalance,
+    committedSolLamports,
+    availableSolLamports,
+    totalFeesWithdrawn: Number(treasury.totalFeesWithdrawn),
+    totalDistributedHolders: Number(treasury.totalDistributedHolders),
+    totalDistributedDev: Number(treasury.totalDistributedDev),
+    totalDistributedEcosystem: Number(treasury.totalDistributedEcosystem),
+    totalHydration: Number(treasury.totalHydration),
+    totalFeesReceived: Number(treasury.totalFeesReceivedLamports),
+    minRunwayBalance: Number(treasury.minRunwayBalance),
     isFrozen: Boolean(treasury.frozen),
   };
 }
 
 /**
- * Permissionless crank: withdraw fees from the mint into the treasury vault,
- * then redistribute (70/20/10 split) if above the runway threshold.
- *
- * Anyone can call this — the launchpad, a keeper bot, or any user.
+ * Deposit native SOL into the treasury.
+ * Permissionless — anyone can deposit on behalf of a treasury.
  */
-export async function withdrawAndRedistribute(
+export async function depositSol(
   connection: Connection,
   payer: Keypair | WalletAdapter,
-  mintAddress: string | PublicKey,
-): Promise<{ withdrawSig: string; redistributeSig?: string }> {
-  const mint = typeof mintAddress === "string" ? new PublicKey(mintAddress) : mintAddress;
-  const [treasuryPDA] = deriveTreasuryPDA(mint);
-  const [vaultPDA] = deriveVaultPDA(mint);
+  authorityAddress: string | PublicKey,
+  amountLamports: number,
+): Promise<{ signature: string }> {
+  const authority = typeof authorityAddress === "string" ? new PublicKey(authorityAddress) : authorityAddress;
+  const [treasuryPDA] = deriveTreasuryPDA(authority);
 
   const idl = loadPatchedIdl();
-  const payerPubkey = isKeypair(payer) ? payer.publicKey : payer.publicKey!;
   const provider = new AnchorProvider(
     connection,
     isKeypair(payer) ? kpWallet(payer) : walletToAnchorWallet(payer),
@@ -435,58 +386,54 @@ export async function withdrawAndRedistribute(
   );
   const program = new Program(idl, provider);
 
-  // Step 1: Withdraw fees from mint into treasury vault
-  const withdrawTx = await program.methods
-    .withdrawFees()
+  const depositTx = await program.methods
+    .depositSol(new BN(amountLamports))
     .accounts({
-      mint,
       treasury: treasuryPDA,
-      treasuryVault: vaultPDA,
-      tokenProgram: TOKEN_2022_PROGRAM_ID,
+      payer: isKeypair(payer) ? payer.publicKey : (payer as WalletAdapter).publicKey!,
+      systemProgram: SystemProgram.programId,
     })
     .transaction();
 
-  const withdrawSig = await sendTx(connection, withdrawTx, payer);
+  const signature = await sendTx(connection, depositTx, payer);
+  return { signature };
+}
 
-  // Step 2: Try to redistribute if above threshold
+/**
+ * Permissionless crank: check redistribution threshold and execute 70/20/10 split.
+ * Callable by anyone. No pre-step needed (no mint withdrawal).
+ */
+export async function checkRedistribute(
+  connection: Connection,
+  payer: Keypair | WalletAdapter,
+  authorityAddress: string | PublicKey,
+): Promise<{ redistributeSig?: string }> {
+  const authority = typeof authorityAddress === "string" ? new PublicKey(authorityAddress) : authorityAddress;
+  const [treasuryPDA] = deriveTreasuryPDA(authority);
+
+  const idl = loadPatchedIdl();
+  const provider = new AnchorProvider(
+    connection,
+    isKeypair(payer) ? kpWallet(payer) : walletToAnchorWallet(payer),
+    { commitment: "confirmed" },
+  );
+  const program = new Program(idl, provider);
+
   try {
-    // Fetch treasury state to get wallet addresses for ATAs
-    const coder = new BorshCoder(idl);
-    const accountInfo = await connection.getAccountInfo(treasuryPDA);
-    if (!accountInfo) {
-      return { withdrawSig };
-    }
-
-    const treasury = coder.accounts.decode("Treasury", accountInfo.data);
-
-    const holdersATA = getAssociatedTokenAddressSync(
-      mint, treasury.holdersWallet, false, TOKEN_2022_PROGRAM_ID,
-    );
-    const devATA = getAssociatedTokenAddressSync(
-      mint, treasury.projectDevWallet, false, TOKEN_2022_PROGRAM_ID,
-    );
-    const ecosystemATA = getAssociatedTokenAddressSync(
-      mint, treasury.ecosystemWallet, false, TOKEN_2022_PROGRAM_ID,
-    );
-
     const redistributeTx = await program.methods
       .checkRedistribute()
       .accounts({
-        mint,
         treasury: treasuryPDA,
-        treasuryVault: vaultPDA,
-        holdersRecipient: holdersATA,
-        devRecipient: devATA,
-        ecosystemRecipient: ecosystemATA,
-        tokenProgram: TOKEN_2022_PROGRAM_ID,
+        holdersWallet: treasuryPDA,
+        projectDevWallet: treasuryPDA,
+        ecosystemWallet: treasuryPDA,
+        systemProgram: SystemProgram.programId,
       })
       .transaction();
 
     const redistributeSig = await sendTx(connection, redistributeTx, payer);
-
-    return { withdrawSig, redistributeSig };
+    return { redistributeSig };
   } catch (err: unknown) {
-    // BelowThreshold (error code 6000) is expected — vault doesn't have enough yet
     const anchorErr = err as {
       error?: { errorCode?: { code?: string; number?: number } };
       message?: string;
@@ -497,26 +444,12 @@ export async function withdrawAndRedistribute(
       anchorErr.error?.errorCode?.number === 6000;
 
     if (isBelowThreshold) {
-      return { withdrawSig };
+      return {};
     }
     throw err;
   }
 }
 
-// ---------------------------------------------------------------------------
-// Beta Adopter Functions
-// ---------------------------------------------------------------------------
-
-export interface AdopterState {
-  tokenMint: string;
-  feesContributed: number;
-  adoptedAt: number;
-  lastDepositAt: number;
-  depositCount: number;
-  betaExpiresAt: number;  // 0 = permanent, >0 = unix timestamp
-  betaEnded: boolean;
-  isBeta: boolean;
-}
 
 /**
  * Register a beta adopter with an automatic expiry timestamp.
@@ -527,15 +460,29 @@ export interface AdopterState {
  * @param mintAddress - The token mint to register as a beta adopter
  * @param betaExpiresAt - Unix timestamp when the beta expires (must be in the future)
  */
+
+export interface AdopterState {
+  treasury: string;
+  adopterId: string;
+  feesContributed: number;
+  adoptedAt: number;
+  lastDepositAt: number;
+  depositCount: number;
+  betaExpiresAt: number;  // 0 = permanent, >0 = unix timestamp
+  betaEnded: boolean;
+  isBeta: boolean;
+}
+
 export async function registerAdopterBeta(
   connection: Connection,
   payer: Keypair | WalletAdapter,
-  mintAddress: string | PublicKey,
+  authorityAddress: string | PublicKey,
+  adopterId: string,
   betaExpiresAt: number,
 ): Promise<{ signature: string; adopterPDA: string }> {
-  const mint = typeof mintAddress === "string" ? new PublicKey(mintAddress) : mintAddress;
-  const [treasuryPDA] = deriveTreasuryPDA(mint);
-  const [adopterPDA] = deriveAdopterPDA(mint);
+  const authority = typeof authorityAddress === "string" ? new PublicKey(authorityAddress) : authorityAddress;
+  const [treasuryPDA] = deriveTreasuryPDA(authority);
+  const [adopterPDA] = deriveAdopterPDA(treasuryPDA, adopterId);
   const payerPubkey = isKeypair(payer) ? payer.publicKey : payer.publicKey!;
 
   const idl = loadPatchedIdl();
@@ -547,7 +494,7 @@ export async function registerAdopterBeta(
   const program = new Program(idl, provider);
 
   const tx = await program.methods
-    .registerAdopterBeta(mint, new BN(betaExpiresAt))
+    .registerAdopterBeta(adopterId, new BN(betaExpiresAt))
     .accounts({
       adopterRecord: adopterPDA,
       treasury: treasuryPDA,
@@ -568,16 +515,18 @@ export async function registerAdopterBeta(
  *
  * @param connection - Solana RPC connection
  * @param payer - Keypair or WalletAdapter (must be treasury authority)
- * @param mintAddress - The token mint whose beta to end
+ * @param authorityAddress - The treasury authority pubkey
+ * @param adopterId - The adopter identifier whose beta to end
  */
 export async function endBeta(
   connection: Connection,
   payer: Keypair | WalletAdapter,
-  mintAddress: string | PublicKey,
+  authorityAddress: string | PublicKey,
+  adopterId: string,
 ): Promise<{ signature: string }> {
-  const mint = typeof mintAddress === "string" ? new PublicKey(mintAddress) : mintAddress;
-  const [treasuryPDA] = deriveTreasuryPDA(mint);
-  const [adopterPDA] = deriveAdopterPDA(mint);
+  const authority = typeof authorityAddress === "string" ? new PublicKey(authorityAddress) : authorityAddress;
+  const [treasuryPDA] = deriveTreasuryPDA(authority);
+  const [adopterPDA] = deriveAdopterPDA(treasuryPDA, adopterId);
 
   const idl = loadPatchedIdl();
   const provider = new AnchorProvider(
@@ -608,10 +557,12 @@ export async function endBeta(
  */
 export async function fetchAdopterState(
   connection: Connection,
-  mintAddress: string | PublicKey,
+  authorityAddress: string | PublicKey,
+  adopterId: string,
 ): Promise<AdopterState> {
-  const mint = typeof mintAddress === "string" ? new PublicKey(mintAddress) : mintAddress;
-  const [adopterPDA] = deriveAdopterPDA(mint);
+  const authority = typeof authorityAddress === "string" ? new PublicKey(authorityAddress) : authorityAddress;
+  const [treasuryPDA] = deriveTreasuryPDA(authority);
+  const [adopterPDA] = deriveAdopterPDA(treasuryPDA, adopterId);
 
   const idl = loadPatchedIdl();
   const coder = new BorshCoder(idl);
@@ -619,7 +570,8 @@ export async function fetchAdopterState(
   const accountInfo = await connection.getAccountInfo(adopterPDA);
   if (!accountInfo) {
     return {
-      tokenMint: mint.toBase58(),
+      treasury: treasuryPDA.toBase58(),
+      adopterId,
       feesContributed: 0,
       adoptedAt: 0,
       lastDepositAt: 0,
@@ -633,7 +585,8 @@ export async function fetchAdopterState(
   const adopter = coder.accounts.decode("AdopterRecord", accountInfo.data);
 
   return {
-    tokenMint: adopter.tokenMint.toBase58(),
+    treasury: adopter.treasury.toBase58(),
+    adopterId: adopter.adopterId,
     feesContributed: Number(adopter.feesContributedLamports),
     adoptedAt: Number(adopter.adoptedAt),
     lastDepositAt: Number(adopter.lastDepositTs),
@@ -656,10 +609,10 @@ export async function fetchAdopterState(
 export async function freezeTreasury(
   connection: Connection,
   payer: Keypair | WalletAdapter,
-  mintAddress: string | PublicKey,
+  authorityAddress: string | PublicKey,
 ): Promise<{ signature: string }> {
-  const mint = typeof mintAddress === "string" ? new PublicKey(mintAddress) : mintAddress;
-  const [treasuryPDA] = deriveTreasuryPDA(mint);
+  const authority = typeof authorityAddress === "string" ? new PublicKey(authorityAddress) : authorityAddress;
+  const [treasuryPDA] = deriveTreasuryPDA(authority);
   const payerPubkey = isKeypair(payer) ? payer.publicKey : payer.publicKey!;
 
   const idl = loadPatchedIdl();
@@ -690,10 +643,10 @@ export async function freezeTreasury(
 export async function unfreezeTreasury(
   connection: Connection,
   payer: Keypair | WalletAdapter,
-  mintAddress: string | PublicKey,
+  authorityAddress: string | PublicKey,
 ): Promise<{ signature: string }> {
-  const mint = typeof mintAddress === "string" ? new PublicKey(mintAddress) : mintAddress;
-  const [treasuryPDA] = deriveTreasuryPDA(mint);
+  const authority = typeof authorityAddress === "string" ? new PublicKey(authorityAddress) : authorityAddress;
+  const [treasuryPDA] = deriveTreasuryPDA(authority);
   const payerPubkey = isKeypair(payer) ? payer.publicKey : payer.publicKey!;
 
   const idl = loadPatchedIdl();
@@ -722,9 +675,9 @@ export async function unfreezeTreasury(
  */
 export async function isTreasuryFrozen(
   connection: Connection,
-  mintAddress: string | PublicKey,
+  authorityAddress: string | PublicKey,
 ): Promise<boolean> {
-  const state = await fetchTreasuryState(connection, mintAddress);
+  const state = await fetchTreasuryState(connection, authorityAddress);
   return state.isFrozen;
 }
 
@@ -754,12 +707,12 @@ function deriveStrategyPDA(treasury: PublicKey, strategyId: string): [PublicKey,
 export async function registerStrategy(
   connection: Connection,
   payer: Keypair | WalletAdapter,
-  mintAddress: string | PublicKey,
+  authorityAddress: string | PublicKey,
   strategyId: string,
   promotionSharpeX100: number,
 ): Promise<{ signature: string; strategyPDA: string }> {
-  const mint = typeof mintAddress === "string" ? new PublicKey(mintAddress) : mintAddress;
-  const [treasuryPDA] = deriveTreasuryPDA(mint);
+  const authority = typeof authorityAddress === "string" ? new PublicKey(authorityAddress) : authorityAddress;
+  const [treasuryPDA] = deriveTreasuryPDA(authority);
   const [strategyPDA] = deriveStrategyPDA(treasuryPDA, strategyId);
   const payerPubkey = isKeypair(payer) ? payer.publicKey : payer.publicKey!;
 
@@ -847,7 +800,7 @@ export interface CloseFlashPositionResult {
 export async function closeFlashPosition(
   connection: Connection,
   payer: Keypair | WalletAdapter,
-  mintAddress: string | PublicKey,
+  authorityAddress: string | PublicKey,
   positionAddress: string,
   flashAccounts: {
     owner: string;
@@ -873,9 +826,8 @@ export async function closeFlashPosition(
   /** Slippage tolerance in basis points. Default 500 (5%). */
   slippageBps: number = 500,
 ): Promise<CloseFlashPositionResult> {
-  const mint = typeof mintAddress === "string" ? new PublicKey(mintAddress) : mintAddress;
-  const [treasuryPDA] = deriveTreasuryPDA(mint);
-  const [vaultPDA] = deriveVaultPDA(mint);
+  const authority = typeof authorityAddress === "string" ? new PublicKey(authorityAddress) : authorityAddress;
+  const [treasuryPDA] = deriveTreasuryPDA(authority);
   const [strategyPDA] = deriveStrategyPDA(treasuryPDA, "SOL_2.69"); // Use existing strategy PDA
 
   const idl = loadPatchedIdl();
@@ -935,8 +887,7 @@ export async function closeFlashPosition(
     .accounts({
       treasury: treasuryPDA,
       strategyRecord: strategyPDA,
-      treasuryVault: vaultPDA,
-      feePayer: isKeypair(payer) ? payer.publicKey : (payer as WalletAdapter).publicKey!,
+      authority: isKeypair(payer) ? payer.publicKey : (payer as WalletAdapter).publicKey!,
     })
     .remainingAccounts(remainingAccounts)
     .transaction();
@@ -964,12 +915,12 @@ export interface EmergencyResetCountersResult {
 export async function emergencyResetPositionCounters(
   connection: Connection,
   payer: Keypair | WalletAdapter,
-  mintAddress: string | PublicKey,
+  authorityAddress: string | PublicKey,
   /** List of Flash Trade position addresses that were open. Used only for the event. */
   positionAddresses: string[],
 ): Promise<EmergencyResetCountersResult> {
-  const mint = typeof mintAddress === "string" ? new PublicKey(mintAddress) : mintAddress;
-  const [treasuryPDA] = deriveTreasuryPDA(mint);
+  const authority = typeof authorityAddress === "string" ? new PublicKey(authorityAddress) : authorityAddress;
+  const [treasuryPDA] = deriveTreasuryPDA(authority);
   const [strategyPDA] = deriveStrategyPDA(treasuryPDA, "SOL_2.69");
 
   const idl = loadPatchedIdl();

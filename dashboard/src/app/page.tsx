@@ -34,8 +34,8 @@ const FALLBACK_WINGS = [
 
 const INVARIANTS = [
   "PDA owns treasury — no private key exists. No one can sign funds away.",
-  "TransferFeeConfig fee % immutable once set on the mint.",
-  "Per-token isolation — each mint gets its own Treasury PDA and vault.",
+  "Native SOL treasury — fees collected as SOL into per-authority treasury PDA.",
+  "Per-token isolation — each authority gets its own Treasury PDA.",
   "Flash Trade CPI-only execution — Treasury PDA signs via invoke_signed, no human keypair involved in trading.",
   "Phase transitions irreversible — Sustenance → Ecosystem → Humanity, no downgrade.",
 ];
@@ -554,7 +554,7 @@ export default function Home() {
                 <span className="hiw-num">1</span>
                 <div className="hiw-content">
                   <p className="hiw-text">
-                    Token adopts RTP. Creator fees (SOL) route to a per-mint treasury PDA — each token gets its own isolated vault. TransferFeeConfig fee % is immutable. No shared pool, no honeypot.
+                    Token adopts RTP. Trading fees (SOL) route to an authority-seeded treasury PDA. Each authority has its own isolated treasury. No shared pool, no honeypot.
                   </p>
                   <a
                     className="hiw-link"

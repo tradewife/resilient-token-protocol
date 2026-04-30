@@ -3,14 +3,14 @@
 // Emergency controls for the Flash Trade CPI execution path.
 // P1.4: Emergency controls must actually unwind — not just reset counters.
 //
-// rtp positions list --mint <pubkey>       — List open positions from Flash Trade API
-// rtp positions close --all --mint <pubkey> — Close all open positions via CPI
-// rtp positions reset-counters --mint <pubkey> --authority <path> — Reset on-chain counters (authority-gated)
+// rtp positions list --authority <pubkey>  — List open positions from Flash Trade API
+// rtp positions close --all --authority <pubkey> --authority-keypair <path> — Close all open positions via CPI
+// rtp positions reset-counters --authority <pubkey> --authority-keypair <path> — Reset on-chain counters (authority-gated)
 
 import { Command } from "commander";
 import chalk from "chalk";
 import Table from "cli-table3";
-import { loadConfig, resolveMint, resolveKeypair } from "../config.js";
+import { loadConfig, resolveKeypair } from "../config.js";
 import { loadKeypair, truncatePubkey, formatSol } from "../keypair.js";
 import { printOk, printInfo, printNote, printWarn, getOutputMode } from "../format.js";
 import { printError, missingYesFlagError } from "../errors.js";
@@ -25,7 +25,7 @@ export function makePositionsCommand(): Command {
   cmd.addCommand(
     new Command("list")
       .description("List open Flash Trade positions for a treasury (queries Flash Trade API)")
-      .option("--mint <pubkey>", "Token mint address")
+      .option("--authority <pubkey>", "Treasury authority address")
       .option("--cluster <cluster>", "Cluster (devnet|mainnet)", "devnet")
       .option("--json", "JSON output")
       .option("--quiet", "Suppress output except errors")
@@ -33,23 +33,26 @@ export function makePositionsCommand(): Command {
         const mode = getOutputMode(opts);
         try {
           const config = loadConfig();
-          const mint = resolveMint(opts.mint, config);
+          const authorityStr = opts.authority ?? (config as any).defaultAuthority;
+          if (!authorityStr) {
+            throw new Error("No authority specified. Use --authority <pubkey>.");
+          }
           const connection = createConnection(config);
           const PublicKey = (await import("@solana/web3.js")).PublicKey;
-          const mintPk = new PublicKey(mint);
+          const authorityPk = new PublicKey(authorityStr);
 
           const sdk = await import("../../../sdk/index.ts");
-          const [treasuryPDA] = (sdk as any).deriveTreasuryPDA(mintPk);
+          const [treasuryPDA] = sdk.deriveTreasuryPDA(authorityPk);
 
           printInfo(`Fetching positions for treasury: ${truncatePubkey(treasuryPDA.toBase58())}`);
 
           const positions = await sdk.listFlashPositions(
             treasuryPDA.toBase58(),
-            config.rpcUrl,
+            config.rpcUrl ?? undefined,
           );
 
           if (mode === "json") {
-            console.log(JSON.stringify({ mint, treasury: treasuryPDA.toBase58(), positions }, null, 2));
+            console.log(JSON.stringify({ authority: authorityStr, treasury: treasuryPDA.toBase58(), positions }, null, 2));
             return;
           }
 
@@ -96,8 +99,8 @@ export function makePositionsCommand(): Command {
             printWarn(`${staleCount} stale position(s) detected (>39.6h). Run: rtp positions close --all`);
           }
 
-          printNote("To close: rtp positions close --all --mint <pubkey> --authority <path>");
-          printNote("To reset counters only (no close): rtp positions reset-counters --mint <pubkey> --authority <path>");
+          printNote("To close: rtp positions close --all --authority <pubkey> --authority-keypair <path>");
+          printNote("To reset counters only (no close): rtp positions reset-counters --authority <pubkey> --authority-keypair <path>");
           printNote(
             "reset-counters zeroes open_position_count on-chain but does NOT close Flash Trade positions.",
           );
@@ -116,8 +119,8 @@ export function makePositionsCommand(): Command {
           "Authority-gated. Treasury frozen check applies.",
       )
       .option("--all", "Close all open positions (required)")
-      .requiredOption("--mint <pubkey>", "Token mint address")
-      .requiredOption("--authority <path>", "Authority keypair path")
+      .requiredOption("--authority <pubkey>", "Treasury authority address")
+      .requiredOption("--authority-keypair <path>", "Authority keypair path")
       .option("--cluster <cluster>", "Cluster (devnet|mainnet)", "devnet")
       .option("--dry-run", "Show what would be closed without closing")
       .option("--yes", "Skip confirmation")
@@ -132,22 +135,21 @@ export function makePositionsCommand(): Command {
 
         try {
           const config = loadConfig();
-          const mint = resolveMint(opts.mint, config);
-          const authorityPath = resolveKeypair(opts.authority, "AUTHORITY_KEYPAIR_PATH", config.authorityKeypairPath);
+          const authorityPath = resolveKeypair(opts.authorityKeypair, "AUTHORITY_KEYPAIR_PATH", config.authorityKeypairPath);
           const authority = loadKeypair(authorityPath);
           const connection = createConnection(config);
           const PublicKey = (await import("@solana/web3.js")).PublicKey;
-          const mintPk = new PublicKey(mint);
+          const authorityPk = new PublicKey(opts.authority);
 
           const sdk = await import("../../../sdk/index.ts");
-          const [treasuryPDA] = (sdk as any).deriveTreasuryPDA(mintPk);
+          const [treasuryPDA] = sdk.deriveTreasuryPDA(authorityPk);
 
           printInfo(`Authority: ${truncatePubkey(authority.publicKey.toBase58())}`);
 
           // Fetch open positions
           const positions = await sdk.listFlashPositions(
             treasuryPDA.toBase58(),
-            config.rpcUrl,
+            config.rpcUrl ?? undefined,
           );
 
           if (positions.length === 0) {
@@ -161,7 +163,7 @@ export function makePositionsCommand(): Command {
             console.log(
               JSON.stringify(
                 {
-                  mint,
+                  authority: opts.authority,
                   treasury: treasuryPDA.toBase58(),
                   positions: positions.map((p) => ({
                     address: p.position_address,
@@ -197,9 +199,9 @@ export function makePositionsCommand(): Command {
           if (!confirmDestructive(
             `CLOSE ${positions.length} Flash Trade position(s)`,
             [
-              `Mint: ${truncatePubkey(mint)}`,
+              `Authority: ${truncatePubkey(opts.authority)}`,
               `Treasury: ${truncatePubkey(treasuryPDA.toBase58())}`,
-              `Authority: ${truncatePubkey(authority.publicKey.toBase58())}`,
+              `Signing Key: ${truncatePubkey(authority.publicKey.toBase58())}`,
               "",
               `This will call close_flash_position CPI for each position.`,
               "SOL returned to treasury vault via on-chain CPI.",
@@ -234,8 +236,8 @@ export function makePositionsCommand(): Command {
         "Reset open_position_count and committed_sol_lamports to 0 (authority-gated). " +
           "WARNING: This does NOT close actual Flash Trade positions — only zeroes on-chain counters.",
       )
-      .requiredOption("--mint <pubkey>", "Token mint address")
-      .requiredOption("--authority <path>", "Authority keypair path")
+      .requiredOption("--authority <pubkey>", "Treasury authority address")
+      .requiredOption("--authority-keypair <path>", "Authority keypair path")
       .option("--cluster <cluster>", "Cluster (devnet|mainnet)", "devnet")
       .option("--yes", "Skip confirmation")
       .option("--json", "JSON output")
@@ -244,18 +246,17 @@ export function makePositionsCommand(): Command {
         const mode = getOutputMode(opts);
         try {
           const config = loadConfig();
-          const mint = resolveMint(opts.mint, config);
-          const authorityPath = resolveKeypair(opts.authority, "AUTHORITY_KEYPAIR_PATH", config.authorityKeypairPath);
+          const authorityPath = resolveKeypair(opts.authorityKeypair, "AUTHORITY_KEYPAIR_PATH", config.authorityKeypairPath);
           const authority = loadKeypair(authorityPath);
           const connection = createConnection(config);
           const PublicKey = (await import("@solana/web3.js")).PublicKey;
-          const mintPk = new PublicKey(mint);
+          const authorityPk = new PublicKey(opts.authority);
 
           if (!confirmDestructive(
             "RESET position counters",
             [
-              `Mint: ${truncatePubkey(mint)}`,
-              `Authority: ${truncatePubkey(authority.publicKey.toBase58())}`,
+              `Authority: ${truncatePubkey(opts.authority)}`,
+              `Signing Key: ${truncatePubkey(authority.publicKey.toBase58())}`,
               "",
               "This ONLY zeroes open_position_count on-chain.",
               "It does NOT call close_flash_position — actual positions remain open on Flash Trade.",
@@ -272,27 +273,26 @@ export function makePositionsCommand(): Command {
 
           // Show warning if positions might be open
           const sdk = await import("../../../sdk/index.ts");
-          const [treasuryPDA] = (sdk as any).deriveTreasuryPDA(mintPk);
+          const [treasuryPDA] = sdk.deriveTreasuryPDA(authorityPk);
 
-          const positions = await sdk.listFlashPositions(treasuryPDA.toBase58(), config.rpcUrl);
+          const positions = await sdk.listFlashPositions(treasuryPDA.toBase58(), config.rpcUrl ?? undefined);
           if (positions.length > 0) {
             printWarn(`${positions.length} Flash Trade position(s) still open on Flash Trade.`);
             printWarn("Counters will be zeroed but positions remain active until close_flash_position CPI is sent.");
           }
 
           // Call emergencyResetPositionCounters via SDK
-          // NOTE: We need the position addresses. If positions list is empty, pass empty array.
           const positionAddresses = positions.map((p: any) => p.position_address);
 
           const result = await sdk.emergencyResetPositionCounters(
             connection,
             authority,
-            mintPk,
+            authorityPk,
             positionAddresses,
           );
 
           if (mode === "json") {
-            console.log(JSON.stringify({ mint, ...result }, null, 2));
+            console.log(JSON.stringify({ authority: opts.authority, ...result }, null, 2));
             return;
           }
 
@@ -306,7 +306,7 @@ export function makePositionsCommand(): Command {
               printWarn(`  ${truncatePubkey(pos.position_address)} — ${pos.side} $${pos.size_usd.toFixed(2)}`);
             }
             printWarn("");
-            printNote("Close these positions with: rtp positions close --all --mint <pubkey> --authority <path>");
+            printNote("Close these positions with: rtp positions close --all --authority <pubkey> --authority-keypair <path>");
             printNote("Or rely on Flash Trade keeper liquidation to close automatically.");
           }
         } catch (e) {

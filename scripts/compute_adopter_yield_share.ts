@@ -15,7 +15,7 @@
  */
 
 interface AdopterRecord {
-  tokenMint: string;
+  adopterId: string;
   feesContributed: bigint;   // lamports
 }
 
@@ -26,7 +26,7 @@ interface AttributionInput {
 }
 
 interface AttributionOutput {
-  tokenMint: string;
+  adopterId: string;
   feesContributed: bigint;
   sharePercent: number;      // percentage of yield pool (0–100, 2 decimal places)
   yieldLamports: bigint;     // attributed yield in lamports
@@ -45,7 +45,7 @@ export function computeAdopterYieldShares(input: AttributionInput): AttributionO
 
   if (totalFeesReceived === 0n || yieldPool === 0n) {
     return adopters.map((a) => ({
-      tokenMint: a.tokenMint,
+      adopterId: a.adopterId,
       feesContributed: a.feesContributed,
       sharePercent: 0,
       yieldLamports: 0n,
@@ -59,7 +59,7 @@ export function computeAdopterYieldShares(input: AttributionInput): AttributionO
     totalAllocated += share;
     const pct = Number((a.feesContributed * 10000n) / totalFeesReceived) / 100;
     return {
-      tokenMint: a.tokenMint,
+      adopterId: a.adopterId,
       feesContributed: a.feesContributed,
       sharePercent: pct,
       yieldLamports: share,
@@ -81,8 +81,8 @@ export function computeAdopterYieldShares(input: AttributionInput): AttributionO
 if (typeof require !== "undefined" && require.main === module) {
   const demo: AttributionInput = {
     adopters: [
-      { tokenMint: "TokenA_Mint...", feesContributed: 600_000_000_000n },  // 600 SOL
-      { tokenMint: "TokenB_Mint...", feesContributed: 400_000_000_000n },  // 400 SOL
+      { adopterId: "TokenA_Project", feesContributed: 600_000_000_000n },  // 600 SOL
+      { adopterId: "TokenB_Project", feesContributed: 400_000_000_000n },  // 400 SOL
     ],
     totalFeesReceived: 1_000_000_000_000n,  // 1000 SOL
     yieldPool: 50_000_000_000n,             // 50 SOL yield
@@ -93,7 +93,7 @@ if (typeof require !== "undefined" && require.main === module) {
   console.log("─".repeat(60));
   for (const s of shares) {
     console.log(
-      `  ${s.tokenMint}: ${s.sharePercent.toFixed(2)}% → ${Number(s.yieldLamports / 1_000_000_000n).toFixed(4)} SOL`
+      `  ${s.adopterId}: ${s.sharePercent.toFixed(2)}% → ${Number(s.yieldLamports / 1_000_000_000n).toFixed(4)} SOL`
     );
   }
 }
