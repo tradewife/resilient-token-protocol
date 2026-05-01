@@ -23,7 +23,7 @@ import {
 
 /** The RTP treasury Anchor program (deployed on devnet). */
 export const RTP_PROGRAM_ID = new PublicKey(
-  "Eg4o6XKFgWFbYMu7zcMdxsvDNx7JonAk8MReKfADFSV7",
+  "8rt6yiBnRTyHy8F69jUd7exWwwShUs4Eokeq41auo2RB",
 );
 
 /** Devnet RPC endpoint. */

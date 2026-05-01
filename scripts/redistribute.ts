@@ -27,7 +27,7 @@ import os from "os";
 
 // ─── Configuration ──────────────────────────────────────────────────────
 
-const DEMO_AUTHORITY = new PublicKey("G3wL7eGV2YRJ3UmDWCvKfNLSvLYXKwX7rKJuxvjC8c6d");
+const DEMO_AUTHORITY = new PublicKey("3yMH4kCBk9vNHLU6gqqNn125rmzTSSpJP8FiLXDtaEH5");
 
 const RPC_URL = process.env.RPC_URL || "https://api.devnet.solana.com";
 const JITTER_MAX_MS = parseInt(process.env.JITTER_MAX_MS || "1800000", 10); // 30 min
@@ -79,6 +79,12 @@ export async function exportRedistribute(
     const msg = err instanceof Error ? err.message : String(err);
     if (msg.includes("BelowThreshold") || msg.includes("InsufficientRunway")) {
       console.log("[REDISTRIBUTE] Below threshold — no redistribution triggered.");
+      return { redistributeSig: undefined };
+    }
+    // Devnet BPF loader cache bug: old binary may still reference removed accounts (e.g. "mint")
+    // Catch gracefully so Railway doesn't mark the service as Crashed.
+    if (msg.includes("AccountNotInitialized") || msg.includes("AccountOwnedByWrongProgram") || msg.includes("mint")) {
+      console.log("[REDISTRIBUTE] On-chain program binary stale (devnet BPF cache). Skipping. Error:", msg.substring(0, 200));
       return { redistributeSig: undefined };
     }
     throw err;
