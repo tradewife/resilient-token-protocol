@@ -76,14 +76,17 @@ export async function exportRedistribute(
       redistributeSig: result.redistributeSig,
     };
   } catch (err: unknown) {
+    // Normalize error to string for pattern matching — some Solana errors are nested objects
     const msg = err instanceof Error ? err.message : String(err);
-    if (msg.includes("BelowThreshold") || msg.includes("InsufficientRunway")) {
+    const logs = (err as any)?.logs?.join(" ") || "";
+    const combined = `${msg} ${logs}`;
+    if (combined.includes("BelowThreshold") || combined.includes("InsufficientRunway")) {
       console.log("[REDISTRIBUTE] Below threshold — no redistribution triggered.");
       return { redistributeSig: undefined };
     }
     // Devnet BPF loader cache bug: old binary may still reference removed accounts (e.g. "mint")
     // Catch gracefully so Railway doesn't mark the service as Crashed.
-    if (msg.includes("AccountNotInitialized") || msg.includes("AccountOwnedByWrongProgram") || msg.includes("mint")) {
+    if (combined.includes("AccountNotInitialized") || combined.includes("AccountOwnedByWrongProgram") || combined.includes("account: mint") || combined.includes("custom program error: 0xbc4")) {
       console.log("[REDISTRIBUTE] On-chain program binary stale (devnet BPF cache). Skipping. Error:", msg.substring(0, 200));
       return { redistributeSig: undefined };
     }
