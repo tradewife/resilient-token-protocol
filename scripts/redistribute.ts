@@ -132,7 +132,7 @@ async function main() {
   console.log(`[REDISTRIBUTE] RPC: ${RPC_URL}`);
 
   const result = await exportRedistribute(connection, payer, authority, {
-    jitterMaxMs: 0,
+    jitterMaxMs: 0,  // Jitter already applied above in main()
   });
 
   if (result.redistributeSig) {

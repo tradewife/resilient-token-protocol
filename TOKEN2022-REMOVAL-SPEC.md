@@ -1,8 +1,8 @@
 # RTP Treasury Program - Token-2022 Removal Spec
 
-**File:** `TOKEN2022-REMOVAL-SPEC.md`  
-**Status:** Execution-control spec for the Token-2022 migration only  
-**Goal:** Remove Token-2022 `TransferFeeConfig` as RTP's fee-intake model and make treasury intake/accounting native SOL based, without breaking Flash Trade CPI or existing governance gates.
+**File:** `TOKEN2022-REMOVAL-SPEC.md`
+**Status:** COMPLETED — Migration executed. On-chain program is SOL-native. SDK, CLI, dashboard updated. This spec is retained for audit trail only.
+**Goal:** ~~Remove Token-2022 `TransferFeeConfig` as RTP's fee-intake model and make treasury intake/accounting native SOL based, without breaking Flash Trade CPI or existing governance gates.~~ DONE.
 
 ---
 

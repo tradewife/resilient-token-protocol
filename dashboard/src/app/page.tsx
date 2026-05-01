@@ -7,8 +7,8 @@ import Link from "next/link";
 import Topbar from "./Topbar";
 import { fetchTreasuryState } from "../lib/sdk";
 
+const TREASURY_AUTHORITY = "3yMH4kCBk9vNHLU6gqqNn125rmzTSSpJP8FiLXDtaEH5";
 const TREASURY_PDA = "7oZTJWYBDjzqmbfRs5YkTv53CDa6vESAzfyjK3yhYshc";
-const TREASURY_MINT = "FumRWMiDf6FCHuGSYJRPYknCD5F2QNgBmbABZsFJ6q5q";
 const DEVNET_RPC = "https://api.devnet.solana.com";
 const MAINNET_RPC = "https://api.mainnet-beta.solana.com";
 
@@ -35,7 +35,7 @@ const FALLBACK_WINGS = [
 const INVARIANTS = [
   "PDA owns treasury — no private key exists. No one can sign funds away.",
   "Native SOL treasury — fees collected as SOL into per-authority treasury PDA.",
-  "Per-token isolation — each authority gets its own Treasury PDA.",
+  "Per-authority isolation — each authority gets its own Treasury PDA.",
   "Flash Trade CPI-only execution — Treasury PDA signs via invoke_signed, no human keypair involved in trading.",
   "Phase transitions irreversible — Sustenance → Ecosystem → Humanity, no downgrade.",
 ];
@@ -196,7 +196,7 @@ export default function Home() {
     const check = async () => {
       try {
         const devnetConn = new (await import("@solana/web3.js")).Connection(DEVNET_RPC, "confirmed");
-        const state = await fetchTreasuryState(devnetConn, TREASURY_MINT);
+        const state = await fetchTreasuryState(devnetConn, TREASURY_AUTHORITY);
         if (alive) setIsFrozen(state.isFrozen);
       } catch {
         // Devnet RPC unreachable — keep current state
@@ -667,22 +667,28 @@ export default function Home() {
           </a>
           <span className="vital-label">On-Chain Proof</span>
         </div>
-        <a
-          className="vital-link"
-          href="https://github.com/tradewife/resilient-token-protocol"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Source on GitHub ↗
-        </a>
-        <a
-          className="vital-link"
-          href={`https://explorer.solana.com/address/${TREASURY_PDA}?cluster=devnet`}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Solana Explorer ↗
-        </a>
+        <div className="vital">
+          <a
+            className="vital-link"
+            href="https://github.com/tradewife/resilient-token-protocol"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Source on GitHub ↗
+          </a>
+          <span className="vital-label">Repository</span>
+        </div>
+        <div className="vital">
+          <a
+            className="vital-link"
+            href={`https://explorer.solana.com/address/${TREASURY_PDA}?cluster=devnet`}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Solana Explorer ↗
+          </a>
+          <span className="vital-label">Treasury</span>
+        </div>
 
       </footer>
     </div>

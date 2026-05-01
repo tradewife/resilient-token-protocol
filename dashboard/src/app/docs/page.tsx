@@ -81,12 +81,12 @@ const DOC_GROUPS: DocGroup[] = [
               <li><strong>Self-funding economics</strong> — treasury generates its own yield via Flash Trade on-chain perps (Solana CPI), with irreversible phase evolution (Sustenance → Ecosystem → Humanity). No VC dependency.</li>
               <li><strong>Proven research engine</strong> — 30,000 strategy configs tested per night, 9-fold walk-forward validation, Darwinian evolution. Not a backtest screenshot — out-of-sample results across 9 independent time windows.</li>
               <li><strong>Real execution</strong> — Treasury PDA signs via invoke_signed, positions open/close on Flash Trade (on-chain Solana perps). Mainnet CPI proofs: Open TX 2bLg1Fu..., Close TX dFqkoP2.... SOL never leaves Solana.</li>
-              <li><strong>308 Rust tests, 0 failures</strong> — 6-wing swarm architecture with Security, Audit, Evolve, Knowledge, and Futureproof wings. Not a wrapper around an API — a real multi-agent system.</li>
+              <li><strong>312 Rust tests, 0 failures</strong> — 6-wing swarm architecture with Security, Audit, Evolve, Knowledge, and Futureproof wings. Not a wrapper around an API — a real multi-agent system.</li>
             </ul>
 
             <h3>How It Works</h3>
             <ol>
-              <li><strong>Fees arrive</strong> — creator fees (SOL) from the token flow to its own per-mint treasury vault PDA — isolated from every other token</li>
+              <li><strong>Fees arrive</strong> — creator fees (SOL) from the token flow to its own per-authority treasury PDA — isolated from every other token</li>
               <li><strong>Swarm trades</strong> — the Treasury PDA executes validated strategies via Flash Trade CPI (on-chain Solana perps, invoke_signed). No cross-chain bridge. Each token&apos;s capital is traded independently.</li>
               <li><strong>Yield returns</strong> — generated yield flows back to that token&apos;s own treasury PDA</li>
               <li><strong>Redistribution</strong> — 70% to holders, 20% to project dev, 10% to ecosystem (enforced on-chain)</li>
@@ -103,7 +103,7 @@ const DOC_GROUPS: DocGroup[] = [
 │  Treasury PDA: fees → yield → redistribute           │
 │  19 instructions · PDA-owned · CPI-only transfers     │
 ├──────────────────────────────────────────────────────┤
-│              SWARM RUNTIME (Rust · 308 tests)         │
+│              SWARM RUNTIME (Rust · 312 tests)         │
 │  Coordinator → message bus → 6 wings                  │
 │  Trading → Flash Trade CPI → on-chain perps → SOL     │
 │  Security · Evolve · Knowledge · Audit · Futureproof  │
@@ -162,7 +162,7 @@ const DOC_GROUPS: DocGroup[] = [
               <li><strong>Pick a platform</strong> — Pump.fun, Bags.fm, or Raydium LaunchLab</li>
               <li><strong>Fill in token details</strong> — name, symbol, image, description</li>
               <li><strong>Sign with Phantom</strong> — one transaction creates the token on-chain</li>
-              <li><strong>RTP treasury auto-initializes</strong> — treasury PDA, vault PDA, and adopter record created</li>
+              <li><strong>RTP treasury auto-initializes</strong> — treasury PDA and adopter record created</li>
             </ol>
 
             <h3>Path B: Register An Existing Token</h3>
@@ -172,25 +172,22 @@ import { Connection, PublicKey } from "@solana/web3.js";
 
 const connection = new Connection("https://api.mainnet-beta.solana.com");
 const result = await registerWithRTP(connection, wallet, {
-  mint: new PublicKey("YourExistingMintAddress"),
-  platform: "pumpfun",  // or "bags" or "raydium"
-  name: "My Token",
-  symbol: "MTK",
+  authority: publicKey,
 });
 
 // result.treasuryPDA — your token's treasury
-// result.vaultPDA — where fees accumulate`}</CodeBlock>
+// result.adopterPDA — adopter record`}</CodeBlock>
 
             <h3>After Registration: What Happens</h3>
             <ol>
-              <li><strong>Fees accumulate</strong> — trading fees flow into your treasury vault PDA</li>
+              <li><strong>Fees accumulate</strong> — trading fees flow into your treasury PDA as native SOL</li>
               <li><strong>Swarm activates</strong> — Treasury PDA executes validated strategies via Flash Trade CPI (on-chain Solana perps, invoke_signed)</li>
               <li><strong>Yield returns</strong> — generated yield flows back to the treasury PDA</li>
               <li><strong>Redistribution</strong> — 70% to holders, 20% to project dev, 10% to ecosystem (enforced on-chain)</li>
             </ol>
 
             <h3>Fee Routing Per Platform</h3>
-            <p>Trading fees must reach the RTP treasury vault. The mechanism differs per platform:</p>
+            <p>Trading fees must reach the RTP treasury. The mechanism differs per platform:</p>
             <Table
               headers={["Platform", "Can route to RTP?", "Changeable?", "How"]}
               rows={[
@@ -231,19 +228,16 @@ const result = await registerWithRTP(connection, wallet, {
             <h3>Three-Step Integration</h3>
 
             <h4>Step 1: Register the token with RTP</h4>
-            <p>After your platform creates a token mint, call <code>registerWithRTP</code>:</p>
+            <p>After your platform creates a token, call <code>registerWithRTP</code>:</p>
             <CodeBlock>{`import { registerWithRTP } from "@resilient-protocol/sdk";
 
 const result = await registerWithRTP(connection, wallet, {
-  mint: new PublicKey(mintAddress),
-  platform: "pumpfun",
-  name: "My Token",
-  symbol: "MTK",
+  authority: publicKey,
   holdersWallet: publicKey,
   projectDevWallet: publicKey,
   ecosystemWallet: publicKey,
 });`}</CodeBlock>
-            <p>This creates the treasury PDA, vault PDA, and adopter record on-chain.</p>
+            <p>This creates the treasury PDA and adopter record on-chain.</p>
 
             <h4>Step 2: Configure fee routing</h4>
             <Table
@@ -258,8 +252,8 @@ const result = await registerWithRTP(connection, wallet, {
             <h4>Step 3: Display treasury state (optional)</h4>
             <CodeBlock>{`import { fetchTreasuryState } from "@resilient-protocol/sdk";
 
-const state = await fetchTreasuryState(connection, mintAddress);
-// state.phase, state.vaultBalance, state.totalFeesWithdrawn`}</CodeBlock>
+const state = await fetchTreasuryState(connection, rtpResult.authority);
+// state.phase, state.solBalance, state.availableSolLamports, state.totalFeesWithdrawn`}</CodeBlock>
 
             <Callout type="info" title="Enterprise API (Planned)">
               <p>If you prefer not to run chain operations yourself, the Enterprise API will offer the same functionality via a simple REST API. See <a href="#enterprise-api" style={{ color: "var(--coral)" }}>Enterprise API</a> for the planned surface.</p>
@@ -285,7 +279,7 @@ const state = await fetchTreasuryState(connection, mintAddress);
               <li>Creator fee portion → deployer wallet</li>
               <li>RTP keeper claims from deployer wallet</li>
               <li>Keeper forwards to treasury vault PDA</li>
-              <li><code>withdraw_fees</code> confirms deposit on-chain</li>
+              <li><code>deposit_sol</code> records deposit on-chain</li>
             </ol>
 
             <h3>Launch via PumpPortal API</h3>
@@ -311,10 +305,7 @@ const state = await fetchTreasuryState(connection, mintAddress);
 
             <h3>Register with RTP</h3>
             <CodeBlock>{`const result = await registerWithRTP(connection, wallet, {
-  mint: new PublicKey(mintAddress),
-  platform: "pumpfun",
-  name: "My Token",
-  symbol: "MTK",
+  authority: publicKey,
 });`}</CodeBlock>
 
             <h3>Fee Structure</h3>
@@ -349,10 +340,7 @@ const state = await fetchTreasuryState(connection, mintAddress);
 
             <h3>Configure Fee Sharing with RTP</h3>
             <CodeBlock>{`const rtpResult = await registerWithRTP(connection, wallet, {
-  mint: new PublicKey(tokenMint),
-  platform: "bags",
-  name: "My Token",
-  symbol: "MTK",
+  authority: publicKey,
 });
 
 // Configure Bags.fm fee sharing: 70% to RTP treasury, 30% to project
@@ -430,10 +418,7 @@ const { execute } = await raydium.launchpad.createLaunchpad({
 
             <h3>Redirect Creator Fees to Treasury PDA</h3>
             <CodeBlock>{`const rtpResult = await registerWithRTP(connection, wallet, {
-  mint: tokenMint,
-  platform: "raydium",
-  name: "My Token",
-  symbol: "MTK",
+  authority: publicKey,
 });
 
 // After graduation: redirect all creator fees to RTP treasury
@@ -468,8 +453,8 @@ await raydium.launchpad.updatePlatformCpCreator({
         content: (
           <>
             <Callout type="warning" title="Planned Feature — Not Yet Available">
-              <p>The Enterprise API is a planned REST API for launchpads that prefer not to run chain operations themselves. It will offer the same functionality as the SDK via simple HTTP calls: <code>POST /v1/adopt</code>, <code>POST /v1/fee-route</code>, <code>GET /v1/treasury/:mint</code>, <code>POST /v1/crank</code>.</p>
-              <p style={{ marginTop: 8 }}>Today, use the <a href="#sdk-reference" style={{ color: "var(--coral)" }}>TypeScript SDK</a> for direct integration. It&apos;s three functions: <code>registerWithRTP</code>, <code>fetchTreasuryState</code>, <code>withdrawAndRedistribute</code>.</p>
+              <p>The Enterprise API is a planned REST API for launchpads that prefer not to run chain operations themselves. It will offer the same functionality as the SDK via simple HTTP calls: <code>POST /v1/adopt</code>, <code>POST /v1/fee-route</code>, <code>GET /v1/treasury/:authority</code>, <code>POST /v1/crank</code>.</p>
+              <p style={{ marginTop: 8 }}>Today, use the <a href="#sdk-reference" style={{ color: "var(--coral)" }}>TypeScript SDK</a> for direct integration. Core functions: <code>registerWithRTP</code>, <code>fetchTreasuryState</code>, <code>depositSol</code>, <code>checkRedistribute</code>.</p>
             </Callout>
 
             <Table
@@ -502,7 +487,7 @@ await raydium.launchpad.updatePlatformCpCreator({
             <p>The <code>@resilient-protocol/sdk</code> TypeScript package is for launchpads and platforms integrating RTP directly. If you&apos;re a token creator, your launchpad handles this — see <a href="#getting-started-creators" style={{ color: "var(--coral)" }}>Getting Started for Token Creators</a>.</p>
 
             <h3>Installation</h3>
-            <CodeBlock>{`npm install @resilient-protocol/sdk @solana/web3.js @solana/spl-token @coral-xyz/anchor`}</CodeBlock>
+            <CodeBlock>{`npm install @resilient-protocol/sdk @solana/web3.js @coral-xyz/anchor`}</CodeBlock>
 
             <h3>Constants</h3>
             <CodeBlock>{`import { RTP_PROGRAM_ID, RTP_DEVNET_RPC, RTP_MAINNET_RPC } from "@resilient-protocol/sdk";
@@ -515,10 +500,7 @@ RTP_MAINNET_RPC // "https://api.mainnet-beta.solana.com"`}</CodeBlock>
 
             <h4>RTPRegistrationConfig</h4>
             <CodeBlock>{`interface RTPRegistrationConfig {
-  mint: PublicKey;                          // Token mint to register
-  platform: "pumpfun" | "bags" | "raydium"; // Launch platform
-  name: string;                             // Token display name
-  symbol: string;                           // Token ticker symbol
+  authority: PublicKey;                      // Treasury owner (used as PDA seed)
   holdersWallet?: PublicKey;                // 70% recipient (default: payer)
   projectDevWallet?: PublicKey;             // 20% recipient (default: payer)
   ecosystemWallet?: PublicKey;              // 10% recipient (default: payer)
@@ -527,20 +509,21 @@ RTP_MAINNET_RPC // "https://api.mainnet-beta.solana.com"`}</CodeBlock>
 
             <h4>RTPRegistrationResult</h4>
             <CodeBlock>{`interface RTPRegistrationResult {
-  mint: string;           // base58 mint address
+  authority: string;     // base58 authority pubkey
   signature: string;      // registration tx signature
   explorerUrl: string;    // Solana Explorer link
-  treasuryPDA: string;    // Per-mint treasury state account
-  vaultPDA: string;       // Token account receiving fees
+  treasuryPDA: string;    // Per-authority treasury state account
   adopterPDA: string;     // Adopter registration account
 }`}</CodeBlock>
 
             <h4>TreasuryState</h4>
             <CodeBlock>{`interface TreasuryState {
-  mint: string;
+  authority: string;
   phase: "Sustenance" | "Ecosystem" | "Humanity";
   isFrozen: boolean;
-  vaultBalance: number;
+  solBalance: number;          // native SOL lamports
+  committedSolLamports: number; // committed to open Flash positions
+  availableSolLamports: number; // solBalance - committed - rent_exempt
   totalFeesWithdrawn: number;
   totalDistributedHolders: number;
   totalDistributedDev: number;
@@ -553,7 +536,7 @@ RTP_MAINNET_RPC // "https://api.mainnet-beta.solana.com"`}</CodeBlock>
             <h3>Functions</h3>
 
             <h4>registerWithRTP()</h4>
-            <p>Registers an existing token mint with RTP. Creates treasury PDA, vault PDA, and adopter record.</p>
+            <p>Initializes a new treasury PDA for the given authority. Creates treasury PDA and adopter record.</p>
             <CodeBlock>{`async function registerWithRTP(
   connection: Connection,
   payer: Keypair | WalletAdapter,
@@ -564,59 +547,70 @@ RTP_MAINNET_RPC // "https://api.mainnet-beta.solana.com"`}</CodeBlock>
             <p>Read-only. Fetches on-chain treasury state. No signing required.</p>
             <CodeBlock>{`async function fetchTreasuryState(
   connection: Connection,
-  mintAddress: string | PublicKey,
+  authorityAddress: string | PublicKey,
 ): Promise<TreasuryState>;`}</CodeBlock>
 
-            <h4>withdrawAndRedistribute()</h4>
-            <p>Permissionless crank. Withdraws fees, then triggers 70/20/10 redistribution if above threshold.</p>
-            <CodeBlock>{`async function withdrawAndRedistribute(
+            <h4>depositSol()</h4>
+            <p>Permissionless. Deposits native SOL into the treasury.</p>
+            <CodeBlock>{`async function depositSol(
   connection: Connection,
   payer: Keypair | WalletAdapter,
-  mintAddress: string | PublicKey,
-): Promise<{ withdrawSig: string; redistributeSig?: string }>;`}</CodeBlock>
+  authorityAddress: string | PublicKey,
+  amountLamports: number,
+): Promise<{ signature: string }>;`}</CodeBlock>
+
+            <h4>checkRedistribute()</h4>
+            <p>Permissionless crank. Triggers 70/20/10 redistribution if above threshold.</p>
+            <CodeBlock>{`async function checkRedistribute(
+  connection: Connection,
+  payer: Keypair | WalletAdapter,
+  authorityAddress: string | PublicKey,
+): Promise<{ redistributeSig?: string }>;`}</CodeBlock>
 
             <h4>registerAdopterBeta()</h4>
             <p>Registers a beta adopter with an expiry timestamp. Free until beta period ends.</p>
             <CodeBlock>{`async function registerAdopterBeta(
   connection: Connection,
   payer: Keypair | WalletAdapter,
-  mintAddress: string | PublicKey,
-  expiresAt: Date,
-): Promise<string>; // tx signature`}</CodeBlock>
+  authorityAddress: string | PublicKey,
+  adopterId: string,
+  betaExpiresAt: number,
+): Promise<{ signature: string; adopterPDA: string }>;`}</CodeBlock>
 
             <h4>fetchAdopterState()</h4>
             <p>Read-only. Fetches on-chain adopter record (beta status, fee contributions).</p>
             <CodeBlock>{`async function fetchAdopterState(
   connection: Connection,
-  mintAddress: string | PublicKey,
+  authorityAddress: string | PublicKey,
+  adopterId: string,
 ): Promise<AdopterState>;`}</CodeBlock>
 
             <h4>freezeTreasury()</h4>
             <p>Authority-gated emergency freeze. Halts all state-mutating operations. No time lock (emergency speed).</p>
             <CodeBlock>{`async function freezeTreasury(
   connection: Connection,
-  authority: Keypair | WalletAdapter,
-  mintAddress: string | PublicKey,
-): Promise<string>; // tx signature`}</CodeBlock>
+  payer: Keypair | WalletAdapter,
+  authorityAddress: string | PublicKey,
+): Promise<{ signature: string }>;`}</CodeBlock>
 
             <h4>unfreezeTreasury()</h4>
             <p>Authority-gated unfreeze. Resumes operations. Post-launch: Squads 2-of-3 + 24h time lock.</p>
             <CodeBlock>{`async function unfreezeTreasury(
   connection: Connection,
-  authority: Keypair | WalletAdapter,
-  mintAddress: string | PublicKey,
-): Promise<string>; // tx signature`}</CodeBlock>
+  payer: Keypair | WalletAdapter,
+  authorityAddress: string | PublicKey,
+): Promise<{ signature: string }>;`}</CodeBlock>
 
             <h3>PDA Derivation</h3>
-            <CodeBlock>{`// Treasury PDA
+            <CodeBlock>{`// Treasury PDA (authority-seeded)
 PublicKey.findProgramAddressSync(
-  [Buffer.from("treasury"), mint.toBuffer()],
+  [Buffer.from("treasury"), authority.toBuffer()],
   RTP_PROGRAM_ID,
 );
 
-// Vault PDA
+// Adopter PDA (adopter_id is any string)
 PublicKey.findProgramAddressSync(
-  [Buffer.from("treasury"), mint.toBuffer(), Buffer.from("vault")],
+  [Buffer.from("adopter"), treasuryPDA.toBuffer(), Buffer.from(adopterId)],
   RTP_PROGRAM_ID,
 );`}</CodeBlock>
           </>
@@ -632,19 +626,19 @@ PublicKey.findProgramAddressSync(
         title: "Treasury PDA",
         content: (
           <>
-            <p>Every token registered with RTP gets its own treasury — a <strong>program-derived address (PDA)</strong> that owns the vault where fees accumulate. The PDA has no private key; it&apos;s controlled exclusively by the on-chain program.</p>
+            <p>Every token registered with RTP gets its own treasury — a <strong>program-derived address (PDA)</strong> where SOL fees accumulate. The PDA has no private key; it&apos;s controlled exclusively by the on-chain program.</p>
 
             <h3>Key Properties</h3>
             <ul>
               <li><strong>PDA Ownership</strong> — no private key exists. No one can sign funds away from the treasury.</li>
-              <li><strong>CPI-Only Transfers</strong> — all token movements are Cross-Program Invocations, atomic and verifiable.</li>
-              <li><strong>Per-Mint Isolation</strong> — each token gets its own Treasury PDA, vault, and adopter record. Seeds: <code>[&quot;treasury&quot;, mint]</code>. One token&apos;s reserves are invisible to every other token&apos;s PDA.</li>
-              <li><strong>Deterministic Derivation</strong> — anyone can derive the PDA from the mint address.</li>
+              <li><strong>CPI-Only Transfers</strong> — all SOL movements are Cross-Program Invocations, atomic and verifiable.</li>
+              <li><strong>Per-Authority Isolation</strong> — each authority gets its own Treasury PDA and vault. Seeds: <code>[&quot;treasury&quot;, authority]</code>. One authority&apos;s reserves are invisible to every other PDA.</li>
+              <li><strong>Deterministic Derivation</strong> — anyone can derive the PDA from the authority pubkey.</li>
               <li><strong>No shared pool</strong> — there is no single treasury holding all tokens&apos; fees. Each PDA is its own isolated vault. This eliminates the honeypot risk: exploiting one treasury does not expose any other.</li>
             </ul>
 
-            <Callout type="tip" title="Why Per-Token Isolation Matters">
-              <p>Aggregating many tokens&apos; fees into a shared pool creates a high-value target. Per-token PDAs mean each treasury is independently secured. The swarm copy-trades the same validated strategy across all tokens with isolated capital — same alpha, zero cross-contamination.</p>
+            <Callout type="tip" title="Why Per-Authority Isolation Matters">
+              <p>Aggregating many tokens&apos; fees into a shared pool creates a high-value target. Per-authority PDAs mean each treasury is independently secured. The swarm copy-trades the same validated strategy across all tokens with isolated capital — same alpha, zero cross-contamination.</p>
             </Callout>
 
             <h3>Trust Model</h3>
@@ -663,7 +657,7 @@ PublicKey.findProgramAddressSync(
             <h4>Permissionless Actions</h4>
             <p>Anyone can call these — they move funds INTO the PDA (never out) or record state:</p>
             <ul>
-              <li><code>withdraw_fees</code> — pulls fees into vault</li>
+              <li><code>deposit_sol</code> — deposits native SOL into treasury</li>
               <li><code>check_redistribute</code> — triggers 70/20/10 split (deterministic)</li>
               <li><code>hydrate_swarm</code> — proposes funding (gated by strategy status)</li>
             </ul>
@@ -762,9 +756,9 @@ PublicKey.findProgramAddressSync(
 
             <h3>On-Chain Mechanics</h3>
             <ol>
-              <li><strong>Threshold check</strong> — vault balance must exceed <code>min_runway_balance</code></li>
+              <li><strong>Threshold check</strong> — treasury SOL balance must exceed <code>min_runway_balance</code></li>
               <li><strong>Calculate splits</strong> — 70%, 20%, 10% of the surplus</li>
-              <li><strong>SPL transfers</strong> — atomic CPI transfers to each recipient&apos;s ATA</li>
+              <li><strong>Native SOL transfers</strong> — atomic lamport debit from treasury, credit to each recipient wallet</li>
               <li><strong>Emit event</strong> — <code>Redistribution</code> event logged for auditability</li>
               <li><strong>Update counters</strong> — cumulative totals updated with <code>saturating_add</code></li>
             </ol>

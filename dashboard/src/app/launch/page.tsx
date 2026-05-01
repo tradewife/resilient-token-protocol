@@ -548,7 +548,7 @@ export default function LaunchPage() {
   }, [wallet, publicKey, projectName, tokenSymbol]);
 
   // Check if treasury is frozen (via SDK Borsh decoder — no hardcoded byte offsets)
-  const TREASURY_PDA = "7oZTJWYBDjzqmbfRs5YkTv53CDa6vESAzfyjK3yhYshc";
+  const TREASURY_AUTHORITY = "3yMH4kCBk9vNHLU6gqqNn125rmzTSSpJP8FiLXDtaEH5";
   const [isFrozen, setIsFrozen] = useState(false);
 
   React.useEffect(() => {
@@ -556,8 +556,7 @@ export default function LaunchPage() {
     const check = async () => {
       try {
         // Use the SDK's Borsh decoder to read the frozen field properly.
-        // The treasury PDA belongs to the demo mint on devnet.
-        const state = await fetchTreasuryState(connection, "FumRWMiDf6FCHuGSYJRPYknCD5F2QNgBmbABZsFJ6q5q");
+        const state = await fetchTreasuryState(connection, TREASURY_AUTHORITY);
         if (alive) setIsFrozen(state.isFrozen);
       } catch { /* devnet unreachable */ }
     };

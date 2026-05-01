@@ -1,10 +1,10 @@
-// Browser globals
-const fetch = (globalThis as any).fetch;
-const AbortSignal = (globalThis as any).AbortSignal;
-
 // @resilient-protocol/sdk
 // The launchpad integration SDK for the Resilient Token Protocol.
 // Core functions: registerWithRTP, fetchTreasuryState, depositSol, checkRedistribute.
+
+// Browser globals (used by listFlashPositions for fetch + AbortSignal)
+const fetch = (globalThis as any).fetch;
+const AbortSignal = (globalThis as any).AbortSignal;
 
 import { AnchorProvider, BorshCoder, Program, Idl } from "@coral-xyz/anchor";
 import { BN } from "@coral-xyz/anchor";
@@ -457,7 +457,7 @@ export async function checkRedistribute(
  *
  * @param connection - Solana RPC connection
  * @param payer - Keypair or WalletAdapter signing the transaction
- * @param mintAddress - The token mint to register as a beta adopter
+ * @param adopterId - The adopter identifier to register as beta
  * @param betaExpiresAt - Unix timestamp when the beta expires (must be in the future)
  */
 
@@ -551,7 +551,7 @@ export async function endBeta(
 }
 
 /**
- * Fetch the on-chain adopter record for a given mint.
+ * Fetch the on-chain adopter record for a given authority and adopter ID.
  * Read-only — no transactions, no signing required.
  * Returns default state if the adopter record doesn't exist.
  */
@@ -700,7 +700,7 @@ function deriveStrategyPDA(treasury: PublicKey, strategyId: string): [PublicKey,
  *
  * @param connection - Solana RPC connection
  * @param payer - Keypair or WalletAdapter (must be treasury authority)
- * @param mintAddress - The token mint for the treasury
+ * @param authorityAddress - The treasury authority pubkey
  * @param strategyId - Short strategy identifier (1-16 chars, e.g. "S01", "SOL_MR_v2")
  * @param promotionSharpeX100 - OOS Sharpe * 100 (e.g. 396 for Sharpe 3.96)
  */

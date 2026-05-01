@@ -31,7 +31,7 @@ import os from "os";
 
 // ─── Configuration ──────────────────────────────────────────────────────
 
-const DEMO_AUTHORITY = "G3wL7eGV2YRJ3UmDWCvKfNLSvLYXKwX7rKJuxvjC8c6d";
+const DEMO_AUTHORITY = "3yMH4kCBk9vNHLU6gqqNn125rmzTSSpJP8FiLXDtaEH5";
 
 const RPC_URL = process.env.RPC_URL || "https://api.devnet.solana.com";
 const NIGHT_RESULTS_DIR = process.env.NIGHT_RESULTS_DIR || "./data/night_results";

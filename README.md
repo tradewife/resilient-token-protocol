@@ -98,7 +98,7 @@ See [docs/demo-flow.md](docs/demo-flow.md) for the 3-minute hackathon demo scrip
 ## SDK — One Function Call
 
 ```bash
-npm install @resilient-protocol/sdk @solana/web3.js @solana/spl-token @coral-xyz/anchor
+npm install @resilient-protocol/sdk @solana/web3.js @coral-xyz/anchor
 ```
 
 ```typescript
@@ -109,13 +109,10 @@ const connection = new Connection("https://api.devnet.solana.com");
 const payer = Keypair.generate(); // or use a WalletAdapter from @solana/wallet-adapter-react
 
 const result = await registerWithRTP(connection, payer, {
-  mint: new PublicKey("YourExistingMintAddress"),
-  platform: "pumpfun",
-  name: "Community Token",
-  symbol: "CMTY",
+  authority: payer.publicKey,
 });
 
-// result.mint, result.treasuryPDA, result.vaultPDA, result.adopterPDA
+// result.authority, result.treasuryPDA, result.adopterPDA
 ```
 
 For browser wallets (e.g. Phantom), pass the wallet adapter directly — no keypair needed:
@@ -125,10 +122,10 @@ import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 const { publicKey, signTransaction } = useWallet();
 const { connection } = useConnection();
 
-const result = await registerWithRTP(connection, { publicKey, signTransaction }, config);
+const result = await registerWithRTP(connection, { publicKey, signTransaction }, { authority: publicKey });
 ```
 
-Core functions: `registerWithRTP()`, `fetchTreasuryState()`, `withdrawAndRedistribute()`, `registerAdopterBeta()`, `fetchAdopterState()`. See [sdk/README.md](sdk/README.md) for details.
+Core functions: `registerWithRTP()`, `fetchTreasuryState()`, `depositSol()`, `checkRedistribute()`, `registerAdopterBeta()`, `fetchAdopterState()`. See [sdk/README.md](sdk/README.md) for details.
 
 ## Operator CLI
 
@@ -163,7 +160,7 @@ Treasury program deployed and operational on Solana devnet (Apr 11 2026).
 | Item | Value |
 |------|-------|
 | Program ID | `8rt6yiBnRTyHy8F69jUd7exWwwShUs4Eokeq41auo2RB` |
-| Treasury PDA | Per-mint — demo: `7oZTJWYBDjzqmbfRs5YkTv53CDa6vESAzfyjK3yhYshc` |
+| Treasury PDA | Per-authority — demo: `7oZTJWYBDjzqmbfRs5YkTv53CDa6vESAzfyjK3yhYshc` |
 | Explorer | [View demo treasury](https://explorer.solana.com/address/7oZTJWYBDjzqmbfRs5YkTv53CDa6vESAzfyjK3yhYshc?cluster=devnet) |
 | Init tx | [View transaction](https://explorer.solana.com/tx/4RVehmPVpnFYHrsF6N64RjVh7mszRzKF9DQVHd8TUqBHwrnyDYavf3TnDYJC4b5PrJWVSubZkNuyVkF1oJzk71RT?cluster=devnet) |
 
@@ -176,7 +173,7 @@ Treasury program deployed and operational on Solana devnet (Apr 11 2026).
 │                    ON-CHAIN (Solana / Anchor)                    │
 │                                                                 │
 │  RTP Treasury Program                                           │
-│  ├── Receive fees — TransferFeeConfig (withheld) + platform creator fees (SOL)  │
+│  ├── Receive fees — native SOL deposits + platform creator fees (SOL)     │
 │  ├── Strategy lifecycle (register → update → suspend/retire)    │
 │  ├── Hydration gate (only Live strategies receive funding)      │
 │  ├── Flash Trade CPI: invoke_signed → open/close perps positions │
@@ -188,7 +185,7 @@ Treasury program deployed and operational on Solana devnet (Apr 11 2026).
 │  Invariants (enforced on-chain):                                │
 │  ├── PDA owns treasury (no private key risk)                    │
 │  ├── Per-token isolation — each mint gets its own PDA + vault   │
-│  ├── SPL TransferFeeConfig (fee % immutable from mint)          │
+│  ├── Native SOL deposits (fee % + routing varies by platform)  │
 │  ├── CPI-only transfers (atomic, verifiable)                    │
 │  ├── Flash Trade CPI-only execution (invoke_signed, no human key)│
 │  ├── SOL never liquidated — committed via Composability, not sold│
@@ -448,9 +445,9 @@ opens positions on Solana. SOL returned on position close. Single asset, single 
 
 **Rug-proof by design**: SPL TransferFeeConfig fee percentage is immutable once minted. PDA owns treasury (no private key). All transfers via CPI (atomic, verifiable). Platform fee routing is separate — Pump.fun allows one redirect, Bags.fm is updateable, Raydium is manual.
 
-### Per-Token Isolation — No Shared Pool, No Honeypot
+### Per-Authority Isolation — No Shared Pool, No Honeypot
 
-Every token that adopts RTP gets its **own isolated treasury** — a separate PDA, vault, and adopter record. There is no shared pool. One token's trading loss cannot affect another's reserves.
+Every token that adopts RTP gets its **own isolated treasury** — a separate PDA and adopter record. There is no shared pool. One token's trading loss cannot affect another's reserves.
 
 ```
 Token A adopts RTP          Token B adopts RTP          Token C adopts RTP
