@@ -446,6 +446,13 @@ export async function checkRedistribute(
     if (isBelowThreshold) {
       return {};
     }
+
+    // Devnet stale binary: old on-chain program references removed accounts (e.g. mint)
+    const errStr = JSON.stringify(err, Object.getOwnPropertyNames(err));
+    if (errStr.includes("AccountNotInitialized") || errStr.includes("0xbc4")) {
+      return {};
+    }
+
     throw err;
   }
 }

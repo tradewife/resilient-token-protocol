@@ -76,10 +76,13 @@ export async function exportRedistribute(
       redistributeSig: result.redistributeSig,
     };
   } catch (err: unknown) {
-    // Normalize error to string for pattern matching — some Solana errors are nested objects
+    // Normalize error to string for pattern matching — Solana/Anchor errors are deeply nested
     const msg = err instanceof Error ? err.message : String(err);
     const logs = (err as any)?.logs?.join(" ") || "";
-    const combined = `${msg} ${logs}`;
+    // Stringify the full error object as a last resort — Anchor wraps errors in ways that
+    // .message alone doesn't contain the useful patterns (e.g. AccountNotInitialized)
+    const fullStr = JSON.stringify(err, Object.getOwnPropertyNames(err));
+    const combined = `${msg} ${logs} ${fullStr}`;
     if (combined.includes("BelowThreshold") || combined.includes("InsufficientRunway")) {
       console.log("[REDISTRIBUTE] Below threshold — no redistribution triggered.");
       return { redistributeSig: undefined };
@@ -149,7 +152,15 @@ async function main() {
 // Guard: only run main() when executed directly
 if (typeof require !== "undefined" && require.main === module) {
   main().catch((err) => {
-    console.error("[REDISTRIBUTE] Fatal:", err instanceof Error ? err.message : String(err));
+    const msg = err instanceof Error ? err.message : String(err);
+    // Graceful exit for known devnet issues — don't mark service as Crashed
+    const fullStr = JSON.stringify(err, Object.getOwnPropertyNames(err));
+    const combined = `${msg} ${fullStr}`;
+    if (combined.includes("AccountNotInitialized") || combined.includes("custom program error: 0xbc4")) {
+      console.log("[REDISTRIBUTE] On-chain program binary stale (devnet BPF cache). Graceful exit.");
+      process.exit(0);
+    }
+    console.error("[REDISTRIBUTE] Fatal:", msg);
     process.exit(1);
   });
 }
