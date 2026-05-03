@@ -8,8 +8,11 @@ COPY sdk/package.json sdk/tsconfig.json sdk/idl.ts sdk/index.ts ./sdk/
 # Copy the promote script
 COPY scripts/promote-strategy.ts ./scripts/promote-strategy.ts
 
-# Night results are read from a shared volume mount at /data/night_results (not baked into image).
-# Railway mounts /data/night_results across all services — night-shift writes, promote reads.
+# Night results: baked into the image from the repo (Railway V3 disallows VOLUME).
+# Source of truth is git — night-shift cron commits new results back to main via
+# commit-night-results.sh, which triggers a fresh promote-strategy build that
+# picks them up. The /data/night_results path is kept for backwards compat.
+COPY data/night_results /data/night_results
 
 # Create a minimal package.json
 RUN echo '{"name":"rtp-promote-strategy","type":"commonjs","dependencies":{"@coral-xyz/anchor":"^0.32.1","@solana/web3.js":"^1.98.4","tsx":"^4.19.0","typescript":"^5.0.0"}}' > package.json
