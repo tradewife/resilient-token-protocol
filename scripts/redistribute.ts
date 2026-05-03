@@ -70,13 +70,69 @@ export async function exportRedistribute(
     return { redistributeSig: undefined };
   }
 
-  const sdk = await import("../sdk/index.ts");
+  // Fetch on-chain treasury to read the correct wallet addresses.
+  // The program validates holders_wallet/project_dev_wallet/ecosystem_wallet
+  // against what's stored in the treasury account.
+  const { BorshCoder, AnchorProvider, Program } = await import("@coral-xyz/anchor");
+  const { IDL } = await import("../sdk/idl.ts");
+  const idl = JSON.parse(JSON.stringify(IDL));
+  idl.address = "8rt6yiBnRTyHy8F69jUd7exWwwShUs4Eokeq41auo2RB";
+  const typeMap: Record<string, any> = {};
+  for (const t of idl.types || []) typeMap[t.name] = t;
+  for (const acc of idl.accounts || []) {
+    if (!acc.type && typeMap[acc.name]) acc.type = typeMap[acc.name].type;
+  }
+
+  const authorityPk = typeof authority === "string" ? new PublicKey(authority) : authority;
+  const [treasuryPDA] = PublicKey.findProgramAddressSync(
+    [Buffer.from("treasury"), authorityPk.toBuffer()],
+    new PublicKey(idl.address)
+  );
+
+  const coder = new BorshCoder(idl);
+  const accountInfo = await connection.getAccountInfo(treasuryPDA);
+  if (!accountInfo) {
+    console.log("[REDISTRIBUTE] Treasury account not found on-chain.");
+    return { redistributeSig: undefined };
+  }
+  const treasuryData = coder.accounts.decode("Treasury", accountInfo.data);
+
+  const wallet = {
+    publicKey: payer.publicKey,
+    signTransaction: async <T extends any>(tx: T): Promise<T> => {
+      (tx as any).partialSign(payer);
+      return tx;
+    },
+    signAllTransactions: async <T extends any>(txs: T[]): Promise<T[]> => {
+      return txs.map(tx => { (tx as any).partialSign(payer); return tx; });
+    },
+  };
+  const provider = new AnchorProvider(connection, wallet as any, { commitment: "confirmed" });
+  const program = new Program(idl, provider);
 
   try {
-    const result = await sdk.checkRedistribute(connection, payer, authority);
-    return {
-      redistributeSig: result.redistributeSig,
-    };
+    const tx = await program.methods
+      .checkRedistribute()
+      .accounts({
+        treasury: treasuryPDA,
+        holdersWallet: treasuryData.holdersWallet,
+        projectDevWallet: treasuryData.projectDevWallet,
+        ecosystemWallet: treasuryData.ecosystemWallet,
+        systemProgram: SystemProgram.programId,
+      })
+      .transaction();
+
+    const { Transaction: Tx, sendAndConfirmTransaction: sendConfirm } = await import("@solana/web3.js");
+    const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
+    tx.recentBlockhash = blockhash;
+    tx.lastValidBlockHeight = lastValidBlockHeight;
+    tx.feePayer = payer.publicKey;
+    tx.partialSign(payer);
+    const rawTx = tx.serialize();
+    const sig = await connection.sendRawTransaction(rawTx);
+    await connection.confirmTransaction({ signature: sig, blockhash, lastValidBlockHeight }, "confirmed");
+
+    return { redistributeSig: sig };
   } catch (err: unknown) {
     // Normalize error to string for pattern matching — Solana/Anchor errors are deeply nested
     const msg = err instanceof Error ? err.message : String(err);
