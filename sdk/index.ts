@@ -420,13 +420,23 @@ export async function checkRedistribute(
   const program = new Program(idl, provider);
 
   try {
+    // Fetch on-chain treasury to get the correct wallet addresses.
+    // The program validates holders_wallet/project_dev_wallet/ecosystem_wallet
+    // against what's stored in the treasury account.
+    const accountInfo = await connection.getAccountInfo(treasuryPDA);
+    if (!accountInfo) {
+      throw new Error("Treasury account not found");
+    }
+    const coder = new BorshCoder(idl);
+    const treasuryData = coder.accounts.decode("Treasury", accountInfo.data);
+
     const redistributeTx = await program.methods
       .checkRedistribute()
       .accounts({
         treasury: treasuryPDA,
-        holdersWallet: treasuryPDA,
-        projectDevWallet: treasuryPDA,
-        ecosystemWallet: treasuryPDA,
+        holdersWallet: treasuryData.holdersWallet as PublicKey,
+        projectDevWallet: treasuryData.projectDevWallet as PublicKey,
+        ecosystemWallet: treasuryData.ecosystemWallet as PublicKey,
         systemProgram: SystemProgram.programId,
       })
       .transaction();
