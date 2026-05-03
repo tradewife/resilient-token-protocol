@@ -7,10 +7,12 @@
 #   GIT_DEPLOY_KEY — base64-encoded SSH private key for pushing
 #   GIT_AUTHOR_NAME / GIT_AUTHOR_EMAIL — git identity (defaults provided)
 
-set -e
+set -euo pipefail
+
+echo "[COMMIT] script starting, GIT_DEPLOY_KEY=${GIT_DEPLOY_KEY:+SET}/${GIT_DEPLOY_KEY:-UNSET}"
 
 # Skip if no deploy key is configured (local dev, CI without push access)
-if [ -z "$GIT_DEPLOY_KEY" ]; then
+if [ -z "${GIT_DEPLOY_KEY:-}" ]; then
   echo "[COMMIT] GIT_DEPLOY_KEY not set — skipping git commit (expected in local dev)"
   exit 0
 fi
@@ -37,8 +39,21 @@ EOF
 cd /app
 git remote set-url origin "git@github.com:tradewife/resilient-token-protocol.git" 2>/dev/null || true
 
-# Check if there are changes to commit.
-# Night results live in /data/night_results (shared volume) — check there.
+# Stage night results from the NIGHT_RESULTS_DIR (written by the Python pipeline).
+# The Dockerfile creates /data/night_results; this is where night-shift writes.
+NIGHT_DIR="${NIGHT_RESULTS_DIR:-/data/night_results}"
+
+if [ ! -d "$NIGHT_DIR" ]; then
+  echo "[COMMIT] Night results directory not found: $NIGHT_DIR — nothing to commit"
+  exit 0
+fi
+
+# Copy results into the git working tree so git can track them.
+# The repo's data/night_results/ is the canonical location.
+mkdir -p /app/data/night_results
+cp -rf "$NIGHT_DIR"/* /app/data/night_results/ 2>/dev/null || true
+
+# Check if there are changes to commit
 if git diff --quiet data/night_results/ 2>/dev/null && [ -z "$(git ls-files --others --exclude-standard data/night_results/)" ]; then
   echo "[COMMIT] No changes in data/night_results/ — nothing to commit"
   exit 0
@@ -46,19 +61,21 @@ fi
 
 # Commit and push
 DATE=$(date -u +%Y-%m-%d)
-# Add from both the symlink working dir (for staged changes) and the volume (for new files)
-git add data/night_results/
-git add /data/night_results/ 2>/dev/null || true
-git commit -m "night-shift: results for ${DATE} [skip ci]" || true
+git add data/night_results/ || true
+git commit -m "night-shift: results for ${DATE} [skip ci]" || {
+  echo "[COMMIT] Nothing to commit (possibly empty diff after add)"
+  exit 0
+}
 
-# Retry push up to 3 times (network flakiness on Railway)
+# Retry push up to 3 times with exponential backoff
 for i in 1 2 3; do
   if git push origin HEAD:main; then
     echo "[COMMIT] Pushed night results for ${DATE}"
     exit 0
   fi
-  echo "[COMMIT] Push attempt ${i} failed, retrying in 5s..."
-  sleep 5
+  delay=$((5 * (2 ** (i - 1))))
+  echo "[COMMIT] Push attempt ${i} failed, retrying in ${delay}s..."
+  sleep "$delay"
 done
 
 echo "[COMMIT] WARNING: Failed to push after 3 attempts"

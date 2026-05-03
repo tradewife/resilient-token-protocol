@@ -1,4 +1,5 @@
-FROM rust:1.88-slim AS builder
+ARG RUST_VERSION=1.88-slim
+FROM rust:${RUST_VERSION} AS builder
 RUN apt-get update && apt-get install -y pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*
 WORKDIR /build
 
@@ -13,4 +14,19 @@ FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /build/target/release/rtp-daemon /usr/local/bin/
 
-CMD ["rtp-daemon"]
+# Night Shift results — baked into image so the daemon can read strategy candidates.
+# Updated when night-shift commits new results and triggers a redeploy.
+COPY data/night_results /data/night_results
+
+# Devnet cycle data — provides initial config.json for config chaining across runs.
+# The daemon writes new cycle output to /data/devnet-cycles at runtime.
+COPY data/devnet-cycles/latest /data/devnet-cycles/latest
+
+# Authority keypair directory — env var RTP_AUTHORITY_KEYPAIR_JSON is written to
+# disk at startup (same pattern as FEE_PAYER_KEYPAIR in crank/promote services).
+RUN mkdir -p /app/keys
+
+ENV NIGHT_RESULTS_DIR=/data/night_results
+ENV RTP_AUTHORITY_KEYPAIR=/app/keys/authority.json
+
+CMD sh -c 'if [ -n "$RTP_AUTHORITY_KEYPAIR_JSON" ]; then echo "$RTP_AUTHORITY_KEYPAIR_JSON" > /app/keys/authority.json; fi && rtp-daemon'

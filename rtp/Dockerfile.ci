@@ -1,4 +1,5 @@
-FROM rust:1.85-slim AS builder
+ARG RUST_VERSION=1.88-slim
+FROM rust:${RUST_VERSION} AS builder
 WORKDIR /app
 # Install Solana CLI and Anchor
 RUN apt-get update && apt-get install -y curl pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*
