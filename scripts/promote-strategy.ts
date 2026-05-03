@@ -31,7 +31,7 @@ import os from "os";
 
 // ─── Configuration ──────────────────────────────────────────────────────
 
-const DEMO_AUTHORITY = "3yMH4kCBk9vNHLU6gqqNn125rmzTSSpJP8FiLXDtaEH5";
+const DEMO_AUTHORITY = "Driyi8Sw2622yCefU34zrjBsQynrDoGD31tBecXrEF6R";
 const AUTHORITY = process.env.AUTHORITY || DEMO_AUTHORITY;
 
 const RPC_URL = process.env.RPC_URL || "https://api.devnet.solana.com";

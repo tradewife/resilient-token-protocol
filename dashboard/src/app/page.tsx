@@ -7,8 +7,8 @@ import Link from "next/link";
 import Topbar from "./Topbar";
 import { fetchTreasuryState } from "../lib/sdk";
 
-const TREASURY_AUTHORITY = "3yMH4kCBk9vNHLU6gqqNn125rmzTSSpJP8FiLXDtaEH5";
-const TREASURY_PDA = "7oZTJWYBDjzqmbfRs5YkTv53CDa6vESAzfyjK3yhYshc";
+const TREASURY_AUTHORITY = "Driyi8Sw2622yCefU34zrjBsQynrDoGD31tBecXrEF6R";
+const TREASURY_PDA = "6PYPAnwiMoZvzphAWEu3EsNz3PpwjJ6YcZabj34qVQ4Z";
 const DEVNET_RPC = "https://api.devnet.solana.com";
 const MAINNET_RPC = "https://api.mainnet-beta.solana.com";
 
@@ -331,7 +331,7 @@ export default function Home() {
               <span className="hero-balance-value">{tBal} SOL</span>
               <div className="hero-balance-row">
                 <span className="hero-balance-label">
-                  TREASURY VAULT · 7oZTJW...shc
+                  TREASURY VAULT · 6PYPAn...Q4Z
                 </span>
 
                 <div className="hero-actions">
@@ -645,7 +645,7 @@ export default function Home() {
           <span className="vital-label">Program ID (Devnet)</span>
         </div>
         <div className="vital">
-          <span className="vital-value">7oZTJW...shc</span>
+          <span className="vital-value">6PYPAn...Q4Z</span>
           <span className="vital-label">Treasury PDA</span>
         </div>
         <div className="vital">

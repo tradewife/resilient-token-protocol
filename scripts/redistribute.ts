@@ -30,7 +30,7 @@ import os from "os";
 
 // ─── Configuration ──────────────────────────────────────────────────────
 
-const DEMO_AUTHORITY = new PublicKey("3yMH4kCBk9vNHLU6gqqNn125rmzTSSpJP8FiLXDtaEH5");
+const DEMO_AUTHORITY = new PublicKey("Driyi8Sw2622yCefU34zrjBsQynrDoGD31tBecXrEF6R");
 
 const RPC_URL = process.env.RPC_URL || "https://api.devnet.solana.com";
 const JITTER_MAX_MS = parseInt(process.env.JITTER_MAX_MS || "1800000", 10); // 30 min

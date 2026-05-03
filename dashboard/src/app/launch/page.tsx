@@ -548,7 +548,7 @@ export default function LaunchPage() {
   }, [wallet, publicKey, projectName, tokenSymbol]);
 
   // Check if treasury is frozen (via SDK Borsh decoder — no hardcoded byte offsets)
-  const TREASURY_AUTHORITY = "3yMH4kCBk9vNHLU6gqqNn125rmzTSSpJP8FiLXDtaEH5";
+  const TREASURY_AUTHORITY = "Driyi8Sw2622yCefU34zrjBsQynrDoGD31tBecXrEF6R";
   const [isFrozen, setIsFrozen] = useState(false);
 
   React.useEffect(() => {

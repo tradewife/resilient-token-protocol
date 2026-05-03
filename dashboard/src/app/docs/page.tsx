@@ -134,7 +134,7 @@ const DOC_GROUPS: DocGroup[] = [
               headers={["Component", "Status", "Detail"]}
               rows={[
                 ["Anchor treasury program", "✅ Deployed (devnet)", "Per-token isolation, 19 instructions, redistribution verified"],
-                ["Rust swarm runtime", "✅ 308 tests passing", "6 wings: Trading, Security, Evolve, Knowledge, Audit, Futureproof"],
+                ["Rust swarm runtime", "✅ 312 tests passing", "6 wings: Trading, Security, Evolve, Knowledge, Audit, Futureproof"],
                 ["Flash Trade CPI execution", "✅ Mainnet proofs", "Treasury PDA invoke_signed, positions open/close on-chain (Open TX 2bLg1Fu..., Close TX dFqkoP2...)"],
                 ["Treasury yield deposit", "✅ On-chain confirmed", "USDC yield → SOL → treasury PDA via CPI transfer"],
                 ["Autonomous daemon", "✅ 7 cycles completed", "6h cron, LLM-driven strategy evolution, auditable trail"],
@@ -669,7 +669,7 @@ PublicKey.findProgramAddressSync(
                 ["Devnet", "<code>8rt6yiBnRTyHy8F69jUd7exWwwShUs4Eokeq41auo2RB</code>"],
               ]}
             />
-            <p><a href="https://explorer.solana.com/address/7oZTJWYBDjzqmbfRs5YkTv53CDa6vESAzfyjK3yhYshc?cluster=devnet" target="_blank" rel="noopener noreferrer" style={{ color: "var(--coral)" }}>View demo treasury on Solana Explorer</a></p>
+            <p><a href="https://explorer.solana.com/address/6PYPAnwiMoZvzphAWEu3EsNz3PpwjJ6YcZabj34qVQ4Z?cluster=devnet" target="_blank" rel="noopener noreferrer" style={{ color: "var(--coral)" }}>View demo treasury on Solana Explorer</a></p>
           </>
         ),
       },
