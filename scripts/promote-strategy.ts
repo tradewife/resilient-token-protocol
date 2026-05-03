@@ -32,6 +32,7 @@ import os from "os";
 // ─── Configuration ──────────────────────────────────────────────────────
 
 const DEMO_AUTHORITY = "3yMH4kCBk9vNHLU6gqqNn125rmzTSSpJP8FiLXDtaEH5";
+const AUTHORITY = process.env.AUTHORITY || DEMO_AUTHORITY;
 
 const RPC_URL = process.env.RPC_URL || "https://api.devnet.solana.com";
 const NIGHT_RESULTS_DIR = process.env.NIGHT_RESULTS_DIR || "./data/night_results";
@@ -262,7 +263,7 @@ async function main() {
   banner();
 
   console.log(`[PROMOTE] RPC: ${RPC_URL}`);
-  console.log(`[PROMOTE] Authority: ${DEMO_AUTHORITY}`);
+  console.log(`[PROMOTE] Authority: ${AUTHORITY}`);
   console.log(`[PROMOTE] Results dir: ${NIGHT_RESULTS_DIR}`);
   console.log(`[PROMOTE] DRY_RUN: ${DRY_RUN}`);
   console.log(`[PROMOTE] Gate: Sharpe>=${PROMOTION_GATE.minOosSharpe}, Consistency>=${(PROMOTION_GATE.minWfaConsistency * 100).toFixed(0)}%, Trades/fold>=${PROMOTION_GATE.minTradesPerFold}, Fragility<=${PROMOTION_GATE.maxFragility}`);
@@ -340,7 +341,7 @@ async function main() {
 
   if (DRY_RUN) {
     console.log("\n[PROMOTE] DRY RUN — would call register_strategy with:");
-    console.log(`[PROMOTE]   authority: ${DEMO_AUTHORITY}`);
+    console.log(`[PROMOTE]   authority: ${AUTHORITY}`);
     console.log(`[PROMOTE]   strategy_id: "${strategyId}"`);
     console.log(`[PROMOTE]   promotion_sharpe_x100: ${promotionSharpeX100}`);
     console.log("[PROMOTE] exit 0 (dry run)");
@@ -368,7 +369,7 @@ async function main() {
     const result = await sdk.registerStrategy(
       connection,
       payer,
-      DEMO_AUTHORITY,
+      AUTHORITY,
       strategyId,
       promotionSharpeX100,
     );
