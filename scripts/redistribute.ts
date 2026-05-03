@@ -1,6 +1,8 @@
 /**
  * RTP Redistribute Crank — Permissionless 70/20/10 redistribution trigger.
  *
+ * v2: reads on-chain wallet addresses for correct constraint validation.
+ *
  * Runs as a Railway cron service:
  *   1. Random jitter delay (0–30 min) to avoid predictable timing
  *   2. Call checkRedistribute for the configured authority treasury
