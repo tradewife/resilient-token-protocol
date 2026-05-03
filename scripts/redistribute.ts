@@ -22,6 +22,7 @@ import {
   Connection,
   Keypair,
   PublicKey,
+  SystemProgram,
 } from "@solana/web3.js";
 import fs from "fs";
 import path from "path";
@@ -115,9 +116,9 @@ export async function exportRedistribute(
       .checkRedistribute()
       .accounts({
         treasury: treasuryPDA,
-        holdersWallet: treasuryData.holdersWallet,
-        projectDevWallet: treasuryData.projectDevWallet,
-        ecosystemWallet: treasuryData.ecosystemWallet,
+        holdersWallet: treasuryData.holders_wallet,
+        projectDevWallet: treasuryData.project_dev_wallet,
+        ecosystemWallet: treasuryData.ecosystem_wallet,
         systemProgram: SystemProgram.programId,
       })
       .transaction();

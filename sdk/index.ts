@@ -434,9 +434,9 @@ export async function checkRedistribute(
       .checkRedistribute()
       .accounts({
         treasury: treasuryPDA,
-        holdersWallet: treasuryData.holdersWallet as PublicKey,
-        projectDevWallet: treasuryData.projectDevWallet as PublicKey,
-        ecosystemWallet: treasuryData.ecosystemWallet as PublicKey,
+        holdersWallet: treasuryData.holders_wallet as PublicKey,
+        projectDevWallet: treasuryData.project_dev_wallet as PublicKey,
+        ecosystemWallet: treasuryData.ecosystem_wallet as PublicKey,
         systemProgram: SystemProgram.programId,
       })
       .transaction();
