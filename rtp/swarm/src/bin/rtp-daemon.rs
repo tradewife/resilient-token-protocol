@@ -94,8 +94,7 @@ fn collect_memory_files() -> Vec<String> {
 #[derive(Debug, serde::Deserialize)]
 #[allow(dead_code)]
 struct TreasuryAccount {
-    mint: solana_sdk::pubkey::Pubkey,       // 32
-    authority: solana_sdk::pubkey::Pubkey,    // 32
+    authority: solana_sdk::pubkey::Pubkey,   // 32 — first field matches on-chain Treasury
     phase: u8,                                // 1 (enum)
     total_fees_withdrawn: u64,               // 8
     total_distributed_holders: u64,           // 8
@@ -108,6 +107,7 @@ struct TreasuryAccount {
     ecosystem_wallet: solana_sdk::pubkey::Pubkey, // 32
     min_runway_balance: u64,                  // 8
     frozen: bool,                             // 1
+    committed_sol_lamports: u64,              // 8
     bump: u8,                                 // 1
 }
 
@@ -250,8 +250,8 @@ fn check_treasury_frozen(cfg: &ChainConfig) -> Result<bool, String> {
         .map_err(|e| format!("Treasury deserialize error: {}", e))?;
 
     tracing::info!(
-        "[DAEMON] treasury decoded: mint={}, phase={}, frozen={}, runway={}",
-        treasury.mint, treasury.phase, treasury.frozen, treasury.min_runway_balance
+        "[DAEMON] treasury decoded: authority={}, phase={}, frozen={}, runway={}",
+        treasury.authority, treasury.phase, treasury.frozen, treasury.min_runway_balance
     );
 
     Ok(treasury.frozen)
@@ -521,7 +521,7 @@ let knowledge_wing: Option<rtp_swarm::wings::knowledge::KnowledgeWing> =
                             let close_ix = build_close_flash_position_ix(
                                 cfg,
                                 &authority.pubkey(),
-                                &cfg.vault_pda,
+                                &cfg.treasury_pda, // SOL returns to treasury PDA
                                 &market,
                                 side,
                                 OraclePrice { price: 0, exponent: -8 }, // placeholder — real oracle from Flash API
@@ -578,7 +578,7 @@ let knowledge_wing: Option<rtp_swarm::wings::knowledge::KnowledgeWing> =
                 let open_ix = build_open_flash_position_ix(
                     cfg,
                     &authority.pubkey(),
-                    &cfg.vault_pda, // funding_account — treasury vault ATA for wSOL
+                    &cfg.treasury_pda, // funding_account — treasury PDA holds native SOL
                     &market,
                     FlashSide::Long,
                     10_000_000, // 0.01 SOL
