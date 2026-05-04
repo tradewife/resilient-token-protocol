@@ -106,7 +106,7 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
         .map_err(|e| format!("Read keypair {}: {}", config.keypair_path.display(), e))?;
     let keypair_bytes: Vec<u8> = serde_json::from_str(&keypair_data)
         .map_err(|e| format!("Parse keypair: {}", e))?;
-    let keypair = solana_sdk::signature::Keypair::from_bytes(&keypair_bytes)
+    let keypair = solana_sdk::signature::Keypair::try_from(keypair_bytes.as_slice())
         .map_err(|e| format!("Invalid keypair: {}", e))?;
     let wallet = keypair.pubkey().to_string();
 
@@ -248,6 +248,10 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
         } else {
             // 3. Check entry signal (only if flat)
             if let Some(signal) = strategy::compute_signal(&closes, &volumes) {
+                tracing::debug!(
+                    "[SIGNAL] score={:.3} rsi={:.1} bull={} atr={:.2} reasons={:?}",
+                    signal.score, signal.rsi, signal.bullish_count, signal.atr, signal.reasons
+                );
                 if signal.score > params.signal_threshold && signal.bullish_count >= params.min_alignment {
                     tracing::info!(
                         "[ENTRY] Signal: score={:.3} rsi={:.1} bull={} reasons={:?}",

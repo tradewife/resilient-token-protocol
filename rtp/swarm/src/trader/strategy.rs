@@ -3,8 +3,7 @@
 //! Ported from Python `research/simulation/run_backtest_r2.py`.
 //! Params: signal_threshold=0.3, tp_atr=3.0, sl_atr=1.5, max_hold=36h, trailing_stop=0.5
 
-use super::indicators::{atr_proxy, bollinger_position, rsi, sma, timeframe_signal, volume_ratio, Candle};
-use chrono::Utc;
+use super::indicators::{atr_proxy, bollinger_position, rsi, timeframe_signal, volume_ratio};
 use serde::{Deserialize, Serialize};
 
 /// Survivor 2.69 strategy parameters.
@@ -284,6 +283,7 @@ pub struct TradeRecord {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::Utc;
 
     #[test]
     fn compute_signal_with_uptrend() {

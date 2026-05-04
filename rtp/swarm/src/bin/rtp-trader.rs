@@ -8,7 +8,12 @@ use rtp_swarm::trader::{TraderConfig, run_trader};
 
 #[tokio::main]
 async fn main() {
-    tracing_subscriber::fmt::init();
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
+        )
+        .init();
 
     eprintln!("[TRADER] RTP Autonomous Trader — Survivor 2.69");
     eprintln!("[TRADER] Strategy: SOL LONG, OOS Sharpe 3.96, 9/9 folds profitable");

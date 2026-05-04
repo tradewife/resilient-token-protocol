@@ -68,13 +68,14 @@ async fn flash_get(path: &str) -> Result<serde_json::Value, String> {
 /// Get current SOL price from Flash Trade.
 pub async fn get_sol_price() -> Result<f64, String> {
     let val = flash_get("/prices/SOL").await?;
-    let price_str = val
+    let price = val
         .get("priceUi")
-        .and_then(|v| v.as_str())
-        .unwrap_or("0");
-    price_str
-        .parse::<f64>()
-        .map_err(|e| format!("Invalid SOL price '{}': {}", price_str, e))
+        .and_then(|v| v.as_f64())
+        .unwrap_or(0.0);
+    if price <= 0.0 {
+        return Err(format!("Invalid SOL price: {:?}", val.get("priceUi")));
+    }
+    Ok(price)
 }
 
 /// Get open positions for a wallet.
