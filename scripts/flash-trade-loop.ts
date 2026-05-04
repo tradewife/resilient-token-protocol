@@ -155,18 +155,30 @@ async function main() {
   );
   console.log("      CONFIRMED.");
 
-  // 6. Wait a moment, then close
+  // 6. Get position key from Flash Trade positions API
   const holdSeconds = 10;
   console.log(`[6/7] Holding for ${holdSeconds}s, then closing...`);
   await new Promise((r) => setTimeout(r, holdSeconds * 1000));
 
+  // Fetch open positions to get the positionKey
+  const openPositions = await flashApi(`/positions/owner/${wallet}?includePnlInLeverageDisplay=true`);
+  const solLong = openPositions.find(
+    (p: any) => p.marketSymbol === "SOL" && p.sideUi === "Long",
+  );
+  if (!solLong) {
+    console.error("      No SOL Long position found after open — may have failed.");
+    return;
+  }
+  const positionKey = solLong.key;
+  const sizeUsd = solLong.sizeUsdUi;
+  console.log(`      Position key: ${positionKey}`);
+  console.log(`      Current size: $${sizeUsd}`);
+
   console.log("      Building close-position...");
   const closeResp = await flashApi("/transaction-builder/close-position", {
-    inputTokenSymbol: "SOL",
-    outputTokenSymbol: "SOL",
-    inputUsdUi: openResp.youRecieveUsdUi, // close full size
-    tradeType: "LONG",
-    owner: wallet,
+    positionKey,
+    inputUsdUi: sizeUsd, // close full size
+    withdrawTokenSymbol: "SOL",
     slippagePercentage: "1.0",
   });
 
