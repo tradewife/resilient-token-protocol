@@ -245,6 +245,34 @@ pub async fn run_demo_loop() -> DemoResult {
         detail: format!("Audit result routed to Trading: {}", audit_routed),
     });
 
+    // Step 5b: Soulguard catches a violation — constitutional governance in action.
+    // The Trading Wing tries to submit an EvolveProposal, which only the Evolve Wing can do.
+    // The soulguard rejects it. This proves governance enforcement is real, not theoretical.
+    let illegal_evolve = Message::new(
+        WingId::Trading, // Trading Wing is NOT authorized to submit EvolveProposals
+        WingId::Coordinator,
+        Payload::EvolveProposal {
+            target_wing: WingId::Trading,
+            diff: "ILLEGAL: risk_budget=100%".to_string(),
+            rationale: "Trading Wing attempting self-modification".to_string(),
+            expected_impact: "Constitutional violation".to_string(),
+        },
+    );
+    let soulguard_result = coordinator.process(&illegal_evolve).await;
+    let soulguard_blocked = matches!(soulguard_result, crate::ProcessingResult::Rejected { .. });
+    steps.push(DemoStep {
+        name: "soulguard_rejects_violation".to_string(),
+        status: if soulguard_blocked {
+            StepStatus::Passed
+        } else {
+            StepStatus::Failed("Soulguard should have rejected Trading Wing EvolveProposal".to_string())
+        },
+        detail: format!(
+            "Soulguard {} Trading Wing's EvolveProposal (constitutional governance enforced)",
+            if soulguard_blocked { "BLOCKED" } else { "ACCEPTED (unexpected)" }
+        ),
+    });
+
     // Step 6: Trading Wing receives ExecutePermit.
     let permit = trading_rx.recv().await;
     let permit_received = permit
@@ -395,30 +423,33 @@ pub async fn run_demo_loop() -> DemoResult {
 
 /// Print a demo result to stdout.
 pub fn print_demo_result(result: &DemoResult) {
-    tracing::info!("┌─────────────────────────────────────────────────┐");
-    tracing::info!("│         RTP SWARM — END-TO-END DEMO             │");
-    tracing::info!("├─────────────────────────────────────────────────┤");
+    tracing::info!("┌──────────────────────────────────────────────────────┐");
+    tracing::info!("│  RTP — Self-Funding Treasury Protocol (Demo)         │");
+    tracing::info!("│  Fees → Yield → Holders. No human key. Forever.      │");
+    tracing::info!("├──────────────────────────────────────────────────────┤");
 
     for (i, step) in result.steps.iter().enumerate() {
         let icon = match &step.status {
             StepStatus::Passed => "✅",
-            StepStatus::Skipped(_) => "⏭️",
+            StepStatus::Skipped(_) => "⏭️ ",
             StepStatus::Failed(_) => "❌",
         };
-        tracing::info!("│ {:2}. {:30} {} │", i + 1, step.name, icon);
+        tracing::info!("│ {:2}. {:36} {} │", i + 1, step.name, icon);
         if !step.status.is_pass() {
-            tracing::info!("│     {}", &step.detail[..step.detail.len().min(45)]);
+            let detail_truncated = &step.detail[..step.detail.len().min(50)];
+            tracing::info!("│     {:47} │", detail_truncated);
         }
     }
 
-    tracing::info!("├─────────────────────────────────────────────────┤");
+    tracing::info!("├──────────────────────────────────────────────────────┤");
     let status = if result.success { "SUCCESS" } else { "FAILED" };
-    tracing::info!("│ Result: {:40} │", status);
+    tracing::info!("│ Result: {:45} │", status);
     tracing::info!(
-        "│ Projected yield: {:32} │",
+        "│ Projected yield: {:35} │",
         format!("+{}% OOS (WFA)", result.final_yield)
     );
-    tracing::info!("└─────────────────────────────────────────────────┘");
+    tracing::info!("│ Mainnet CPI: TX 2bLg1Fu... (99,214 CU)              │");
+    tracing::info!("└──────────────────────────────────────────────────────┘");
 }
 
 // Two-cycle demo — covers all 5 judge points

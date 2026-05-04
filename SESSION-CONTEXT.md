@@ -33,7 +33,7 @@ RTP is a memory-persistent, self-coordinating, self-improving agent system whose
 - The B2B integration point is the SDK: launchpads call `registerWithRTP()` to register a Token-2022 mint with a per-mint treasury PDA in one function call. No RTP token exists — RTP is pure infrastructure.
 
 **Product story (never change this regardless of architecture depth):**
-> A launch platform integrates RTP with one function call. Every token it launches gets a program-enforced treasury. An autonomous agent swarm manages that treasury forever under hard on-chain constraints — executing perps strategies via Flash Trade on-chain CPI, returning yield to holders. The agents remember prior cycles, improve strategy over time, and cannot rug because the program forbids it. There is no RTP token — RTP is infrastructure.
+> Token projects route trading fees to RTP → RTP generates yield via on-chain perps → yield flows back to holders. A launch platform integrates RTP with one function call. Every token it launches gets a program-enforced treasury that generates yield via Flash Trade on-chain CPI (invoke_signed, no human key), returning it to holders (70/20/10 on-chain split). The swarm researches, validates, and executes strategies autonomously — funded by its own yield, forever. There is no RTP token. RTP is infrastructure.
 
 ---
 
