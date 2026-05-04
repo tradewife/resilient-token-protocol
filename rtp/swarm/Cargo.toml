@@ -43,3 +43,7 @@ path = "src/bin/rtp-demo.rs"
 [[bin]]
 name = "rtp-daemon"
 path = "src/bin/rtp-daemon.rs"
+
+[[bin]]
+name = "rtp-trader"
+path = "src/bin/rtp-trader.rs"

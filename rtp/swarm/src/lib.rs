@@ -13,6 +13,7 @@ pub mod evaluator;
 pub mod heartbeat;
 pub mod memory_promotion;
 pub mod orchestrator;
+pub mod trader;
 pub mod types;
 pub mod wings;
 
