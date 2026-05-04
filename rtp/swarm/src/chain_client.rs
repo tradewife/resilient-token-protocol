@@ -30,7 +30,7 @@ pub const CLOSE_FLASH_POSITION_DISC: [u8; 8] = [65, 15, 74, 221, 107, 136, 176, 
 
 // ---- PDA seeds (must match rtp-treasury) ----
 const TREASURY_SEED: &[u8] = b"treasury";
-const VAULT_SEED: &[u8] = b"vault";
+
 const STRATEGY_SEED: &[u8] = b"strategy";
 
 /// Well-known SPL Token (legacy) program ID.
@@ -83,21 +83,23 @@ impl ExecutionMode {
 ///
 /// Required for any chain interaction:
 ///   - `RTP_PROGRAM_ID`        — RTP treasury program (default: 8rt6yi…)
-///   - `RTP_MINT`              — Token-2022 mint of the adopting token
+///   - `RTP_AUTHORITY`         — Treasury authority pubkey (used for PDA derivation)
 ///   - `RTP_AUTHORITY_KEYPAIR` — path to fee-payer/authority keypair
 ///
 /// Optional:
 ///   - `RTP_STRATEGY_ID`       — defaults to `SOL_FT_V1`
-///   - `RTP_TREASURY_PDA`      — override (else derived from program+mint)
+///   - `RTP_TREASURY_PDA`      — override (else derived from program+authority)
 ///   - `SOLANA_RPC_URL`        — RPC endpoint for the chosen cluster
 ///   - `RTP_FLASH_PROGRAM_ID`  — Flash Trade program (default mainnet)
 ///   - `RTP_EXECUTION_MODE`    — simulate | devnet | mainnet (default simulate)
+///
+/// Legacy:
+///   - `RTP_MINT`              — accepted as alias for `RTP_AUTHORITY` (pre-v1.3 daemon)
 #[derive(Debug, Clone)]
 pub struct ChainConfig {
     pub program_id: Pubkey,
-    pub mint: Pubkey,
+    pub authority: Pubkey,
     pub treasury_pda: Pubkey,
-    pub vault_pda: Pubkey,
     pub strategy_id: String,
     pub strategy_pda: Pubkey,
     pub authority_keypair_path: Option<String>,
@@ -115,22 +117,20 @@ impl ChainConfig {
         let program_id = Pubkey::from_str(&program_id_str)
             .map_err(|e| format!("RTP_PROGRAM_ID invalid: {}", e))?;
 
-        let mint_str = std::env::var("RTP_MINT")
-            .map_err(|_| "RTP_MINT not set — cannot derive treasury PDA".to_string())?;
-        let mint = Pubkey::from_str(&mint_str)
-            .map_err(|e| format!("RTP_MINT invalid: {}", e))?;
+        // Authority pubkey — the on-chain treasury PDA is seeded by [TREASURY_SEED, authority].
+        // Accept RTP_MINT as legacy alias so existing Railway configs keep working.
+        let authority_str = std::env::var("RTP_AUTHORITY")
+            .or_else(|_| std::env::var("RTP_MINT"))
+            .map_err(|_| "RTP_AUTHORITY (or legacy RTP_MINT) not set — cannot derive treasury PDA".to_string())?;
+        let authority = Pubkey::from_str(&authority_str)
+            .map_err(|e| format!("RTP_AUTHORITY invalid: {}", e))?;
 
         let (derived_treasury, _bump) =
-            Pubkey::find_program_address(&[TREASURY_SEED, mint.as_ref()], &program_id);
+            Pubkey::find_program_address(&[TREASURY_SEED, authority.as_ref()], &program_id);
         let treasury_pda = std::env::var("RTP_TREASURY_PDA")
             .ok()
             .and_then(|s| Pubkey::from_str(&s).ok())
             .unwrap_or(derived_treasury);
-
-        let (vault_pda, _vbump) = Pubkey::find_program_address(
-            &[TREASURY_SEED, mint.as_ref(), VAULT_SEED],
-            &program_id,
-        );
 
         let strategy_id =
             std::env::var("RTP_STRATEGY_ID").unwrap_or_else(|_| "SOL_FT_V1".to_string());
@@ -149,15 +149,14 @@ impl ChainConfig {
         let rpc_url = std::env::var("SOLANA_RPC_URL").unwrap_or_else(|_| default_rpc.to_string());
 
         let flash_program_str = std::env::var("RTP_FLASH_PROGRAM_ID")
-            .unwrap_or_else(|_| "FLASH6Lo6h3iasJKWDs2F8TkW2UKf3s15C8PMGuVfgBn".to_string());
+            .unwrap_or_else(|_| "FLASH6Lo6h3iasJKwd2F8TkW2UKf3s15C8PMGuVfgBn".to_string());
         let flash_program_id = Pubkey::from_str(&flash_program_str)
             .map_err(|e| format!("RTP_FLASH_PROGRAM_ID invalid: {}", e))?;
 
         Ok(Self {
             program_id,
-            mint,
+            authority,
             treasury_pda,
-            vault_pda,
             strategy_id,
             strategy_pda,
             authority_keypair_path,
@@ -172,9 +171,8 @@ impl ChainConfig {
     pub fn log_summary(&self) {
         tracing::info!("[CHAIN] mode             = {}", self.mode.label());
         tracing::info!("[CHAIN] program_id       = {}", self.program_id);
-        tracing::info!("[CHAIN] mint             = {}", self.mint);
+        tracing::info!("[CHAIN] authority        = {}", self.authority);
         tracing::info!("[CHAIN] treasury_pda     = {}", self.treasury_pda);
-        tracing::info!("[CHAIN] vault_pda        = {}", self.vault_pda);
         tracing::info!("[CHAIN] strategy_id      = {}", self.strategy_id);
         tracing::info!("[CHAIN] strategy_pda     = {}", self.strategy_pda);
         tracing::info!("[CHAIN] flash_program_id = {}", self.flash_program_id);
@@ -206,11 +204,10 @@ impl ChainConfig {
     /// Does NOT read from environment — safe for unit/integration tests.
     pub fn test_default() -> Self {
         Self {
-            mint: Pubkey::new_unique(),
+            authority: Pubkey::new_unique(),
             program_id: Pubkey::new_unique(),
             treasury_pda: Pubkey::new_unique(),
             strategy_id: "SOL_2.69".into(),
-            vault_pda: Pubkey::new_unique(),
             strategy_pda: Pubkey::new_unique(),
             authority_keypair_path: None,
             rpc_url: "http://localhost:8899".to_string(),
@@ -327,7 +324,6 @@ pub fn build_open_flash_position_ix(
     let mut accounts = vec![
         AccountMeta::new(cfg.treasury_pda, false),
         AccountMeta::new(cfg.strategy_pda, false),
-        AccountMeta::new(cfg.vault_pda, false),
         AccountMeta::new(*authority, true),
     ];
 
@@ -556,16 +552,14 @@ mod tests {
 
     #[test]
     fn pda_derivation_matches_program() {
-        // Mint from the existing devnet demo. Treasury PDA recorded in
-        // SESSION-CONTEXT.md: 7oZTJWYBDjzqmbfRs5YkTv53CDa6vESAzfyjK3yhYshc.
+        // Authority from the devnet demo. Treasury PDA seeded by [TREASURY_SEED, authority].
         let program_id = pk("8rt6yiBnRTyHy8F69jUd7exWwwShUs4Eokeq41auo2RB");
-        let mint = pk("3yMH4kCBp3Wf6mYg8z62Z6sGN6dDaLvaa4PSTC2K2Bxe");
+        let authority = pk("6PYPAnwiMoZvzphAWEu3EsNz3PpwjJ6YcZabj34qVQ4Z");
         let (treasury, _) =
-            Pubkey::find_program_address(&[TREASURY_SEED, mint.as_ref()], &program_id);
-        // We don't hard-pin the value here because the mint may not be the
-        // documented one; we only assert that derivation is deterministic.
+            Pubkey::find_program_address(&[TREASURY_SEED, authority.as_ref()], &program_id);
+        // Derivation is deterministic.
         let (treasury2, _) =
-            Pubkey::find_program_address(&[TREASURY_SEED, mint.as_ref()], &program_id);
+            Pubkey::find_program_address(&[TREASURY_SEED, authority.as_ref()], &program_id);
         assert_eq!(treasury, treasury2);
     }
 
@@ -573,9 +567,8 @@ mod tests {
     fn open_flash_position_ix_uses_19_remaining_accounts() {
         let cfg = ChainConfig {
             program_id: pk("8rt6yiBnRTyHy8F69jUd7exWwwShUs4Eokeq41auo2RB"),
-            mint: pk("So11111111111111111111111111111111111111112"),
+            authority: pk("So11111111111111111111111111111111111111112"),
             treasury_pda: pk("So11111111111111111111111111111111111111112"),
-            vault_pda: pk("So11111111111111111111111111111111111111112"),
             strategy_id: "SOL_FT_V1".into(),
             strategy_pda: pk("So11111111111111111111111111111111111111112"),
             authority_keypair_path: None,
@@ -601,8 +594,8 @@ mod tests {
             },
             "Crypto.1",
         );
-        // 4 named + 19 remaining = 23 accounts total.
-        assert_eq!(ix.accounts.len(), 23);
+        // 3 named + 19 remaining = 22 accounts total.
+        assert_eq!(ix.accounts.len(), 22);
         // Discriminator first.
         assert_eq!(&ix.data[0..8], &OPEN_FLASH_POSITION_DISC);
     }
@@ -611,9 +604,8 @@ mod tests {
     fn close_flash_position_ix_uses_18_remaining_accounts() {
         let cfg = ChainConfig {
             program_id: pk("8rt6yiBnRTyHy8F69jUd7exWwwShUs4Eokeq41auo2RB"),
-            mint: pk("So11111111111111111111111111111111111111112"),
+            authority: pk("So11111111111111111111111111111111111111112"),
             treasury_pda: pk("So11111111111111111111111111111111111111112"),
-            vault_pda: pk("So11111111111111111111111111111111111111112"),
             strategy_id: "SOL_FT_V1".into(),
             strategy_pda: pk("So11111111111111111111111111111111111111112"),
             authority_keypair_path: None,
