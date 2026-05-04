@@ -31,7 +31,7 @@ impl TraderConfig {
         let keypair_path = std::env::var("RTP_TRADER_KEYPAIR")
             .map_err(|_| "RTP_TRADER_KEYPAIR not set".to_string())?;
         let amount_sol = std::env::var("RTP_TRADER_AMOUNT")
-            .unwrap_or_else(|_| "0.02".to_string())
+            .unwrap_or_else(|_| "0.20".to_string())
             .parse()
             .map_err(|e: std::num::ParseFloatError| format!("Invalid RTP_TRADER_AMOUNT: {}", e))?;
         let leverage = std::env::var("RTP_TRADER_LEVERAGE")

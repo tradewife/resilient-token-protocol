@@ -28,7 +28,7 @@ async fn main() {
             eprintln!("  RTP_TRADER_KEYPAIR       Path to Solana keypair JSON");
             eprintln!();
             eprintln!("Optional env vars:");
-            eprintln!("  RTP_TRADER_AMOUNT        SOL per trade (default: 0.02)");
+            eprintln!("  RTP_TRADER_AMOUNT        SOL per trade (default: 0.20)");
             eprintln!("  RTP_TRADER_LEVERAGE      Leverage multiplier (default: 1.0)");
             eprintln!("  RTP_TRADER_POLL_SECS     Poll interval in seconds (default: 300)");
             eprintln!("  RTP_TRADER_DRY_RUN       Set to enable dry-run mode");
