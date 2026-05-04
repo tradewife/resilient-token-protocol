@@ -1,0 +1,22 @@
+ARG RUST_VERSION=1.88-slim
+FROM rust:${RUST_VERSION} AS builder
+RUN apt-get update && apt-get install -y pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*
+WORKDIR /build
+
+COPY rtp/swarm/Cargo.toml rtp/swarm/Cargo.lock ./
+COPY rtp/swarm/src/ src/
+COPY rtp/swarm/tests/ tests/
+
+RUN cargo build --release --bin rtp-trader
+
+FROM debian:bookworm-slim
+RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
+COPY --from=builder /build/target/release/rtp-trader /usr/local/bin/
+
+# Keypair written from env var at startup (same pattern as daemon)
+RUN mkdir -p /app/keys /data
+
+ENV RTP_TRADER_KEYPAIR=/app/keys/trader.json
+ENV RTP_TRADER_STATE_PATH=/data/trader-state.json
+
+CMD sh -c 'if [ -n "$RTP_TRADER_KEYPAIR_JSON" ]; then echo "$RTP_TRADER_KEYPAIR_JSON" > /app/keys/trader.json; fi && rtp-trader'
