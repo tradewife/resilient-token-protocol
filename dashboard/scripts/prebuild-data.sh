@@ -92,6 +92,20 @@ if os.path.isdir(nr):
         print("night.json: no night_results subdirs")
 else:
     print("night.json: night_results dir not found")
+
+# ── trader-state.json (live autonomous trader state) ──
+ts = os.path.join(REPO, "rtp", "swarm", "data", "trader-state.json")
+if not os.path.isfile(ts):
+    ts = os.path.join(REPO, "data", "trader-state.json")
+if os.path.isfile(ts):
+    import shutil
+    shutil.copy2(ts, os.path.join(DATA_DIR, "trader-state.json"))
+    print(f"trader-state.json written")
+else:
+    json.dump({"wallet": "", "open_position": None, "trade_history": [],
+               "candle_count": 0, "last_poll": "", "total_pnl_sol": 0.0, "total_trades": 0},
+              open(os.path.join(DATA_DIR, "trader-state.json"), "w"), indent=2)
+    print("trader-state.json: fallback (no source)")
 PYEOF
 
 echo "Data files ready in $DATA_DIR"

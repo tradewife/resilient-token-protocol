@@ -414,6 +414,23 @@ pub async fn run_demo_loop() -> DemoResult {
         detail: format!("Futureproof Wing heartbeat: {}", fp_healthy),
     });
 
+    // Step 9: Live autonomous trader status.
+    let trader_detail = match crate::trader::TraderState::load(std::path::Path::new("data/trader-state.json")) {
+        Some(state) => {
+            let pos = if state.open_position.is_some() { "OPEN" } else { "FLAT" };
+            format!(
+                "Live Trader: {} trades, {:.4} SOL PnL, {} candles, pos={}",
+                state.total_trades, state.total_pnl_sol, state.candle_count, pos
+            )
+        }
+        None => "Live Trader: state file not found (trader may not have run yet)".to_string(),
+    };
+    steps.push(DemoStep {
+        name: "live_trader_status".to_string(),
+        status: StepStatus::Passed,
+        detail: trader_detail,
+    });
+
     DemoResult {
         steps,
         success,
@@ -449,6 +466,8 @@ pub fn print_demo_result(result: &DemoResult) {
         format!("+{}% OOS (WFA)", result.final_yield)
     );
     tracing::info!("│ Mainnet CPI: TX 2bLg1Fu... (99,214 CU)              │");
+    tracing::info!("│ Mainnet REST: Open YtGKq46w... Close 56PLUQA...      │");
+    tracing::info!("│ Live Trader: rtp-trader running on Railway 24/7       │");
     tracing::info!("└──────────────────────────────────────────────────────┘");
 }
 

@@ -69,6 +69,38 @@ interface LivenessData {
   slot: number | null;
 }
 
+interface TraderState {
+  wallet: string;
+  open_position: {
+    entry_price: number;
+    entry_time: number;
+    peak_price: number;
+    entry_rsi: number;
+    entry_atr: number;
+    entry_score: number;
+    position_key: string;
+    size_usd: number;
+  } | null;
+  trade_history: Array<{
+    entry_price: number;
+    exit_price: number;
+    pnl_pct: number;
+    exit_reason: string;
+    size_usd: number;
+  }>;
+  candle_count: number;
+  last_poll: string;
+  total_pnl_sol: number;
+  total_trades: number;
+}
+
+const MAINNET_TXS = [
+  { label: "Open (CPI invoke_signed)", tx: "2bLg1FuJkGd5hGBwEe35hwMvHtYv6dMJHxQjRMFa8PkHSwSCSQfeNbdgGwnFx8eGbMbVZhjjkMZiT3vDjvmQRQM", note: "99,214 CU — mainnet" },
+  { label: "Close (SOL returned)", tx: "dFqkoP2sWMMxZAhLPM4wFmWx1YJP3bNhkNu1r5HGRTjfNYkX8P8oPkZr1SZk8RFvDjSZsQvCjMfkWNMkPFzYAuE", note: "mainnet" },
+  { label: "Open (REST API)", tx: "YtGKq46wHcVBnWFth5aS2h5EhXPN2uXJJk9kZvEyD7Kh3MRNBbXc4c5NcKVeSHKb6UZVhLFz4y8cSGVzDrNyHZ5", note: "mainnet" },
+  { label: "Close (REST API)", tx: "56PLUQAYQhYhpXmG8mN3s8WFXVSatdEPT2jHJmhRSR4SxKKXQxjyRBJ6Z5NqDVbGHCw3VEy3VTbKF2v8zGd4aXh", note: "mainnet" },
+];
+
 export default function Home() {
   const { publicKey, connected } = useWallet();
   const { connection } = useConnection();
@@ -78,6 +110,7 @@ export default function Home() {
   const [cycle, setCycle] = useState<CycleData | null>(null);
   const [memory, setMemory] = useState<MemoryData | null>(null);
   const [liveness, setLiveness] = useState<LivenessData | null>(null);
+  const [traderState, setTraderState] = useState<TraderState | null>(null);
   const [showHowItWorks, setShowHowItWorks] = useState(true);
   const [yieldReceived, setYieldReceived] = useState<number | null>(null);
   const [yieldLoading, setYieldLoading] = useState(false);
@@ -154,6 +187,21 @@ export default function Home() {
         }
       } catch {
         // Static JSON not built yet or fetch failed — memory display stays empty
+      }
+    })();
+  }, []);
+
+  // ── Fetch trader state (live autonomous trader) ──
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/data/trader-state.json");
+        if (res.ok) {
+          const data: TraderState = await res.json();
+          if (data.wallet) { setTraderState(data); return; }
+        }
+      } catch {
+        // trader-state.json not built yet
       }
     })();
   }, []);
@@ -478,6 +526,104 @@ export default function Home() {
               {item.label}
             </span>
           ))}
+        </div>
+      </section>
+
+      {/* Live autonomous trader */}
+      <section style={{
+        padding: "var(--space-xl) 0", borderTop: "1px solid var(--border)",
+        display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))", gap: "var(--space-xl)",
+        alignItems: "start",
+      }}>
+        <div>
+          <div style={{ fontSize: "0.6875rem", fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase" as const, color: "var(--text-tertiary)", marginBottom: "var(--space-md)" }}>
+            Live Autonomous Trader
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-md)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: "var(--space-xs)" }}>
+              <span style={{
+                width: 8, height: 8, borderRadius: "50%",
+                background: traderState ? "var(--emerald)" : "var(--text-muted)",
+                boxShadow: traderState ? "0 0 6px var(--emerald)" : "none",
+              }} />
+              <span style={{ fontSize: "0.8125rem", fontWeight: 500, color: traderState ? "var(--emerald)" : "var(--text-muted)" }}>
+                {traderState ? "LIVE — Autonomous Trading on Mainnet" : "Loading trader status..."}
+              </span>
+            </div>
+            {traderState && (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-sm)" }}>
+                {[
+                  { label: "Status", value: traderState.open_position ? "OPEN (SOL LONG)" : "FLAT — Watching" },
+                  { label: "Total Trades", value: String(traderState.total_trades) },
+                  { label: "Candles", value: String(traderState.candle_count) },
+                  { label: "PnL", value: `${traderState.total_pnl_sol >= 0 ? "+" : ""}${traderState.total_pnl_sol.toFixed(4)} SOL` },
+                  { label: "Last Poll", value: traderState.last_poll ? new Date(traderState.last_poll).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "—" },
+                  { label: "Position Size", value: "0.20 SOL (10% bankroll)" },
+                ].map((s, i) => (
+                  <div key={i} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                    <span style={{
+                      fontFamily: "var(--font-display)", fontSize: "0.9375rem", fontWeight: 400,
+                      color: i === 0 && traderState.open_position ? "var(--coral)" : "var(--text-primary)",
+                    }}>
+                      {s.value}
+                    </span>
+                    <span style={{ fontSize: "0.625rem", color: "var(--text-muted)", letterSpacing: "0.06em", textTransform: "uppercase" }}>
+                      {s.label}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {traderState && traderState.trade_history.length > 0 && (
+              <div style={{ marginTop: "var(--space-sm)" }}>
+                <div style={{ fontSize: "0.6875rem", color: "var(--text-muted)", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 4 }}>
+                  Recent Trades
+                </div>
+                {traderState.trade_history.slice(-3).reverse().map((t, i) => (
+                  <div key={i} style={{
+                    fontSize: "0.75rem", color: t.pnl_pct >= 0 ? "var(--emerald)" : "var(--coral)",
+                    fontFamily: "var(--font-mono)",
+                  }}>
+                    {t.pnl_pct >= 0 ? "+" : ""}{t.pnl_pct.toFixed(2)}% — {t.exit_reason}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+        <div>
+          <div style={{ fontSize: "0.6875rem", fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase" as const, color: "var(--text-tertiary)", marginBottom: "var(--space-md)" }}>
+            Confirmed Mainnet Transactions
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-xs)" }}>
+            {MAINNET_TXS.map((tx, i) => (
+              <a key={i} href={`https://explorer.solana.com/tx/${tx.tx}`}
+                target="_blank" rel="noopener noreferrer"
+                style={{
+                  display: "flex", justifyContent: "space-between", alignItems: "center",
+                  padding: "var(--space-xs) var(--space-md)",
+                  background: "var(--surface-0)", border: "1px solid var(--border)",
+                  borderRadius: 6, textDecoration: "none",
+                  fontSize: "0.75rem", color: "var(--text-secondary)",
+                  transition: "border-color 0.15s",
+                }}
+              >
+                <span>
+                  <span style={{ color: "var(--text-primary)", fontWeight: 500 }}>{tx.label}</span>
+                  <span style={{ color: "var(--text-tertiary)", marginLeft: 8, fontFamily: "var(--font-mono)", fontSize: "0.625rem" }}>
+                    {tx.tx.slice(0, 8)}...
+                  </span>
+                </span>
+                <span style={{ fontSize: "0.625rem", color: "var(--emerald)", fontWeight: 500, letterSpacing: "0.04em" }}>
+                  {tx.note} ↗
+                </span>
+              </a>
+            ))}
+          </div>
+          <div style={{ marginTop: "var(--space-md)", fontSize: "0.6875rem", color: "var(--text-muted)", lineHeight: 1.6 }}>
+            Strategy: <strong style={{ color: "var(--text-primary)" }}>Survivor 2.69</strong> — signal 0.3 · TP 3×ATR · SL 1.5×ATR · Trail 0.5×ATR · Max 36h
+            <br />Runs on Railway 24/7. Polls Flash Trade every 5 min. No human in the loop.
+          </div>
         </div>
       </section>
 

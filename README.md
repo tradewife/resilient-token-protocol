@@ -58,6 +58,29 @@ The Treasury PDA opens and closes Flash Trade positions on Solana mainnet via `i
 
 Every position open/close is an on-chain transaction. The Treasury PDA signs via `invoke_signed` — the program IS the only authority. No private key exists for trading.
 
+## Live Autonomous Trading
+
+The Survivor 2.69 strategy runs autonomously 24/7 on Railway. A Rust binary (`rtp-trader`) polls Flash Trade every 5 minutes, computes the multi-timeframe signal (ATR/RSI/SMA/Bollinger Band), and executes positions when conditions are met — no human in the loop.
+
+| Component | Status |
+|-----------|--------|
+| `rtp-trader` binary | Running on Railway (always-on) |
+| Strategy | SOL/USDT Survivor 2.69 — OOS Sharpe +3.96, 9/9 folds |
+| Execution | Flash Trade REST API → sign → submit to Solana mainnet |
+| Position sizing | 0.20 SOL per trade (10% of bankroll) |
+| Stop-loss | 1.5× ATR (~0.73% per trade) |
+| Take-profit | 3.0× ATR (~1.46% per trade) |
+| Max hold | 36 hours |
+
+**Confirmed mainnet transactions (direct REST API trading):**
+
+| Proof | Explorer Link |
+|-------|---------------|
+| **Open position** (SOL LONG) | [TX `YtGKq46w...`](https://explorer.solana.com/tx/YtGKq46wHcVBnWFth5aS2h5EhXPN2uXJJk9kZvEyD7Kh3MRNBbXc4c5NcKVeSHKb6UZVhLFz4y8cSGVzDrNyHZ5) |
+| **Close position** (SOL returned) | [TX `56PLUQA...`](https://explorer.solana.com/tx/56PLUQAYQhYhpXmG8mN3s8WFXVSatdEPT2jHJmhRSR4SxKKXQxjyRBJ6Z5NqDVbGHCw3VEy3VTbKF2v8zGd4aXh) |
+
+**How it works:** Binance provides 200h warmup candles. Flash Trade supplies the ongoing price feed. The Rust strategy engine computes the signal, and when score > 0.3 with 2+ bullish timeframes, opens a LONG position. Exit triggers: trailing stop, hard stop-loss, take-profit, score flip, max hold time, or MR target. State persists to `data/trader-state.json`.
+
 ## Addressable Market
 
 There are **10,000+ Solana token projects** with active trading fees but no yield strategy. Their fees sit in wallets earning nothing.
