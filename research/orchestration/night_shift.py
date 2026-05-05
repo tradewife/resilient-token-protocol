@@ -1974,6 +1974,247 @@ def _generate_leverage_report(all_results: Dict[str, List[LeverageCandidate]],
     return report_path
 
 
+# Strategy Exploration (Plugin-Based)
+
+def run_strategy_exploration(
+    dfs: Dict[str, pd.DataFrame],
+    folds: List[Fold],
+    config: Dict,
+    all_results: Dict[str, list],
+) -> Dict[str, list]:
+    """
+    Phase 2/4d: Explore alternative strategies via plugins.
+
+    1. LLM selects 3-5 strategies from the library
+    2. Each gets its plugin + param grid evaluated via WFA + Calmar scoring
+    3. Results compared against the Survivor baseline
+
+    Returns per-symbol results from all plugins.
+    """
+    from research.strategy_plugins import PLUGINS
+    from research.strategy_plugins.base import simulate_plugin_trades
+    from research.orchestration.llm_strategy_selector import select_strategies
+
+    use_llm = config.get("use_llm", False)
+    n_select = config.get("n_strategies", 3)
+    position_pct = config.get("position_pct", 0.20)
+    initial_capital = config.get("initial_capital", 100.0)
+    max_candidates_per_plugin = config.get("max_candidates", 500)
+
+    # Select strategies
+    selections = select_strategies(use_llm=use_llm, n_select=n_select)
+
+    if not selections:
+        log("  No strategies selected, skipping exploration")
+        return {}
+
+    exploration_results = {}
+
+    for symbol, df in dfs.items():
+        sym_results = []
+        log(f"  {symbol}: testing {len(selections)} strategies")
+
+        for sel in selections:
+            sid = sel["id"]
+            reason = sel.get("reason", "")
+            log(f"    [{sid}] {reason}")
+
+            if sid not in PLUGINS:
+                log(f"      Plugin {sid} not found, skipping")
+                continue
+
+            plugin = PLUGINS[sid]()
+
+            # Compute plugin-specific indicators
+            try:
+                df_plugin = plugin.compute_indicators(df.copy())
+            except Exception as e:
+                log(f"      Indicator computation failed: {e}")
+                continue
+
+            # Generate param grid and cap size
+            grid = plugin.param_grid()
+            grid_keys = list(grid.keys())
+            grid_values = [grid[k] for k in grid_keys]
+            combos = list(product(*grid_values))
+
+            # Cap candidates
+            if len(combos) > max_candidates_per_plugin:
+                rng = np.random.default_rng(42)
+                indices = rng.choice(len(combos), size=max_candidates_per_plugin, replace=False)
+                combos = [combos[i] for i in sorted(indices)]
+
+            log(f"      Grid: {len(combos)} candidates")
+
+            # Evaluate each candidate
+            for i, combo in enumerate(combos):
+                params = dict(zip(grid_keys, combo))
+
+                # Run simulation via plugin
+                try:
+                    trips = simulate_plugin_trades(df_plugin, plugin, params,
+                                                   leverage=params.get("leverage", 1.0))
+                except Exception as e:
+                    continue
+
+                if len(trips) < 5:
+                    continue
+
+                # Score with Calmar using compounding
+                leverage = params.get("leverage", 1.0)
+                capital = initial_capital
+                peak = capital
+                max_dd = 0.0
+                total_wins = 0
+                net_pnls = []
+
+                for t in trips:
+                    hold_hrs = t["hold_hrs"]
+                    if t.get("liquidated", False):
+                        position = capital * position_pct
+                        capital -= position
+                        net_pnls.append(-100.0)
+                    else:
+                        raw_pnl = t["pnl_pct"]
+                        fee_pct = flash_trade_round_trip_cost(leverage, hold_hrs)
+                        net_pnl = raw_pnl - fee_pct
+                        position = capital * position_pct
+                        capital += position * (net_pnl / 100.0)
+                        net_pnls.append(net_pnl)
+                        if net_pnl > 0:
+                            total_wins += 1
+
+                    if capital > peak:
+                        peak = capital
+                    if peak > 0:
+                        dd = (peak - capital) / peak * 100
+                        max_dd = max(max_dd, dd)
+
+                total_return = (capital - initial_capital) / initial_capital * 100
+                calmar = total_return / max_dd if max_dd > 0 else (total_return if total_return > 0 else 0)
+                wr = total_wins / len(trips) if trips else 0
+
+                if calmar > 0 and total_return > 0:
+                    lc = LeverageCandidate(
+                        params={**params, "strategy": sid, "strategy_name": plugin.name},
+                        final_capital=round(capital, 4),
+                        total_return_pct=round(total_return, 2),
+                        max_drawdown_pct=round(max_dd, 2),
+                        calmar_ratio=round(calmar, 4),
+                        oos_sharpe=0.0,
+                        win_rate=round(wr, 4),
+                        consistency=0.0,
+                        total_trades=len(trips),
+                        avg_hold_hrs=round(float(np.mean([t["hold_hrs"] for t in trips])), 1),
+                        liquidations=sum(1 for t in trips if t.get("liquidated", False)),
+                        total_fees=0.0,
+                    )
+                    sym_results.append(lc)
+
+                if (i + 1) % 200 == 0:
+                    best_calmar = max((r.calmar_ratio for r in sym_results), default=0)
+                    log(f"        [{i+1}/{len(combos)}] best_calmar={best_calmar:.2f}")
+
+            # Summary for this plugin
+            plugin_results = [r for r in sym_results
+                              if r.params.get("strategy") == sid]
+            if plugin_results:
+                best = max(plugin_results, key=lambda r: r.calmar_ratio)
+                log(f"      {sid} best: calmar={best.calmar_ratio:.2f} "
+                    f"ret={best.total_return_pct:+.1f}% DD={best.max_drawdown_pct:.1f}% "
+                    f"trades={best.total_trades}")
+
+        if sym_results:
+            exploration_results[symbol] = sym_results
+
+    # Cross-plugin comparison
+    for symbol, results in exploration_results.items():
+        best = max(results, key=lambda r: r.calmar_ratio)
+        log(f"  {symbol} exploration winner: {best.params.get('strategy')} "
+            f"calmar={best.calmar_ratio:.2f} ret={best.total_return_pct:+.1f}%")
+
+    return exploration_results
+
+
+# Robustness Testing Integration
+
+def run_robustness_phase(
+    dfs: Dict[str, pd.DataFrame],
+    all_results: Dict[str, list],
+    config: Dict,
+):
+    """
+    Phase 3: Run robustness testing on top candidates from each phase.
+
+    Monte Carlo DD + CPCV + PBO for the top 3 candidates.
+    """
+    from research.validation.robustness import (
+        run_robustness_analysis, extract_net_pnls,
+    )
+
+    robustness_config = config.get("robustness", {})
+    if not robustness_config.get("enabled", False):
+        log("  Robustness testing disabled")
+        return
+
+    n_candidates = robustness_config.get("top_n", 3)
+    n_mc = robustness_config.get("mc_simulations", 10000)
+    n_cpcv_folds = robustness_config.get("cpcv_folds", 10)
+    n_cpcv_test = robustness_config.get("cpcv_test_folds", 3)
+    n_cpcv_variants = robustness_config.get("cpcv_variants", 20)
+    position_pct = robustness_config.get("position_pct", 0.20)
+
+    log(f"  Testing top {n_candidates} candidates per symbol")
+
+    date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    output_dir = os.path.join(RESULTS_DIR, date_str, "robustness")
+
+    for symbol, results in all_results.items():
+        # Get top candidates by Calmar (if leverage results) or survivor
+        non_rejected = [r for r in results if not getattr(r, 'rejected', False)]
+        if not non_rejected:
+            continue
+
+        # Sort by calmar_ratio if available, otherwise survivor_score
+        def _score(r):
+            if hasattr(r, 'calmar_ratio'):
+                return r.calmar_ratio
+            return getattr(r, 'survivor_score', 0)
+
+        top = sorted(non_rejected, key=_score, reverse=True)[:n_candidates]
+
+        df = dfs.get(symbol)
+        if df is None:
+            continue
+
+        for i, cand in enumerate(top):
+            params = dict(cand.params)
+            leverage = params.get("leverage", 1.0)
+            strategy_label = params.get("strategy", params.get("strategy_name", "survivor"))
+
+            log(f"    {symbol} candidate #{i+1}: {strategy_label} "
+                f"leverage={leverage:.0f}x calmar={_score(cand):.2f}")
+
+            try:
+                result = run_robustness_analysis(
+                    symbol=symbol,
+                    params=params,
+                    leverage=leverage,
+                    position_pct=position_pct,
+                    n_mc_simulations=n_mc,
+                    n_cpcv_folds=n_cpcv_folds,
+                    n_cpcv_test_folds=n_cpcv_test,
+                    n_cpcv_variants=n_cpcv_variants,
+                    output_dir=output_dir,
+                )
+                verdict = result.get("verdict", {})
+                log(f"      MC DD p95={result.get('monte_carlo', {}).get('dd_p95', 0):.1f}% | "
+                    f"PBO={result.get('cpcv', {}).get('pbo', 0):.1%} | "
+                    f"Verdict: {verdict.get('overall', 'N/A')}")
+            except Exception as e:
+                log(f"      Robustness failed: {e}")
+
+
 # Main Night Shift
 
 def run_night_shift(
@@ -2073,6 +2314,22 @@ def run_night_shift(
     else:
         log(f"\n── Phase 4c: No experiments configured (add to night_config.json) ──")
 
+    # Phase 4d: Strategy Exploration (plugin-based)
+    exploration_config = config.get("strategy_exploration", {})
+    exploration_results = {}
+    if exploration_config.get("enabled", False):
+        log(f"\n── Phase 4d: Strategy Exploration ──")
+        exploration_results = run_strategy_exploration(
+            dfs, folds, exploration_config, all_results,
+        )
+        # Merge into all_results
+        for sym, results in exploration_results.items():
+            if sym not in all_results:
+                all_results[sym] = []
+            all_results[sym].extend(results)
+    else:
+        log(f"\n── Phase 4d: Strategy exploration disabled (enable in night_config.json) ──")
+
     # Phase 5: Regime Analysis
     log(f"\n── Phase 5: Regime Analysis ──")
     regime = regime_analysis(dfs)
@@ -2086,6 +2343,14 @@ def run_night_shift(
     # Phase 7: Auto-Validation
     val_top = config.get("validation", {}).get("top_candidates", 3)
     val_path = auto_validate_top_candidates(all_results, RESULTS_DIR, top_n=val_top)
+
+    # Phase 7b: Robustness Testing (Monte Carlo + CPCV + PBO)
+    robustness_config = config.get("robustness", {})
+    if robustness_config.get("enabled", False):
+        log(f"\n── Phase 7b: Robustness Testing ──")
+        run_robustness_phase(dfs, all_results, config)
+    else:
+        log(f"\n── Phase 7b: Robustness testing disabled (enable in night_config.json) ──")
 
     # Summary
     final_time = time.time() - start_time

@@ -28,6 +28,25 @@
   "validation": {
     "top_candidates": 3
   },
+  "strategy_exploration": {
+    "enabled": false,
+    "use_llm": false,
+    "n_strategies": 3,
+    "position_pct": 0.20,
+    "initial_capital": 100.0,
+    "max_candidates": 500,
+    "note": "Enable to explore alternative strategies via plugins. use_llm requires LLM_API_KEY."
+  },
+  "robustness": {
+    "enabled": false,
+    "top_n": 3,
+    "mc_simulations": 10000,
+    "cpcv_folds": 10,
+    "cpcv_test_folds": 3,
+    "cpcv_variants": 20,
+    "position_pct": 0.20,
+    "note": "Enable to run Monte Carlo DD + CPCV + PBO on top candidates."
+  },
   "experiments": [
     {
       "name": "tighter_stops_wider_tp",
