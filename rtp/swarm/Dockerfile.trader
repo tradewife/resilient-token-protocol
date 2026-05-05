@@ -18,5 +18,8 @@ RUN mkdir -p /app/keys /data
 
 ENV RTP_TRADER_KEYPAIR=/app/keys/trader.json
 ENV RTP_TRADER_STATE_PATH=/data/trader-state.json
+ENV RTP_TRADER_HTTP_PORT=8080
+
+EXPOSE 8080
 
 CMD sh -c 'if [ -n "$RTP_TRADER_KEYPAIR_JSON" ]; then echo "$RTP_TRADER_KEYPAIR_JSON" > /app/keys/trader.json; fi && rtp-trader'

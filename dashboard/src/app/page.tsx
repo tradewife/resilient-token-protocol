@@ -191,19 +191,23 @@ export default function Home() {
     })();
   }, []);
 
-  // ── Fetch trader state (live autonomous trader) ──
+  // ── Fetch trader state (live autonomous trader via API route) ──
   useEffect(() => {
-    (async () => {
+    let alive = true;
+    const poll = async () => {
       try {
-        const res = await fetch("/data/trader-state.json");
+        const res = await fetch("/api/trader-status");
         if (res.ok) {
           const data: TraderState = await res.json();
-          if (data.wallet) { setTraderState(data); return; }
+          if (data.wallet && alive) { setTraderState(data); }
         }
       } catch {
-        // trader-state.json not built yet
+        // Trader API not available yet
       }
-    })();
+    };
+    poll();
+    const id = setInterval(poll, 15_000); // refresh every 15s
+    return () => { alive = false; clearInterval(id); };
   }, []);
 
   // ── Program liveness (client-side devnet RPC) ──

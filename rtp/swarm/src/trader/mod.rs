@@ -11,6 +11,8 @@ pub mod strategy;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 use candles::CandleBuffer;
 use strategy::{StrategyParams, TradeRecord, OpenPosition};
@@ -99,6 +101,79 @@ impl TraderState {
     }
 }
 
+/// Spawn a lightweight HTTP server that serves GET /state with current trader state.
+/// Returns the JoinHandle so the caller can optionally wait on it.
+pub fn start_status_server(
+    state: Arc<Mutex<TraderState>>,
+    port: u16,
+) -> tokio::task::JoinHandle<()> {
+    tokio::spawn(async move {
+        let listener = match tokio::net::TcpListener::bind(format!("0.0.0.0:{}", port)).await {
+            Ok(l) => {
+                tracing::info!("[HTTP] Status server listening on port {}", port);
+                l
+            }
+            Err(e) => {
+                tracing::error!("[HTTP] Failed to bind port {}: {}. Status server not started.", port, e);
+                return;
+            }
+        };
+
+        loop {
+            let (stream, _) = match listener.accept().await {
+                Ok(s) => s,
+                Err(e) => {
+                    tracing::warn!("[HTTP] Accept failed: {}", e);
+                    continue;
+                }
+            };
+
+            let state = state.clone();
+            tokio::spawn(async move {
+                if let Err(e) = handle_status_request(stream, state).await {
+                    tracing::debug!("[HTTP] Request error: {}", e);
+                }
+            });
+        }
+    })
+}
+
+async fn handle_status_request(
+    mut stream: tokio::net::TcpStream,
+    state: Arc<Mutex<TraderState>>,
+) -> Result<(), String> {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    // Read enough to parse the request line
+    let mut buf = [0u8; 1024];
+    let n = stream.read(&mut buf).await.map_err(|e| format!("read: {}", e))?;
+    let request = String::from_utf8_lossy(&buf[..n]);
+
+    // Extract the path from the request line (e.g., "GET /state HTTP/1.1")
+    let path = request.lines().next()
+        .and_then(|line| line.split_whitespace().nth(1))
+        .unwrap_or("/");
+
+    let (status, body, content_type) = if path == "/state" || path == "/" {
+        let snapshot = state.lock().await;
+        let json = serde_json::to_string(&*snapshot).unwrap_or_else(|_| "{}".to_string());
+        ("200 OK", json, "application/json")
+    } else if path == "/health" {
+        ("200 OK", "ok".to_string(), "text/plain")
+    } else {
+        ("404 Not Found", "not found".to_string(), "text/plain")
+    };
+
+    let response = format!(
+        "HTTP/1.1 {}\r\nContent-Type: {}\r\nContent-Length: {}\r\nAccess-Control-Allow-Origin: *\r\nConnection: close\r\n\r\n{}",
+        status, content_type, body.len(), body
+    );
+
+    stream.write_all(response.as_bytes()).await.map_err(|e| format!("write: {}", e))?;
+    stream.flush().await.map_err(|e| format!("flush: {}", e))?;
+    Ok(())
+}
+
 /// Run the main trader loop.
 pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
     // Load keypair
@@ -119,10 +194,19 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
     tracing::info!("State:      {}", config.state_path.display());
     tracing::info!("");
 
-    // Load or create state
-    let mut state = TraderState::load(&config.state_path).unwrap_or_else(|| TraderState::new(&wallet));
+    // Load or create state — shared with HTTP status server via Arc<Mutex>
+    let initial = TraderState::load(&config.state_path).unwrap_or_else(|| TraderState::new(&wallet));
+    let state = Arc::new(Mutex::new(initial));
     let params = StrategyParams::default();
     let mut buffer = CandleBuffer::new(300); // 300 candles ≈ 12.5 days of 1h data
+
+    // Start HTTP status server for live dashboard access
+    let http_port: u16 = std::env::var("RTP_TRADER_HTTP_PORT")
+        .unwrap_or_else(|_| "8080".to_string())
+        .parse()
+        .unwrap_or(8080);
+    let http_state = state.clone();
+    start_status_server(http_state, http_port);
 
     // Warmup: fetch historical candles from Binance
     tracing::info!("[WARMUP] Fetching 200h OHLCV from Binance...");
@@ -141,17 +225,21 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
     tracing::info!("[LOOP] Starting autonomous trading loop...");
     loop {
         let cycle_start = Utc::now();
-        state.last_poll = cycle_start.to_rfc3339();
+        {
+            let mut s = state.lock().await;
+            s.last_poll = cycle_start.to_rfc3339();
+        }
 
         // 1. Fetch current SOL price from Flash Trade
         match executor::get_sol_price().await {
             Ok(price) => {
                 buffer.append_tick(price, cycle_start.timestamp());
+                let has_pos = state.lock().await.open_position.is_some();
                 tracing::info!(
                     "[POLL] SOL=${:.2} | candles={} | pos={}",
                     price,
                     buffer.len(),
-                    if state.open_position.is_some() { "OPEN" } else { "FLAT" }
+                    if has_pos { "OPEN" } else { "FLAT" }
                 );
             }
             Err(e) => {
@@ -165,84 +253,92 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
         let volumes = buffer.volumes();
 
         // 2. Check exit on existing position
-        if let Some(ref pos) = state.open_position {
-            if let Some(signal) = strategy::compute_signal(&closes, &volumes) {
-                let now_secs = Utc::now().timestamp();
-                let current_price = closes.last().copied().unwrap_or(0.0);
-                let exit = strategy::check_exit(
-                    &params,
-                    pos.entry_price,
-                    pos.entry_time,
-                    pos.peak_price,
-                    pos.entry_rsi,
-                    current_price,
-                    signal.score,
-                    signal.rsi,
-                    signal.atr,
-                    now_secs,
-                );
+        let exit_info = {
+            let s = state.lock().await;
+            if let Some(ref pos) = s.open_position {
+                if let Some(signal) = strategy::compute_signal(&closes, &volumes) {
+                    let now_secs = Utc::now().timestamp();
+                    let current_price = closes.last().copied().unwrap_or(0.0);
+                    let exit = strategy::check_exit(
+                        &params,
+                        pos.entry_price,
+                        pos.entry_time,
+                        pos.peak_price,
+                        pos.entry_rsi,
+                        current_price,
+                        signal.score,
+                        signal.rsi,
+                        signal.atr,
+                        now_secs,
+                    );
+                    Some((exit, pos.clone(), signal.score))
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        };
 
-                if let Some(reason) = exit {
-                    tracing::info!("[EXIT] {:?} triggered!", reason);
+        if let Some((Some(reason), pos_info, _)) = exit_info {
+            tracing::info!("[EXIT] {:?} triggered!", reason);
 
-                    if !config.dry_run {
-                        // Fetch position key from Flash Trade
-                        match executor::get_positions(&wallet).await {
-                            Ok(positions) => {
-                                if let Some(pos_info) = positions.iter().find(|p| {
-                                    p.market_symbol == "SOL" && p.side_ui == "Long"
-                                }) {
-                                    match executor::close_position(
-                                        &keypair,
-                                        &pos_info.key,
-                                        &pos_info.size_usd_ui,
-                                    )
-                                    .await
-                                    {
-                                        Ok((sig, pnl)) => {
-                                            tracing::info!("[EXIT] TX: https://explorer.solana.com/tx/{}?cluster=mainnet-beta", sig);
-                                            tracing::info!("[EXIT] PnL: ${:.4}", pnl);
+            if !config.dry_run {
+                match executor::get_positions(&wallet).await {
+                    Ok(positions) => {
+                        if let Some(pos_api) = positions.iter().find(|p| {
+                            p.market_symbol == "SOL" && p.side_ui == "Long"
+                        }) {
+                            match executor::close_position(
+                                &keypair,
+                                &pos_api.key,
+                                &pos_api.size_usd_ui,
+                            )
+                            .await
+                            {
+                                Ok((sig, pnl)) => {
+                                    tracing::info!("[EXIT] TX: https://explorer.solana.com/tx/{}?cluster=mainnet-beta", sig);
+                                    tracing::info!("[EXIT] PnL: ${:.4}", pnl);
 
-                                            // Record trade
-                                            let trade = TradeRecord {
-                                                entry_price: pos.entry_price,
-                                                exit_price: closes.last().copied().unwrap_or(0.0),
-                                                entry_time: pos.entry_time,
-                                                exit_time: now_secs,
-                                                pnl_pct: if pos.entry_price > 0.0 {
-                                                    (closes.last().copied().unwrap_or(0.0) - pos.entry_price) / pos.entry_price * 100.0
-                                                } else { 0.0 },
-                                                exit_reason: format!("{:?}", reason),
-                                                size_usd: pos.size_usd,
-                                            };
-                                            state.trade_history.push(trade);
-                                            state.total_trades += 1;
-                                        }
-                                        Err(e) => {
-                                            tracing::error!("[EXIT] Close failed: {}", e);
-                                        }
-                                    }
-                                } else {
-                                    tracing::warn!("[EXIT] No SOL Long position found on Flash Trade");
+                                    let exit_price = closes.last().copied().unwrap_or(0.0);
+                                    let trade = TradeRecord {
+                                        entry_price: pos_info.entry_price,
+                                        exit_price,
+                                        entry_time: pos_info.entry_time,
+                                        exit_time: Utc::now().timestamp(),
+                                        pnl_pct: if pos_info.entry_price > 0.0 {
+                                            (exit_price - pos_info.entry_price) / pos_info.entry_price * 100.0
+                                        } else { 0.0 },
+                                        exit_reason: format!("{:?}", reason),
+                                        size_usd: pos_info.size_usd,
+                                    };
+                                    let mut s = state.lock().await;
+                                    s.trade_history.push(trade);
+                                    s.total_trades += 1;
+                                }
+                                Err(e) => {
+                                    tracing::error!("[EXIT] Close failed: {}", e);
                                 }
                             }
-                            Err(e) => {
-                                tracing::error!("[EXIT] Positions fetch failed: {}", e);
-                            }
+                        } else {
+                            tracing::warn!("[EXIT] No SOL Long position found on Flash Trade");
                         }
-                    } else {
-                        tracing::info!("[DRY RUN] Would close position: {:?}", reason);
                     }
+                    Err(e) => {
+                        tracing::error!("[EXIT] Positions fetch failed: {}", e);
+                    }
+                }
+            } else {
+                tracing::info!("[DRY RUN] Would close position: {:?}", reason);
+            }
 
-                    state.open_position = None;
-                } else {
-                    // Update peak price for trailing stop
-                    let current_price = closes.last().copied().unwrap_or(0.0);
-                    if let Some(ref mut pos) = state.open_position {
-                        if current_price > pos.peak_price {
-                            pos.peak_price = current_price;
-                        }
-                    }
+            state.lock().await.open_position = None;
+        } else if let Some((None, pos_info, _)) = exit_info {
+            // No exit triggered — update peak price for trailing stop
+            let current_price = closes.last().copied().unwrap_or(0.0);
+            if current_price > pos_info.peak_price {
+                if let Some(ref mut pos) = state.lock().await.open_position {
+                    pos.peak_price = current_price;
                 }
             }
         } else {
@@ -266,7 +362,6 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
                             Ok((sig, size_usd, entry_price)) => {
                                 tracing::info!("[ENTRY] TX: https://explorer.solana.com/tx/{}?cluster=mainnet-beta", sig);
 
-                                // Get position key
                                 let pos_key = executor::get_positions(&wallet)
                                     .await
                                     .ok()
@@ -274,7 +369,7 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
                                     .map(|p| p.key)
                                     .unwrap_or_default();
 
-                                state.open_position = Some(OpenPosition {
+                                state.lock().await.open_position = Some(OpenPosition {
                                     entry_price,
                                     entry_time: Utc::now().timestamp(),
                                     peak_price: entry_price,
@@ -297,9 +392,12 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
         }
 
         // 4. Save state
-        state.candle_count = buffer.len();
-        if let Err(e) = state.save(&config.state_path) {
-            tracing::warn!("[STATE] Save failed: {}", e);
+        {
+            let mut s = state.lock().await;
+            s.candle_count = buffer.len();
+            if let Err(e) = s.save(&config.state_path) {
+                tracing::warn!("[STATE] Save failed: {}", e);
+            }
         }
 
         // 5. Sleep
