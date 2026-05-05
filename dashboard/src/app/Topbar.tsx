@@ -35,6 +35,11 @@ export default function Topbar({ activePage }: TopbarProps) {
       </div>
       <div className="topbar-actions">
         <span className="network-badge">Devnet</span>
+        <span style={{
+          fontSize: "0.5625rem", fontWeight: 600, letterSpacing: "0.08em",
+          color: "#fff", background: "var(--emerald)", padding: "2px 8px",
+          borderRadius: 3, textTransform: "uppercase", lineHeight: 1.6,
+        }}>Mainnet</span>
         {NAV_ITEMS.map((item) => (
           <Link
             key={item.key}
@@ -77,6 +82,11 @@ export default function Topbar({ activePage }: TopbarProps) {
             </Link>
           ))}
           <span className="menu-badge">Devnet</span>
+          <span style={{
+            fontSize: "0.5625rem", fontWeight: 600, letterSpacing: "0.08em",
+            color: "#fff", background: "var(--emerald)", padding: "2px 8px",
+            borderRadius: 3, textTransform: "uppercase", lineHeight: 1.6,
+          }}>Mainnet</span>
         </nav>
       )}
     </header>

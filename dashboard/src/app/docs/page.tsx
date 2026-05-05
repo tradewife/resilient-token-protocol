@@ -87,7 +87,7 @@ const DOC_GROUPS: DocGroup[] = [
             <h3>How It Works</h3>
             <ol>
               <li><strong>Fees arrive</strong> — creator fees (SOL) from the token flow to its own per-authority treasury PDA — isolated from every other token</li>
-              <li><strong>Swarm trades</strong> — the Treasury PDA executes validated strategies via Flash Trade CPI (on-chain Solana perps, invoke_signed). No cross-chain bridge. Each token&apos;s capital is traded independently.</li>
+              <li><strong>Swarm trades</strong> — the Treasury PDA executes validated strategies via Flash Trade CPI (on-chain Solana perps, invoke_signed), or the live autonomous trader executes directly via REST API. No cross-chain bridge. Each token&apos;s capital is traded independently.</li>
               <li><strong>Yield returns</strong> — generated yield flows back to that token&apos;s own treasury PDA</li>
               <li><strong>Redistribution</strong> — 70% to holders, 20% to project dev, 10% to ecosystem (enforced on-chain)</li>
             </ol>
