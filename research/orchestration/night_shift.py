@@ -93,10 +93,20 @@ COARSE_GRID = {
     "score_flip_delay_hrs": [0, 2],
 }
 
-# Fine grid for refinement around top candidates
+# Fine grid for refinement around top candidates — leverage sweep only (3x-10x)
+# Top 100 × (6 trailing × 5 flip × 8 leverage) = 24,000 full WFA evaluations
+# All leveraged candidates scored with compounding + Flash Trade fee model
 FINE_GRID = {
-    "trailing_stop_atr":   [0.0, 0.5, 0.8, 1.0, 1.2, 1.5],
+    "trailing_stop_atr":   [0.0, 0.3, 0.5, 0.8, 1.0, 1.5],
     "score_flip_delay_hrs": [0, 1, 2, 3, 4],
+    "leverage":            [3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0],
+}
+
+# Flash Trade fee model (from SKILL.md / TransactionFlow.md)
+FLASH_TRADE_FEES = {
+    "open_fee_pct": 0.06,        # % of notional (openPositionFeePercent)
+    "close_fee_pct": 0.06,       # % of notional
+    "hourly_borrow_pct": 0.0042, # % of notional per hour (marginFeePercentage)
 }
 
 WFA_CONFIG = {
@@ -248,8 +258,16 @@ class CandidateResult:
 
 
 def evaluate_on_fold(df: pd.DataFrame, fold: Fold, params: Dict,
-                     skip_is: bool = False) -> Dict:
-    """Evaluate a config on a single train/test fold. Returns IS + OOS metrics."""
+                     skip_is: bool = False,
+                     starting_capital: float = None,
+                     position_pct: float = 0.20) -> Dict:
+    """Evaluate a config on a single train/test fold. Returns IS + OOS metrics.
+
+    When starting_capital is provided, OOS metrics are computed using fee-adjusted
+    compounding: each trade is sized at position_pct of current capital, Flash Trade
+    fees (open/close/borrow) are deducted per trade, and capital carries forward.
+    This gives realistic leveraged returns.
+    """
     is_bb = params.get("strategy") == "bb_mean_reversion"
     sim_fn = simulate_bb_trades if is_bb else simulate_trades
 
@@ -273,20 +291,99 @@ def evaluate_on_fold(df: pd.DataFrame, fold: Fold, params: Dict,
         test_df = compute_indicators(test_df)
     test_trips = sim_fn(test_df, params) if len(test_df) > 10 else []
     test_hours = fold.test_end_idx - fold.test_start_idx
-    test_m = compute_metrics(test_trips, total_hours=test_hours)
 
-    return {
-        "is_sharpe": is_sharpe,
-        "is_pnl": is_pnl,
-        "oos_sharpe": test_m["sharpe"],
-        "oos_pnl": test_m["total_pnl_pct"],
-        "oos_pf": test_m["pf"],
-        "oos_wr": test_m["win_rate"],
-        "oos_max_dd": test_m["max_dd_pct"],
-        "oos_trades": test_m["round_trips"],
-        "oos_avg_hold": test_m["avg_hold_hrs"],
-        "oos_exit_reasons": test_m.get("exit_reasons", {}),
-    }
+    if starting_capital is not None:
+        # --- Compounding + Flash Trade fee-adjusted OOS ---
+        leverage = params.get("leverage", 1.0)
+        capital = starting_capital
+        peak = capital
+        fold_max_dd = 0.0
+        fold_wins = 0
+        fold_trades = len(test_trips)
+        trade_pnls = []       # net PnL % per trade (for Sharpe)
+        exit_reasons = {}
+        hold_times = []
+
+        for t in test_trips:
+            hold_hrs = t["hold_hrs"]
+            hold_times.append(hold_hrs)
+            reason = t.get("exit", "signal")
+
+            if t.get("liquidated", False):
+                # Liquidation: lose the entire margin on this position
+                position = capital * position_pct
+                capital -= position
+                trade_pnls.append(-100.0)
+                exit_reasons["liquidation"] = exit_reasons.get("liquidation", 0) + 1
+            else:
+                # Raw PnL already includes leverage (fast sim multiplies by leverage)
+                raw_pnl_pct = t["pnl_pct"]
+                # Flash Trade fees: open + close + hourly borrow, as % of margin
+                fee_pct = flash_trade_round_trip_cost(leverage, hold_hrs)
+                net_pnl_pct = raw_pnl_pct - fee_pct
+
+                position = capital * position_pct
+                capital += position * (net_pnl_pct / 100.0)
+                trade_pnls.append(net_pnl_pct)
+                if net_pnl_pct > 0:
+                    fold_wins += 1
+                exit_reasons[reason] = exit_reasons.get(reason, 0) + 1
+
+            if capital > peak:
+                peak = capital
+            if peak > 0:
+                dd = (peak - capital) / peak * 100
+                fold_max_dd = max(fold_max_dd, dd)
+
+        # Fold return
+        fold_return = (capital - starting_capital) / starting_capital * 100 if starting_capital > 0 else 0
+
+        # Fold Sharpe from per-trade returns
+        if len(trade_pnls) > 1 and np.std(trade_pnls) > 0:
+            fold_sharpe = np.mean(trade_pnls) / np.std(trade_pnls) * np.sqrt(len(trade_pnls) / test_hours * 8760)
+        else:
+            fold_sharpe = 0.0
+
+        # Profit factor from net PnLs
+        net_wins = [p for p in trade_pnls if p > 0]
+        net_losses = [p for p in trade_pnls if p <= 0]
+        avg_win = np.mean(net_wins) if net_wins else 0
+        avg_loss = abs(np.mean(net_losses)) if net_losses else 0
+        fold_pf = avg_win / avg_loss if avg_loss > 0 else 999.0
+
+        avg_hold = float(np.mean(hold_times)) if hold_times else 0
+
+        result = {
+            "is_sharpe": is_sharpe,
+            "is_pnl": is_pnl,
+            "oos_sharpe": fold_sharpe,
+            "oos_pnl": fold_return,
+            "oos_pf": fold_pf,
+            "oos_wr": fold_wins / fold_trades if fold_trades > 0 else 0,
+            "oos_max_dd": fold_max_dd,
+            "oos_trades": fold_trades,
+            "oos_avg_hold": avg_hold,
+            "oos_exit_reasons": exit_reasons,
+            "oos_final_capital": capital,
+            "oos_fold_peak": peak,
+        }
+    else:
+        # --- Standard additive OOS (no compounding, no fees) ---
+        test_m = compute_metrics(test_trips, total_hours=test_hours)
+        result = {
+            "is_sharpe": is_sharpe,
+            "is_pnl": is_pnl,
+            "oos_sharpe": test_m["sharpe"],
+            "oos_pnl": test_m["total_pnl_pct"],
+            "oos_pf": test_m["pf"],
+            "oos_wr": test_m["win_rate"],
+            "oos_max_dd": test_m["max_dd_pct"],
+            "oos_trades": test_m["round_trips"],
+            "oos_avg_hold": test_m["avg_hold_hrs"],
+            "oos_exit_reasons": test_m.get("exit_reasons", {}),
+        }
+
+    return result
 
 
 def evaluate_candidate(df: pd.DataFrame, folds: List[Fold], params: Dict,
@@ -301,9 +398,31 @@ def evaluate_candidate(df: pd.DataFrame, folds: List[Fold], params: Dict,
         skip_is: If True, skip IS evaluation (train window).
                  Use for coarse grid where we only need rough OOS ordering.
     """
+    leverage = params.get("leverage", 1.0)
+    use_compounding = leverage > 1.0
+
+    # When compounding, capital carries forward across sequential folds
+    COMPOUND_INITIAL = 100.0
+    POSITION_PCT = 0.20
+
     fold_results = []
+    capital = COMPOUND_INITIAL
+    global_peak = capital
+    global_max_dd = 0.0
+
     for fold in folds:
-        fm = evaluate_on_fold(df, fold, params, skip_is=skip_is)
+        if use_compounding:
+            fm = evaluate_on_fold(df, fold, params, skip_is=skip_is,
+                                  starting_capital=capital, position_pct=POSITION_PCT)
+            capital = fm.get("oos_final_capital", capital)
+            fold_peak = fm.get("oos_fold_peak", capital)
+            if fold_peak > global_peak:
+                global_peak = fold_peak
+            if global_peak > 0:
+                dd = (global_peak - capital) / global_peak * 100
+                global_max_dd = max(global_max_dd, dd)
+        else:
+            fm = evaluate_on_fold(df, fold, params, skip_is=skip_is)
         fold_results.append(fm)
 
     # Aggregate OOS
@@ -326,13 +445,19 @@ def evaluate_candidate(df: pd.DataFrame, folds: List[Fold], params: Dict,
     avg_is_sharpe = float(np.mean(is_sharpes)) if is_sharpes else 0
     avg_is_pnl = float(np.sum(is_pnls)) if is_pnls else 0
     # Use MEDIAN for OOS Sharpe — robust to single-fold outliers.
-    # Mean of [-44, -24, -13, +2, +17, +18, +31, +55, +8563] = +956 (wrong!)
-    # Median of same = +17 (correct representative performance)
     avg_oos_sharpe = float(np.median(oos_sharpes)) if oos_sharpes else 0
-    avg_oos_pnl = float(np.sum(oos_pnls)) if oos_pnls else 0
+
+    if use_compounding:
+        # Compounded: total return from actual capital growth, max DD from equity curve
+        avg_oos_pnl = round((capital - COMPOUND_INITIAL) / COMPOUND_INITIAL * 100, 2)
+        avg_oos_dd = round(global_max_dd, 2)
+    else:
+        # Additive: sum of per-fold PnLs, mean of per-fold DDs
+        avg_oos_pnl = float(np.sum(oos_pnls)) if oos_pnls else 0
+        avg_oos_dd = float(np.mean(oos_dds)) if oos_dds else 0
+
     avg_oos_pf = float(np.mean(oos_pfs)) if oos_pfs else 0
     avg_oos_wr = float(np.mean(oos_wrs)) if oos_wrs else 0
-    avg_oos_dd = float(np.mean(oos_dds)) if oos_dds else 0
     avg_oos_trades = float(np.mean(oos_trades)) if oos_trades else 0
     avg_oos_hold = float(np.mean(oos_holds)) if oos_holds else 0
 
@@ -495,14 +620,16 @@ def fine_refinement(df: pd.DataFrame, folds: List[Fold], symbol: str,
     """
     results = []
     seen_keys = set()
+    total_evals = 0
 
     for parent in top_candidates:
         if parent.rejected:
             continue
         base = dict(parent.params)
-        # Remove trailing/flip params to re-sweep them at fine granularity
+        # Remove trailing/flip/leverage params to re-sweep them at fine granularity
         base.pop("trailing_stop_atr", None)
         base.pop("score_flip_delay_hrs", None)
+        base.pop("leverage", None)
 
         fine_combos = grid_combos(FINE_GRID)
         for combo in fine_combos:
@@ -515,6 +642,13 @@ def fine_refinement(df: pd.DataFrame, folds: List[Fold], symbol: str,
             cr = evaluate_candidate(df, folds, params, symbol, of_config,
                                    compute_fragility=True)
             results.append(cr)
+            total_evals += 1
+
+            if total_evals % 5000 == 0:
+                passed = sum(1 for r in results if not r.rejected)
+                best = max((r.survivor_score for r in results), default=0)
+                log(f"    [{symbol}] Fine: {total_evals} evaluated, {passed} passed, "
+                    f"best survivor={best:.3f}")
 
     log(f"    [{symbol}] Fine refinement: {len(results)} candidates "
         f"evaluated on all {len(folds)} folds")
@@ -558,7 +692,9 @@ def darwinian_evolution(df: pd.DataFrame, folds: List[Fold], symbol: str,
                 if isinstance(original, int):
                     params[key] = max(1, int(original * (1 + delta)))
                 else:
-                    params[key] = max(0.01, round(original * (1 + delta), 4))
+                    # Floor: leverage >= 1.0, all other params >= 0.01
+                    floor = 1.0 if key == "leverage" else 0.01
+                    params[key] = max(floor, round(original * (1 + delta), 4))
 
                 cr = evaluate_candidate(df, folds, params, symbol, of_config,
                                        compute_fragility=True)
@@ -584,6 +720,22 @@ def darwinian_evolution(df: pd.DataFrame, folds: List[Fold], symbol: str,
             unique.append(r)
 
     return unique[:pop_size * 2]
+
+
+# Flash Trade fee helper (used by evaluate_on_fold for compounding)
+
+def flash_trade_round_trip_cost(leverage: float, hold_hrs: float) -> float:
+    """Flash Trade round-trip cost as a % of margin.
+
+    Notional = margin * leverage.
+    Open fee = notional * 0.06% = margin * leverage * 0.06%
+    Close fee = notional * 0.06% = margin * leverage * 0.06%
+    Borrow = notional * 0.0042% * hold_hrs = margin * leverage * 0.0042% * hold_hrs
+    As % of margin: leverage * (0.06 + 0.06 + 0.0042 * hold_hrs)
+    """
+    fees = FLASH_TRADE_FEES
+    notional_fee_pct = fees["open_fee_pct"] + fees["close_fee_pct"] + fees["hourly_borrow_pct"] * hold_hrs
+    return leverage * notional_fee_pct
 
 
 # BB Mean Reversion Strategy (Fast Evaluator)
@@ -1370,6 +1522,458 @@ def generate_report(
     return report_path
 
 
+# Leverage Optimization Mode
+
+@dataclass
+class LeverageCandidate:
+    """Result for one leveraged candidate."""
+    params: Dict
+    final_capital: float
+    total_return_pct: float
+    max_drawdown_pct: float
+    calmar_ratio: float
+    oos_sharpe: float
+    win_rate: float
+    consistency: float
+    total_trades: int
+    avg_hold_hrs: float
+    liquidations: int
+    total_fees: float
+    fold_details: List[Dict] = field(default_factory=list)
+    rejected: bool = False
+    rejection_reason: str = ""
+
+
+def evaluate_leverage_candidate(df: pd.DataFrame, folds: List[Fold],
+                                 params: Dict, symbol: str,
+                                 position_pct: float = 0.20,
+                                 initial_capital: float = 100.0) -> LeverageCandidate:
+    """Evaluate one leveraged candidate via full WFA with compounding + Flash Trade fees.
+
+    Scoring: Calmar ratio = total_return / max_drawdown.
+    Capital carries across folds for realistic compounding.
+    """
+    leverage = params.get("leverage", 1.0)
+    capital = initial_capital
+    global_peak = capital
+    global_max_dd = 0.0
+    total_wins = 0
+    total_trades = 0
+    total_liqs = 0
+    total_fees = 0.0
+    all_net_pnls = []
+    all_hold_hrs = []
+    fold_details = []
+    positive_folds = 0
+
+    for fold in folds:
+        fold_start = capital
+        test_df = df.iloc[fold.test_start_idx:fold.test_end_idx]
+        if len(test_df) < 10:
+            continue
+
+        # Simulate trades on this fold
+        trips = simulate_trades(test_df, params)
+        if not trips:
+            fold_details.append({
+                "fold": fold.fold_num,
+                "start_capital": round(fold_start, 2),
+                "end_capital": round(capital, 2),
+                "return_pct": 0.0,
+                "trades": 0,
+            })
+            continue
+
+        fold_peak = capital
+        fold_dd = 0.0
+        fold_wins = 0
+        fold_fees = 0.0
+        fold_net_pnls = []
+        fold_hold = []
+
+        for t in trips:
+            hold_hrs = t["hold_hrs"]
+            fold_hold.append(hold_hrs)
+            all_hold_hrs.append(hold_hrs)
+
+            if t.get("liquidated", False):
+                position = capital * position_pct
+                capital -= position
+                total_liqs += 1
+                fold_net_pnls.append(-100.0)
+                all_net_pnls.append(-100.0)
+            else:
+                raw_pnl = t["pnl_pct"]  # already includes leverage
+                fee_pct = flash_trade_round_trip_cost(leverage, hold_hrs)
+                net_pnl = raw_pnl - fee_pct
+
+                position = capital * position_pct
+                capital += position * (net_pnl / 100.0)
+                fee_sol = position * (fee_pct / 100.0)
+                total_fees += fee_sol
+                fold_fees += fee_sol
+
+                fold_net_pnls.append(net_pnl)
+                all_net_pnls.append(net_pnl)
+                if net_pnl > 0:
+                    fold_wins += 1
+                    total_wins += 1
+
+            total_trades += 1
+
+            if capital > global_peak:
+                global_peak = capital
+            if capital > fold_peak:
+                fold_peak = capital
+            if global_peak > 0:
+                dd = (global_peak - capital) / global_peak * 100
+                global_max_dd = max(global_max_dd, dd)
+            if fold_peak > 0:
+                dd = (fold_peak - capital) / fold_peak * 100
+                fold_dd = max(fold_dd, dd)
+
+        fold_return = (capital - fold_start) / fold_start * 100 if fold_start > 0 else 0
+        if fold_return > 0:
+            positive_folds += 1
+
+        fold_details.append({
+            "fold": fold.fold_num,
+            "start_capital": round(fold_start, 2),
+            "end_capital": round(capital, 2),
+            "return_pct": round(fold_return, 2),
+            "trades": len(trips),
+            "wins": fold_wins,
+            "max_dd_pct": round(fold_dd, 2),
+            "fees_sol": round(fold_fees, 4),
+        })
+
+    # Aggregate metrics
+    total_return = (capital - initial_capital) / initial_capital * 100 if initial_capital > 0 else 0
+    consistency = positive_folds / len(fold_details) if fold_details else 0
+    win_rate = total_wins / total_trades if total_trades > 0 else 0
+    avg_hold = float(np.mean(all_hold_hrs)) if all_hold_hrs else 0
+
+    # Sharpe from per-trade net PnLs
+    if len(all_net_pnls) > 1 and np.std(all_net_pnls) > 0:
+        total_hours = sum(fold.test_hours for fold in folds)
+        trades_per_year = (len(all_net_pnls) / max(total_hours, 1)) * 8760
+        oos_sharpe = float(np.mean(all_net_pnls) / np.std(all_net_pnls) * np.sqrt(max(trades_per_year, 0.1)))
+    else:
+        oos_sharpe = 0.0
+
+    # Calmar ratio: return / max DD
+    calmar = total_return / global_max_dd if global_max_dd > 0 else total_return if total_return > 0 else 0
+
+    # Rejection
+    rejected = False
+    rejection_reason = ""
+    if consistency < 0.50:
+        rejected = True
+        rejection_reason = f"consistency={consistency:.0%} < 50%"
+    if total_liqs > 3:
+        rejected = True
+        rejection_reason += f" liquidations={total_liqs} > 3"
+
+    return LeverageCandidate(
+        params=dict(params),
+        final_capital=round(capital, 4),
+        total_return_pct=round(total_return, 2),
+        max_drawdown_pct=round(global_max_dd, 2),
+        calmar_ratio=round(calmar, 4),
+        oos_sharpe=round(oos_sharpe, 4),
+        win_rate=round(win_rate, 4),
+        consistency=round(consistency, 4),
+        total_trades=total_trades,
+        avg_hold_hrs=round(avg_hold, 1),
+        liquidations=total_liqs,
+        total_fees=round(total_fees, 2),
+        fold_details=fold_details,
+        rejected=rejected,
+        rejection_reason=rejection_reason.strip(),
+    )
+
+
+def run_leverage_optimization(config: Dict, config_path: Optional[str] = None):
+    """Leverage optimization night shift: single-stage grid + Darwinian refinement.
+
+    Optimizes exit/sizing params specifically for leveraged execution.
+    Scoring: Calmar ratio (compounded return / max drawdown).
+    All candidates evaluated with Flash Trade fee model + compounding.
+    """
+    start_time = time.time()
+    lev_config = config.get("leverage_grid", {})
+    symbols = config.get("symbols", ["SOL/USDT"])
+    position_pct = config.get("position_pct", 0.20)
+    initial_capital = config.get("initial_capital", 100.0)
+    wfa = config.get("wfa", {})
+    num_folds = wfa.get("num_folds", 9)
+    test_days = wfa.get("test_fold_days", 36)
+    output_dir = config.get("output_dir", "data/night_results")
+
+    log(f"{'='*70}")
+    log(f"LEVERAGE OPTIMIZATION NIGHT SHIFT")
+    log(f"Mode:       Calmar-optimized leverage sweep")
+    log(f"Symbols:    {', '.join(symbols)}")
+    log(f"Position:   {position_pct:.0%}")
+    log(f"Capital:    {initial_capital} SOL")
+    log(f"Fees:       0.06% open + 0.06% close + 0.0042%/hr borrow")
+    log(f"{'='*70}")
+
+    # Phase 1: Data
+    log(f"\n── Phase 1: Data ──")
+    fetch = config.get("schedule", {}).get("fetch_fresh_data", False)
+    if fetch:
+        fetch_fresh_data(symbols)
+    else:
+        log(f"Using cached data")
+    dfs = load_data(symbols)
+    if not dfs:
+        log(f"FATAL: No data loaded. Exiting.")
+        sys.exit(1)
+
+    # Phase 2: Folds
+    log(f"\n── Phase 2: WFA Folds ──")
+    all_results = {}
+    for symbol, df in dfs.items():
+        folds = create_folds(len(df), num_folds, test_days)
+        log(f"  {symbol}: {len(df)} candles, {len(folds)} folds")
+
+        # Phase 3: Grid Search
+        grid_keys = list(lev_config.keys())
+        grid_values = [lev_config[k] for k in grid_keys]
+        combos = list(product(*grid_values))
+        log(f"\n── Phase 3: Leverage Grid ({len(combos)} candidates) ──")
+
+        results = []
+        for i, combo in enumerate(combos):
+            params = dict(zip(grid_keys, combo))
+            lc = evaluate_leverage_candidate(
+                df, folds, params, symbol,
+                position_pct=position_pct,
+                initial_capital=initial_capital,
+            )
+            results.append(lc)
+
+            if (i + 1) % 2000 == 0:
+                passed = sum(1 for r in results if not r.rejected)
+                best_calmar = max((r.calmar_ratio for r in results if not r.rejected), default=0)
+                best_return = max((r.total_return_pct for r in results if not r.rejected), default=0)
+                log(f"  [{i+1}/{len(combos)}] passed={passed} best_calmar={best_calmar:.2f} "
+                    f"best_return={best_return:+.1f}%")
+
+        log(f"  Grid complete: {len(results)} candidates, "
+            f"{sum(1 for r in results if not r.rejected)} passed filters")
+
+        # Phase 4: Darwinian refinement
+        darwin_cfg = config.get("darwinian", {"generations": 3, "population": 50})
+        generations = darwin_cfg.get("generations", 3)
+        pop_size = darwin_cfg.get("population", 50)
+        perturb_range = (0.05, 0.15)
+
+        log(f"\n── Phase 4: Darwinian Refinement ({generations} gens, pop={pop_size}) ──")
+
+        current_gen = sorted(
+            [r for r in results if not r.rejected],
+            key=lambda r: r.calmar_ratio,
+            reverse=True,
+        )[:pop_size]
+
+        if not current_gen:
+            log(f"  No survivors for Darwinian evolution")
+        else:
+            all_survivors = list(current_gen)
+
+            for gen in range(generations):
+                offspring = []
+                for parent in current_gen:
+                    for _ in range(3):
+                        params = dict(parent.params)
+                        numeric_keys = [k for k, v in params.items()
+                                       if isinstance(v, (int, float)) and k != "min_alignment"]
+                        if not numeric_keys:
+                            continue
+                        key = random.choice(numeric_keys)
+                        delta = random.uniform(*perturb_range) * random.choice([-1, 1])
+                        original = params[key]
+                        if isinstance(original, int):
+                            params[key] = max(1, int(original * (1 + delta)))
+                        else:
+                            floor = 1.0 if key == "leverage" else 0.01
+                            params[key] = max(floor, round(original * (1 + delta), 4))
+
+                        lc = evaluate_leverage_candidate(
+                            df, folds, params, symbol,
+                            position_pct=position_pct,
+                            initial_capital=initial_capital,
+                        )
+                        offspring.append(lc)
+
+                combined = current_gen + offspring
+                combined.sort(key=lambda r: r.calmar_ratio, reverse=True)
+                current_gen = combined[:pop_size]
+                all_survivors.extend(current_gen)
+
+                best_calmar = current_gen[0].calmar_ratio
+                best_return = current_gen[0].total_return_pct
+                log(f"  Gen {gen+1}/{generations}: {len(offspring)} offspring, "
+                    f"best_calmar={best_calmar:.2f} best_return={best_return:+.1f}%")
+
+            # Deduplicate
+            seen = set()
+            unique = []
+            for r in sorted(all_survivors, key=lambda r: r.calmar_ratio, reverse=True):
+                key = tuple(sorted(r.params.items()))
+                if key not in seen:
+                    seen.add(key)
+                    unique.append(r)
+            results.extend(unique[:pop_size * 2])
+
+        all_results[symbol] = results
+
+    # Phase 5: Report
+    log(f"\n── Phase 5: Leverage Report ──")
+    run_time = time.time() - start_time
+    report_path = _generate_leverage_report(all_results, dfs, run_time, output_dir, position_pct)
+
+    # Phase 6: Summary
+    final_time = time.time() - start_time
+    log(f"\n{'='*70}")
+    log(f"LEVERAGE OPTIMIZATION COMPLETE — {final_time:.0f}s")
+    log(f"{'='*70}")
+
+    for symbol, results in all_results.items():
+        non_rejected = [r for r in results if not r.rejected]
+        if not non_rejected:
+            log(f"  {symbol}: NO candidates passed filters")
+            continue
+
+        # Best per leverage level
+        for lev in sorted(set(r.params.get("leverage", 1) for r in non_rejected)):
+            lev_results = [r for r in non_rejected if r.params.get("leverage") == lev]
+            best = max(lev_results, key=lambda r: r.calmar_ratio)
+            p = best.params
+            log(f"  {symbol} {lev:.0f}x: calmar={best.calmar_ratio:.2f} "
+                f"ret={best.total_return_pct:+.1f}% DD={best.max_drawdown_pct:.1f}% "
+                f"WR={best.win_rate:.0%} cons={best.consistency:.0%} "
+                f"sl={p.get('stop_loss_atr')} tr={p.get('trailing_stop_atr')} "
+                f"tp={p.get('take_profit_atr')} th={p.get('signal_threshold')} "
+                f"align={p.get('min_alignment')} liqs={best.liquidations}")
+
+    log(f"  Report: {report_path}")
+
+    # Save full results
+    date_dir = os.path.join(output_dir, datetime.now(timezone.utc).strftime("%Y-%m-%d"))
+    os.makedirs(date_dir, exist_ok=True)
+    json_path = os.path.join(date_dir, "leverage_optimization.json")
+    save_data = {}
+    for sym, results in all_results.items():
+        results_sorted = sorted(results, key=lambda r: r.calmar_ratio, reverse=True)
+        save_data[sym] = [
+            {
+                "params": r.params,
+                "final_capital": r.final_capital,
+                "total_return_pct": r.total_return_pct,
+                "max_drawdown_pct": r.max_drawdown_pct,
+                "calmar_ratio": r.calmar_ratio,
+                "oos_sharpe": r.oos_sharpe,
+                "win_rate": r.win_rate,
+                "consistency": r.consistency,
+                "total_trades": r.total_trades,
+                "avg_hold_hrs": r.avg_hold_hrs,
+                "liquidations": r.liquidations,
+                "total_fees": r.total_fees,
+                "rejected": r.rejected,
+                "rejection_reason": r.rejection_reason,
+                "folds": r.fold_details,
+            }
+            for r in results_sorted[:100]
+        ]
+    with open(json_path, "w") as f:
+        json.dump({
+            "run_at": datetime.now(timezone.utc).isoformat(),
+            "mode": "leverage_optimize",
+            "config": config,
+            "results": save_data,
+        }, f, indent=2, default=str)
+    log(f"  Full results: {json_path}")
+
+
+def _generate_leverage_report(all_results: Dict[str, List[LeverageCandidate]],
+                               dfs: Dict, run_time: float,
+                               output_dir: str, position_pct: float) -> str:
+    """Generate markdown report for leverage optimization run."""
+    now = datetime.now(timezone.utc)
+    date_str = now.strftime("%Y-%m-%d")
+    report_path = os.path.join(output_dir, date_str, "leverage_report.md")
+    os.makedirs(os.path.dirname(report_path), exist_ok=True)
+
+    lines = []
+    w = lines.append
+
+    w(f"# Leverage Optimization Report — {date_str}")
+    w(f"")
+    w(f"**Runtime:** {run_time:.0f}s | **Scoring:** Calmar ratio (return/DD)")
+    w(f"**Position sizing:** {position_pct:.0%} | **Fees:** Flash Trade (0.06%+0.06%+0.0042%/hr)")
+    w(f"")
+
+    for symbol, results in all_results.items():
+        non_rejected = sorted(
+            [r for r in results if not r.rejected],
+            key=lambda r: r.calmar_ratio,
+            reverse=True,
+        )
+
+        w(f"## {symbol}")
+        w(f"")
+        w(f"**Total candidates:** {len(results)} | **Passed:** {len(non_rejected)}")
+        w(f"")
+
+        # Top 10 overall
+        w(f"### Top 10 by Calmar Ratio")
+        w(f"")
+        w(f"| # | Lev | SL | Trail | TP | Thresh | Align | Return | DD | Calmar | Sharpe | WR | Cons | Trades | Liqs |")
+        w(f"|---|-----|----|-------|----|--------|-------|--------|----|--------|--------|----|------|--------|------|")
+        for i, r in enumerate(non_rejected[:10]):
+            p = r.params
+            w(f"| {i+1} | {p.get('leverage', 1):.0f}x | {p.get('stop_loss_atr', '-'):.1f} | "
+              f"{p.get('trailing_stop_atr', '-'):.2f} | {p.get('take_profit_atr', '-'):.1f} | "
+              f"{p.get('signal_threshold', '-'):.2f} | {p.get('min_alignment', '-')} | "
+              f"{r.total_return_pct:+.1f}% | {r.max_drawdown_pct:.1f}% | "
+              f"{r.calmar_ratio:.2f} | {r.oos_sharpe:+.2f} | {r.win_rate:.0%} | "
+              f"{r.consistency:.0%} | {r.total_trades} | {r.liquidations} |")
+        w(f"")
+
+        # Best per leverage level
+        w(f"### Best Config per Leverage Level")
+        w(f"")
+        for lev in sorted(set(r.params.get("leverage", 1) for r in non_rejected)):
+            lev_results = [r for r in non_rejected if r.params.get("leverage") == lev]
+            best = max(lev_results, key=lambda r: r.calmar_ratio)
+            p = best.params
+            w(f"**{lev:.0f}x:** sl={p.get('stop_loss_atr')}, trail={p.get('trailing_stop_atr')}, "
+              f"tp={p.get('take_profit_atr')}, thresh={p.get('signal_threshold')}, "
+              f"align={p.get('min_alignment')}, hold={p.get('max_hold_hours')}h, decay={p.get('time_decay_hours')}h")
+            w(f"- Return: {best.total_return_pct:+.1f}% | DD: {best.max_drawdown_pct:.1f}% | "
+              f"Calmar: {best.calmar_ratio:.2f} | Sharpe: {best.oos_sharpe:+.2f}")
+            w(f"- WR: {best.win_rate:.0%} | Consistency: {best.consistency:.0%} | "
+              f"Trades: {best.total_trades} | Liquidations: {best.liquidations} | Fees: {best.total_fees:.2f} SOL")
+            w(f"")
+
+            # Per-fold detail
+            w(f"| Fold | Start | End | Return | Trades | DD | Fees |")
+            w(f"|------|-------|-----|--------|--------|----|------|")
+            for fd in best.fold_details:
+                w(f"| {fd['fold']} | {fd['start_capital']:.2f} | {fd['end_capital']:.2f} | "
+                  f"{fd['return_pct']:+.2f}% | {fd['trades']} | {fd['max_dd_pct']:.1f}% | "
+                  f"{fd.get('fees_sol', 0):.2f} |")
+            w(f"")
+
+    report_text = "\n".join(lines)
+    with open(report_path, "w") as f:
+        f.write(report_text)
+    return report_path
+
+
 # Main Night Shift
 
 def run_night_shift(
@@ -1693,6 +2297,14 @@ def main():
     # Bridge mode: typed JSON interface for the Rust swarm.
     if args.bridge_mode:
         bridge_mode()
+        return
+
+    # Load config to check mode
+    config = load_config(args.config)
+
+    # Leverage optimization mode
+    if config.get("mode") == "leverage_optimize":
+        run_leverage_optimization(config, config_path=args.config)
         return
 
     symbols = args.symbols or DEFAULT_SYMBOLS

@@ -72,8 +72,8 @@ pub struct ProposeResult {
 fn build_mutation_prompt() -> String {
     "You are the Evolve Wing of RTP, an autonomous treasury management \
      swarm on Solana. The current strategy is SOL/USDT Survivor 2.69 \
-     with params: signal_threshold=0.3, tp_atr=3.0, sl_atr=1.5, \
-     max_hold=36h, trailing_stop_atr=0.5. \
+     with params: signal_threshold=0.25, tp_atr=5.0, sl_atr=2.7, \
+     max_hold=36h, trailing_stop_atr=0.14. 9x leverage. \
      Last cycle: yield=0.175 USDC, sharpe=3.96, 47 trades. \
      The heartbeat has detected stagnation. Propose exactly 3 parameter \
      mutations as JSON. Each mutation must change exactly one param. \

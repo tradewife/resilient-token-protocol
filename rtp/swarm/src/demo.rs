@@ -116,11 +116,11 @@ pub async fn run_demo_loop() -> DemoResult {
                 "execution_venue": "flash_trade",
                 "is_buy": true,
                 "size": "0.12",
-                "signal_threshold": 0.3,
-                "take_profit_atr": 3.0,
-                "stop_loss_atr": 1.5,
+                "signal_threshold": 0.25,
+                "take_profit_atr": 5.0,
+                "stop_loss_atr": 2.7,
                 "max_hold_hours": 36,
-                "trailing_stop_atr": 0.5
+                "trailing_stop_atr": 0.14
             }),
             confidence: 0.92,
         },

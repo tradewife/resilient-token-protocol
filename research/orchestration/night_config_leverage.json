@@ -1,0 +1,38 @@
+{
+  "version": "2.0",
+  "mode": "leverage_optimize",
+  "schedule": {
+    "fetch_fresh_data": false,
+    "max_hours_runtime": 4
+  },
+  "symbols": ["SOL/USDT"],
+  "wfa": {
+    "num_folds": 9,
+    "test_fold_days": 36,
+    "min_trades_per_fold": 5
+  },
+  "leverage_grid": {
+    "signal_threshold": [0.25, 0.28, 0.30, 0.33],
+    "min_alignment": [2, 3],
+    "stop_loss_atr": [2.0, 2.5, 3.0, 3.5],
+    "trailing_stop_atr": [0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5],
+    "take_profit_atr": [3.0, 4.0, 5.0],
+    "leverage": [3.0, 4.0, 5.0, 6.0, 7.0, 8.0],
+    "max_hold_hours": [36, 48],
+    "time_decay_hours": [12, 18]
+  },
+  "position_pct": 0.20,
+  "initial_capital": 100.0,
+  "scoring": "calmar",
+  "darwinian": {
+    "generations": 3,
+    "population": 50
+  },
+  "overfitting": {
+    "min_oos_consistency": 0.50
+  },
+  "validation": {
+    "top_candidates": 5
+  },
+  "output_dir": "data/night_results"
+}

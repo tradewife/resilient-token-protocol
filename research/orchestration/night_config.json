@@ -54,6 +54,26 @@
         "signal_threshold": [0.30, 0.35, 0.40, 0.45]
       },
       "note": "sweep entry threshold — SOL showed 0.35 is better than production 0.40"
+    },
+    {
+      "name": "leverage_3x_tight_stops",
+      "type": "param_override",
+      "params": {
+        "leverage": [3.0],
+        "stop_loss_atr": [0.5, 0.75, 1.0, 1.25, 1.5, 2.0],
+        "trailing_stop_atr": [0.0, 0.3, 0.5]
+      },
+      "note": "3x leverage with tight stops — leverage sweep winner was 3x sl=2.5 trail=0.3"
+    },
+    {
+      "name": "leverage_5x_wide_stops",
+      "type": "param_override",
+      "params": {
+        "leverage": [5.0],
+        "stop_loss_atr": [1.5, 2.0, 2.5, 3.0],
+        "trailing_stop_atr": [0.0, 0.3, 0.5]
+      },
+      "note": "5x leverage with wider stops — aggressive but DD near 25% ceiling"
     }
   ],
   "output_dir": "data/night_results"

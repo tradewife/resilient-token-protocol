@@ -51,10 +51,12 @@ DEFAULT_CONFIG = {
     "max_hold_hours": 96,
     "time_decay_hours": 48,
     "trailing_stop_atr": 1.0,
+    "leverage": 1.0,
 }
 
 # Night shift validated configs — full-sim with fees + slippage (2026-04-08)
 # BTC/ETH/SOL: STRONG verdict, BNB: MODERATE verdict
+# Updated May 2026: SOL leverage sweep winner (3x, sl_atr=2.5, trailing=0.3)
 OPTIMIZED_CONFIGS = {
     "BTC/USDT": {
         "signal_threshold": 0.4,
@@ -64,6 +66,7 @@ OPTIMIZED_CONFIGS = {
         "max_hold_hours": 36,
         "time_decay_hours": 12,
         "trailing_stop_atr": 1.0,
+        "leverage": 1.0,
     },
     "ETH/USDT": {
         "signal_threshold": 0.3,
@@ -73,15 +76,17 @@ OPTIMIZED_CONFIGS = {
         "max_hold_hours": 36,
         "time_decay_hours": 12,
         "trailing_stop_atr": 1.0,
+        "leverage": 1.0,
     },
     "SOL/USDT": {
         "signal_threshold": 0.3,
         "min_alignment": 3,
         "take_profit_atr": 3.0,
-        "stop_loss_atr": 1.0,
+        "stop_loss_atr": 2.5,
         "max_hold_hours": 36,
         "time_decay_hours": 12,
-        "trailing_stop_atr": 1.0,
+        "trailing_stop_atr": 0.3,
+        "leverage": 3.0,
     },
     "BNB/USDT": {
         "signal_threshold": 0.35,
@@ -91,6 +96,7 @@ OPTIMIZED_CONFIGS = {
         "max_hold_hours": 36,
         "time_decay_hours": 12,
         "trailing_stop_atr": 1.0,
+        "leverage": 1.0,
     },
 }
 
@@ -214,6 +220,17 @@ def generate_modification(symbol: str, current_config: Dict, baseline_metrics: D
     mods.append({"param": "trailing_stop_atr", "old": p.get("trailing_stop_atr", 1.0),
                   "new": p.get("trailing_stop_atr", 1.0) + 0.5,
                   "reason": "explore: wider trailing stop"})
+
+    # Leverage exploration — try stepping up or down by 1
+    current_lev = p.get("leverage", 1.0)
+    if current_lev > 1.0:
+        mods.append({"param": "leverage", "old": current_lev,
+                      "new": max(1.0, current_lev - 1.0),
+                      "reason": "explore: reduce leverage"})
+    if current_lev < 10.0:
+        mods.append({"param": "leverage", "old": current_lev,
+                      "new": min(10.0, current_lev + 1.0),
+                      "reason": "explore: increase leverage"})
     
     # Deduplicate by param (keep first occurrence of each)
     seen = set()

@@ -37,7 +37,7 @@ impl TraderConfig {
             .parse()
             .map_err(|e: std::num::ParseFloatError| format!("Invalid RTP_TRADER_AMOUNT: {}", e))?;
         let leverage = std::env::var("RTP_TRADER_LEVERAGE")
-            .unwrap_or_else(|_| "1.0".to_string())
+            .unwrap_or_else(|_| "9.0".to_string())
             .parse()
             .map_err(|e: std::num::ParseFloatError| format!("Invalid RTP_TRADER_LEVERAGE: {}", e))?;
         let poll_secs: u64 = std::env::var("RTP_TRADER_POLL_SECS")

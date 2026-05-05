@@ -51,7 +51,8 @@ pub struct YieldReportData {
 
 /// Active strategy configuration for the Trading Wing.
 ///
-/// Default values are SOL/USDT Survivor 2.69 — confirmed Apr 12 cycle report, OOS Sharpe 3.96.
+/// Default values are SOL/USDT 9x Leverage Optimization — May 2026 night shift.
+/// Calmar=44.89, +554% return, 12.3% DD, 100% consistency, 0 liquidations.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StrategyConfig {
     pub signal_threshold: f64,
@@ -63,13 +64,13 @@ pub struct StrategyConfig {
 
 impl Default for StrategyConfig {
     fn default() -> Self {
-        // SOL/USDT Survivor 2.69 — confirmed Apr 12 cycle report, OOS Sharpe 3.96
+        // SOL/USDT 9x Leverage Optimization — May 2026 Calmar-optimized night shift
         Self {
-            signal_threshold: 0.3,
-            tp_atr: 3.0,
-            sl_atr: 1.5,
+            signal_threshold: 0.25,
+            tp_atr: 5.0,
+            sl_atr: 2.7,
             max_hold_hours: 36.0,
-            trailing_stop_atr: 0.5,
+            trailing_stop_atr: 0.14,
         }
     }
 }

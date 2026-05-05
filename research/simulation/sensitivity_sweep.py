@@ -52,6 +52,34 @@ STRATEGY_CONFIGS = {
             "score_flip_delay_hrs": 0,
         },
     },
+    "sol_survivor_2_69_lev3": {
+        "symbol": "SOL/USDT",
+        "params": {
+            "signal_threshold": 0.3,
+            "min_alignment": 3,
+            "take_profit_atr": 3.0,
+            "stop_loss_atr": 1.5,
+            "max_hold_hours": 36,
+            "time_decay_hours": 12,
+            "trailing_stop_atr": 0.5,
+            "score_flip_delay_hrs": 0,
+            "leverage": 3.0,
+        },
+    },
+    "sol_survivor_2_69_lev5": {
+        "symbol": "SOL/USDT",
+        "params": {
+            "signal_threshold": 0.3,
+            "min_alignment": 3,
+            "take_profit_atr": 3.0,
+            "stop_loss_atr": 1.5,
+            "max_hold_hours": 36,
+            "time_decay_hours": 12,
+            "trailing_stop_atr": 0.5,
+            "score_flip_delay_hrs": 0,
+            "leverage": 5.0,
+        },
+    },
     "production_baseline": {
         "symbol": "SOL/USDT",
         "params": {

@@ -300,5 +300,131 @@ async def main():
     print(f"\n  Saved: {out_path}")
 
 
+async def validate_leveraged(symbol: str, candidates: list, top_n: int = 5):
+    """Validate leveraged candidates from the leverage sweep through the full simulator.
+
+    Args:
+        symbol: e.g. "SOL/USDT"
+        candidates: list of dicts from leverage sweep report (top_10 field)
+        top_n: how many to validate
+    """
+    safe = symbol.replace("/", "_")
+    path = os.path.join(DATA_DIR, f"{safe}_1h.parquet")
+    if not os.path.exists(path):
+        print(f"  {symbol}: no data file at {path}")
+        return []
+
+    df = pd.read_parquet(path)
+    folds = make_folds(len(df))
+
+    print(f"\n{'='*90}")
+    print(f"LEVERAGED VALIDATION — {symbol} via FutureBlindSimulator (fees + slippage)")
+    print(f"{'='*90}\n")
+
+    results = []
+    for cand in candidates[:top_n]:
+        params = cand.get("params", cand)
+        leverage = params.get("leverage", 1.0)
+        sl = params.get("stop_loss_atr", 1.5)
+        trail = params.get("trailing_stop_atr", 0.5)
+        label = f"lev{leverage:.0f}_sl{sl:.2f}_tr{trail:.1f}"
+
+        print(f"  [{label}]")
+
+        # Run full sim with leverage applied to PnL via modified params
+        # The full sim (MultiTFStrategy) doesn't natively model leverage,
+        # so we apply it as a post-hoc multiplier on round-trip PnL.
+        fold_results = []
+        for fold_num, train_end, test_end in folds:
+            window_df = df.iloc[max(0, train_end - 250):test_end]
+            if len(window_df) < 300:
+                continue
+            strategy = MultiTFStrategy(f"lev_{symbol}", {**{"symbol": symbol}, **params})
+            sim = FutureBlindSimulator(initial_capital=10000)
+            sim.add_strategy(strategy)
+            window = DataWindow(
+                symbol=symbol, exchange="binance",
+                start_time=window_df.index[0].to_pydatetime(),
+                end_time=window_df.index[-1].to_pydatetime(),
+                current_time=window_df.index[0].to_pydatetime(),
+                data=window_df,
+            )
+            await sim.run_simulation(window, time_step_minutes=60)
+
+            # Apply leverage to round-trip PnLs
+            for trip in strategy.completed_round_trips:
+                trip["pnl_pct"] = trip["pnl_pct"] * leverage
+                if trip["pnl_pct"] <= -100.0:
+                    trip["pnl_pct"] = -100.0
+                    trip["liquidated"] = True
+
+            m = compute_metrics(strategy.completed_round_trips)
+            m["fold"] = fold_num
+            fold_results.append(m)
+
+        if not fold_results:
+            print(f"    → no valid folds")
+            continue
+
+        oos_pnls = [f["total_pnl_pct"] for f in fold_results]
+        oos_sharpes = [max(-100, min(100, f["sharpe"])) for f in fold_results]
+        total_trades = sum(f["round_trips"] for f in fold_results)
+        liqs = sum(f.get("exit_reasons", {}).get("liquidation", 0) for f in fold_results)
+
+        med_sharpe = float(np.median(oos_sharpes))
+        consistency = sum(1 for p in oos_pnls if p > 0) / len(oos_pnls)
+        total_pnl = sum(oos_pnls)
+        avg_dd = np.mean([f["max_drawdown_pct"] for f in fold_results])
+
+        result = {
+            "symbol": symbol, "label": label, "params": params,
+            "leverage": leverage,
+            "total_pnl_pct": round(total_pnl, 2),
+            "median_sharpe": round(med_sharpe, 2),
+            "consistency": round(consistency, 3),
+            "avg_max_dd": round(avg_dd, 2),
+            "total_trades": total_trades,
+            "liquidations": liqs,
+            "folds": len(fold_results),
+        }
+        results.append(result)
+
+        verdict = "STRONG" if consistency >= 0.7 and total_pnl > 0 else \
+                  "MODERATE" if consistency >= 0.5 and total_pnl > 0 else \
+                  "MARGINAL" if consistency >= 0.4 else "FAILED"
+        print(f"    → {verdict}  PnL={total_pnl:+.2f}%  Sharpe={med_sharpe:+.2f}  "
+              f"Cons={consistency:.0%}  DD={avg_dd:.1f}%  Liq={liqs}  Trades={total_trades}")
+
+    # Summary
+    print(f"\n  {'Label':25s} {'PnL':>8s} {'Sharpe':>8s} {'Cons':>5s} {'DD':>6s} {'Liq':>4s} {'Trades':>7s}")
+    print(f"  {'─'*25} {'─'*8} {'─'*8} {'─'*5} {'─'*6} {'─'*4} {'─'*7}")
+    for r in sorted(results, key=lambda x: x["total_pnl_pct"], reverse=True):
+        print(f"  {r['label']:25s} {r['total_pnl_pct']:+7.2f}% {r['median_sharpe']:+7.2f} "
+              f"{r['consistency']:4.0%} {r['avg_max_dd']:5.1f}% {r['liquidations']:4d} {r['total_trades']:6d}")
+
+    return results
+
+
 if __name__ == "__main__":
-    asyncio.run(main())
+    import sys
+    if "--leverage" in sys.argv:
+        # Leverage validation mode: read sweep report and validate top candidates
+        sys.argv.remove("--leverage")
+        symbol = sys.argv[1] if len(sys.argv) > 1 else "SOL/USDT"
+        top_n = int(sys.argv[2]) if len(sys.argv) > 2 else 5
+        report_path = os.path.join(
+            os.path.dirname(__file__), "..", "..", "data", "leverage_sweep",
+            f"leverage_sweep_{symbol.replace('/', '_')}_report.json"
+        )
+        if not os.path.exists(report_path):
+            print(f"No leverage sweep report at {report_path}. Run leverage_sweep first.")
+            sys.exit(1)
+        with open(report_path) as f:
+            report = json.load(f)
+        candidates = report.get("top_10", report.get("passed", []))
+        if not candidates:
+            print("No passing candidates in sweep report.")
+            sys.exit(1)
+        asyncio.run(validate_leveraged(symbol, candidates, top_n))
+    else:
+        asyncio.run(main())

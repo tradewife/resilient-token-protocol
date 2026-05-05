@@ -84,13 +84,19 @@ def compute_indicators(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def simulate_trades(df: pd.DataFrame, params: Dict) -> List[Dict]:
-    """Simulate trades directly on indicator arrays — no simulator overhead."""
+    """Simulate trades directly on indicator arrays — no simulator overhead.
+
+    Supports leverage via params["leverage"] (default 1.0).
+    Leverage multiplies PnL on every trade. If leveraged loss >= 100% of margin,
+    the trade is marked as liquidated (pnl_pct capped at -100%).
+    """
     threshold = params["signal_threshold"]
     min_alignment = params.get("min_alignment", 3)
     tp_atr_mult = params["take_profit_atr"]
     sl_atr_mult = params["stop_loss_atr"]
     max_hold = params["max_hold_hours"]
     decay_hours = params["time_decay_hours"]
+    leverage = params.get("leverage", 1.0)
 
     trips = []
     in_position = False
@@ -100,6 +106,20 @@ def simulate_trades(df: pd.DataFrame, params: Dict) -> List[Dict]:
     entry_rsi = 50
     peak_price = 0
     trailing_atr = params.get("trailing_stop_atr", 0)
+
+    def _apply_lev(pnl_raw: float, hold_hrs: int, exit: str) -> Dict:
+        """Apply leverage to raw PnL, detect liquidation."""
+        lev_pnl = pnl_raw * leverage
+        liquidated = lev_pnl <= -100.0
+        if liquidated:
+            lev_pnl = -100.0
+        return {
+            "pnl_pct": lev_pnl,
+            "hold_hrs": hold_hrs,
+            "exit": "liquidation" if liquidated else exit,
+            "lev_pnl_raw": lev_pnl,
+            "liquidated": liquidated,
+        }
 
     close = df["close"].values
     atr = df["atr"].values
@@ -124,6 +144,12 @@ def simulate_trades(df: pd.DataFrame, params: Dict) -> List[Dict]:
             hold_hrs = i - entry_idx
             pnl_pct = (price - entry_price) / entry_price * 100
 
+            # Liquidation check: if leveraged adverse move >= 100%, position is wiped
+            if leverage > 1.0 and pnl_pct * leverage <= -100.0:
+                trips.append(_apply_lev(pnl_pct, hold_hrs, "liquidation"))
+                in_position = False
+                continue
+
             # Update peak for trailing stop
             if price > peak_price:
                 peak_price = price
@@ -134,31 +160,31 @@ def simulate_trades(df: pd.DataFrame, params: Dict) -> List[Dict]:
                 pullback_pct = (peak_price - price) / entry_price * 100
                 if pullback_pct >= trail_trigger:
                     trail_pnl = (peak_price - entry_price) / entry_price * 100 - trail_trigger
-                    trips.append({"pnl_pct": trail_pnl, "hold_hrs": hold_hrs, "exit": "trailing_stop"})
+                    trips.append(_apply_lev(trail_pnl, hold_hrs, "trailing_stop"))
                     in_position = False
                     continue
 
             # Stop loss
             if a > 0 and pnl_pct <= -(sl_atr_mult * a / entry_price * 100):
-                trips.append({"pnl_pct": pnl_pct, "hold_hrs": hold_hrs, "exit": "stop_loss"})
+                trips.append(_apply_lev(pnl_pct, hold_hrs, "stop_loss"))
                 in_position = False
                 continue
 
             # Take profit
             if a > 0 and pnl_pct >= (tp_atr_mult * a / entry_price * 100):
-                trips.append({"pnl_pct": pnl_pct, "hold_hrs": hold_hrs, "exit": "take_profit"})
+                trips.append(_apply_lev(pnl_pct, hold_hrs, "take_profit"))
                 in_position = False
                 continue
 
             # Max hold
             if hold_hrs >= max_hold:
-                trips.append({"pnl_pct": pnl_pct, "hold_hrs": hold_hrs, "exit": "max_hold"})
+                trips.append(_apply_lev(pnl_pct, hold_hrs, "max_hold"))
                 in_position = False
                 continue
 
             # Time decay
             if pnl_pct < 0 and hold_hrs >= decay_hours:
-                trips.append({"pnl_pct": pnl_pct, "hold_hrs": hold_hrs, "exit": "time_decay"})
+                trips.append(_apply_lev(pnl_pct, hold_hrs, "time_decay"))
                 in_position = False
                 continue
 
@@ -168,13 +194,13 @@ def simulate_trades(df: pd.DataFrame, params: Dict) -> List[Dict]:
                                    daily_bull=(daily_bull[i] == 1),
                                    daily_bear=(daily_bear[i] == 1))
             if score < 0:
-                trips.append({"pnl_pct": pnl_pct, "hold_hrs": hold_hrs, "exit": "score_flip"})
+                trips.append(_apply_lev(pnl_pct, hold_hrs, "score_flip"))
                 in_position = False
                 continue
 
             # MR target
             if r > 55 and entry_rsi < 35:
-                trips.append({"pnl_pct": pnl_pct, "hold_hrs": hold_hrs, "exit": "mr_target"})
+                trips.append(_apply_lev(pnl_pct, hold_hrs, "mr_target"))
                 in_position = False
                 continue
         else:
@@ -255,7 +281,8 @@ def compute_metrics(trips: List[Dict], total_hours: float = 0) -> Dict:
     """
     if not trips:
         return {"round_trips": 0, "win_rate": 0, "total_pnl_pct": 0, "pf": 0,
-                "sharpe": 0, "max_dd_pct": 0, "avg_pnl_pct": 0, "avg_hold_hrs": 0}
+                "sharpe": 0, "max_dd_pct": 0, "avg_pnl_pct": 0, "avg_hold_hrs": 0,
+                "liquidations": 0}
 
     pnls = [t["pnl_pct"] for t in trips]
     wins = [p for p in pnls if p > 0]
@@ -302,6 +329,7 @@ def compute_metrics(trips: List[Dict], total_hours: float = 0) -> Dict:
         "best_trade": max(pnls),
         "worst_trade": min(pnls),
         "exit_reasons": exit_reasons,
+        "liquidations": sum(1 for t in trips if t.get("liquidated", False)),
     }
 
 
