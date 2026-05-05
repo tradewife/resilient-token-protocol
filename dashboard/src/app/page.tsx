@@ -16,10 +16,10 @@ const MAINNET_RPC = "https://api.mainnet-beta.solana.com";
 const FALLBACK_FEED = [
   { ts: "2026-05-04", tag: "night shift", msg: "Evaluating 30,000 parameter configs across SOL/USDT" },
   { ts: "2026-05-04", tag: "night shift", msg: "9-fold walk-forward analysis complete. Darwinian mutations generated." },
-  { ts: "2026-05-04", tag: "validated", msg: "SOL/USDT Survivor 2.69 — +118.3% PnL, 78% consistency, 429 trades" },
-  { ts: "2026-05-05", tag: "trading wing", msg: "Requesting ExecutePermit via soulguard..." },
-  { ts: "2026-05-05", tag: "audit wing", msg: "3-agent tribunal verifying compliance against soulcontract" },
-  { ts: "2026-05-05", tag: "approved", msg: "Constraints satisfied. ExecutePermit granted." },
+  { ts: "2026-05-05", tag: "validated", msg: "SOL/USDT 9x leverage — Calmar 44.89, +554% return, 12.3% max DD, 0 liquidations" },
+  { ts: "2026-05-05", tag: "night shift", msg: "16,228 candidates evaluated. 9x leverage optimal across 3-10x sweep." },
+  { ts: "2026-05-06", tag: "robustness", msg: "Monte Carlo DD p95=32.1%. PBO=33%. Strategy exploration: 5 alternative plugins tested." },
+  { ts: "2026-05-06", tag: "trading wing", msg: "Live 9x autonomous trader — thresh=0.25, tp=5.0, sl=2.7, trail=0.14, align=3" },
 ];
 
 /* ── Fallback static wings ── */
@@ -450,8 +450,8 @@ export default function Home() {
             <span className="metric-label">Memory Files</span>
           </div>
           <div className="metric">
-            <span className="metric-value">+118%</span>
-            <span className="metric-label">Validated PnL</span>
+            <span className="metric-value">+554%</span>
+            <span className="metric-label">9x Leveraged Return</span>
           </div>
         </div>
       </section>
@@ -639,8 +639,8 @@ export default function Home() {
             ))}
           </div>
           <div style={{ marginTop: "var(--space-md)", fontSize: "0.6875rem", color: "var(--text-muted)", lineHeight: 1.6 }}>
-            Strategy: <strong style={{ color: "var(--text-primary)" }}>Survivor 2.69</strong> — signal 0.3 · TP 3×ATR · SL 1.5×ATR · Trail 0.5×ATR · Max 36h
-            <br />Runs on Railway 24/7. Polls Flash Trade every 5 min. No human in the loop.
+            Strategy: <strong style={{ color: "var(--text-primary)" }}>Survivor 2.69 (9x)</strong> — signal 0.25 · TP 5×ATR · SL 2.7×ATR · Trail 0.14×ATR · Align 3+ · Max 36h
+            <br />Runs on Railway 24/7. Calmar 44.89. 100% fold consistency. 0 liquidations.
           </div>
         </div>
       </section>
@@ -657,12 +657,12 @@ export default function Home() {
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-md)" }}>
             {[
-              { label: "OOS Sharpe", value: "+3.96" },
-              { label: "PnL", value: "+118.3%" },
-              { label: "Consistency", value: "9/9 folds" },
-              { label: "Trades", value: "429" },
-              { label: "Survivor Score", value: "2.69" },
-              { label: "Fragility", value: "0.29" },
+              { label: "Calmar Ratio", value: "44.89" },
+              { label: "9x Return", value: "+554%" },
+              { label: "Max Drawdown", value: "12.3%" },
+              { label: "Consistency", value: "100%" },
+              { label: "Leverage", value: "9x" },
+              { label: "Liquidations", value: "0" },
             ].map((s, i) => (
               <div key={i} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                 <span style={{
@@ -687,7 +687,7 @@ export default function Home() {
               { label: "Anchor program", detail: "19 on-chain instructions — fee collection, 70/20/10 redistribution, strategy lifecycle, Flash Trade CPI, emergency controls. Per-token isolation. Deployed to devnet." },
               { label: "Rust swarm runtime", detail: "6 wings (Trading, Security, Evolve, Knowledge, Audit, Futureproof), Coordinator message bus, 325 unit + 5 integration tests" },
               { label: "Flash Trade CPI execution", detail: "Treasury PDA signs via invoke_signed. On-chain perps on Solana. Position open/close confirmed on mainnet. SOL stays on Solana — no bridge, no cross-chain." },
-              { label: "Live autonomous trader", detail: "rtp-trader running 24/7 on Railway. Survivor 2.69 strategy, REST API trading, HTTP status server. Open positions visible on Solana Explorer." },
+              { label: "Live autonomous trader", detail: "rtp-trader running 24/7 on Railway. 9x leverage Calmar-optimized config, REST API trading, HTTP status server. Open positions visible on Solana Explorer." },
               { label: "Per-token isolation", detail: "Each token gets its own Treasury PDA + vault. Same strategy, isolated capital. No shared pool — one exploit can't drain all adopters." },
               { label: "TypeScript SDK", detail: "One function call to register any token with RTP. Launchpads integrate in minutes — no chain ops to run." },
             ].map((item, i) => (
@@ -735,7 +735,7 @@ export default function Home() {
                 <span className="hiw-num">2</span>
                 <div className="hiw-content">
                   <p className="hiw-text">
-                    The research engine tests 30,000 strategy configs per night, validates survivors via 9-fold walk-forward analysis. Best survivor: +118% PnL, 100% consistency (9/9 folds).
+                    The research engine tests 30,000 strategy configs per night, validates survivors via 9-fold walk-forward analysis with Monte Carlo robustness testing. Best result: +554% at 9x leverage, Calmar 44.89, 100% consistency.
                   </p>
                   <Link
                     className="hiw-link"

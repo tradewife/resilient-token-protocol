@@ -110,7 +110,7 @@ const DOC_GROUPS: DocGroup[] = [
 ├──────────────────────────────────────────────────────┤
 │              RESEARCH LAYER (Python)                   │
 │  Night Shift: 30K configs → WFA → Darwinian           │
-│  Validated: SOL/USDT Sharpe +3.96, 9/9 consistency    │
+│  Validated: SOL/USDT Calmar 44.89, +554% at 9x, 100% consistency │
 └──────────────────────────────────────────────────────┘
   Signing: Treasury PDA (invoke_signed — no private key)
   Capital: SOL → Treasury PDA → Flash Trade CPI → SOL yield → PDA`}</pre>
@@ -136,7 +136,7 @@ const DOC_GROUPS: DocGroup[] = [
                 ["Anchor treasury program", "✅ Deployed (devnet)", "Per-token isolation, 19 instructions, redistribution verified"],
                 ["Rust swarm runtime", "✅ 325 tests passing", "6 wings: Trading, Security, Evolve, Knowledge, Audit, Futureproof"],
                 ["Flash Trade CPI execution", "✅ Mainnet proofs", "Treasury PDA invoke_signed, positions open/close on-chain (Open TX 2bLg1Fu..., Close TX dFqkoP2...)"],
-                ["Live autonomous trader", "✅ Running 24/7", "rtp-trader on Railway, Survivor 2.69 strategy, REST API trading, HTTP status server on port 8080"],
+                ["Live autonomous trader", "✅ Running 24/7", "rtp-trader on Railway, 9x Calmar-optimized strategy, REST API trading, HTTP status server on port 8080"],
                 ["Treasury yield deposit", "✅ On-chain confirmed", "USDC yield → SOL → treasury PDA via CPI transfer"],
                 ["Autonomous daemon", "✅ 7 cycles completed", "6h cron, LLM-driven strategy evolution, auditable trail"],
                 ["SDK", "✅ Shipped", "<code>@resilient-protocol/sdk</code> — one function call to register any token"],
@@ -732,10 +732,10 @@ PublicKey.findProgramAddressSync(
             <h3>Validated Strategy</h3>
             <p>Top validated strategy (SOL/USDT):</p>
             <ul>
-              <li>Survivor score: 2.69</li>
-              <li>OOS Sharpe: +3.96</li>
-              <li>Consistency: 100% (9/9 folds profitable)</li>
-              <li>Config: signal_threshold=0.3, tp_atr=3.0, sl_atr=1.5, max_hold=36h</li>
+              <li>Calmar ratio: 44.89</li>
+              <li>Compounded return: +554% at 9x leverage</li>
+              <li>Consistency: 100% (all WFA folds profitable)</li>
+              <li>Config: signal_threshold=0.25, tp_atr=5.0, sl_atr=2.7, trail=0.14, min_alignment=3, leverage=9x</li>
             </ul>
           </>
         ),
