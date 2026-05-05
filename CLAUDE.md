@@ -104,7 +104,7 @@ Fee-Payer Wallet (gas only, DONE)
 
 This repo has three layers:
 1. **Proven Python fractal-swarm** (shipping) — backtesting, optimization, paper trading
-2. **Rust swarm + Solana treasury** (built, 312 unit + 5 integration tests) — 6-wing architecture, Coordinator, soulcontract, Flash Trade CPI execution, emergency freeze, zero-address guard
+2. **Rust swarm + Solana treasury** (built, 325 unit + 5 integration tests) — 6-wing architecture, Coordinator, soulcontract, Flash Trade CPI execution, emergency freeze, zero-address guard
 3. **Flash Trade CPI execution** (done — mainnet verified) — Trading Wing → Treasury PDA invoke_signed → Flash Trade Perpetuals CPI → on-chain positions → SOL yield → treasury PDA
 
 ---
@@ -159,6 +159,7 @@ cd rtp/swarm && cargo build --release
 cd rtp/swarm && cargo test
 cd rtp/swarm && cargo run --bin rtp-daemon    # single devnet cycle
 cd rtp/swarm && cargo run --bin rtp-demo      # full 8-step demo + Flash Trade CPI
+cd rtp/swarm && cargo run --bin rtp-trader   # live autonomous trader (REST API + HTTP status server)
 cd rtp/swarm && cargo test --lib trading::tests
 cd rtp/swarm && cargo test --lib trading::flash_trade_client::tests  # Flash Trade REST client
 cd rtp/swarm && cargo test --lib audit::tests
@@ -295,6 +296,7 @@ All commands support `--json` (machine-readable), `--quiet` (errors only), `--cl
 | `rtp/swarm/src/wings/trading/phantom_mcp.rs` | **[ARCHIVED]** Phantom MCP client — gated behind `#[cfg(feature = "hyperliquid")]`, not compiled by default |
 | `rtp/swarm/src/bin/rtp-daemon.rs` | **Devnet loop daemon — real chain execution via chain_client, stale position close, single-cycle (Railway cron) or watchdog mode (RTP_WATCHDOG=1)** |
 | `rtp/swarm/src/chain_client.rs` | **On-chain client — ChainConfig from env, ExecutionMode simulate/devnet/mainnet, PDA derivation, open/close instruction builders, submit/simulate with retry** |
+| `rtp/swarm/src/trader/mod.rs` | **Live autonomous trader — REST API trading via Flash Trade, Arc<Mutex<TraderState>> shared state, HTTP status server on configurable port** |
 | `rtp/swarm/src/wings/security/mod.rs` | Threat detection, rate-limiting, suspicious-proposal detection |
 | `rtp/swarm/src/wings/evolve/` | Assessor, proposer, rollback (complete, tested) |
 | `rtp/swarm/src/wings/knowledge/mod.rs` | Persistent knowledge store (JSON file-backed), cross-wing queries |
@@ -367,7 +369,7 @@ Flash Trade uses **Pyth Network** oracles for pricing. Pyth prices are **mainnet
 # Run Flash Trade CPI tests (local validator):
 cd rtp/programs/rtp-treasury && anchor test
 
-# Run Rust swarm tests (312 tests):
+# Run Rust swarm tests (325 tests):
 cd rtp/swarm && cargo test --lib
 ```
 
@@ -494,6 +496,7 @@ All CI/CD runs on **Railway** (migrated from GitHub Actions to conserve Actions 
 | **rtp-swarm-ci** | Manual trigger | `rtp/Dockerfile.ci` | Manual redeploy only | https://rtp-swarm-ci-production.up.railway.app |
 | **rtp-fee-crank** | Cron (one-shot) | `scripts/Dockerfile.crank` | `0 * * * *` (hourly) | — |
 | **rtp-promote-strategy** | Cron (one-shot) | `scripts/Dockerfile.promote` | `30 14 * * *` | — |
+| **rtp-trader** | Always-on | `rtp/swarm/Dockerfile.trader` | — | HTTP status server on port 8080 (Railway private networking) |
 
 **Railway account:** katejcooper.atelier@gmail.com
 **Project dashboard:** https://railway.com/project/11004852-2ba7-46d9-aeb5-ab9558e965a0
@@ -506,6 +509,7 @@ All CI/CD runs on **Railway** (migrated from GitHub Actions to conserve Actions 
 - **rtp-devnet-loop**: Rust `rtp-daemon` binary. Dockerfile uses `rust:1.88-slim` builder + `debian:bookworm-slim` runner. Connected to GitHub repo (`tradewife/resilient-token-protocol`), auto-deploys on push. Build context is repo root — COPY paths in Dockerfile use `rtp/swarm/` prefix. Needs env vars: `LLM_API_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`.
 - **rtp-night-shift**: Python 3.12, installs from `requirements-ci.txt`, runs `night_shift --skip-fetch`. One-shot: runs to completion and exits. OHLCV data in `data/ohlcv/` included via `.railwayignore` exclusion.
 - **rtp-swarm-ci**: Rust builder with Solana CLI + Anchor. Runs `cargo build`, `cargo test`, `cargo clippy`, `cargo fmt --check`, `anchor build`. One-shot CI validation.
+- **rtp-trader**: Always-on Rust binary (`rtp-trader`). Runs Survivor 2.69 strategy autonomously, polls Flash Trade every 5 minutes, executes SOL LONG positions when signal conditions met. HTTP status server on port 8080 serves `GET /state` (live TraderState JSON) and `GET /health`. State shared via `Arc<Mutex<TraderState>>` between trading loop and HTTP handler. Dashboard fetches via Railway private networking (`http://rtp-trader.railway.internal:8080/state`). Dockerfile: `rtp/swarm/Dockerfile.trader`. Env var `RTP_TRADER_HTTP_PORT` (default 8080).
 
 ### Cron Schedule Configuration
 

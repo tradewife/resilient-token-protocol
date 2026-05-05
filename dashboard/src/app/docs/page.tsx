@@ -81,7 +81,7 @@ const DOC_GROUPS: DocGroup[] = [
               <li><strong>Self-funding economics</strong> — treasury generates its own yield via Flash Trade on-chain perps (Solana CPI), with irreversible phase evolution (Sustenance → Ecosystem → Humanity). No VC dependency.</li>
               <li><strong>Proven research engine</strong> — 30,000 strategy configs tested per night, 9-fold walk-forward validation, Darwinian evolution. Not a backtest screenshot — out-of-sample results across 9 independent time windows.</li>
               <li><strong>Real execution</strong> — Treasury PDA signs via invoke_signed, positions open/close on Flash Trade (on-chain Solana perps). Mainnet CPI proofs: Open TX 2bLg1Fu..., Close TX dFqkoP2.... SOL never leaves Solana.</li>
-              <li><strong>312 Rust tests, 0 failures</strong> — 6-wing swarm architecture with Security, Audit, Evolve, Knowledge, and Futureproof wings. Not a wrapper around an API — a real multi-agent system.</li>
+              <li><strong>325 Rust tests, 0 failures</strong> — 6-wing swarm architecture with Security, Audit, Evolve, Knowledge, and Futureproof wings. Not a wrapper around an API — a real multi-agent system.</li>
             </ul>
 
             <h3>How It Works</h3>
@@ -103,7 +103,7 @@ const DOC_GROUPS: DocGroup[] = [
 │  Treasury PDA: fees → yield → redistribute           │
 │  19 instructions · PDA-owned · CPI-only transfers     │
 ├──────────────────────────────────────────────────────┤
-│              SWARM RUNTIME (Rust · 312 tests)         │
+│              SWARM RUNTIME (Rust · 325 tests)         │
 │  Coordinator → message bus → 6 wings                  │
 │  Trading → Flash Trade CPI → on-chain perps → SOL     │
 │  Security · Evolve · Knowledge · Audit · Futureproof  │
@@ -134,8 +134,9 @@ const DOC_GROUPS: DocGroup[] = [
               headers={["Component", "Status", "Detail"]}
               rows={[
                 ["Anchor treasury program", "✅ Deployed (devnet)", "Per-token isolation, 19 instructions, redistribution verified"],
-                ["Rust swarm runtime", "✅ 312 tests passing", "6 wings: Trading, Security, Evolve, Knowledge, Audit, Futureproof"],
+                ["Rust swarm runtime", "✅ 325 tests passing", "6 wings: Trading, Security, Evolve, Knowledge, Audit, Futureproof"],
                 ["Flash Trade CPI execution", "✅ Mainnet proofs", "Treasury PDA invoke_signed, positions open/close on-chain (Open TX 2bLg1Fu..., Close TX dFqkoP2...)"],
+                ["Live autonomous trader", "✅ Running 24/7", "rtp-trader on Railway, Survivor 2.69 strategy, REST API trading, HTTP status server on port 8080"],
                 ["Treasury yield deposit", "✅ On-chain confirmed", "USDC yield → SOL → treasury PDA via CPI transfer"],
                 ["Autonomous daemon", "✅ 7 cycles completed", "6h cron, LLM-driven strategy evolution, auditable trail"],
                 ["SDK", "✅ Shipped", "<code>@resilient-protocol/sdk</code> — one function call to register any token"],

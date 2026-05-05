@@ -619,7 +619,7 @@ The Trading Wing's research layer is shipping today. Everything else is scaffold
 | Treasury Program (Anchor: deposit, distribute, hydrate, evolve, Flash Trade CPI) | — | Solana | **Built** (audit remediated, M0–M5 complete) |
 | soulcontract.md (constitutional governance layer) | — | Governance | **Defined** |
 | Python ↔ Rust Bridge (typed JSON, bridge-mode subprocess) | Trading | Both | **Built** |
-| Coordinator (soulguard + router + lifecycle) | — | Rust | **Built** (312 tests) |
+| Coordinator (soulguard + router + lifecycle) | — | Rust | **Built** (325 tests) |
 | Evolve Wing (assessor + proposer + rollback) | Evolve | Rust | **Built** |
 | Audit Wing (3-agent tribunal, Byzantine consensus) | Audit | Rust | **Built** |
 | Trading Wing (Flash Trade CPI execution, REST API client, in-memory state) | Trading | Rust | **Built** |
@@ -727,7 +727,7 @@ Treasury program audit-remediated. All 6 wings built. Coordinator with full qual
 - ✅ Python ↔ Rust typed bridge (`rtp/swarm/src/bridge.rs`)
 - ✅ End-to-end demo loop (`rtp/swarm/src/demo.rs`, 8-step pipeline)
 - ✅ Autonomous devnet loop (`rtp-daemon` binary, real chain execution via chain_client.rs, 6h CI cron, LLM mutations)
-- ✅ Test suite: 312 tests, 0 failures, 0 clippy warnings (anchor: 32 passing, 9/9 Flash Trade CPI tests).
+- ✅ Test suite: 325 tests, 0 failures, 0 clippy warnings (anchor: 32 passing, 9/9 Flash Trade CPI tests).
 
 ### Phase 2: End-to-End Integration + Full Loop
 
@@ -792,7 +792,7 @@ npx tsx cli/bin/rtp.ts status --all
 | **Potential Impact** | ? | Project with lasting real-world value | 10,000+ Solana token projects need this — unruggable yield standard |
 | **Novelty** | ? | Novel approach, original architecture | First fee-routing treasury protocol with on-chain CPI execution |
 | **UX** | ? | Great demo experience | Phantom Connect wallet, devnet treasury live, 3-min demo |
-| **Open-source** | ? | Clean, well-documented repo | Full swarm + treasury program (MIT), 312 Rust tests, clean history |
+| **Open-source** | ? | Clean, well-documented repo | Full swarm + treasury program (MIT), 325 Rust tests, clean history |
 | **Business Plan** | ? | Viable business model | Self-funding economics — treasury generates its own yield, no VC dependency |
 
 ### Demo Flow (3 minutes)

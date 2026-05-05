@@ -2,8 +2,8 @@
 
 > **How to use this file:** Paste the relevant sections at the top of every fresh agent session. Do not paste the full papers or full repo. This file is the compressed institutional memory of the project. Update it after each significant session.
 
-**Last updated:** 2026-04-30 — P0 + P1 remediation complete. 312 unit + 12 integration tests pass. Docker volume mounts for night results (P1.1). Knowledge wing persistence via RTP_KNOWLEDGE_PATH (P1.3). Positions CLI + SDK with close path (P1.4). Promotion idempotency fixed (P2.1). CLI TypeScript builds clean.
-**Current state:** P0 + P1 + P2.1 remediation complete (10 tasks). 312 unit + 12 integration Rust tests pass. Docker volume mounts: night results dir shared via VOLUME ["/data/night_results"] across promote/daemon/night-shift images (P1.1). Knowledge Wing persistence via RTP_KNOWLEDGE_PATH env var — daemon records cycle metadata to persistent JSON file (P1.3). Positions CLI: `rtp positions list/close/reset-counters` + SDK methods closeFlashPosition/emergencyResetPositionCounters/listFlashPositions (P1.4). Promotion idempotency: makeStrategyId uses {SYMBOL}_{DATE}_{HASH} collision-resistant format (P2.1). Anchor program on-chain tests: deployed to devnet (rate-limited SOL faucet — no code failures). CLI TypeScript compiles clean.
+**Last updated:** 2026-05-05 — Live autonomous trader deployed. 325 unit + 5 integration tests pass. HTTP status server + dashboard API route for real-time trader state. Railway rtp-trader service operational with mainnet positions.
+**Current state:** Live autonomous trader (rtp-trader) running 24/7 on Railway. Survivor 2.69 strategy executing SOL LONG positions via Flash Trade REST API. HTTP status server on port 8080 serves live TraderState JSON via Arc&lt;Mutex&lt;TraderState&gt;&gt;. Dashboard at resilientprotocol.xyz polls /api/trader-status every 15 seconds, fetching from trader via Railway private networking. 325 unit + 5 integration Rust tests pass. All 7 Railway services green (dashboard, devnet-loop, night-shift, swarm-ci, fee-crank, promote-strategy, trader).
 
 ---
 
@@ -229,6 +229,51 @@ A judge must be able to verify these five things in under 3 minutes:
 ---
 
 ## 8. Session Status
+
+**Session 2026-05-05 — Live Autonomous Trader + Dashboard Real-Time Updates**
+
+State as of May 5:
+- **325 unit + 5 integration Rust tests, 0 failures**
+- **Live autonomous trader running on Railway (rtp-trader service)**
+- **Dashboard at resilientprotocol.xyz showing real-time trader status**
+- **7/7 Railway services green**
+
+**What was done (this session):**
+
+| Category | Change | Files |
+|----------|--------|-------|
+| **New: rtp-trader binary** | Always-on trader running Survivor 2.69, polls Flash Trade every 5 min, executes SOL LONG positions via REST API | `rtp/swarm/src/trader/mod.rs` |
+| **HTTP status server** | `start_status_server()` spawns tokio TCP listener on configurable port, serves GET /state (TraderState JSON), GET /health, CORS headers | `rtp/swarm/src/trader/mod.rs` |
+| **Shared state** | `Arc<Mutex<TraderState>>` between trading loop and HTTP handler | `rtp/swarm/src/trader/mod.rs` |
+| **Dashboard API route** | `/api/trader-status/route.ts` — fetches from trader via Railway private networking, falls back to static file | `dashboard/src/app/api/trader-status/route.ts` |
+| **Dashboard Live Trader section** | LIVE badge, position status, trade history, PnL, confirmed mainnet TX links | `dashboard/src/app/page.tsx` |
+| **Demo Step 9** | Reads trader-state.json, reports live status in demo output | `rtp/swarm/src/demo.rs` |
+| **Dockerfile.trader** | EXPOSE 8080, RTP_TRADER_HTTP_PORT env var | `rtp/swarm/Dockerfile.trader` |
+| **Docs** | 3-minute demo script, README Live Trading section, prebuild-data.sh update | `docs/demo-flow.md`, `README.md`, `dashboard/scripts/prebuild-data.sh` |
+
+**Confirmed mainnet transactions (live trader):**
+
+| TX | Type | Detail |
+|----|------|--------|
+| `MQNU7AbR...` | Open (REST API) | score=0.400, 3 bullish TFs |
+| `55BrK7Fi...` | Open (REST API) | Post-redeploy position |
+| `4KYd36f9...` | Open (REST API) | Additional position |
+| `YtGKq46w...` | Open (REST API) | Listed in dashboard |
+| `56PLUQA...` | Close (REST API) | SOL returned |
+
+**Railway services (all 7 green):**
+
+| Service | Status | Notes |
+|---------|--------|-------|
+| rtp-dashboard | SUCCESS | 200 OK, serving live with /api/trader-status |
+| rtp-devnet-loop | SUCCESS | Auto-deployed from push |
+| rtp-night-shift | SUCCESS | Cron |
+| rtp-swarm-ci | SUCCESS | CI validated |
+| rtp-fee-crank | SUCCESS | Hourly |
+| rtp-promote-strategy | SUCCESS | Cron |
+| rtp-trader | SUCCESS | Always-on, HTTP status server on :8080, live positions |
+
+---
 
 **Session 2026-04-29(iv) — P0 Remediation (5 tasks, real daemon execution)**
 
