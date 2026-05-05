@@ -15,8 +15,7 @@ data/*
 !data/night_results/**
 !data/devnet-cycles/
 !data/devnet-cycles/**
-!data/sensitivity_*.csv
-!data/sensitivity_*.png
+data/sensitivity_*.csv
 !data/swarm-memory/
 !data/swarm-memory/.gitkeep
 
