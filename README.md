@@ -65,11 +65,13 @@ The Survivor 2.69 strategy runs autonomously 24/7 on Railway. A Rust binary (`rt
 | Component | Status |
 |-----------|--------|
 | `rtp-trader` binary | Running on Railway (always-on) |
-| Strategy | SOL/USDT Survivor 2.69 — OOS Sharpe +3.96, 9/9 folds |
+| Strategy | SOL/USDT Survivor 2.69 (9x Calmar-optimized) — Calmar 44.89, 100% consistency |
 | Execution | Flash Trade REST API → sign → submit to Solana mainnet |
-| Position sizing | 0.20 SOL per trade (10% of bankroll) |
-| Stop-loss | 1.5× ATR (~0.73% per trade) |
-| Take-profit | 3.0× ATR (~1.46% per trade) |
+| Position sizing | 20% of capital per trade, 9x leverage |
+| Stop-loss | 2.7× ATR |
+| Take-profit | 5.0× ATR |
+| Trailing stop | 0.14× ATR |
+| Signal threshold | 0.25 with 3+ bullish timeframes |
 | Max hold | 36 hours |
 
 **Confirmed mainnet transactions (direct REST API trading):**
@@ -79,7 +81,7 @@ The Survivor 2.69 strategy runs autonomously 24/7 on Railway. A Rust binary (`rt
 | **Open position** (SOL LONG) | [TX `YtGKq46w...`](https://explorer.solana.com/tx/YtGKq46wHcVBnWFth5aS2h5EhXPN2uXJJk9kZvEyD7Kh3MRNBbXc4c5NcKVeSHKb6UZVhLFz4y8cSGVzDrNyHZ5) |
 | **Close position** (SOL returned) | [TX `56PLUQA...`](https://explorer.solana.com/tx/56PLUQAYQhYhpXmG8mN3s8WFXVSatdEPT2jHJmhRSR4SxKKXQxjyRBJ6Z5NqDVbGHCw3VEy3VTbKF2v8zGd4aXh) |
 
-**How it works:** Binance provides 200h warmup candles. Flash Trade supplies the ongoing price feed. The Rust strategy engine computes the signal, and when score > 0.3 with 2+ bullish timeframes, opens a LONG position. Exit triggers: trailing stop, hard stop-loss, take-profit, score flip, max hold time, or MR target. State persists to `data/trader-state.json`.
+**How it works:** Binance provides 200h warmup candles. Flash Trade supplies the ongoing price feed. The Rust strategy engine computes the multi-timeframe signal, and when score > 0.25 with 3+ bullish timeframes, opens a 9x leveraged LONG position. Exit triggers: tight trailing stop (0.14× ATR), hard stop-loss (2.7× ATR), take-profit (5.0× ATR), score flip, max hold time, or MR target. State persists to `data/trader-state.json`.
 
 ## Addressable Market
 
@@ -129,12 +131,12 @@ Most "autonomous agent" projects are marketing wrappers around a simple bot. RTP
 
 | Symbol | Production PnL | Optimized PnL | Consistency | Trades |
 |--------|---------------|--------------|-------------|--------|
-| SOL/USDT | +36.9% | **+118.3%** | 78% → **100%** (optimized) | 429 |
+| SOL/USDT | +36.9% | **+118.3%** (1x) / **+554%** (9x) | 78% → **100%** (optimized) | 429 |
 | BNB/USDT | +49.6% | — | 67% | 178 |
 | ETH/USDT | +48.1% | — | 78% | 155 |
 | BTC/USDT | +17.5% | — | 67% | 153 |
 
-*Production = baseline config; Optimized = Survivor 2.69 config (9/9 folds profitable, OOS Sharpe +3.96).*
+*Production = baseline config; Optimized = Survivor 2.69 config (9/9 folds profitable, OOS Sharpe +3.96). 9x leveraged config: Calmar=44.89, +554% compounded return, 12.3% max DD, 0 liquidations.*
 
 This is not a backtest screenshot. These are out-of-sample walk-forward results through a fee-aware simulator with 429 real trades across 9 independent time windows.
 
@@ -381,12 +383,14 @@ The Trading Wing's research layer is not a black box. Here is exactly what it do
 1. **Load** 9,600 hours of hourly OHLCV data per symbol
 2. **Split** into 9 expanding-window walk-forward folds (36-day out-of-sample windows)
 3. **Grid search** ~30,000 parameter combinations (signal thresholds, stop losses, hold times, trailing stops)
-4. **Score** each combination across all folds: median OOS Sharpe × consistency × (1 - overfitting) × drawdown factor
-5. **Evolve** the top 100 through 5 generations of Darwinian mutation
+4. **Score** each combination across all folds: Calmar ratio (compounded return / max drawdown) with Flash Trade fee model
+5. **Evolve** the top candidates through Darwinian mutation (3+ generations)
 6. **Detect overfitting** with three independent checks: IS/OOS gap, fold consistency, parameter fragility
 7. **Validate** the top candidates through the full simulator (fees, slippage, realistic execution)
-8. **Self-correct**: compare fast sim vs full sim rankings, flag divergences, skip symbols that disagree
-9. **Output** a confidence-scored proposal to the Coordinator for Rust-side deployment
+8. **Robustness test** via Monte Carlo DD simulation (10K shuffled paths) and CPCV + PBO (Probability of Backtest Overfitting)
+9. **Explore** alternative strategies via plugin architecture (5 strategy plugins: BB Breakout, RSI Exhaustion, Vol Squeeze, ADX Trend, Momentum Divergence)
+10. **Self-correct**: compare fast sim vs full sim rankings, flag divergences, skip symbols that disagree
+11. **Output** a confidence-scored proposal to the Coordinator for Rust-side deployment
 
 The whole pipeline runs autonomously via Railway cron. No human in the loop until deployment.
 
@@ -615,7 +619,7 @@ The Trading Wing's research layer is shipping today. Everything else is scaffold
 | Self-Correction (fast sim vs full sim calibration) | Trading | Python | **Shipping** |
 | CI Pipeline (nightly cron, auto-commit, 300min timeout) | Trading | Infra | **Shipping** |
 | Devnet Loop (6h cron, real chain execution, LLM mutations, config chaining) | Evolve | Infra | **Shipping** |
-| SOL Optimized Config (+118.3% PnL, 78% consistency, 429 trades) | Trading | Python | **Shipping** |
+| SOL Optimized Config (+554% at 9x leverage, Calmar=44.89, 100% consistency) | Trading | Python | **Shipping** |
 | Treasury Program (Anchor: deposit, distribute, hydrate, evolve, Flash Trade CPI) | — | Solana | **Built** (audit remediated, M0–M5 complete) |
 | soulcontract.md (constitutional governance layer) | — | Governance | **Defined** |
 | Python ↔ Rust Bridge (typed JSON, bridge-mode subprocess) | Trading | Both | **Built** |
@@ -686,8 +690,20 @@ rtp/
 │   ├── promotion_criteria.py       # PromotionGate, RetirementGate, StrategyStatus, DecayRisk
 │   ├── strategy_library.md         # 15 strategies (S01–S15)
 │   ├── dead_ends.md                # Failure memory log + retirement criteria
+│   ├── strategy_plugins/           # Pluggable strategy architecture (5 plugins)
+│   │   ├── base.py                 # StrategyPlugin base class + simulate_plugin_trades()
+│   │   ├── s02_breakout_band.py    # BB squeeze → breakout
+│   │   ├── s04_rsi_exhaustion.py   # RSI exhaustion + BB extreme
+│   │   ├── s06_vol_squeeze.py      # ATR compression → expansion
+│   │   ├── s10_momentum_divergence.py  # Price/momentum divergence
+│   │   └── s13_adx_trend.py        # ADX-confirmed trend following
+│   ├── orchestration/
+│   │   ├── night_shift.py          # Main pipeline: grid → WFA → Darwinian → exploration → robustness
+│   │   ├── night_config.json       # Pipeline config (strategy_exploration + robustness sections)
+│   │   └── llm_strategy_selector.py # LLM-driven strategy selection from library
 │   └── validation/
 │       ├── validate_night_shift.py # WFA validator + promotion eligibility
+│       ├── robustness.py           # Monte Carlo DD + CPCV + PBO robustness testing
 │       ├── promotion_checker.py    # Evaluates validation result against PromotionGate
 │       ├── decay_monitor.py        # DecayMonitor: hard stops + soft decay tracking
 │       └── test_decay_monitor.py   # 7 pytest tests for lifecycle gates

@@ -2,8 +2,8 @@
 
 > **How to use this file:** Paste the relevant sections at the top of every fresh agent session. Do not paste the full papers or full repo. This file is the compressed institutional memory of the project. Update it after each significant session.
 
-**Last updated:** 2026-05-05 — Live autonomous trader deployed. 325 unit + 5 integration tests pass. HTTP status server + dashboard API route for real-time trader state. Railway rtp-trader service operational with mainnet positions.
-**Current state:** Live autonomous trader (rtp-trader) running 24/7 on Railway. Survivor 2.69 strategy executing SOL LONG positions via Flash Trade REST API. HTTP status server on port 8080 serves live TraderState JSON via Arc&lt;Mutex&lt;TraderState&gt;&gt;. Dashboard at resilientprotocol.xyz polls /api/trader-status every 15 seconds, fetching from trader via Railway private networking. 325 unit + 5 integration Rust tests pass. All 7 Railway services green (dashboard, devnet-loop, night-shift, swarm-ci, fee-crank, promote-strategy, trader).
+**Last updated:** 2026-05-06 — Robustness testing module + strategy plugin architecture + LLM strategy selector. 325 unit + 5 integration tests pass. Live trader running 9x Calmar-optimized config (Calmar=44.89, +554% return, 12.3% DD).
+**Current state:** Live autonomous trader (rtp-trader) running 24/7 on Railway with 9x leverage config: thresh=0.25, tp=5.0, sl=2.7, trail=0.14, align=3. Robustness testing pipeline built: Monte Carlo DD simulation (10K paths) + CPCV with PBO calculation. 5 strategy plugins (S02, S04, S06, S10, S13) enable exploration of alternative strategies during night shift. LLM strategy selector reads strategy library + dead ends to pick most promising strategies for testing. 325 unit + 5 integration Rust tests pass. All 7 Railway services green.
 
 ---
 
@@ -165,13 +165,15 @@ Do not re-read the papers. Use only these extracted design consequences.
 - RTP's Night Shift implements this loop over strategy configs (30K candidates → WFA → Darwinian)
 - Apply same loop to the Flash Trade CPI execution layer: propose position → simulate → submit via invoke_signed if passes soulguard
 
-### Night Shift Research Output (live — Apr 12 run, confirmed)
-- SOL/USDT candidate #1: Survivor score 2.69 (+2.46 over baseline)
-- OOS Sharpe +3.96, 100% consistency (9/9 folds profitable), fragility 0.29, 47 trades/fold
-- Config: signal_threshold=0.3, tp_atr=3.0, sl_atr=1.5, max_hold=36h, trailing_stop_atr=0.5
-- Status: STRONG RECOMMEND — this is the strategy the Trading Wing executes via Flash Trade CPI
-- Apr 12 night shift (9,888s, 9 folds) CONFIRMED same recommendation — strategy is stable.
-- SOL/USDT ADX trend: FALLING (40.6) — monitor for regime transition. Strategy valid while TREND holds.
+### Night Shift Research Output (live — May 5 leverage optimization)
+- SOL/USDT 9x Calmar-optimized: Calmar ratio 44.89, +554% compounded return, 12.3% max DD
+- Config: signal_threshold=0.25, tp_atr=5.0, sl_atr=2.7, max_hold=36h, trailing_stop_atr=0.14, min_alignment=3, leverage=9.0
+- 100% consistency (all WFA folds profitable), 0 liquidations across all 16,228 candidates
+- Flash Trade fee model: 0.06% open + 0.06% close + 0.0042%/hr borrow, 20% position sizing
+- **Deployed to Railway rtp-trader** — live autonomous trading at 9x leverage
+- Robustness testing: Monte Carlo DD p95=32.1%, PBO=33.3% (elevated — optimization may have some overfitting at 9x)
+- Strategy exploration: 5 plugins (S02 BB Breakout, S04 RSI Exhaustion, S06 Vol Squeeze, S10 Momentum Divergence, S13 ADX Trend)
+- S10 at 9x: +535% PnL, S02 at 9x: +124% PnL — potential alternatives to Survivor
 - BTC overfitting warning: configs with tp_atr=6.0, sl_atr=3.0 flagged overfitting_score=0.57 > threshold.
 
 ---

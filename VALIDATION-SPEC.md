@@ -1,5 +1,7 @@
 # VALIDATION-SPEC.md — Leverage Audit & Fresh Session Handoff
 
+> **Status:** SUPERSEDED. The 3x leverage audit was completed and the approach was extended to a full 3x-10x leverage optimization. The current deployed config is 9x leverage with Calmar=44.89. See `data/night_results/2026-05-05/leverage_report.md` for the latest results. This file is retained for historical reference.
+
 > **Purpose:** This file hands off the leverage validation task to a fresh agent session. The previous session produced conflicting PnL numbers and needs a clean audit before deploying 3x leverage to production.
 
 ---

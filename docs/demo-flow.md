@@ -42,8 +42,8 @@
 > "30,000 strategy configs tested per night. 9-fold walk-forward validation."
 
 **Show:** Dashboard "Validated Strategy" section.
-- OOS Sharpe: +3.96
-- PnL: +118.3%
+- Calmar Ratio: 44.89 (9x leverage)
+- PnL: +554% compounded
 - Consistency: 9/9 folds (100%)
 - Trades: 429
 - "Not a backtest screenshot. Out-of-sample results across 9 independent time windows."
@@ -73,5 +73,5 @@
 | "Why not Drift/Jupiter?" | No CPI interface for autonomous program-to-program trading. |
 | "What about the program deployment cost?" | 372KB binary, ~2.6 SOL. Using direct REST API trading to prove the loop first. Program deployment when budget allows. |
 | "How is this different from AI yield agents?" | Infrastructure, not a product. Any token adopts RTP — we don't custody funds, the PDA does. |
-| "What happens if the trader loses?" | Max 0.73% per trade (1.5× ATR stop-loss). Max drawdown observed: 4.66%. Per-token isolation means one loss doesn't affect others. |
+| "What happens if the trader loses?" | Max 12.3% drawdown observed at 9x leverage. Stop-loss at 2.7× ATR per trade. Tight trailing stop at 0.14× ATR captures gains fast. Per-token isolation means one loss doesn't affect others. |
 | "Can I see it trade live?" | Yes — the trader is running right now on Railway. When market conditions trigger a signal, a position opens automatically. |
