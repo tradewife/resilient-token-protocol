@@ -79,15 +79,79 @@ if os.path.isdir(nr):
     if nights:
         latest = nights[-1]
         sf = os.path.join(nr, latest, "summary.json")
+        lf = os.path.join(nr, latest, "leverage_optimization.json")
         rf = os.path.join(nr, latest, "report.md")
-        if os.path.isfile(sf):
+        lrf = os.path.join(nr, latest, "leverage_report.md")
+        
+        if os.path.isfile(lf):
+            # Leverage optimization format
+            lev = json.load(open(lf))
+            lresults = lev.get("results", {})
+            # Build night.json from leverage optimization data
+            top_candidates = []
+            for sym, results in lresults.items():
+                sorted_r = sorted([r for r in results if not r.get("rejected")], 
+                                  key=lambda r: r.get("calmar_ratio", 0), reverse=True)
+                for r in sorted_r[:5]:
+                    top_candidates.append({
+                        "symbol": sym,
+                        "params": r.get("params", {}),
+                        "survivor_score": r.get("calmar_ratio", 0),
+                        "oos_sharpe": r.get("oos_sharpe", 0),
+                        "oos_consistency": r.get("consistency", 0),
+                        "oos_max_dd": r.get("max_drawdown_pct", 0),
+                        "overfitting_score": 0,
+                        "fragility": 0,
+                        "oos_avg_trades_per_fold": r.get("total_trades", 0) / max(lev.get("config", {}).get("wfa", {}).get("num_folds", 9), 1),
+                        "rejected": r.get("rejected", False),
+                    })
+            
+            # Market state from leverage report or defaults
+            market_state = {}
+            for sym in lev.get("config", {}).get("symbols", ["SOL/USDT"]):
+                market_state[sym] = {
+                    "current_adx": 0,
+                    "current_regime": "TREND",
+                    "volatility_percentile": 50,
+                    "recent_30d_return_pct": 0,
+                    "adx_trend": "STABLE",
+                    "trend_pct": 50,
+                }
+            
+            # Production baseline from top candidate
+            prod_baseline = {}
+            best = top_candidates[0] if top_candidates else None
+            if best:
+                prod_baseline[best["symbol"]] = {
+                    "params": best["params"],
+                    "survivor_score": best["survivor_score"],
+                    "oos_sharpe": best["oos_sharpe"],
+                    "oos_consistency": best["oos_consistency"],
+                }
+            
+            summary = {
+                "run_at": lev.get("run_at", ""),
+                "runtime_seconds": lev.get("config", {}).get("runtime_seconds", 0),
+                "num_folds": lev.get("config", {}).get("wfa", {}).get("num_folds", 9),
+                "symbols": lev.get("config", {}).get("symbols", []),
+                "market_state": market_state,
+                "production_baseline": prod_baseline,
+                "top_candidates": top_candidates,
+                "_date": latest,
+                "_report": open(lrf).read() if os.path.isfile(lrf) else 
+                          (open(rf).read() if os.path.isfile(rf) else ""),
+            }
+            json.dump(summary, open(os.path.join(DATA_DIR, "night.json"), "w"), indent=2)
+            print(f"night.json written from leverage_optimization.json ({latest})")
+        elif os.path.isfile(sf):
+            # Standard summary format
             summary = json.load(open(sf))
             summary["_date"] = latest
             summary["_report"] = open(rf).read() if os.path.isfile(rf) else ""
             json.dump(summary, open(os.path.join(DATA_DIR, "night.json"), "w"), indent=2)
             print(f"night.json written ({latest})")
         else:
-            print("night.json: no summary.json in latest dir")
+            print("night.json: no summary.json or leverage_optimization.json in latest dir")
     else:
         print("night.json: no night_results subdirs")
 else:
