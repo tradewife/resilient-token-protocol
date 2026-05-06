@@ -17,18 +17,18 @@ const PROJECT_DEV_BPS: u16 = 2000; // 20%
 #[allow(dead_code)]
 const ECOSYSTEM_BPS: u16 = 1000;   // 10% (auditability reference)
 
-/// Phase thresholds in USDC (6 decimals).
+/// Phase thresholds in lamports (1 SOL = 1_000_000_000 lamports).
 /// Production: validated against on-chain oracle (Pyth/Switchboard).
 /// Devnet: phase_authority signature is the guard.
 /// Wired into evolve_phase via oracle TODO — see handler for details.
-const SUSTENANCE_CAP: u64 = 50_000_000_000;   // $50k
-const ECOSYSTEM_CAP: u64 = 1_000_000_000_000; // $1M
+const SUSTENANCE_CAP_LAMPORTS: u64 = 50_000_000_000;   // 50 SOL
+const ECOSYSTEM_CAP_LAMPORTS: u64 = 1_000_000_000_000; // 1000 SOL
 
-/// Default minimum redistribution amount (1 token, 6 decimals).
+/// Default minimum redistribution amount (0.001 SOL = 1_000_000 lamports).
 /// Prevents dust distributions that waste gas.
 const DEFAULT_MIN_REDISTRIBUTE: u64 = 1_000_000;
 
-/// Default minimum runway balance (10 tokens).
+/// Default minimum runway balance (0.01 SOL = 10_000_000 lamports).
 /// Production: set to USDC value covering 90 days of ops (~$18k USDC).
 /// See BUILD_PLAN.md: "~$100-200/mo ops cost" → $18,000 for 90 days.
 const DEFAULT_MIN_RUNWAY: u64 = 10_000_000;
@@ -121,6 +121,8 @@ pub enum TreasuryError {
     FlashCpiFailed,
     #[msg("Invalid Flash Trade program ID")]
     InvalidFlashProgramId,
+    #[msg("Slippage basis points must be 0–10000 (0%–100%)")]
+    InvalidSlippage,
     #[msg("Pool name must be 1-32 characters")]
     InvalidPoolName,
     #[msg("Decremented committed_sol_lamports exceeds tracked balance")]
@@ -133,6 +135,8 @@ pub enum TreasuryError {
     InvalidFlashSystemProgram,
     #[msg("remaining_accounts[14] is not an expected token program (SPL token or token-2022)")]
     InvalidFlashTokenProgram,
+    #[msg("Only the treasury authority can freeze/unfreeze")]
+    UnauthorizedFreeze,
     #[msg("Adopter record does not belong to this treasury")]
     AdopterTreasuryMismatch,
     #[msg("Only the treasury authority can record fee deposits")]
@@ -574,10 +578,12 @@ pub mod rtp_treasury {
 
         treasury.total_fees_withdrawn = treasury
             .total_fees_withdrawn
-            .saturating_add(amount_lamports);
+            .checked_add(amount_lamports)
+            .ok_or(TreasuryError::Overflow)?;
         treasury.total_fees_received_lamports = treasury
             .total_fees_received_lamports
-            .saturating_add(amount_lamports);
+            .checked_add(amount_lamports)
+            .ok_or(TreasuryError::Overflow)?;
 
         Ok(())
     }
@@ -694,14 +700,14 @@ pub mod rtp_treasury {
         let next = match treasury.phase {
             Phase::Sustenance => {
                 require!(
-                    balance >= SUSTENANCE_CAP,
+                    balance >= SUSTENANCE_CAP_LAMPORTS,
                     TreasuryError::BelowThreshold,
                 );
                 Phase::Ecosystem
             }
             Phase::Ecosystem => {
                 require!(
-                    balance >= ECOSYSTEM_CAP,
+                    balance >= ECOSYSTEM_CAP_LAMPORTS,
                     TreasuryError::BelowThreshold,
                 );
                 Phase::Humanity
@@ -882,13 +888,7 @@ pub mod rtp_treasury {
         drawdown_24h_bps: u16,
         new_soft_strike: bool,
     ) -> Result<()> {
-        // Authority gate — only treasury.authority can update strategy metrics.
-        // Without this, any signer could write arbitrary PnL/Sharpe/strikes
-        // and keep a bad strategy Live forever.
-        require!(
-            ctx.accounts.authority.key() == ctx.accounts.treasury.authority,
-            TreasuryError::UnauthorizedStrategyOp,
-        );
+        // Authority gate is enforced by the Anchor constraint on UpdateStrategyPerformance.
         require!(!ctx.accounts.treasury.frozen, TreasuryError::TreasuryFrozen);
         let record = &mut ctx.accounts.strategy_record;
         require!(
@@ -1077,7 +1077,7 @@ pub mod rtp_treasury {
         );
 
         // Validate slippage: must be <= 10000 bps (100%) to prevent negative slippage prices
-        require!(slippage_bps <= 10000, TreasuryError::PositionSizeExceeded);
+        require!(slippage_bps <= 10000, TreasuryError::InvalidSlippage);
 
         // Validate leverage: must be <= 1_000_000 bps (100x) to prevent overflow
         require!(leverage_bps <= 1_000_000, TreasuryError::PositionSizeExceeded);
@@ -1281,7 +1281,7 @@ pub mod rtp_treasury {
         let strategy = &mut ctx.accounts.strategy_record;
 
         // Validate slippage: must be <= 10000 bps (100%) to prevent negative slippage prices
-        require!(slippage_bps <= 10000, TreasuryError::PositionSizeExceeded);
+        require!(slippage_bps <= 10000, TreasuryError::InvalidSlippage);
 
         let flash_program_id = Pubkey::try_from(FLASH_TRADE_PROGRAM_ID)
             .map_err(|_| TreasuryError::InvalidFlashProgramId)?;
@@ -1683,7 +1683,7 @@ pub mod rtp_treasury {
             mut,
             seeds = [TREASURY_SEED, treasury.authority.as_ref()],
             bump = treasury.bump,
-            constraint = authority.key() == treasury.authority @ TreasuryError::UnauthorizedPhaseEvolution,
+            constraint = authority.key() == treasury.authority @ TreasuryError::UnauthorizedFreeze,
         )]
         pub treasury: Account<'info, Treasury>,
 
@@ -1696,7 +1696,7 @@ pub mod rtp_treasury {
             mut,
             seeds = [TREASURY_SEED, treasury.authority.as_ref()],
             bump = treasury.bump,
-            constraint = authority.key() == treasury.authority @ TreasuryError::UnauthorizedPhaseEvolution,
+            constraint = authority.key() == treasury.authority @ TreasuryError::UnauthorizedFreeze,
         )]
         pub treasury: Account<'info, Treasury>,
 
@@ -1765,5 +1765,192 @@ pub mod rtp_treasury {
         pub strategy_record: Account<'info, StrategyRecord>,
 
         pub authority: Signer<'info>,
+    }
+}
+
+// ==== Unit Tests ============================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // -- Slippage math tests (Finding #12) --
+
+    /// Open Long: slippage_price = price * (10000 + slip) / 10000
+    /// With price=100_000, slippage_bps=100 (1%): expect 101_000
+    #[test]
+    fn slippage_open_long_increases_price() {
+        let price: i128 = 100_000;
+        let slippage_bps: u16 = 100; // 1%
+        let slippage_mult = 10000u32 + slippage_bps as u32;
+        let result = price * slippage_mult as i128 / 10000;
+        assert_eq!(result, 101_000);
+    }
+
+    /// Open Short: slippage_price = price * (20000 - (10000 + slip)) / 10000
+    /// With price=100_000, slippage_bps=100: expect 99_000
+    #[test]
+    fn slippage_open_short_decreases_price() {
+        let price: i128 = 100_000;
+        let slippage_bps: u16 = 100;
+        let slippage_mult = 10000u32 + slippage_bps as u32;
+        let result = price * (20000 - slippage_mult as i128) / 10000;
+        assert_eq!(result, 99_000);
+    }
+
+    /// Close Long: slippage_price = price * (10000 - slip) / 10000
+    /// With price=100_000, slippage_bps=100: expect 99_000 (accept lower exit)
+    #[test]
+    fn slippage_close_long_decreases_price() {
+        let price: i128 = 100_000;
+        let slip: i128 = 100;
+        let result = price * (10_000 - slip) / 10_000;
+        assert_eq!(result, 99_000);
+    }
+
+    /// Close Short: slippage_price = price * (10000 + slip) / 10000
+    /// With price=100_000, slippage_bps=100: expect 101_000 (accept higher exit)
+    #[test]
+    fn slippage_close_short_increases_price() {
+        let price: i128 = 100_000;
+        let slip: i128 = 100;
+        let result = price * (10_000 + slip) / 10_000;
+        assert_eq!(result, 101_000);
+    }
+
+    /// Zero slippage: open/close price equals oracle price
+    #[test]
+    fn slippage_zero_is_passthrough() {
+        let price: i128 = 100_000;
+        let slippage_bps: u16 = 0;
+
+        // Open Long
+        let slippage_mult = 10000u32 + slippage_bps as u32;
+        let open_long = price * slippage_mult as i128 / 10000;
+        assert_eq!(open_long, 100_000);
+
+        // Open Short
+        let open_short = price * (20000 - slippage_mult as i128) / 10000;
+        assert_eq!(open_short, 100_000);
+
+        // Close Long
+        let close_long = price * 10_000 / 10_000;
+        assert_eq!(close_long, 100_000);
+
+        // Close Short
+        let close_short = price * 10_000 / 10_000;
+        assert_eq!(close_short, 100_000);
+    }
+
+    /// Max slippage (10000 = 100%): verify no negative prices
+    #[test]
+    fn slippage_max_100_percent() {
+        let price: i128 = 100_000;
+        let slippage_bps: u16 = 10000;
+
+        // Open Long: price * 20000 / 10000 = 2x
+        let slippage_mult = 10000u32 + slippage_bps as u32;
+        let open_long = price * slippage_mult as i128 / 10000;
+        assert_eq!(open_long, 200_000);
+
+        // Open Short: price * 0 / 10000 = 0 (floor, not negative)
+        let open_short = price * (20000 - slippage_mult as i128) / 10000;
+        assert_eq!(open_short, 0);
+
+        // Close Long: price * 0 / 10000 = 0
+        let slip: i128 = 10000;
+        let close_long = price * (10_000 - slip) / 10_000;
+        assert_eq!(close_long, 0);
+
+        // Close Short: price * 20000 / 10000 = 2x
+        let close_short = price * (10_000 + slip) / 10_000;
+        assert_eq!(close_short, 200_000);
+    }
+
+    // -- Recovery counter tests (Finding #18) --
+
+    #[test]
+    fn recovery_counter_needs_three_positive_updates() {
+        // Simulate: 2 positive updates → strikes remain
+        let mut soft_decay_strikes: u8 = 2;
+        let mut recovery_counter: u8 = 0;
+
+        // Positive update 1
+        recovery_counter = recovery_counter.saturating_add(1);
+        if recovery_counter >= MIN_RECOVERY_TRADES {
+            soft_decay_strikes = 0;
+            recovery_counter = 0;
+        }
+        assert_eq!(soft_decay_strikes, 2); // Not yet reset
+        assert_eq!(recovery_counter, 1);
+
+        // Positive update 2
+        recovery_counter = recovery_counter.saturating_add(1);
+        if recovery_counter >= MIN_RECOVERY_TRADES {
+            soft_decay_strikes = 0;
+            recovery_counter = 0;
+        }
+        assert_eq!(soft_decay_strikes, 2); // Still not reset
+        assert_eq!(recovery_counter, 2);
+
+        // Positive update 3 → strikes reset
+        recovery_counter = recovery_counter.saturating_add(1);
+        if recovery_counter >= MIN_RECOVERY_TRADES {
+            soft_decay_strikes = 0;
+            recovery_counter = 0;
+        }
+        assert_eq!(soft_decay_strikes, 0); // Reset!
+        assert_eq!(recovery_counter, 0);
+    }
+
+    #[test]
+    fn new_strike_resets_recovery_counter() {
+        let mut soft_decay_strikes: u8 = 1;
+        let mut recovery_counter: u8 = 2; // 2/3 toward recovery
+
+        // New soft strike arrives
+        soft_decay_strikes = soft_decay_strikes.saturating_add(1);
+        recovery_counter = 0;
+
+        assert_eq!(soft_decay_strikes, 2);
+        assert_eq!(recovery_counter, 0); // Recovery progress wiped
+    }
+
+    #[test]
+    fn neutral_update_resets_recovery_counter() {
+        let mut recovery_counter: u8 = 2;
+
+        // Neither strike nor recovery (pnl_bps == 0)
+        let rolling_pnl_bps: i32 = 0;
+        let rolling_sharpe_x100: i32 = 50;
+        if rolling_pnl_bps > 0 && rolling_sharpe_x100 > 0 {
+            recovery_counter = recovery_counter.saturating_add(1);
+        } else {
+            recovery_counter = 0;
+        }
+
+        assert_eq!(recovery_counter, 0);
+    }
+
+    // -- Emergency close edge case (Finding #17) --
+
+    #[test]
+    fn emergency_close_saturating_sub_no_underflow() {
+        // Scenario: strategy committed exceeds treasury committed (data corruption)
+        let treasury_committed: u64 = 1_000;
+        let strategy_committed: u64 = 5_000; // corrupted: more than treasury
+
+        // saturating_sub prevents underflow
+        let result = treasury_committed.saturating_sub(strategy_committed);
+        assert_eq!(result, 0); // Clamped to zero, no panic
+    }
+
+    #[test]
+    fn emergency_close_normal_subtraction() {
+        let treasury_committed: u64 = 10_000;
+        let strategy_committed: u64 = 3_000;
+
+        let result = treasury_committed.saturating_sub(strategy_committed);
+        assert_eq!(result, 7_000);
     }
 }

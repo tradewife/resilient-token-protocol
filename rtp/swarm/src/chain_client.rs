@@ -149,7 +149,7 @@ impl ChainConfig {
         let rpc_url = std::env::var("SOLANA_RPC_URL").unwrap_or_else(|_| default_rpc.to_string());
 
         let flash_program_str = std::env::var("RTP_FLASH_PROGRAM_ID")
-            .unwrap_or_else(|_| "FLASH6Lo6h3iasJKwd2F8TkW2UKf3s15C8PMGuVfgBn".to_string());
+            .unwrap_or_else(|_| "FLASH6Lo6h3iasJKWDs2F8TkW2UKf3s15C8PMGuVfgBn".to_string());
         let flash_program_id = Pubkey::from_str(&flash_program_str)
             .map_err(|e| format!("RTP_FLASH_PROGRAM_ID invalid: {}", e))?;
 
@@ -200,8 +200,9 @@ pub enum FlashSide {
 }
 
 impl ChainConfig {
-    /// Create a ChainConfig with placeholder values (always available for tests and local dev).
+    /// Create a ChainConfig with placeholder values for tests and local dev.
     /// Does NOT read from environment — safe for unit/integration tests.
+    /// NOTE: Kept public for integration tests in tests/. Not for production use.
     pub fn test_default() -> Self {
         Self {
             authority: Pubkey::new_unique(),

@@ -1,16 +1,21 @@
 //! Trading Wing type definitions.
 //!
 //! Extracted from `mod.rs` for reuse and organization. These types represent
-//! Hyperliquid signing structures, yield reporting, strategy configuration,
-//! and position tracking.
+//! yield reporting, strategy configuration, and position tracking.
+//!
+//! Hyperliquid/Phantom MCP types (`HlSignature`, `HlKeyFile`) are retained for
+//! backward compatibility but are no longer used in the default build path.
+//! The active execution venue is Flash Trade on-chain CPI (invoke_signed).
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-//  Hyperliquid Signing Types
+//  Hyperliquid Signing Types (archived — kept for struct compatibility)
 
 /// ECDSA signature components for Hyperliquid EIP-712 signing.
+/// Archived: not used in the Flash Trade CPI execution path.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct HlSignature {
     pub r: String,
     pub s: String,
@@ -18,7 +23,9 @@ pub struct HlSignature {
 }
 
 /// Key file structure for the HL testnet ETH keypair.
+/// Archived: not used in the Flash Trade CPI execution path.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct HlKeyFile {
     pub address: String,
     pub private_key: String,
@@ -110,11 +117,9 @@ impl PositionState {
 
 /// In-memory trading state for the Trading Wing.
 ///
-/// Tracks per-token derivation indices for Phantom MCP wallet isolation.
-/// Each registered token gets its own `derivationIndex` — yielding a
-/// separate Solana address, EVM address, and Hyperliquid account.
-///
-/// Index 0 is the default agent wallet. Tokens are assigned 1, 2, 3, ...
+/// Tracks per-token accounts and open positions. The `token_wallet_map` and
+/// `derivation_index` fields are retained from the Phantom MCP era — currently
+/// unused in the Flash Trade CPI path but kept for future multi-token support.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TradingState {
     /// Maps token mint (base58) → Phantom derivation index.

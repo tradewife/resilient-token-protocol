@@ -11,6 +11,8 @@ devnet = []
 # Legacy Hyperliquid/Phantom MCP execution path. Archived — the Flash Trade
 # CPI path (default) replaces this. Enable only for backward compatibility.
 hyperliquid = []
+# Test-only utilities (e.g. ChainConfig::test_default). Not compiled into release binaries.
+test-utils = []
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }

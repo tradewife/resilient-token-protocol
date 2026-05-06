@@ -44,7 +44,9 @@ impl TraderConfig {
             .unwrap_or_else(|_| "300".to_string())
             .parse()
             .map_err(|e: std::num::ParseIntError| format!("Invalid RTP_TRADER_POLL_SECS: {}", e))?;
-        let dry_run = std::env::var("RTP_TRADER_DRY_RUN").is_ok();
+        let dry_run = std::env::var("RTP_TRADER_DRY_RUN")
+            .map(|v| v != "0" && v.to_lowercase() != "false")
+            .unwrap_or(false);
 
         let state_path = std::env::var("RTP_TRADER_STATE_PATH")
             .unwrap_or_else(|_| "data/trader-state.json".to_string());

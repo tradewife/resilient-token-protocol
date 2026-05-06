@@ -110,7 +110,7 @@ FLASH_TRADE_FEES = {
 }
 
 WFA_CONFIG = {
-    "num_folds": 10,
+    "num_folds": 9,
     "test_fold_days": 36,
     "min_trades_per_fold": 10,
 }
@@ -346,7 +346,7 @@ def evaluate_on_fold(df: pd.DataFrame, fold: Fold, params: Dict,
 
         # Profit factor from net PnLs
         net_wins = [p for p in trade_pnls if p > 0]
-        net_losses = [p for p in trade_pnls if p <= 0]
+        net_losses = [p for p in trade_pnls if p < 0]
         avg_win = np.mean(net_wins) if net_wins else 0
         avg_loss = abs(np.mean(net_losses)) if net_losses else 0
         fold_pf = avg_win / avg_loss if avg_loss > 0 else 999.0
@@ -1005,7 +1005,7 @@ def auto_validate_top_candidates(all_results: Dict[str, List[CandidateResult]],
                         pnls = [t["pnl_pct"] for t in trips]
                         wins = [p for p in pnls if p > 0]
                         avg_win = np.mean(wins) if wins else 0
-                        avg_loss = abs(np.mean([p for p in pnls if p <= 0])) or 0.001
+                        avg_loss = abs(np.mean([p for p in pnls if p < 0])) or 0.001
                         pf = avg_win / avg_loss
                         m = {
                             "total_pnl_pct": sum(pnls),
@@ -1045,7 +1045,7 @@ def auto_validate_top_candidates(all_results: Dict[str, List[CandidateResult]],
                             pnls = [t["pnl_pct"] for t in trips]
                             wins = [p for p in pnls if p > 0]
                             avg_win = np.mean(wins) if wins else 0
-                            avg_loss = abs(np.mean([p for p in pnls if p <= 0])) or 0.001
+                            avg_loss = abs(np.mean([p for p in pnls if p < 0])) or 0.001
                             pf = avg_win / avg_loss
                             cum = np.cumsum(pnls)
                             running_max = np.maximum.accumulate(cum)
