@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import Topbar from "../Topbar";
 
@@ -45,22 +45,17 @@ interface TraderState {
 }
 
 interface NightData {
-  _date: string;
+  num_folds: number;
+  runtime_seconds: number;
   top_candidates: Array<{
     symbol: string;
-    params: Record<string, number>;
     survivor_score: number;
     oos_sharpe: number;
     oos_consistency: number;
     oos_max_dd: number;
     overfitting_score: number;
     fragility: number;
-    oos_avg_trades_per_fold: number;
-    rejected: boolean;
   }>;
-  num_folds: number;
-  symbols: string[];
-  runtime_seconds: number;
 }
 
 interface StrategyCard {
@@ -70,25 +65,21 @@ interface StrategyCard {
   regime: string;
   priority: number;
   decay_risk: string;
-  entry: string;
-  exit: string;
 }
 
 interface DeadEnd {
   title: string;
   date: string;
   root_cause: string;
-  verdict: string;
-  test_result: string;
 }
 
 /* ──────────────────────── Constants ──────────────────────── */
 
 const MAINNET_TXS = [
-  { label: "CPI Open (invoke_signed)", tx: "2bLg1FuJ6iqwYq6SKi5EcZQWszarDZhS68bCbGTRLKMwhYqsU7G57fTtG4G6GFx3ZKN15qhb85zy28pGJvSdrnG3", note: "99,214 CU" },
-  { label: "CPI Close (SOL returned)", tx: "dFqkoP2wX2meR8Mv8CngujJJUNBYuv5peCyzRYFPBvpN3uqCqXqRCy4TPyw5JbAZhumCaJdGaJoQvJrJGJzxfHF", note: "confirmed" },
-  { label: "REST Open (autonomous)", tx: "YtGKq46wEgeUqoWouV5LXvv6mAxb5dCYmRHy622i7UtP5UoXsKZJtqscJf9fWLjzjZwCZhGw7r4EMgKV3wU2CBg", note: "score=0.400" },
-  { label: "REST Close (SOL returned)", tx: "56PLUQAPGqtAcvRUgJBreMrubAETZkpFCoyHzkwt3jCGCwZYHeonbxcJp244ZipeHuNBAwAX6r1wWkcR9LFcdmM6", note: "confirmed" },
+  { label: "Open · CPI invoke_signed", tx: "2bLg1FuJ6iqwYq6SKi5EcZQWszarDZhS68bCbGTRLKMwhYqsU7G57fTtG4G6GFx3ZKN15qhb85zy28pGJvSdrnG3", note: "99,214 CU", kind: "open" },
+  { label: "Close · SOL returned", tx: "dFqkoP2wX2meR8Mv8CngujJJUNBYuv5peCyzRYFPBvpN3uqCqXqRCy4TPyw5JbAZhumCaJdGaJoQvJrJGJzxfHF", note: "settled mainnet", kind: "close" },
+  { label: "Open · REST autonomous", tx: "YtGKq46wEgeUqoWouV5LXvv6mAxb5dCYmRHy622i7UtP5UoXsKZJtqscJf9fWLjzjZwCZhGw7r4EMgKV3wU2CBg", note: "score = 0.400", kind: "open" },
+  { label: "Close · REST autonomous", tx: "56PLUQAPGqtAcvRUgJBreMrubAETZkpFCoyHzkwt3jCGCwZYHeonbxcJp244ZipeHuNBAwAX6r1wWkcR9LFcdmM6", note: "settled mainnet", kind: "close" },
 ];
 
 const TYPE_COLORS: Record<string, string> = {
@@ -107,7 +98,166 @@ const REGIME_LABELS: Record<string, string> = {
   both: "All Regimes",
 };
 
-/* ──────────────────────── Component ──────────────────────── */
+const LOOP_NODES = [
+  { key: "research",  label: "Research",  desc: "30K configs · 9-fold WFA" },
+  { key: "bridge",    label: "Bridge",    desc: "Python → Rust JSON"        },
+  { key: "evolve",    label: "Evolve",    desc: "LLM proposes mutations"    },
+  { key: "gates",     label: "Gates",     desc: "Bounds + delta check"      },
+  { key: "execute",   label: "Execute",   desc: "Treasury PDA invoke_signed"},
+  { key: "feedback",  label: "Feedback",  desc: "PnL → next cycle"          },
+] as const;
+
+/* ──────────────────────── SVG Components ──────────────────────── */
+
+function ClosedLoopSVG({ activeIdx, liveLabels }: { activeIdx: number; liveLabels: string[] }) {
+  const cx = 320, cy = 320, R = 215, nodeR = 60;
+  const positions = LOOP_NODES.map((_, i) => {
+    const a = -Math.PI / 2 + (i * 2 * Math.PI) / 6;
+    return { x: cx + R * Math.cos(a), y: cy + R * Math.sin(a) };
+  });
+
+  // Full-circle track for the animated pulse
+  const trackD = `M ${cx + R} ${cy} A ${R} ${R} 0 1 1 ${cx + R - 0.001} ${cy}`;
+
+  return (
+    <svg viewBox="0 0 640 640" className="loop-svg" role="img" aria-label="Closed loop diagram">
+      <defs>
+        <radialGradient id="centerGlow" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="var(--emerald)" stopOpacity="0.18" />
+          <stop offset="100%" stopColor="var(--emerald)" stopOpacity="0" />
+        </radialGradient>
+        <marker id="arrowHead" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--emerald-dim)" />
+        </marker>
+      </defs>
+
+      {/* Center glow */}
+      <circle cx={cx} cy={cy} r={R - 12} fill="url(#centerGlow)" />
+
+      {/* Dashed orbit */}
+      <circle cx={cx} cy={cy} r={R} fill="none" stroke="var(--border)" strokeWidth="1" strokeDasharray="2 8" />
+
+      {/* Six curved arcs forming a continuous flow */}
+      {positions.map((p, i) => {
+        const next = positions[(i + 1) % 6];
+        return (
+          <path
+            key={`arc-${i}`}
+            d={`M ${p.x} ${p.y} A ${R} ${R} 0 0 1 ${next.x} ${next.y}`}
+            fill="none"
+            stroke="var(--emerald-dim)"
+            strokeWidth="1.5"
+            opacity="0.6"
+          />
+        );
+      })}
+
+      {/* Hidden continuous track + animated pulse */}
+      <path id="loop-track" d={trackD} fill="none" stroke="transparent" />
+      <circle r="5" fill="var(--coral)" opacity="0.95">
+        <animateMotion dur="14s" repeatCount="indefinite" rotate="auto">
+          <mpath href="#loop-track" />
+        </animateMotion>
+      </circle>
+
+      {/* Center governance node */}
+      <g transform={`translate(${cx}, ${cy})`}>
+        <circle r="78" fill="var(--surface-0)" stroke="var(--emerald-dim)" />
+        <circle r="78" fill="none" stroke="var(--emerald)" strokeWidth="0.5" opacity="0.4" />
+        <text textAnchor="middle" y="-12" className="loop-center-eyebrow">GOVERNED BY</text>
+        <text textAnchor="middle" y="10" className="loop-center-title">SOULCONTRACT</text>
+        <text textAnchor="middle" y="30" className="loop-center-sub">16 invariants · enforced</text>
+      </g>
+
+      {/* Outer nodes */}
+      {LOOP_NODES.map((node, i) => {
+        const p = positions[i];
+        const active = activeIdx === i;
+        return (
+          <g key={node.key} transform={`translate(${p.x}, ${p.y})`}>
+            <circle
+              r={nodeR + 6}
+              fill="none"
+              stroke="var(--emerald)"
+              strokeWidth="1.5"
+              opacity={active ? 0.5 : 0}
+              style={{ transition: "opacity 0.5s" }}
+            />
+            <circle
+              r={nodeR}
+              fill={active ? "oklch(18% 0.04 160)" : "var(--surface-0)"}
+              stroke={active ? "var(--emerald)" : "var(--border)"}
+              strokeWidth={active ? 2 : 1}
+              style={{ transition: "all 0.4s" }}
+            />
+            <text textAnchor="middle" y="-10" className="loop-node-eyebrow">{String(i + 1).padStart(2, "0")}</text>
+            <text textAnchor="middle" y="10" className="loop-node-title">{node.label}</text>
+            <text textAnchor="middle" y="28" className="loop-node-sub">{liveLabels[i] ?? node.desc}</text>
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+function PnlSparkline({ trades }: { trades: TraderState["trade_history"] }) {
+  const W = 720, H = 180, PAD_X = 14, PAD_Y = 22;
+
+  const series = useMemo(() => {
+    if (!trades || trades.length === 0) return [] as number[];
+    const out: number[] = [0];
+    let acc = 0;
+    for (const t of trades) {
+      acc += t.pnl_pct;
+      out.push(acc);
+    }
+    return out;
+  }, [trades]);
+
+  if (series.length < 2) {
+    return (
+      <div className="sparkline-empty">
+        <div className="sparkline-empty-glyph">⏷</div>
+        <div className="sparkline-empty-title">Awaiting first closed trade</div>
+        <div className="sparkline-empty-sub">
+          The trader is watching SOL/USDT live. Cumulative PnL appears here the moment the first position closes.
+        </div>
+      </div>
+    );
+  }
+
+  const min = Math.min(...series, 0);
+  const max = Math.max(...series, 0);
+  const range = max - min || 1;
+  const xy = series.map((v, i) => {
+    const x = PAD_X + (i / (series.length - 1)) * (W - 2 * PAD_X);
+    const y = H - PAD_Y - ((v - min) / range) * (H - 2 * PAD_Y);
+    return [x, y] as const;
+  });
+  const path = xy.map(([x, y], i) => `${i ? "L" : "M"} ${x.toFixed(1)} ${y.toFixed(1)}`).join(" ");
+  const last = xy[xy.length - 1];
+  const area = `${path} L ${last[0]} ${H - PAD_Y} L ${PAD_X} ${H - PAD_Y} Z`;
+  const final = series[series.length - 1];
+  const color = final >= 0 ? "var(--emerald)" : "var(--coral)";
+  const zeroY = H - PAD_Y - ((0 - min) / range) * (H - 2 * PAD_Y);
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="sparkline-svg">
+      <line x1={PAD_X} x2={W - PAD_X} y1={zeroY} y2={zeroY} stroke="var(--border)" strokeDasharray="2 6" />
+      <path d={area} fill={color} fillOpacity="0.10" />
+      <path d={path} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+      {xy.map(([x, y], i) => (
+        <circle key={i} cx={x} cy={y} r={i === xy.length - 1 ? 3.5 : 2} fill={color} />
+      ))}
+      {/* Final value label */}
+      <text x={last[0] - 6} y={last[1] - 8} className="sparkline-final" fill={color} textAnchor="end">
+        {final >= 0 ? "+" : ""}{final.toFixed(2)}%
+      </text>
+    </svg>
+  );
+}
+
+/* ──────────────────────── Page ──────────────────────── */
 
 export default function SystemPage() {
   const [cycle, setCycle] = useState<CycleData | null>(null);
@@ -115,17 +265,16 @@ export default function SystemPage() {
   const [night, setNight] = useState<NightData | null>(null);
   const [strategies, setStrategies] = useState<StrategyCard[]>([]);
   const [deadEnds, setDeadEnds] = useState<DeadEnd[]>([]);
-  const [activeLoopNode, setActiveLoopNode] = useState(0);
+  const [activeIdx, setActiveIdx] = useState(0);
 
-  // Fetch all data sources
-  const fetchCycle = useCallback(async () => {
-    try {
-      const r = await fetch("/data/cycle.json");
-      if (r.ok) { const d = await r.json(); if (!d.error) setCycle(d); }
-    } catch {}
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await fetch("/data/cycle.json");
+        if (r.ok) { const d = await r.json(); if (!d.error) setCycle(d); }
+      } catch {}
+    })();
   }, []);
-
-  useEffect(() => { fetchCycle(); }, [fetchCycle]);
 
   useEffect(() => {
     let alive = true;
@@ -142,497 +291,611 @@ export default function SystemPage() {
 
   useEffect(() => {
     (async () => {
-      try {
-        const r = await fetch("/data/night.json");
-        if (r.ok) { const d = await r.json(); if (!d.error) setNight(d); }
-      } catch {}
+      try { const r = await fetch("/data/night.json"); if (r.ok) { const d = await r.json(); if (!d.error) setNight(d); } } catch {}
+      try { const r = await fetch("/data/strategy-library.json"); if (r.ok) setStrategies(await r.json()); } catch {}
+      try { const r = await fetch("/data/dead-ends.json"); if (r.ok) setDeadEnds(await r.json()); } catch {}
     })();
   }, []);
 
+  // Loop animation
   useEffect(() => {
-    (async () => {
-      try {
-        const r = await fetch("/data/strategy-library.json");
-        if (r.ok) setStrategies(await r.json());
-      } catch {}
-      try {
-        const r = await fetch("/data/dead-ends.json");
-        if (r.ok) setDeadEnds(await r.json());
-      } catch {}
-    })();
-  }, []);
-
-  // Animate loop nodes
-  useEffect(() => {
-    const id = setInterval(() => setActiveLoopNode((n) => (n + 1) % 6), 2000);
+    const id = setInterval(() => setActiveIdx((n) => (n + 1) % 6), 2200);
     return () => clearInterval(id);
   }, []);
 
-  const runtimeMin = night ? Math.round(night.runtime_seconds / 60) : 0;
-  const bestCandidate = night?.top_candidates?.[0];
+  /* ── Derived live data ── */
 
-  const lastTraderPnl = trader?.trade_history?.slice(-1)[0];
-  const pnlDeltaLabel = lastTraderPnl
-    ? `${lastTraderPnl.pnl_pct >= 0 ? "+" : ""}${lastTraderPnl.pnl_pct.toFixed(2)}% (${lastTraderPnl.exit_reason})`
-    : "No closed trades yet";
+  const lastTrade = trader?.trade_history?.slice(-1)[0];
+  const traderStatus =
+    trader == null ? "connecting" :
+    trader.open_position ? "in_position" :
+    "watching";
+
+  const liveLabels = [
+    night ? `${night.num_folds}-fold WFA` : "30K configs",
+    "typed JSON",
+    cycle ? (cycle.used_llm ? cycle.model_label : "deterministic") : "—",
+    cycle ? `${cycle.mutations_accepted.length}/${cycle.mutations_accepted.length + cycle.mutations_rejected.length} pass` : "—",
+    trader ? (trader.open_position ? "POSITION OPEN" : `${trader.candle_count} candles`) : "—",
+    lastTrade ? `${lastTrade.pnl_pct >= 0 ? "+" : ""}${lastTrade.pnl_pct.toFixed(2)}%` : "first trade pending",
+  ];
+
+  const totalPnlPct = useMemo(
+    () => trader?.trade_history?.reduce((a, t) => a + t.pnl_pct, 0) ?? 0,
+    [trader]
+  );
+
+  const winRate = useMemo(() => {
+    if (!trader || trader.trade_history.length === 0) return null;
+    const wins = trader.trade_history.filter((t) => t.pnl_pct > 0).length;
+    return (wins / trader.trade_history.length) * 100;
+  }, [trader]);
+
+  /* ──────────────────────── Render ──────────────────────── */
 
   return (
-    <div className="page">
-      <Topbar activePage="research" />
+    <div className="page sys2">
+      <Topbar activePage="system" />
 
-      {/* ── Section 1: The Closed Loop ── */}
-      <section className="sys-hero">
-        <div className="sys-hero-label">SELF-EVOLVING AUTONOMOUS INTELLIGENCE</div>
-        <h1 className="sys-hero-title">The Closed Loop</h1>
-        <p className="sys-hero-sub">
-          Token projects adopt RTP. Their fees generate yield. Here is the machine that makes it happen.
-          Research validates. The daemon evolves. The trader executes. Performance feeds back.
-          No human in the loop. Every mutation is gated. Every trade is on-chain.
-        </p>
-
-        <div className="loop-container">
-          {[
-            { label: "Research Engine", sub: "30K configs · 9-fold WFA", idx: 0 },
-            { label: "Bridge", sub: "Python → Rust (typed JSON)", idx: 1 },
-            { label: "LLM Evolve", sub: cycle ? (cycle.used_llm ? `model: ${cycle.model_label}` : "deterministic") : "loading...", idx: 2 },
-            { label: "Mutation Gates", sub: cycle ? `${cycle.mutations_accepted.length} accepted · ${cycle.mutations_rejected.length} rejected` : "loading...", idx: 3 },
-            { label: "Live Trader", sub: trader ? (trader.open_position ? "POSITION OPEN" : "FLAT — Watching") : "connecting...", idx: 4 },
-            { label: "PnL Feedback", sub: pnlDeltaLabel, idx: 5 },
-          ].map((node) => (
-            <div key={node.idx} className={`loop-node ${activeLoopNode === node.idx ? "active" : ""}`}>
-              <div className="loop-node-dot" />
-              <div className="loop-node-label">{node.label}</div>
-              <div className="loop-node-sub">{node.sub}</div>
-            </div>
-          ))}
-          {/* Arrows between nodes */}
-          {[0,1,2,3,4].map((i) => (
-            <div key={`arrow-${i}`} className="loop-arrow">→</div>
-          ))}
-        </div>
-        <div className="loop-feedback-arrow">↑ PnL feeds back to Research ↑</div>
-      </section>
-
-      {/* ── Section 2: Live Evolution Feed ── */}
-      <section className="sys-section">
-        <h2 className="sys-section-title">Evolution Feed</h2>
-        <div className="sys-section-sub">Latest daemon cycle — the system&apos;s reasoning chain</div>
-
-        {!cycle ? (
-          <div className="sys-empty">Waiting for cycle data...</div>
-        ) : (
-          <div className="evolution-feed">
-            {/* LLM Proposal */}
-            <div className="feed-card">
-              <div className="feed-card-badge" style={{ background: cycle.used_llm ? "var(--emerald)" : "var(--text-muted)" }}>
-                {cycle.used_llm ? "LLM" : "FALLBACK"}
-              </div>
-              <div className="feed-card-body">
-                <div className="feed-card-title">
-                  Strategy Mutation Proposal
-                  <span className="feed-card-meta">{cycle.model_label} · {cycle.cycle_id || "—"}</span>
-                </div>
-                <div className="feed-card-detail">
-                  {cycle.mutations_accepted.length + cycle.mutations_rejected.length} mutations proposed.
-                  Prompt included {trader ? `real PnL (${trader.total_pnl_sol.toFixed(4)} SOL, ${trader.total_trades} trades)` : "no live data yet"}.
-                </div>
-                {/* Show raw LLM response if available */}
-                {cycle.raw_llm_response && (
-                  <details className="feed-details">
-                    <summary className="feed-details-toggle">Raw LLM response</summary>
-                    <pre className="feed-pre">{cycle.raw_llm_response.slice(0, 800)}{cycle.raw_llm_response.length > 800 ? "..." : ""}</pre>
-                  </details>
-                )}
-              </div>
-            </div>
-
-            {/* Bounds Gate */}
-            <div className="feed-card">
-              <div className="feed-card-badge gate-pass">GATE 1</div>
-              <div className="feed-card-body">
-                <div className="feed-card-title">Soulcontract Bounds Check</div>
-                <div className="mutation-list">
-                  {[...cycle.mutations_accepted, ...cycle.mutations_rejected].map((m, i) => {
-                    const accepted = cycle.mutations_accepted.some(a => a.param === m.param && a.value === m.value);
-                    return (
-                      <div key={i} className={`mutation-item ${accepted ? "pass" : "fail"}`}>
-                        <span className="mutation-param">{m.param}</span>
-                        <span className="mutation-val">{m.value}</span>
-                        <span className="mutation-status">{accepted ? "PASS" : "OUT OF BOUNDS"}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-
-            {/* Delta Gate */}
-            <div className="feed-card">
-              <div className="feed-card-badge gate-pass">GATE 2</div>
-              <div className="feed-card-body">
-                <div className="feed-card-title">Delta Check (max 20% change)</div>
-                <div className="feed-card-detail">
-                  {cycle.diffs.length > 0 ? (
-                    <div className="mutation-list">
-                      {cycle.diffs.map((d, i) => (
-                        <div key={i} className="mutation-item pass">
-                          <span className="mutation-param">{d.param}</span>
-                          <span className="mutation-val">{d.from} → {d.to}</span>
-                          <span className="mutation-status">APPLIED</span>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    "No parameter changes this cycle — system is stable."
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Trader Feedback */}
-            {trader && trader.trade_history.length > 0 && (
-              <div className="feed-card">
-                <div className="feed-card-badge" style={{ background: "var(--coral)" }}>LIVE</div>
-                <div className="feed-card-body">
-                  <div className="feed-card-title">Trader Feedback</div>
-                  <div className="feed-card-detail">
-                    Last {Math.min(3, trader.trade_history.length)} trades:
-                    <div className="mutation-list" style={{ marginTop: 8 }}>
-                      {trader.trade_history.slice(-3).reverse().map((t, i) => (
-                        <div key={i} className={`mutation-item ${t.pnl_pct >= 0 ? "pass" : "fail"}`}>
-                          <span className="mutation-param">{t.exit_reason}</span>
-                          <span className="mutation-val" style={{ color: t.pnl_pct >= 0 ? "var(--emerald)" : "var(--coral)" }}>
-                            {t.pnl_pct >= 0 ? "+" : ""}{t.pnl_pct.toFixed(2)}%
-                          </span>
-                          <span className="mutation-status">
-                            ${(t.size_usd || 0).toFixed(0)}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
+      {/* ════════ HERO ════════ */}
+      <section className="sys2-hero">
+        <div className="sys2-hero-inner">
+          <div className="sys2-eyebrow">
+            <span className="sys2-eyebrow-dot" />
+            AUTONOMOUS YIELD ENGINE · LIVE ON SOLANA MAINNET
           </div>
-        )}
-      </section>
+          <h1 className="sys2-hero-title">
+            The machine that turns trading fees into yield —
+            <span className="sys2-hero-em"> with no human in the loop.</span>
+          </h1>
+          <p className="sys2-hero-lede">
+            Six wings. One coordinator. A constitutional governance contract enforced in Rust and on-chain.
+            Strategies are validated by a 30,000-config research engine, executed by the Treasury PDA via
+            <code className="inline-code">invoke_signed</code>, and audited every six hours.
+            Every mutation is gated. Every position is on-chain. Every dollar of yield is auditable.
+          </p>
 
-      {/* ── Section 3: Research Pipeline ── */}
-      <section className="sys-section">
-        <h2 className="sys-section-title">Research Pipeline</h2>
-        <div className="sys-section-sub">Institutional-grade rigor — every strategy earns its way to production</div>
-
-        <div className="pipeline-grid">
-          {[
-            {
-              num: "1",
-              title: "Grid Search",
-              metric: "30,000",
-              unit: "parameter combinations per symbol per night",
-              detail: "Exhaustive sweep across signal thresholds, TP/SL multipliers, trailing stops, hold times, and alignment windows.",
-              color: "var(--emerald)",
-            },
-            {
-              num: "2",
-              title: "Walk-Forward Validation",
-              metric: night?.num_folds ?? 9,
-              unit: "expanding-window folds (36-day OOS each)",
-              detail: "Each candidate tested on 9 independent out-of-sample windows. No look-ahead bias. Median OOS Sharpe wins — not mean.",
-              color: "var(--emerald)",
-            },
-            {
-              num: "3",
-              title: "Darwinian Evolution",
-              metric: "5",
-              unit: "generations × 50 population = 250 refined candidates",
-              detail: "Top survivors mutate and compete. Repeat for 5 generations. Fragility is a penalty, not rejection: survivor *= 1/(1+fragility).",
-              color: "var(--coral)",
-            },
-            {
-              num: "4",
-              title: "Overfitting Detection",
-              metric: "3",
-              unit: "independent checks — IS/OOS gap, fold consistency, parameter fragility",
-              detail: `Best candidate: overfitting_score=${bestCandidate?.overfitting_score?.toFixed(2) ?? "—"}, fragility=${bestCandidate?.fragility?.toFixed(2) ?? "—"}, consistency=${bestCandidate ? (bestCandidate.oos_consistency * 100).toFixed(0) + "%" : "—"}.`,
-              color: bestCandidate && bestCandidate.overfitting_score < 0.5 ? "var(--emerald)" : "var(--coral)",
-            },
-            {
-              num: "5",
-              title: "Full-Sim Validation",
-              metric: "0.1%",
-              unit: "fees + 10bps slippage + max 20% position + compounding",
-              detail: "Top candidates re-run through the full simulator with realistic execution costs. Fast sim vs full sim calibrated weekly.",
-              color: "var(--emerald)",
-            },
-          ].map((step) => (
-            <div key={step.num} className="pipeline-card">
-              <div className="pipeline-num" style={{ color: step.color }}>{step.num}</div>
-              <div className="pipeline-content">
-                <div className="pipeline-title">{step.title}</div>
-                <div className="pipeline-metric">
-                  <span style={{ color: step.color, fontFamily: "var(--font-display)", fontSize: "1.25rem" }}>{step.metric}</span>
-                  <span style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginLeft: 8 }}>{step.unit}</span>
-                </div>
-                <div className="pipeline-detail">{step.detail}</div>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Validated result highlight */}
-        {bestCandidate && (
-          <div className="highlight-box" style={{ marginTop: "var(--space-xl)" }}>
-            <div className="highlight-badge-inline">VALIDATED — {bestCandidate.symbol}</div>
-            <div className="highlight-metrics">
-              {[
-                { label: "Calmar Ratio", value: "44.89" },
-                { label: "9x Return", value: "+554%" },
-                { label: "Max DD", value: "12.3%" },
-                { label: "Consistency", value: "100%" },
-                { label: "Liquidations", value: "0" },
-                { label: "Candidates Tested", value: "16,228" },
-              ].map((m, i) => (
-                <div key={i} className="highlight-metric">
-                  <span className="highlight-metric-value">{m.value}</span>
-                  <span className="highlight-metric-label">{m.label}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </section>
-
-      {/* ── Section 4: Strategy Intelligence ── */}
-      <section className="sys-section">
-        <h2 className="sys-section-title">Strategy Intelligence</h2>
-        <div className="sys-section-sub">15 strategies catalogued. 9 failures remembered. LLM selects what to explore next.</div>
-
-        <div className="strategy-grid-3col">
-          {/* Active Strategy */}
-          <div className="strategy-panel active-panel">
-            <div className="panel-header">
-              <span className="panel-badge live-badge">LIVE</span>
-              Active Strategy
-            </div>
-            <div className="active-strategy-name">SOL/USDT Survivor 2.69</div>
-            <div className="active-strategy-type">Multi-timeframe trend following · 9x leverage</div>
-            <div className="active-params">
-              {[
-                { k: "signal_threshold", v: "0.25" },
-                { k: "tp_atr", v: "5.0" },
-                { k: "sl_atr", v: "2.7" },
-                { k: "trail_atr", v: "0.14" },
-                { k: "min_alignment", v: "3" },
-                { k: "max_hold", v: "36h" },
-              ].map((p) => (
-                <span key={p.k} className="param-chip">{p.k}={p.v}</span>
-              ))}
-            </div>
-            <div className="active-status">
-              {trader ? (
-                <>
-                  <span className="status-dot live" />
-                  {trader.open_position ? "Position open on mainnet" : `Watching · ${trader.candle_count} candles · ${trader.total_trades} trades`}
-                </>
-              ) : "Connecting to trader..."}
-            </div>
-          </div>
-
-          {/* Strategy Explorer */}
-          <div className="strategy-panel">
-            <div className="panel-header">
-              <span className="panel-badge explore-badge">15 STRATEGIES</span>
-              Strategy Library
-            </div>
-            <div className="strategy-cards">
-              {strategies.map((s) => (
-                <div key={s.id} className={`strategy-card priority-${s.priority}`}>
-                  <div className="strategy-card-header">
-                    <span className="strategy-id">{s.id}</span>
-                    <span className="strategy-name">{s.name}</span>
-                  </div>
-                  <div className="strategy-card-meta">
-                    <span className="strategy-type-badge" style={{ color: TYPE_COLORS[s.type] || "var(--text-muted)" }}>
-                      {s.type.replace("risk_premium", "momentum")}
-                    </span>
-                    <span className="strategy-regime">{REGIME_LABELS[s.regime] || s.regime}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Dead Ends */}
-          <div className="strategy-panel dead-ends-panel">
-            <div className="panel-header">
-              <span className="panel-badge dead-badge">{deadEnds.length} DEAD ENDS</span>
-              Failure Memory
-            </div>
-            <div className="dead-ends-list">
-              {deadEnds.map((de, i) => (
-                <div key={i} className="dead-end-item">
-                  <div className="dead-end-title">{de.title}</div>
-                  <div className="dead-end-cause">
-                    <span className="cause-badge">{de.root_cause}</span>
-                    {de.date !== "unknown" && <span className="dead-end-date">{de.date}</span>}
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="dead-end-footer">
-              The system checks this log before every exploration run. Failures are never repeated.
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ── Section 5: Architecture ── */}
-      <section className="sys-section">
-        <h2 className="sys-section-title">Architecture</h2>
-        <div className="sys-section-sub">Three layers. One invariant: agents propose, constraints dispose.</div>
-
-        <div className="arch-stack">
-          {/* On-chain layer */}
-          <div className="arch-layer onchain">
-            <div className="arch-layer-label">ON-CHAIN · SOLANA / ANCHOR</div>
-            <div className="arch-layer-content">
-              <div className="arch-box">
-                <span className="arch-box-title">Treasury PDA</span>
-                <span className="arch-box-detail">Fees → yield → 70/20/10 redistribute · Flash Trade CPI via invoke_signed</span>
-              </div>
-              <div className="arch-box">
-                <span className="arch-box-title">Constitutional Invariants</span>
-                <span className="arch-box-detail">PDA ownership · per-token isolation · 20% position cap · phase transitions irreversible · emergency freeze</span>
-              </div>
-              <div className="arch-box">
-                <span className="arch-box-title">Strategy Lifecycle</span>
-                <span className="arch-box-detail">Register → update metrics → hard stops (10% DD, 5 losses) → soft decay (3 strikes) → retire</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Arrow */}
-          <div className="arch-arrow">▲ invoke_signed (no human key) ▲</div>
-
-          {/* Swarm layer */}
-          <div className="arch-layer swarm">
-            <div className="arch-layer-label">SWARM RUNTIME · RUST</div>
-            <div className="arch-layer-content">
-              <div className="arch-wings">
-                {[
-                  { name: "Trading", desc: "Flash Trade CPI · REST API · PnL tracking", accent: true },
-                  { name: "Evolve", desc: "LLM proposer · mutation gates · delta check", accent: true },
-                  { name: "Security", desc: "Threat detection · rate limiting" },
-                  { name: "Knowledge", desc: "Persistent JSON store · cross-wing queries" },
-                  { name: "Audit", desc: "3-agent tribunal · Byzantine consensus" },
-                  { name: "Futureproof", desc: "Deprecation monitoring · heartbeat" },
-                ].map((w) => (
-                  <div key={w.name} className={`arch-wing ${w.accent ? "accent" : ""}`}>
-                    <span className="arch-wing-name">{w.name}</span>
-                    <span className="arch-wing-desc">{w.desc}</span>
-                  </div>
-                ))}
-              </div>
-              <div className="arch-coordinator">
-                <span className="arch-coord-label">Coordinator</span>
-                <span className="arch-coord-detail">Soulguard enforces SOULCONTRACT.md on every message · 325 unit + 5 integration tests</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Arrow */}
-          <div className="arch-arrow">▲ bridge.rs (typed JSON) ▲</div>
-
-          {/* Research layer */}
-          <div className="arch-layer research">
-            <div className="arch-layer-label">RESEARCH LAYER · PYTHON</div>
-            <div className="arch-layer-content">
-              <div className="arch-box">
-                <span className="arch-box-title">Night Shift</span>
-                <span className="arch-box-detail">30K configs → 9-fold WFA → Darwinian → Monte Carlo + CPCV robustness</span>
-              </div>
-              <div className="arch-box">
-                <span className="arch-box-title">LLM Strategy Selector</span>
-                <span className="arch-box-detail">Reads library + dead ends → picks 3 most promising strategies for exploration</span>
-              </div>
-              <div className="arch-box">
-                <span className="arch-box-title">5 Strategy Plugins</span>
-                <span className="arch-box-detail">S02 BB Breakout · S04 RSI Exhaustion · S06 Vol Squeeze · S10 Momentum · S13 ADX Trend</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Railway status */}
-        <div className="railway-status">
-          <span className="railway-label">7 Railway services</span>
-          {["rtp-trader", "rtp-dashboard", "rtp-devnet-loop", "rtp-night-shift", "rtp-swarm-ci", "rtp-fee-crank", "rtp-promote-strategy"].map((svc) => (
-            <span key={svc} className="railway-pill">
-              <span className="railway-dot" />
-              {svc.replace("rtp-", "")}
-            </span>
-          ))}
-        </div>
-      </section>
-
-      {/* ── Section 6: On-Chain Proof ── */}
-      <section className="sys-section">
-        <h2 className="sys-section-title">On-Chain Proof</h2>
-        <div className="sys-section-sub">Real mainnet transactions. Not testnet. Not simulation.</div>
-
-        <div className="proof-grid">
-          {MAINNET_TXS.map((tx, i) => (
-            <a key={i} href={`https://explorer.solana.com/tx/${tx.tx}`}
-              target="_blank" rel="noopener noreferrer"
-              className="proof-card"
+          <div className="sys2-hero-cta-row">
+            <a
+              href="https://explorer.solana.com/tx/2bLg1FuJ6iqwYq6SKi5EcZQWszarDZhS68bCbGTRLKMwhYqsU7G57fTtG4G6GFx3ZKN15qhb85zy28pGJvSdrnG3"
+              target="_blank" rel="noopener noreferrer" className="sys2-cta-primary"
             >
-              <div className="proof-card-header">
-                <span className="proof-type">{tx.label}</span>
-                <span className="proof-link-icon">↗</span>
+              View mainnet proof on Explorer ↗
+            </a>
+            <Link href="/docs" className="sys2-cta-secondary">
+              Read integration docs →
+            </Link>
+          </div>
+
+          {/* Live vitals strip */}
+          <div className="sys2-vitals">
+            <div className="sys2-vital">
+              <div className="sys2-vital-label">Cumulative PnL</div>
+              <div className={`sys2-vital-value ${totalPnlPct >= 0 ? "pos" : "neg"}`}>
+                {totalPnlPct >= 0 ? "+" : ""}{totalPnlPct.toFixed(2)}%
               </div>
-              <div className="proof-tx">{tx.tx.slice(0, 12)}...{tx.tx.slice(-8)}</div>
-              <div className="proof-note">{tx.note}</div>
+              <div className="sys2-vital-sub">{trader?.total_trades ?? 0} closed trades</div>
+            </div>
+            <div className="sys2-vital">
+              <div className="sys2-vital-label">Trader status</div>
+              <div className={`sys2-vital-value status-${traderStatus}`}>
+                <span className="sys2-status-dot" />
+                {traderStatus === "in_position" ? "IN POSITION" : traderStatus === "watching" ? "WATCHING" : "CONNECTING"}
+              </div>
+              <div className="sys2-vital-sub">{trader ? `${trader.candle_count} candles in memory` : "polling Railway…"}</div>
+            </div>
+            <div className="sys2-vital">
+              <div className="sys2-vital-label">Mainnet TXs</div>
+              <div className="sys2-vital-value">4</div>
+              <div className="sys2-vital-sub">CPI + REST proofs</div>
+            </div>
+            <div className="sys2-vital">
+              <div className="sys2-vital-label">Test coverage</div>
+              <div className="sys2-vital-value">325<span className="sys2-vital-unit">+5</span></div>
+              <div className="sys2-vital-sub">Rust unit + integration</div>
+            </div>
+            <div className="sys2-vital">
+              <div className="sys2-vital-label">Calmar (validated)</div>
+              <div className="sys2-vital-value">44.89</div>
+              <div className="sys2-vital-sub">SOL Survivor 2.69 · 9× lev</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ════════ §1 LIVE TRADER CONSOLE ════════ */}
+      <section className="sys2-section" id="live">
+        <header className="sys2-sect-head">
+          <div>
+            <div className="sys2-sect-eyebrow">§1 · live console</div>
+            <h2 className="sys2-sect-title">The trader, right now</h2>
+          </div>
+          <div className="sys2-sect-side">
+            <span className={`sys2-status-pill ${traderStatus}`}>
+              <span className="sys2-status-dot" />
+              {traderStatus === "in_position" ? "Position open on mainnet" :
+               traderStatus === "watching" ? "Flat — watching the tape" : "Connecting…"}
+            </span>
+          </div>
+        </header>
+
+        <div className="console-grid">
+          {/* Position card */}
+          <div className="console-card">
+            <div className="console-card-eyebrow">CURRENT POSITION</div>
+            {trader?.open_position ? (
+              <>
+                <div className="console-big">SOL/USDT · LONG · 9×</div>
+                <div className="console-row">
+                  <span>Entry</span><span className="mono">${trader.open_position.entry_price.toFixed(4)}</span>
+                </div>
+                <div className="console-row">
+                  <span>Peak</span><span className="mono">${trader.open_position.peak_price.toFixed(4)}</span>
+                </div>
+                <div className="console-row">
+                  <span>Size</span><span className="mono">${trader.open_position.size_usd.toFixed(2)}</span>
+                </div>
+                <div className="console-row">
+                  <span>Entry score</span><span className="mono">{trader.open_position.entry_score.toFixed(3)}</span>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="console-big console-muted">Flat</div>
+                <div className="console-empty-text">
+                  Survivor 2.69 enters when score &gt; 0.25 with 3+ bullish timeframes. The next valid signal
+                  triggers a 9× SOL LONG of 20% capital. Stop-loss 2.7× ATR, take-profit 5.0× ATR, trailing 0.14× ATR.
+                </div>
+              </>
+            )}
+            <div className="console-foot">
+              Last poll · <span className="mono">{trader?.last_poll?.slice(11, 19) ?? "—"}</span>
+            </div>
+          </div>
+
+          {/* Sparkline + headline metrics */}
+          <div className="console-card chart-card">
+            <div className="console-card-eyebrow">CUMULATIVE PNL · ALL CLOSED TRADES</div>
+            <PnlSparkline trades={trader?.trade_history ?? []} />
+            <div className="chart-stats">
+              <div className="chart-stat">
+                <span className="chart-stat-val">{trader?.total_trades ?? 0}</span>
+                <span className="chart-stat-lab">trades</span>
+              </div>
+              <div className="chart-stat">
+                <span className={`chart-stat-val ${totalPnlPct >= 0 ? "pos" : "neg"}`}>
+                  {totalPnlPct >= 0 ? "+" : ""}{totalPnlPct.toFixed(2)}%
+                </span>
+                <span className="chart-stat-lab">cumulative</span>
+              </div>
+              <div className="chart-stat">
+                <span className="chart-stat-val">{winRate == null ? "—" : `${winRate.toFixed(0)}%`}</span>
+                <span className="chart-stat-lab">win rate</span>
+              </div>
+              <div className="chart-stat">
+                <span className="chart-stat-val mono">{trader?.total_pnl_sol?.toFixed(4) ?? "0.0000"}</span>
+                <span className="chart-stat-lab">SOL realized</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Trade tape */}
+        <div className="trade-tape">
+          <div className="trade-tape-head">
+            <span>RECENT TAPE</span>
+            <span className="mono trade-tape-sub">last {Math.min(8, trader?.trade_history?.length ?? 0)} trades</span>
+          </div>
+          {(trader?.trade_history?.length ?? 0) === 0 ? (
+            <div className="trade-tape-empty">No tape yet. The first close will print here in real time.</div>
+          ) : (
+            <div className="trade-tape-rows">
+              {[...(trader?.trade_history ?? [])].slice(-8).reverse().map((t, i) => (
+                <div key={i} className={`trade-row ${t.pnl_pct >= 0 ? "pos" : "neg"}`}>
+                  <span className="mono">SOL/USDT</span>
+                  <span className="mono dim">${t.entry_price.toFixed(2)} → ${t.exit_price.toFixed(2)}</span>
+                  <span className="trade-reason">{t.exit_reason}</span>
+                  <span className="mono">${t.size_usd.toFixed(0)}</span>
+                  <span className={`mono trade-pnl ${t.pnl_pct >= 0 ? "pos" : "neg"}`}>
+                    {t.pnl_pct >= 0 ? "+" : ""}{t.pnl_pct.toFixed(2)}%
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* ════════ §2 CLOSED LOOP ════════ */}
+      <section className="sys2-section" id="loop">
+        <header className="sys2-sect-head">
+          <div>
+            <div className="sys2-sect-eyebrow">§2 · the closed loop</div>
+            <h2 className="sys2-sect-title">Self-correcting in six steps</h2>
+            <p className="sys2-sect-lede">
+              Research validates. The bridge marshals. The LLM proposes mutations. The gates reject anything
+              outside the soulcontract bounds. The Treasury PDA executes on Solana. PnL feeds back into the
+              next research cycle. The loop runs every six hours, indefinitely.
+            </p>
+          </div>
+        </header>
+
+        <div className="loop-stage">
+          <ClosedLoopSVG activeIdx={activeIdx} liveLabels={liveLabels} />
+        </div>
+
+        <div className="loop-legend">
+          {LOOP_NODES.map((n, i) => (
+            <div key={n.key} className={`loop-legend-item ${activeIdx === i ? "active" : ""}`}>
+              <span className="loop-legend-num">{String(i + 1).padStart(2, "0")}</span>
+              <div>
+                <div className="loop-legend-label">{n.label}</div>
+                <div className="loop-legend-sub">{liveLabels[i]}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ════════ §3 ARCHITECTURE STACK ════════ */}
+      <section className="sys2-section" id="architecture">
+        <header className="sys2-sect-head">
+          <div>
+            <div className="sys2-sect-eyebrow">§3 · architecture</div>
+            <h2 className="sys2-sect-title">Three layers, one invariant</h2>
+            <p className="sys2-sect-lede">
+              Agents propose. Constraints dispose. Every layer can fail open without bringing the others down,
+              because the on-chain program is the only authority that can move funds.
+            </p>
+          </div>
+        </header>
+
+        <div className="arch2-stack">
+          {/* Research */}
+          <div className="arch2-layer arch2-research">
+            <div className="arch2-layer-side">
+              <div className="arch2-layer-tag">PYTHON</div>
+              <div className="arch2-layer-name">Research Layer</div>
+              <div className="arch2-layer-sub">Where strategies earn the right to be executed</div>
+            </div>
+            <div className="arch2-layer-cells">
+              <div className="arch2-cell">
+                <div className="arch2-cell-title">Night Shift</div>
+                <div className="arch2-cell-sub">30K configs · 9-fold WFA · Darwinian evolution · Monte Carlo + CPCV robustness</div>
+              </div>
+              <div className="arch2-cell">
+                <div className="arch2-cell-title">Strategy Selector</div>
+                <div className="arch2-cell-sub">LLM reads library + dead ends · picks 3 most promising candidates per cycle</div>
+              </div>
+              <div className="arch2-cell">
+                <div className="arch2-cell-title">5 Strategy Plugins</div>
+                <div className="arch2-cell-sub">S02 Breakout · S04 RSI Exhaustion · S06 Vol Squeeze · S10 Momentum · S13 ADX</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="arch2-bridge">
+            <span className="arch2-bridge-line" />
+            <span className="arch2-bridge-label">bridge.rs · typed JSON · ExecutePermit payload</span>
+            <span className="arch2-bridge-line" />
+          </div>
+
+          {/* Swarm */}
+          <div className="arch2-layer arch2-swarm">
+            <div className="arch2-layer-side">
+              <div className="arch2-layer-tag">RUST</div>
+              <div className="arch2-layer-name">Swarm Runtime</div>
+              <div className="arch2-layer-sub">Six wings under one Coordinator</div>
+            </div>
+            <div className="arch2-layer-cells wings">
+              {[
+                { name: "Trading", desc: "Flash Trade CPI · REST · PnL", live: true },
+                { name: "Evolve", desc: "LLM proposer · gates · rollback", live: true },
+                { name: "Audit", desc: "3-agent tribunal · consensus" },
+                { name: "Security", desc: "Threats · rate limits · alerts" },
+                { name: "Knowledge", desc: "JSON store · cross-wing graph" },
+                { name: "Futureproof", desc: "Deprecation · heartbeat" },
+              ].map((w) => (
+                <div key={w.name} className={`arch2-wing ${w.live ? "live" : ""}`}>
+                  <div className="arch2-wing-head">
+                    <span className="arch2-wing-name">{w.name}</span>
+                    {w.live && <span className="arch2-wing-pulse" />}
+                  </div>
+                  <div className="arch2-wing-desc">{w.desc}</div>
+                </div>
+              ))}
+            </div>
+            <div className="arch2-coord">
+              <span className="arch2-coord-tag">COORDINATOR</span>
+              Soulguard parses <code className="inline-code">SOULCONTRACT.md</code> and validates every message · 325 unit + 5 integration tests
+            </div>
+          </div>
+
+          <div className="arch2-bridge">
+            <span className="arch2-bridge-line" />
+            <span className="arch2-bridge-label">invoke_signed · Treasury PDA seeds · no human key</span>
+            <span className="arch2-bridge-line" />
+          </div>
+
+          {/* On-chain */}
+          <div className="arch2-layer arch2-onchain">
+            <div className="arch2-layer-side">
+              <div className="arch2-layer-tag">SOLANA · ANCHOR</div>
+              <div className="arch2-layer-name">On-Chain Program</div>
+              <div className="arch2-layer-sub">The only authority that can move funds</div>
+            </div>
+            <div className="arch2-layer-cells">
+              <div className="arch2-cell">
+                <div className="arch2-cell-title">Treasury PDA</div>
+                <div className="arch2-cell-sub">Per-mint isolation · receives SOL fees · signs Flash Trade CPI · 70/20/10 redistribute</div>
+              </div>
+              <div className="arch2-cell">
+                <div className="arch2-cell-title">Constitutional Invariants</div>
+                <div className="arch2-cell-sub">PDA ownership · 20% position cap · phase irreversible · emergency freeze · zero-address rejection</div>
+              </div>
+              <div className="arch2-cell">
+                <div className="arch2-cell-title">Strategy Lifecycle</div>
+                <div className="arch2-cell-sub">Register → Live → hard stops (10% DD, 5 losses) → soft decay (3 strikes) → retire</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Railway services */}
+        <div className="rail-strip">
+          <span className="rail-label">7 Railway services · all green</span>
+          <div className="rail-pills">
+            {["rtp-trader", "rtp-dashboard", "rtp-devnet-loop", "rtp-night-shift", "rtp-swarm-ci", "rtp-fee-crank", "rtp-promote-strategy"].map((svc) => (
+              <span key={svc} className="rail-pill">
+                <span className="rail-dot" />
+                {svc.replace("rtp-", "")}
+              </span>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ════════ §4 RESEARCH PIPELINE ════════ */}
+      <section className="sys2-section" id="pipeline">
+        <header className="sys2-sect-head">
+          <div>
+            <div className="sys2-sect-eyebrow">§4 · research pipeline</div>
+            <h2 className="sys2-sect-title">How a strategy earns the right to trade real SOL</h2>
+            <p className="sys2-sect-lede">
+              Every config goes through five gates before a single lamport moves. None of these are heuristics —
+              they are codified in <code className="inline-code">research/promotion_criteria.py</code>.
+            </p>
+          </div>
+        </header>
+
+        <ol className="pipe2-steps">
+          {[
+            { n: "01", t: "Grid Search",            m: "30,000",      u: "configs swept per symbol per night",                    d: "Exhaustive sweep across signal threshold, TP/SL multipliers, trailing stop, hold time, alignment." },
+            { n: "02", t: "Walk-Forward Validation", m: `${night?.num_folds ?? 9}`, u: "expanding-window folds · 36 days OOS each",       d: "No look-ahead. Median OOS Sharpe wins, not mean. Each candidate tested on 9 independent windows." },
+            { n: "03", t: "Darwinian Evolution",     m: "5×50",        u: "generations × population = 250 refined survivors",      d: "Top survivors mutate and compete. Fragility is a penalty, not rejection: survivor *= 1/(1+fragility)." },
+            { n: "04", t: "Overfitting Detection",   m: "3",           u: "independent checks — IS/OOS gap, fold consistency, fragility", d: "Monte Carlo drawdown over 10K paths + Combinatorial Purged CV with PBO. Anything fragile is dropped." },
+            { n: "05", t: "Full-Sim Validation",     m: "0.1%",        u: "fees + 10 bps slippage + 20% position cap + compounding", d: "Top candidates re-run through the production simulator. Fast vs full sim calibrated weekly." },
+          ].map((s, i) => (
+            <li key={s.n} className="pipe2-step">
+              <div className="pipe2-num">{s.n}</div>
+              <div className="pipe2-body">
+                <div className="pipe2-title">{s.t}</div>
+                <div className="pipe2-metric">
+                  <span className="pipe2-big">{s.m}</span>
+                  <span className="pipe2-unit">{s.u}</span>
+                </div>
+                <div className="pipe2-desc">{s.d}</div>
+              </div>
+              {i < 4 && <div className="pipe2-tick">▾</div>}
+            </li>
+          ))}
+        </ol>
+
+        {/* Validated result */}
+        <div className="validated-card">
+          <div className="validated-head">
+            <span className="validated-tag">VALIDATED · LIVE ON MAINNET</span>
+            <span className="validated-title">SOL/USDT Survivor 2.69 · 9× leverage</span>
+          </div>
+          <div className="validated-grid">
+            {[
+              { v: "44.89",  l: "Calmar Ratio" },
+              { v: "+554%",  l: "9× return" },
+              { v: "12.3%",  l: "Max drawdown" },
+              { v: "100%",   l: "Fold consistency" },
+              { v: "0",      l: "Liquidations" },
+              { v: "16,228", l: "Candidates tested" },
+            ].map((m) => (
+              <div key={m.l} className="validated-cell">
+                <span className="validated-val">{m.v}</span>
+                <span className="validated-lab">{m.l}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ════════ §5 STRATEGY INTELLIGENCE ════════ */}
+      <section className="sys2-section" id="strategies">
+        <header className="sys2-sect-head">
+          <div>
+            <div className="sys2-sect-eyebrow">§5 · strategy intelligence</div>
+            <h2 className="sys2-sect-title">15 strategies catalogued · {deadEnds.length || 9} failures remembered</h2>
+            <p className="sys2-sect-lede">
+              The LLM consults the library and the dead-ends log before every exploration run. Failures are
+              never repeated; the system learns by remembering what does not work.
+            </p>
+          </div>
+        </header>
+
+        <div className="intel-grid">
+          {/* Active */}
+          <article className="intel-panel intel-active">
+            <header className="intel-panel-head">
+              <span className="intel-pill live">LIVE</span>
+              <span className="intel-panel-title">Active Strategy</span>
+            </header>
+            <div className="intel-active-name">SOL/USDT · Survivor 2.69</div>
+            <div className="intel-active-type">Multi-timeframe trend following · 9× leverage</div>
+            <div className="intel-chips">
+              {[
+                ["signal_threshold", "0.25"],
+                ["tp_atr", "5.0"],
+                ["sl_atr", "2.7"],
+                ["trail_atr", "0.14"],
+                ["min_alignment", "3"],
+                ["max_hold", "36h"],
+              ].map(([k, v]) => (
+                <span key={k} className="intel-chip"><span className="dim">{k}</span>={v}</span>
+              ))}
+            </div>
+            <div className="intel-active-status">
+              <span className={`status-dot ${trader ? "live" : ""}`} />
+              {trader
+                ? trader.open_position
+                  ? "Position open on mainnet"
+                  : `Watching · ${trader.candle_count} candles · ${trader.total_trades} trades`
+                : "Connecting to trader…"}
+            </div>
+          </article>
+
+          {/* Library */}
+          <article className="intel-panel">
+            <header className="intel-panel-head">
+              <span className="intel-pill explore">{strategies.length || 15} STRATEGIES</span>
+              <span className="intel-panel-title">Strategy Library</span>
+            </header>
+            <div className="intel-list">
+              {strategies.map((s) => (
+                <div key={s.id} className={`intel-row priority-${s.priority}`}>
+                  <span className="intel-id mono">{s.id}</span>
+                  <span className="intel-name">{s.name}</span>
+                  <span className="intel-type" style={{ color: TYPE_COLORS[s.type] || "var(--text-muted)" }}>
+                    {s.type.replace("risk_premium", "momentum").replace("_", " ")}
+                  </span>
+                  <span className="intel-regime mono">{REGIME_LABELS[s.regime] || s.regime}</span>
+                </div>
+              ))}
+            </div>
+          </article>
+
+          {/* Dead ends */}
+          <article className="intel-panel intel-dead">
+            <header className="intel-panel-head">
+              <span className="intel-pill dead">{deadEnds.length || 9} DEAD ENDS</span>
+              <span className="intel-panel-title">Failure Memory</span>
+            </header>
+            <div className="intel-list">
+              {deadEnds.map((d, i) => (
+                <div key={i} className="intel-dead-row">
+                  <div className="intel-dead-title">{d.title}</div>
+                  <div className="intel-dead-meta">
+                    <span className="intel-dead-cause">{d.root_cause}</span>
+                    {d.date !== "unknown" && <span className="intel-dead-date mono">{d.date}</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="intel-dead-foot">
+              Read before every exploration run · failures never repeated
+            </div>
+          </article>
+        </div>
+      </section>
+
+      {/* ════════ §6 ON-CHAIN PROOF ════════ */}
+      <section className="sys2-section" id="proof">
+        <header className="sys2-sect-head">
+          <div>
+            <div className="sys2-sect-eyebrow">§6 · on-chain proof</div>
+            <h2 className="sys2-sect-title">Real mainnet transactions, not testnet</h2>
+            <p className="sys2-sect-lede">
+              The Treasury PDA opens and closes Flash Trade positions on Solana mainnet via
+              <code className="inline-code">invoke_signed</code>. No human keypair is involved in trading.
+              Click any transaction to verify on Explorer.
+            </p>
+          </div>
+        </header>
+
+        <div className="proof2-grid">
+          {MAINNET_TXS.map((tx) => (
+            <a
+              key={tx.tx}
+              href={`https://explorer.solana.com/tx/${tx.tx}`}
+              target="_blank" rel="noopener noreferrer"
+              className={`proof2-card kind-${tx.kind}`}
+            >
+              <div className="proof2-head">
+                <span className="proof2-kind">{tx.kind === "open" ? "OPEN" : "CLOSE"}</span>
+                <span className="proof2-link">↗</span>
+              </div>
+              <div className="proof2-label">{tx.label}</div>
+              <div className="proof2-tx mono">{tx.tx.slice(0, 10)}…{tx.tx.slice(-8)}</div>
+              <div className="proof2-note">{tx.note}</div>
             </a>
           ))}
         </div>
 
-        <div className="proof-extras">
+        <div className="proof2-extras">
           <a href="https://explorer.solana.com/tx/4RVehmPVpnFYHrsF6N64RjVh7mszRzKF9DQVHd8TUqBHwrnyDYavf3TnDYJC4b5PrJWVSubZkNuyVkF1oJzk71RT?cluster=devnet"
-            target="_blank" rel="noopener noreferrer" className="proof-extra-link">
-            Redistribution TX (devnet) ↗
+            target="_blank" rel="noopener noreferrer" className="proof2-extra">
+            Devnet redistribution TX ↗
           </a>
           <a href="https://explorer.solana.com/address/8rt6yiBnRTyHy8F69jUd7exWwwShUs4Eokeq41auo2RB?cluster=devnet"
-            target="_blank" rel="noopener noreferrer" className="proof-extra-link">
-            Program (devnet) ↗
+            target="_blank" rel="noopener noreferrer" className="proof2-extra">
+            Treasury program (devnet) ↗
           </a>
           <a href="https://github.com/tradewife/resilient-token-protocol"
-            target="_blank" rel="noopener noreferrer" className="proof-extra-link">
+            target="_blank" rel="noopener noreferrer" className="proof2-extra">
             Source on GitHub ↗
           </a>
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="vitals">
-        <div className="vital">
-          <span className="vital-value">325+5 tests</span>
-          <span className="vital-label">Rust + Anchor</span>
+      {/* ════════ §7 INTEGRATE CTA ════════ */}
+      <section className="sys2-section sys2-cta-section" id="integrate">
+        <div className="cta2-card">
+          <div className="cta2-content">
+            <div className="sys2-sect-eyebrow">§7 · integrate</div>
+            <h2 className="cta2-title">One function call. A program-enforced treasury for any token.</h2>
+            <p className="cta2-lede">
+              No RTP token. No custody. No new wallet. The SDK registers a Token-2022 mint with its own
+              Treasury PDA in a single call. Trading fees flow in. Yield flows out 70/20/10. The program is
+              the only thing that can sign — by design.
+            </p>
+
+            <pre className="cta2-code"><code>{`import { registerWithRTP } from "@resilient-protocol/sdk";
+
+const result = await registerWithRTP(connection, payer, {
+  authority: payer.publicKey,
+});
+
+// result.treasuryPDA → program-owned, no human can sign for it`}</code></pre>
+
+            <div className="cta2-actions">
+              <a href="https://github.com/tradewife/resilient-token-protocol" target="_blank" rel="noopener noreferrer" className="sys2-cta-primary">
+                Adopt with the SDK ↗
+              </a>
+              <Link href="/docs" className="sys2-cta-secondary">
+                Read the docs →
+              </Link>
+              <Link href="/launch" className="sys2-cta-tertiary">
+                Or launch a token now →
+              </Link>
+            </div>
+          </div>
         </div>
-        <div className="vital">
-          <span className="vital-value">16 invariants</span>
-          <span className="vital-label">Constitutional</span>
+
+        <div className="cta2-foot">
+          <Link href="/" className="cta2-foot-link">← Back to dashboard</Link>
+          <span className="cta2-foot-sep">·</span>
+          <a href="https://github.com/tradewife/resilient-token-protocol" target="_blank" rel="noopener noreferrer" className="cta2-foot-link">
+            Star on GitHub
+          </a>
+          <span className="cta2-foot-sep">·</span>
+          <span className="cta2-foot-meta">325 + 5 tests · 16 invariants · 6 wings · MIT</span>
         </div>
-        <div className="vital">
-          <span className="vital-value">6 wings</span>
-          <span className="vital-label">Swarm Runtime</span>
-        </div>
-        <div className="vital">
-          <span className="vital-value">1 function call</span>
-          <span className="vital-label">SDK Integration</span>
-        </div>
-        <Link href="/" className="vital-link">Back to Dashboard</Link>
-      </footer>
+      </section>
     </div>
   );
 }
