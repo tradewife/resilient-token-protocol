@@ -158,11 +158,11 @@ const DOC_GROUPS: DocGroup[] = [
             <p>Two ways to get an RTP treasury for your token: launch from our site, or register an existing token.</p>
 
             <h3>Path A: Launch From RTP</h3>
-            <p>Use the <a href="/launch" style={{ color: "var(--coral)" }}>RTP launch page</a>. Pick your platform, fill in token details, sign with Phantom. The token goes live on-chain and the RTP treasury is initialized automatically.</p>
+            <p>Use the <a href="/launch" style={{ color: "var(--coral)" }}>RTP launch page</a>. Pick your platform, fill in token details, sign with your Solana wallet. The token goes live on-chain and the RTP treasury is initialized automatically.</p>
             <ol>
               <li><strong>Pick a platform</strong> — Pump.fun, Bags.fm, or Raydium LaunchLab</li>
               <li><strong>Fill in token details</strong> — name, symbol, image, description</li>
-              <li><strong>Sign with Phantom</strong> — one transaction creates the token on-chain</li>
+              <li><strong>Sign with your wallet</strong> — one transaction creates the token on-chain</li>
               <li><strong>RTP treasury auto-initializes</strong> — treasury PDA and adopter record created</li>
             </ol>
 
@@ -220,7 +220,7 @@ const result = await registerWithRTP(connection, wallet, {
               <li>A Solana launchpad or token deployment platform</li>
               <li>Node.js 18+</li>
               <li><code>@solana/web3.js</code> v1.98+</li>
-              <li>A Phantom wallet (for signing transactions)</li>
+              <li>A Solana wallet (for signing transactions)</li>
             </ul>
 
             <h3>Installation</h3>

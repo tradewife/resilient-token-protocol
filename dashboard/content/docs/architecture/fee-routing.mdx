@@ -11,7 +11,7 @@ Every RTP-registered token follows the same cycle: trading fees accumulate in th
 flowchart LR
     A[Trading<br/>Activity] -->|Fees| B[Treasury<br/>Vault PDA]
     B -->|withdraw_fees| C[Accumulated<br/>Fees]
-    C -->|Fund trading| D[Phantom<br/>Bridge]
+    C -->|Fund trading| D[Trading<br/>Wing]
     D -->|invoke_signed| E[Flash Trade<br/>CPI]
     E -->|SOL yield| F[Close position]
     F -->|Yield return| B

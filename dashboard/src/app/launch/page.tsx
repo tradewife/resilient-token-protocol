@@ -673,7 +673,7 @@ export default function LaunchPage() {
       <section className="launch-hero">
         <h1 className="launch-title">Launch a Token with a Treasury</h1>
         <p className="launch-subtitle">
-          Pick a platform, sign with Phantom, and your token goes live with an RTP treasury.
+          Pick a platform, sign with your Solana wallet, and your token goes live with an RTP treasury.
           Fees compound, yield returns to holders, enforced on-chain. One transaction.
         </p>
         <div style={{ display: "flex", gap: "var(--space-lg)", justifyContent: "center", marginTop: "var(--space-md)", flexWrap: "wrap" }}>
@@ -754,7 +754,7 @@ export default function LaunchPage() {
               </React.Fragment>
             ))}
           </div>
-          <button className="btn-launch" onClick={() => setVisible(true)}>Connect Phantom Wallet</button>
+          <button className="btn-launch" onClick={() => setVisible(true)}>Connect Wallet</button>
           <p style={{ color: "var(--text-muted)", marginTop: "var(--space-md)", fontSize: "0.75rem" }}>
             Your token launches on the selected platform. RTP treasury is initialized in the same session.
           </p>
@@ -814,7 +814,7 @@ export default function LaunchPage() {
                 <div className="form-note">
                   Creates a Raydium LaunchLab token with bonding curve graduation to CPMM.
                   After graduation, creator fees redirect to the RTP treasury PDA via
-                  <code>updatePlatformCpCreator</code>. Phantom signs the transaction in-browser.
+                  <code>updatePlatformCpCreator</code>. Your wallet signs the transaction in-browser.
                   Supports devnet testing with sUSDC.
                 </div>
               </>
@@ -855,7 +855,7 @@ export default function LaunchPage() {
                 </div>
                 <div className="form-note">
                   Calls PumpPortal API to build a local <code>VersionedTransaction</code> — signed
-                  in-browser by Phantom. No API key needed. Pure client-side. Token-2022 with TransferFeeConfig
+                  in-browser by your wallet. No API key needed. Pure client-side. Token-2022 with TransferFeeConfig
                   is not compatible with Pump.fun&apos;s bonding curve; RTP treasury initialized separately.
                 </div>
               </>
@@ -918,7 +918,7 @@ export default function LaunchPage() {
               {[
                 { icon: "1", label: "Click Launch" },
                 { icon: "→", label: "" },
-                { icon: "2", label: "Phantom signs" },
+                { icon: "2", label: "Wallet signs" },
                 { icon: "→", label: "" },
                 { icon: "3", label: "Token live" },
               ].map((step, i) => step.label ? (
@@ -966,7 +966,7 @@ export default function LaunchPage() {
             {phase === "rtp_init" ? "Initializing RTP treasury..." : "Launching your token..."}
           </h2>
           <p style={{ color: "var(--text-secondary)", fontSize: "0.875rem" }}>
-            {statusMsg || "Signing transactions via Phantom. Check your wallet for approval prompts."}
+            {statusMsg || "Signing transactions. Check your wallet for approval prompts."}
           </p>
           <div style={{ marginTop: "24px" }}>
             <div style={{
