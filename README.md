@@ -52,8 +52,8 @@ The Treasury PDA opens and closes Flash Trade positions on Solana mainnet via `i
 
 | Proof | Explorer Link |
 |-------|---------------|
-| **Open position** (CPI via invoke_signed) | [View on Solana Explorer](https://explorer.solana.com/tx/2bLg1FuJkGd5hGBwEe35hwMvHtYv6dMJHxQjRMFa8PkHSwSCSQfeNbdgGwnFx8eGbMbVZhjjkMZiT3vDjvmQRQM) |
-| **Close position** (SOL returned to treasury) | [View on Solana Explorer](https://explorer.solana.com/tx/dFqkoP2sWMMxZAhLPM4wFmWx1YJP3bNhkNu1r5HGRTjfNYkX8P8oPkZr1SZk8RFvDjSZsQvCjMfkWNMkPFzYAuE) |
+| **Open position** (CPI via invoke_signed) | [View on Solana Explorer](https://explorer.solana.com/tx/2bLg1FuJ6iqwYq6SKi5EcZQWszarDZhS68bCbGTRLKMwhYqsU7G57fTtG4G6GFx3ZKN15qhb85zy28pGJvSdrnG3) |
+| **Close position** (SOL returned to treasury) | [View on Solana Explorer](https://explorer.solana.com/tx/dFqkoP2wX2meR8Mv8CngujJJUNBYuv5peCyzRYFPBvpN3uqCqXqRCy4TPyw5JbAZhumCaJdGaJoQvJrJGJzxfHF) |
 | **Program** (Treasury on devnet) | [View on Solana Explorer](https://explorer.solana.com/address/8rt6yiBnRTyHy8F69jUd7exWwwShUs4Eokeq41auo2RB?cluster=devnet) |
 
 Every position open/close is an on-chain transaction. The Treasury PDA signs via `invoke_signed` — the program IS the only authority. No private key exists for trading.
@@ -78,8 +78,8 @@ The Survivor 2.69 strategy runs autonomously 24/7 on Railway. A Rust binary (`rt
 
 | Proof | Explorer Link |
 |-------|---------------|
-| **Open position** (SOL LONG) | [TX `YtGKq46w...`](https://explorer.solana.com/tx/YtGKq46wHcVBnWFth5aS2h5EhXPN2uXJJk9kZvEyD7Kh3MRNBbXc4c5NcKVeSHKb6UZVhLFz4y8cSGVzDrNyHZ5) |
-| **Close position** (SOL returned) | [TX `56PLUQA...`](https://explorer.solana.com/tx/56PLUQAYQhYhpXmG8mN3s8WFXVSatdEPT2jHJmhRSR4SxKKXQxjyRBJ6Z5NqDVbGHCw3VEy3VTbKF2v8zGd4aXh) |
+| **Open position** (SOL LONG) | [TX `YtGKq46w...`](https://explorer.solana.com/tx/YtGKq46wEgeUqoWouV5LXvv6mAxb5dCYmRHy622i7UtP5UoXsKZJtqscJf9fWLjzjZwCZhGw7r4EMgKV3wU2CBg) |
+| **Close position** (SOL returned) | [TX `56PLUQA...`](https://explorer.solana.com/tx/56PLUQAPGqtAcvRUgJBreMrubAETZkpFCoyHzkwt3jCGCwZYHeonbxcJp244ZipeHuNBAwAX6r1wWkcR9LFcdmM6) |
 
 **How it works:** Binance provides 200h warmup candles. Flash Trade supplies the ongoing price feed. The Rust strategy engine computes the multi-timeframe signal, and when score > 0.25 with 3+ bullish timeframes, opens a 9x leveraged LONG position. Exit triggers: tight trailing stop (0.14× ATR), hard stop-loss (2.7× ATR), take-profit (5.0× ATR), score flip, max hold time, or MR target. State persists to `data/trader-state.json`.
 

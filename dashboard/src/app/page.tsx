@@ -95,10 +95,10 @@ interface TraderState {
 }
 
 const MAINNET_TXS = [
-  { label: "Open (CPI invoke_signed)", tx: "2bLg1FuJkGd5hGBwEe35hwMvHtYv6dMJHxQjRMFa8PkHSwSCSQfeNbdgGwnFx8eGbMbVZhjjkMZiT3vDjvmQRQM", note: "99,214 CU — mainnet" },
-  { label: "Close (SOL returned)", tx: "dFqkoP2sWMMxZAhLPM4wFmWx1YJP3bNhkNu1r5HGRTjfNYkX8P8oPkZr1SZk8RFvDjSZsQvCjMfkWNMkPFzYAuE", note: "mainnet" },
-  { label: "Open (REST API)", tx: "YtGKq46wHcVBnWFth5aS2h5EhXPN2uXJJk9kZvEyD7Kh3MRNBbXc4c5NcKVeSHKb6UZVhLFz4y8cSGVzDrNyHZ5", note: "mainnet" },
-  { label: "Close (REST API)", tx: "56PLUQAYQhYhpXmG8mN3s8WFXVSatdEPT2jHJmhRSR4SxKKXQxjyRBJ6Z5NqDVbGHCw3VEy3VTbKF2v8zGd4aXh", note: "mainnet" },
+  { label: "Open (CPI invoke_signed)", tx: "2bLg1FuJ6iqwYq6SKi5EcZQWszarDZhS68bCbGTRLKMwhYqsU7G57fTtG4G6GFx3ZKN15qhb85zy28pGJvSdrnG3", note: "99,214 CU — mainnet" },
+  { label: "Close (SOL returned)", tx: "dFqkoP2wX2meR8Mv8CngujJJUNBYuv5peCyzRYFPBvpN3uqCqXqRCy4TPyw5JbAZhumCaJdGaJoQvJrJGJzxfHF", note: "mainnet" },
+  { label: "Open (REST API)", tx: "YtGKq46wEgeUqoWouV5LXvv6mAxb5dCYmRHy622i7UtP5UoXsKZJtqscJf9fWLjzjZwCZhGw7r4EMgKV3wU2CBg", note: "mainnet" },
+  { label: "Close (REST API)", tx: "56PLUQAPGqtAcvRUgJBreMrubAETZkpFCoyHzkwt3jCGCwZYHeonbxcJp244ZipeHuNBAwAX6r1wWkcR9LFcdmM6", note: "mainnet" },
 ];
 
 export default function Home() {
