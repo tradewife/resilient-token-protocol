@@ -886,7 +886,15 @@ export default function DocsPage() {
         {/* Content */}
         <main className="docs-content">
           <article className="docs-article">
-            <h1 className="docs-title">{activeSection.title}</h1>
+            <h1 className="docs-title" style={{
+              fontFamily: "var(--font-display)",
+              fontSize: "clamp(1.375rem, 2.6vw, 2rem)",
+              fontWeight: 500,
+              letterSpacing: "-0.015em",
+              color: "var(--text-primary)",
+              lineHeight: 1.15,
+              marginBottom: "var(--space-lg)",
+            }}>{activeSection.title}</h1>
             <div className="docs-body">{activeSection.content}</div>
           </article>
 
@@ -932,7 +940,11 @@ export default function DocsPage() {
           <span className="vital-value">Per-mint PDA</span>
           <span className="vital-label">Treasury</span>
         </div>
-        <Link href="/" className="vital-link">Back to Dashboard</Link>
+        <div className="vital">
+          <a className="vital-link" href="https://github.com/tradewife/resilient-token-protocol" target="_blank" rel="noopener noreferrer">Source on GitHub ↗</a>
+          <span className="vital-label">Repository</span>
+        </div>
+        <Link href="/" className="vital-link">← Dashboard</Link>
       </footer>
     </div>
   );

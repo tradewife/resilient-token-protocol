@@ -670,37 +670,29 @@ export default function LaunchPage() {
       <Topbar activePage="launch" />
 
       {/* Hero */}
-      <section className="launch-hero">
-        <h1 className="launch-title">Launch a Token with a Treasury</h1>
-        <p className="launch-subtitle">
+      <section className="sys2-section" style={{ borderTop: "none" }}>
+        <div className="sys2-sect-eyebrow">Launch</div>
+        <h1 className="sys2-sect-title">Launch a Token with a Treasury</h1>
+        <p className="sys2-sect-lede" style={{ maxWidth: "56rem" }}>
           Pick a platform, sign with your Solana wallet, and your token goes live with an RTP treasury.
           Fees compound, yield returns to holders, enforced on-chain. One transaction.
         </p>
-        <div style={{ display: "flex", gap: "var(--space-lg)", justifyContent: "center", marginTop: "var(--space-md)", flexWrap: "wrap" }}>
-          <div style={{ textAlign: "center" }}>
-            <div style={{ fontSize: "1.25rem", fontWeight: 600, color: "var(--coral)" }}>70/20/10</div>
-            <div style={{ fontSize: "0.6875rem", color: "var(--text-tertiary)" }}>Redistribution split</div>
-          </div>
-          <div style={{ textAlign: "center" }}>
-            <div style={{ fontSize: "1.25rem", fontWeight: 600, color: "var(--coral)" }}>Per-mint</div>
-            <div style={{ fontSize: "0.6875rem", color: "var(--text-tertiary)" }}>Treasury PDA</div>
-          </div>
-          <div style={{ textAlign: "center" }}>
-            <div style={{ fontSize: "1.25rem", fontWeight: 600, color: "var(--coral)" }}>On-chain</div>
-            <div style={{ fontSize: "0.6875rem", color: "var(--text-tertiary)" }}>Constraint enforcement</div>
-          </div>
+        <div style={{ display: "flex", gap: "var(--space-xl)", marginTop: "var(--space-lg)", flexWrap: "wrap" }}>
+          {[
+            { value: "70/20/10", label: "Redistribution split" },
+            { value: "Per-mint", label: "Treasury PDA" },
+            { value: "On-chain", label: "Constraint enforcement" },
+          ].map((m) => (
+            <div key={m.label} style={{ textAlign: "center" }}>
+              <div className="sys2-vital-value" style={{ fontSize: "1.125rem", color: "var(--coral)" }}>{m.value}</div>
+              <div className="sys2-vital-sub">{m.label}</div>
+            </div>
+          ))}
         </div>
         {connected && (phase === "form" || phase === "error") && (
-          <div style={{ marginTop: "var(--space-lg)", display: "flex", justifyContent: "center" }}>
-            <button
-              onClick={handleDevnetDemo}
-              style={{
-                background: "transparent", border: "1px solid var(--emerald)", borderRadius: 6,
-                padding: "10px 24px", color: "var(--emerald)", fontSize: "0.8125rem", fontWeight: 500,
-                cursor: "pointer", fontFamily: "var(--font-body)",
-                transition: "background 0.15s",
-              }}
-            >
+          <div style={{ marginTop: "var(--space-lg)", display: "flex", justifyContent: "flex-start" }}>
+            <button onClick={handleDevnetDemo} className="sys2-cta-secondary"
+              style={{ borderColor: "var(--emerald)", color: "var(--emerald)" }}>
               Demo on Devnet — Create test token + treasury in one click
             </button>
           </div>
@@ -754,7 +746,7 @@ export default function LaunchPage() {
               </React.Fragment>
             ))}
           </div>
-          <button className="btn-launch" onClick={() => setVisible(true)}>Connect Wallet</button>
+          <button className="sys2-cta-primary" onClick={() => setVisible(true)}>Connect Wallet</button>
           <p style={{ color: "var(--text-muted)", marginTop: "var(--space-md)", fontSize: "0.75rem" }}>
             Your token launches on the selected platform. RTP treasury is initialized in the same session.
           </p>
@@ -935,12 +927,12 @@ export default function LaunchPage() {
             </div>
 
             {/* ── Submit ── */}
-            <button type="submit" className="btn-launch" disabled={!canLaunch}
+            <button type="submit" className="sys2-cta-primary" disabled={!canLaunch}
               style={{
                 opacity: canLaunch ? 1 : 0.5, cursor: canLaunch ? "pointer" : "not-allowed",
                 background: PLATFORMS.find(p => p.id === platform)?.color,
+                borderColor: PLATFORMS.find(p => p.id === platform)?.color,
                 fontSize: "1rem", padding: "14px 32px", fontWeight: 600,
-                letterSpacing: "0.02em",
               }}>
               Launch on {PLATFORMS.find(p => p.id === platform)?.name}
             </button>

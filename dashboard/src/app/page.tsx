@@ -1,44 +1,45 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { PublicKey, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import Link from "next/link";
 import Topbar from "./Topbar";
 import { fetchTreasuryState } from "../lib/sdk";
 
-const TREASURY_AUTHORITY = "Driyi8Sw2622yCefU34zrjBsQynrDoGD31tBecXrEF6R";
+/* ── Constants ── */
+
+const TREASURY_AUTHORITY = "********************************************";
 const TREASURY_PDA = "6PYPAnwiMoZvzphAWEu3EsNz3PpwjJ6YcZabj34qVQ4Z";
 const DEVNET_RPC = "https://api.devnet.solana.com";
 const MAINNET_RPC = "https://api.mainnet-beta.solana.com";
 
-/* ── Fallback static feed (used when /api/cycle returns 404) ── */
-const FALLBACK_FEED = [
-  { ts: "2026-05-04", tag: "night shift", msg: "Evaluating 30,000 parameter configs across SOL/USDT" },
-  { ts: "2026-05-04", tag: "night shift", msg: "9-fold walk-forward analysis complete. Darwinian mutations generated." },
-  { ts: "2026-05-05", tag: "validated", msg: "SOL/USDT 9x leverage — Calmar 44.89, +554% return, 12.3% max DD, 0 liquidations" },
-  { ts: "2026-05-05", tag: "night shift", msg: "16,228 candidates evaluated. 9x leverage optimal across 3-10x sweep." },
-  { ts: "2026-05-06", tag: "robustness", msg: "Monte Carlo DD p95=32.1%. PBO=33%. Strategy exploration: 5 alternative plugins tested." },
-  { ts: "2026-05-06", tag: "trading wing", msg: "Live 9x autonomous trader — thresh=0.25, tp=5.0, sl=2.7, trail=0.14, align=3" },
+const MAINNET_TXS = [
+  { label: "Open · CPI invoke_signed", tx: "2bLg1FuJ6iqwYq6SKi5EcZQWszarDZhS68bCbGTRLKMwhYqsU7G57fTtG4G6GFx3ZKN15qhb85zy28pGJvSdrnG3", note: "99,214 CU", kind: "open" },
+  { label: "Close · SOL returned", tx: "dFqkoP2wX2meR8Mv8CngujJJUNBYuv5peCyzRYFPBvpN3uqCqXqRCy4TPyw5JbAZhumCaJdGaJoQvJrJGJzxfHF", note: "settled mainnet", kind: "close" },
+  { label: "Open · REST autonomous", tx: "YtGKq46wEgeUqoWouV5LXvv6mAxb5dCYmRHy622i7UtP5UoXsKZJtqscJf9fWLjzjZwCZhGw7r4EMgKV3wU2CBg", note: "score = 0.400", kind: "open" },
+  { label: "Close · REST autonomous", tx: "56PLUQAPGqtAcvRUgJBreMrubAETZkpFCoyHzkwt3jCGCwZYHeonbxcJp244ZipeHuNBAwAX6r1wWkcR9LFcdmM6", note: "settled mainnet", kind: "close" },
 ];
 
-/* ── Fallback static wings ── */
-const FALLBACK_WINGS = [
-  { name: "Trading", status: "Executing SOL/USDT", active: true },
-  { name: "Security", status: "Monitoring", active: true },
-  { name: "Evolve", status: "3 mutations accepted", active: true },
-  { name: "Knowledge", status: "14 files", active: true },
-  { name: "Audit", status: "3/3 approved", active: true },
-  { name: "Futureproof", status: "Monitoring", active: true },
-];
+const TYPE_COLORS: Record<string, string> = {
+  trend: "var(--emerald)", mean_reversion: "var(--coral)", volatility: "#a78bfa",
+  carry: "#f59e0b", risk_premium: "var(--emerald)", mr: "var(--coral)", vol: "#a78bfa",
+};
 
-const INVARIANTS = [
-  "PDA owns treasury — no private key exists. No one can sign funds away.",
-  "Native SOL treasury — fees collected as SOL into per-token treasury PDA.",
-  "Per-token isolation — each token gets its own Treasury PDA + vault. No shared pool, no honeypot.",
-  "Flash Trade CPI-only execution — Treasury PDA signs via invoke_signed, no human keypair involved in trading.",
-  "Phase transitions irreversible — Sustenance → Ecosystem → Humanity, no downgrade.",
-];
+const REGIME_LABELS: Record<string, string> = {
+  trending: "Trending", ranging: "Ranging", both: "All Regimes",
+};
+
+const LOOP_NODES = [
+  { key: "research", label: "Research", desc: "30K configs · 9-fold WFA" },
+  { key: "bridge",   label: "Bridge",   desc: "Python → Rust JSON" },
+  { key: "evolve",   label: "Evolve",   desc: "LLM proposes mutations" },
+  { key: "gates",    label: "Gates",    desc: "Bounds + delta check" },
+  { key: "execute",  label: "Execute",  desc: "Treasury PDA invoke_signed" },
+  { key: "feedback", label: "Feedback", desc: "PnL → next cycle" },
+] as const;
+
+/* ── Interfaces ── */
 
 interface CycleData {
   cycle_id: string | null;
@@ -54,12 +55,20 @@ interface CycleData {
   error?: string;
 }
 
-interface MemoryData {
-  fileCount: number;
-  latestFile: string | null;
-  latestTimestamp: string | null;
-  breakdown: Record<string, number>;
-  error?: string;
+interface TraderState {
+  wallet: string;
+  open_position: {
+    entry_price: number; entry_time: number; peak_price: number;
+    entry_score: number; size_usd: number;
+  } | null;
+  trade_history: Array<{
+    entry_price: number; exit_price: number; entry_time: number;
+    exit_time: number; pnl_pct: number; exit_reason: string; size_usd: number;
+  }>;
+  candle_count: number;
+  last_poll: string;
+  total_pnl_sol: number;
+  total_trades: number;
 }
 
 interface LivenessData {
@@ -69,37 +78,140 @@ interface LivenessData {
   slot: number | null;
 }
 
-interface TraderState {
-  wallet: string;
-  open_position: {
-    entry_price: number;
-    entry_time: number;
-    peak_price: number;
-    entry_rsi: number;
-    entry_atr: number;
-    entry_score: number;
-    position_key: string;
-    size_usd: number;
-  } | null;
-  trade_history: Array<{
-    entry_price: number;
-    exit_price: number;
-    pnl_pct: number;
-    exit_reason: string;
-    size_usd: number;
+interface NightData {
+  num_folds: number;
+  runtime_seconds: number;
+  top_candidates: Array<{
+    symbol: string; survivor_score: number; oos_sharpe: number;
+    oos_consistency: number; oos_max_dd: number;
+    overfitting_score: number; fragility: number;
   }>;
-  candle_count: number;
-  last_poll: string;
-  total_pnl_sol: number;
-  total_trades: number;
 }
 
-const MAINNET_TXS = [
-  { label: "Open (CPI invoke_signed)", tx: "2bLg1FuJ6iqwYq6SKi5EcZQWszarDZhS68bCbGTRLKMwhYqsU7G57fTtG4G6GFx3ZKN15qhb85zy28pGJvSdrnG3", note: "99,214 CU — mainnet" },
-  { label: "Close (SOL returned)", tx: "dFqkoP2wX2meR8Mv8CngujJJUNBYuv5peCyzRYFPBvpN3uqCqXqRCy4TPyw5JbAZhumCaJdGaJoQvJrJGJzxfHF", note: "mainnet" },
-  { label: "Open (REST API)", tx: "YtGKq46wEgeUqoWouV5LXvv6mAxb5dCYmRHy622i7UtP5UoXsKZJtqscJf9fWLjzjZwCZhGw7r4EMgKV3wU2CBg", note: "mainnet" },
-  { label: "Close (REST API)", tx: "56PLUQAPGqtAcvRUgJBreMrubAETZkpFCoyHzkwt3jCGCwZYHeonbxcJp244ZipeHuNBAwAX6r1wWkcR9LFcdmM6", note: "mainnet" },
-];
+interface StrategyCard {
+  id: string; name: string; type: string;
+  regime: string; priority: number; decay_risk: string;
+}
+
+interface DeadEnd {
+  title: string; date: string; root_cause: string;
+}
+
+/* ── SVG Components ── */
+
+function ClosedLoopSVG({ activeIdx, liveLabels }: { activeIdx: number; liveLabels: string[] }) {
+  const cx = 320, cy = 320, R = 215, nodeR = 60;
+  const positions = LOOP_NODES.map((_, i) => {
+    const a = -Math.PI / 2 + (i * 2 * Math.PI) / 6;
+    return { x: cx + R * Math.cos(a), y: cy + R * Math.sin(a) };
+  });
+  const trackD = `M ${cx + R} ${cy} A ${R} ${R} 0 1 1 ${cx + R - 0.001} ${cy}`;
+
+  return (
+    <svg viewBox="0 0 640 640" className="loop-svg" role="img" aria-label="Closed loop diagram">
+      <defs>
+        <radialGradient id="centerGlow" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="var(--emerald)" stopOpacity="0.18" />
+          <stop offset="100%" stopColor="var(--emerald)" stopOpacity="0" />
+        </radialGradient>
+        <marker id="arrowHead" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--emerald-dim)" />
+        </marker>
+      </defs>
+      <circle cx={cx} cy={cy} r={R - 12} fill="url(#centerGlow)" />
+      <circle cx={cx} cy={cy} r={R} fill="none" stroke="var(--border)" strokeWidth="1" strokeDasharray="2 8" />
+      {positions.map((p, i) => {
+        const next = positions[(i + 1) % 6];
+        return (
+          <path key={`arc-${i}`} d={`M ${p.x} ${p.y} A ${R} ${R} 0 0 1 ${next.x} ${next.y}`}
+            fill="none" stroke="var(--emerald-dim)" strokeWidth="1.5" opacity="0.6" />
+        );
+      })}
+      <path id="loop-track" d={trackD} fill="none" stroke="transparent" />
+      <circle r="5" fill="var(--coral)" opacity="0.95">
+        <animateMotion dur="14s" repeatCount="indefinite" rotate="auto">
+          <mpath href="#loop-track" />
+        </animateMotion>
+      </circle>
+      <g transform={`translate(${cx}, ${cy})`}>
+        <circle r="78" fill="var(--surface-0)" stroke="var(--emerald-dim)" />
+        <circle r="78" fill="none" stroke="var(--emerald)" strokeWidth="0.5" opacity="0.4" />
+        <text textAnchor="middle" y="-12" className="loop-center-eyebrow">GOVERNED BY</text>
+        <text textAnchor="middle" y="10" className="loop-center-title">SOULCONTRACT</text>
+        <text textAnchor="middle" y="30" className="loop-center-sub">16 invariants · enforced</text>
+      </g>
+      {LOOP_NODES.map((node, i) => {
+        const p = positions[i];
+        const active = activeIdx === i;
+        return (
+          <g key={node.key} transform={`translate(${p.x}, ${p.y})`}>
+            <circle r={nodeR + 6} fill="none" stroke="var(--emerald)" strokeWidth="1.5"
+              opacity={active ? 0.5 : 0} style={{ transition: "opacity 0.5s" }} />
+            <circle r={nodeR} fill={active ? "oklch(18% 0.04 160)" : "var(--surface-0)"}
+              stroke={active ? "var(--emerald)" : "var(--border)"}
+              strokeWidth={active ? 2 : 1} style={{ transition: "all 0.4s" }} />
+            <text textAnchor="middle" y="-10" className="loop-node-eyebrow">{String(i + 1).padStart(2, "0")}</text>
+            <text textAnchor="middle" y="10" className="loop-node-title">{node.label}</text>
+            <text textAnchor="middle" y="28" className="loop-node-sub">{liveLabels[i] ?? node.desc}</text>
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+function PnlSparkline({ trades }: { trades: TraderState["trade_history"] }) {
+  const W = 720, H = 180, PAD_X = 14, PAD_Y = 22;
+  const series = useMemo(() => {
+    if (!trades || trades.length === 0) return [] as number[];
+    const out: number[] = [0];
+    let acc = 0;
+    for (const t of trades) { acc += t.pnl_pct; out.push(acc); }
+    return out;
+  }, [trades]);
+
+  if (series.length < 2) {
+    return (
+      <div className="sparkline-empty">
+        <div className="sparkline-empty-glyph">⏷</div>
+        <div className="sparkline-empty-title">Awaiting first closed trade</div>
+        <div className="sparkline-empty-sub">
+          The trader is watching SOL/USDT live. Cumulative PnL appears here the moment the first position closes.
+        </div>
+      </div>
+    );
+  }
+
+  const min = Math.min(...series, 0), max = Math.max(...series, 0);
+  const range = max - min || 1;
+  const xy = series.map((v, i) => {
+    const x = PAD_X + (i / (series.length - 1)) * (W - 2 * PAD_X);
+    const y = H - PAD_Y - ((v - min) / range) * (H - 2 * PAD_Y);
+    return [x, y] as const;
+  });
+  const path = xy.map(([x, y], i) => `${i ? "L" : "M"} ${x.toFixed(1)} ${y.toFixed(1)}`).join(" ");
+  const last = xy[xy.length - 1];
+  const area = `${path} L ${last[0]} ${H - PAD_Y} L ${PAD_X} ${H - PAD_Y} Z`;
+  const final = series[series.length - 1];
+  const color = final >= 0 ? "var(--emerald)" : "var(--coral)";
+  const zeroY = H - PAD_Y - ((0 - min) / range) * (H - 2 * PAD_Y);
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="sparkline-svg">
+      <line x1={PAD_X} x2={W - PAD_X} y1={zeroY} y2={zeroY} stroke="var(--border)" strokeDasharray="2 6" />
+      <path d={area} fill={color} fillOpacity="0.10" />
+      <path d={path} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+      {xy.map(([x, y], i) => (
+        <circle key={i} cx={x} cy={y} r={i === xy.length - 1 ? 3.5 : 2} fill={color} />
+      ))}
+      <text x={last[0] - 6} y={last[1] - 8} className="sparkline-final" fill={color} textAnchor="end">
+        {final >= 0 ? "+" : ""}{final.toFixed(2)}%
+      </text>
+    </svg>
+  );
+}
+
+/* ── Main Page ── */
 
 export default function Home() {
   const { publicKey, connected } = useWallet();
@@ -108,12 +220,15 @@ export default function Home() {
   const [treasurySol, setTreasurySol] = useState<number | null>(null);
   const [walletSol, setWalletSol] = useState<number | null>(null);
   const [cycle, setCycle] = useState<CycleData | null>(null);
-  const [memory, setMemory] = useState<MemoryData | null>(null);
   const [liveness, setLiveness] = useState<LivenessData | null>(null);
-  const [traderState, setTraderState] = useState<TraderState | null>(null);
+  const [trader, setTrader] = useState<TraderState | null>(null);
   const [yieldReceived, setYieldReceived] = useState<number | null>(null);
   const [yieldLoading, setYieldLoading] = useState(false);
   const [isFrozen, setIsFrozen] = useState(false);
+  const [night, setNight] = useState<NightData | null>(null);
+  const [strategies, setStrategies] = useState<StrategyCard[]>([]);
+  const [deadEnds, setDeadEnds] = useState<DeadEnd[]>([]);
+  const [activeIdx, setActiveIdx] = useState(0);
 
   // ── Treasury PDA balance (devnet) ──
   useEffect(() => {
@@ -122,9 +237,7 @@ export default function Home() {
       try {
         const lamports = await connection.getBalance(new PublicKey(TREASURY_PDA));
         if (alive) setTreasurySol(lamports / LAMPORTS_PER_SOL);
-      } catch {
-        // Devnet RPC may be rate-limited or unreachable — retry on next poll interval
-      }
+      } catch { /* retry on next poll */ }
     };
     poll();
     const id = setInterval(poll, 10_000);
@@ -138,110 +251,78 @@ export default function Home() {
     const poll = async () => {
       try {
         const res = await fetch(MAINNET_RPC, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            jsonrpc: "2.0",
-            id: 1,
-            method: "getBalance",
-            params: [publicKey.toBase58()],
-          }),
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "getBalance", params: [publicKey.toBase58()] }),
         });
         const json = await res.json();
         const lamports: number = json?.result?.value ?? 0;
         if (alive) setWalletSol(lamports / LAMPORTS_PER_SOL);
-      } catch {
-        // Mainnet RPC may be rate-limited or unreachable — retry on next poll interval
-      }
+      } catch { /* retry */ }
     };
     poll();
     const id = setInterval(poll, 15_000);
     return () => { alive = false; clearInterval(id); };
   }, [publicKey]);
 
-  // ── Fetch cycle data (from static /data/ files, rebuilt every cycle) ──
-  const fetchCycle = useCallback(async () => {
-    try {
-      const res = await fetch("/data/cycle.json");
-      if (res.ok) {
-        const data: CycleData = await res.json();
-        if (!data.error) { setCycle(data); return; }
-      }
-    } catch {
-      // Static JSON not built yet or fetch failed — derived state uses fallbacks
-    }
-    // No valid data — derived state uses fallbacks
-  }, []);
-
-  useEffect(() => { fetchCycle(); }, [fetchCycle]);
-
-  // ── Fetch memory data ──
+  // ── Fetch cycle data ──
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch("/data/memory.json");
-        if (res.ok) {
-          const data: MemoryData = await res.json();
-          if (!data.error) { setMemory(data); return; }
-        }
-      } catch {
-        // Static JSON not built yet or fetch failed — memory display stays empty
-      }
+        const res = await fetch("/data/cycle.json");
+        if (res.ok) { const data: CycleData = await res.json(); if (!data.error) setCycle(data); }
+      } catch {}
     })();
   }, []);
 
-  // ── Fetch trader state (live autonomous trader via API route) ──
+  // ── Fetch trader state ──
   useEffect(() => {
     let alive = true;
     const poll = async () => {
       try {
         const res = await fetch("/api/trader-status");
-        if (res.ok) {
-          const data: TraderState = await res.json();
-          if (data.wallet && alive) { setTraderState(data); }
-        }
-      } catch {
-        // Trader API not available yet
-      }
+        if (res.ok) { const data: TraderState = await res.json(); if (data.wallet && alive) setTrader(data); }
+      } catch {}
     };
     poll();
-    const id = setInterval(poll, 15_000); // refresh every 15s
+    const id = setInterval(poll, 15_000);
     return () => { alive = false; clearInterval(id); };
   }, []);
 
-  // ── Program liveness (client-side devnet RPC) ──
+  // ── Fetch night/strategies/deadends ──
+  useEffect(() => {
+    (async () => {
+      try { const r = await fetch("/data/night.json"); if (r.ok) { const d = await r.json(); if (!d.error) setNight(d); } } catch {}
+      try { const r = await fetch("/data/strategy-library.json"); if (r.ok) setStrategies(await r.json()); } catch {}
+      try { const r = await fetch("/data/dead-ends.json"); if (r.ok) setDeadEnds(await r.json()); } catch {}
+    })();
+  }, []);
+
+  // ── Program liveness ──
   useEffect(() => {
     let alive = true;
     const check = async () => {
       try {
         const res = await fetch("https://api.devnet.solana.com", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            jsonrpc: "2.0", id: 1, method: "getAccountInfo",
-            params: ["8rt6yiBnRTyHy8F69jUd7exWwwShUs4Eokeq41auo2RB", { encoding: "base64" }],
-          }),
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "getAccountInfo",
+            params: ["8rt6yiBnRTyHy8F69jUd7exWwwShUs4Eokeq41auo2RB", { encoding: "base64" }] }),
         });
         const json = await res.json();
         const value = json?.result?.value;
-        if (alive) {
-          setLiveness({
-            programId: "8rt6yiBnRTyHy8F69jUd7exWwwShUs4Eokeq41auo2RB",
-            live: value !== null && value !== undefined,
-            executable: value?.executable ?? false,
-            slot: json?.result?.context?.slot ?? null,
-          });
-        }
-      } catch {
-        // Devnet RPC unreachable — will retry on next 30s interval
-      }
+        if (alive) setLiveness({
+          programId: "8rt6yiBnRTyHy8F69jUd7exWwwShUs4Eokeq41auo2RB",
+          live: value !== null && value !== undefined,
+          executable: value?.executable ?? false,
+          slot: json?.result?.context?.slot ?? null,
+        });
+      } catch {}
     };
     check();
     const id = setInterval(check, 30_000);
     return () => { alive = false; clearInterval(id); };
   }, []);
 
-  // ── Treasury frozen state (devnet, via SDK Borsh decoder) ──
+  // ── Treasury frozen state ──
   useEffect(() => {
     let alive = true;
     const check = async () => {
@@ -249,99 +330,83 @@ export default function Home() {
         const devnetConn = new (await import("@solana/web3.js")).Connection(DEVNET_RPC, "confirmed");
         const state = await fetchTreasuryState(devnetConn, TREASURY_AUTHORITY);
         if (alive) setIsFrozen(state.isFrozen);
-      } catch {
-        // Devnet RPC unreachable — keep current state
-      }
+      } catch {}
     };
     check();
     const id = setInterval(check, 30_000);
     return () => { alive = false; clearInterval(id); };
   }, []);
 
-  // ── Yield received: scan treasury PDA txs for SOL sent to connected wallet ──
+  // ── Yield received ──
   useEffect(() => {
-    if (!publicKey) {
-      setYieldReceived(null);
-      return;
-    }
+    if (!publicKey) { setYieldReceived(null); return; }
     let cancelled = false;
     setYieldLoading(true);
-
     (async () => {
       try {
         const devnetConn = new (await import("@solana/web3.js")).Connection(DEVNET_RPC, "confirmed");
         const treasuryPubkey = new PublicKey(TREASURY_PDA);
         const walletStr = publicKey.toBase58();
-
-        // Limit to 20 recent signatures to avoid rate limiting
         const signatures = await devnetConn.getSignaturesForAddress(treasuryPubkey, { limit: 20 });
         let totalYieldLamports = 0;
-
         for (const sigInfo of signatures) {
           if (cancelled) break;
           try {
-            const tx = await devnetConn.getTransaction(sigInfo.signature, {
-              maxSupportedTransactionVersion: 0,
-            });
+            const tx = await devnetConn.getTransaction(sigInfo.signature, { maxSupportedTransactionVersion: 0 });
             if (!tx || !tx.meta) continue;
-
             const { preBalances, postBalances } = tx.meta;
             const accountKeys = tx.transaction.message.staticAccountKeys
               ? tx.transaction.message.staticAccountKeys
               : (tx.transaction.message as { accountKeys: PublicKey[] }).accountKeys;
             for (let i = 0; i < accountKeys.length; i++) {
-              const key = accountKeys[i] instanceof PublicKey
-                ? (accountKeys[i] as PublicKey).toBase58()
-                : String(accountKeys[i]);
+              const key = accountKeys[i] instanceof PublicKey ? (accountKeys[i] as PublicKey).toBase58() : String(accountKeys[i]);
               if (key === walletStr) {
                 const delta = (postBalances[i] ?? 0) - (preBalances[i] ?? 0);
-                if (delta > 0) {
-                  totalYieldLamports += delta;
-                }
+                if (delta > 0) totalYieldLamports += delta;
               }
             }
-          } catch {
-            // Individual tx fetch failed (rate limit, dropped connection) — skip
-          }
+          } catch {}
         }
-
-        if (!cancelled) {
-          setYieldReceived(totalYieldLamports / LAMPORTS_PER_SOL);
-          setYieldLoading(false);
-        }
-      } catch {
-        if (!cancelled) {
-          setYieldReceived(null);
-          setYieldLoading(false);
-        }
-      }
+        if (!cancelled) { setYieldReceived(totalYieldLamports / LAMPORTS_PER_SOL); setYieldLoading(false); }
+      } catch { if (!cancelled) { setYieldReceived(null); setYieldLoading(false); } }
     })();
-
     return () => { cancelled = true; };
   }, [publicKey]);
 
-  // ── Derived state ──
-  const tBal = treasurySol !== null ? treasurySol.toFixed(4) : "—";
-  const uBal = walletSol !== null ? walletSol.toFixed(4) : null;
+  // ── Loop animation ──
+  useEffect(() => {
+    const id = setInterval(() => setActiveIdx((n) => (n + 1) % 6), 2200);
+    return () => clearInterval(id);
+  }, []);
 
-  const cycleCount = 7; // from devnet-cycles directory
-  const lastRun = cycle?.cycle_id
-    ? new Date(cycle.cycle_id).toLocaleDateString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
-    : "—";
+  /* ── Derived ── */
 
-  // Build feed lines from cycle data
-  const feedLines = cycle
-    ? buildFeedFromCycle(cycle)
-    : FALLBACK_FEED;
+  const totalPnlPct = useMemo(
+    () => trader?.trade_history?.reduce((a, t) => a + t.pnl_pct, 0) ?? 0, [trader]
+  );
+  const winRate = useMemo(() => {
+    if (!trader || trader.trade_history.length === 0) return null;
+    return (trader.trade_history.filter((t) => t.pnl_pct > 0).length / trader.trade_history.length) * 100;
+  }, [trader]);
 
-  // Build wings from cycle data
-  const wings = cycle
-    ? buildWingsFromCycle(cycle)
-    : FALLBACK_WINGS;
+  const lastTrade = trader?.trade_history?.slice(-1)[0];
+  const traderStatus =
+    trader == null ? "connecting" :
+    trader.open_position ? "in_position" : "watching";
+
+  const liveLabels = [
+    night ? `${night.num_folds}-fold WFA` : "30K configs",
+    "typed JSON",
+    cycle ? (cycle.used_llm ? cycle.model_label : "deterministic") : "—",
+    cycle ? `${cycle.mutations_accepted.length}/${cycle.mutations_accepted.length + cycle.mutations_rejected.length} pass` : "—",
+    trader ? (trader.open_position ? "POSITION OPEN" : `${trader.candle_count} candles`) : "—",
+    lastTrade ? `${lastTrade.pnl_pct >= 0 ? "+" : ""}${lastTrade.pnl_pct.toFixed(2)}%` : "first trade pending",
+  ];
+
+  /* ── Render ── */
 
   return (
     <div className="page">
-      {/* Top bar */}
       <Topbar activePage="dashboard" />
 
       {/* Emergency freeze banner */}
@@ -355,18 +420,15 @@ export default function Home() {
         </div>
       )}
 
-      {/* Hero: image + treasury overview */}
-      <section className="hero">
+      {/* ════════ HERO ════════ */}
+      <section className="hero" style={{ marginBottom: 0 }}>
         <div className="hero-image-wrap">
-          <img
-            src="/bg-flower.jpg"
-            alt="Ethereal flower in emerald and coral — the organic intelligence that drives RTP"
-          />
+          <img src="/bg-flower.jpg" alt="Ethereal flower in emerald and coral — the organic intelligence that drives RTP" />
         </div>
 
         <div className="hero-content">
           <div className="hero-copy">
-            <span className="hero-label">SOLANA-NATIVE · AUTONOMOUS YIELD <span className="hero-label-desktop">· SELF-FUNDING</span></span>
+            <span className="hero-label">SOLANA-NATIVE · AUTONOMOUS YIELD · SELF-FUNDING</span>
             <h1 className="hero-title">
               Every token gets a
               <br />
@@ -377,416 +439,503 @@ export default function Home() {
             </p>
           </div>
 
-          <div className="hero-balance-block">
-            <div className="hero-balance">
-              <span className="hero-balance-value">
-                {treasurySol !== null && treasurySol > 0 ? `${treasurySol.toFixed(4)} SOL` : (
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                    <span style={{
-                      background: "var(--emerald)", color: "#fff", padding: "3px 10px",
-                      borderRadius: 4, fontSize: "0.6875rem", fontWeight: 600, letterSpacing: "0.04em",
-                    }}>
-                      MAINNET VERIFIED
-                    </span>
-                    <span style={{ fontSize: "0.8125rem", color: "var(--text-secondary)", fontWeight: 400 }}>
-                      4 confirmed transactions
-                    </span>
-                  </span>
-                )}
-              </span>
-              <div className="hero-balance-row">
-                <span className="hero-balance-label">
-                  TREASURY VAULT · 6PYPAn...Q4Z
+          <div className="sys2-hero-cta-row" style={{ marginBottom: "var(--space-lg)" }}>
+            <a href="https://explorer.solana.com/tx/2bLg1FuJ6iqwYq6SKi5EcZQWszarDZhS68bCbGTRLKMwhYqsU7G57fTtG4G6GFx3ZKN15qhb85zy28pGJvSdrnG3"
+              target="_blank" rel="noopener noreferrer" className="sys2-cta-primary">
+              View mainnet proof ↗
+            </a>
+            <Link href="/docs" className="sys2-cta-secondary">Read the docs →</Link>
+            <Link href="/launch" className="sys2-cta-tertiary">Or launch a token →</Link>
+          </div>
+
+          {connected && publicKey && (yieldLoading || (yieldReceived !== null && yieldReceived > 0)) && (
+            <div className="hero-yield">
+              {yieldLoading ? (
+                <span className="yield-text">Scanning treasury transactions...</span>
+              ) : (
+                <span className="yield-text">
+                  You have received <strong>{yieldReceived?.toFixed(4)} SOL</strong> from RTP
                 </span>
-
-                <div className="hero-actions">
-                  <Link href="/launch" style={{
-                    display: "inline-flex", alignItems: "center", gap: 6,
-                    background: "var(--coral)", color: "#fff", borderRadius: 6,
-                    padding: "10px 20px", fontSize: "0.875rem", fontWeight: 500,
-                    textDecoration: "none", transition: "opacity 0.15s",
-                  }}>
-                    Try it live →
-                  </Link>
-                  <Link href="/docs" style={{
-                    display: "inline-flex", alignItems: "center", gap: 6,
-                    background: "var(--surface-2)", color: "var(--text-secondary)", borderRadius: 6,
-                    padding: "10px 20px", fontSize: "0.875rem", fontWeight: 500,
-                    textDecoration: "none", border: "1px solid var(--border)",
-                    transition: "border-color 0.15s",
-                  }}>
-                    Read the docs
-                  </Link>
-                </div>
-              </div>
+              )}
             </div>
-
-            {connected && publicKey && (yieldLoading || (yieldReceived !== null && yieldReceived > 0)) && (
-              <div className="hero-yield">
-                {yieldLoading ? (
-                  <span className="yield-text">Scanning treasury transactions...</span>
-                ) : (
-                  <span className="yield-text">
-                    You have received <strong>{yieldReceived?.toFixed(4)} SOL</strong> from RTP
-                  </span>
-                )}
-              </div>
-            )}
-          </div>
+          )}
         </div>
 
-        <div className="hero-metrics">
-          <div className="metric">
-            <span className="metric-value accent">325+5</span>
-            <span className="metric-label">Unit + Integration Tests</span>
+        {/* Vitals strip — full width */}
+        <div className="sys2-vitals" style={{ gridColumn: "1 / -1" }}>
+          <div className="sys2-vital">
+            <div className="sys2-vital-label">Cumulative PnL</div>
+            <div className={`sys2-vital-value ${totalPnlPct >= 0 ? "pos" : "neg"}`}>
+              {totalPnlPct >= 0 ? "+" : ""}{totalPnlPct.toFixed(2)}%
+            </div>
+            <div className="sys2-vital-sub">{trader?.total_trades ?? 0} closed trades</div>
           </div>
-          <div className="metric">
-            <span className="metric-value accent">{cycleCount}</span>
-            <span className="metric-label">Autonomous Cycles</span>
+          <div className="sys2-vital">
+            <div className="sys2-vital-label">Treasury SOL</div>
+            <div className="sys2-vital-value">
+              {treasurySol !== null && treasurySol > 0 ? treasurySol.toFixed(4) : "—"}
+            </div>
+            <div className="sys2-vital-sub">{treasurySol !== null && treasurySol > 0 ? "6PYPAn...Q4Z" : "Devnet"}</div>
           </div>
-          <div className="metric">
-            <span className="metric-value accent">{cycle?.memory_file_count ?? memory?.fileCount ?? 14}</span>
-            <span className="metric-label">Memory Files</span>
+          <div className="sys2-vital">
+            <div className="sys2-vital-label">Mainnet TXs</div>
+            <div className="sys2-vital-value">4</div>
+            <div className="sys2-vital-sub">CPI + REST proofs</div>
           </div>
-          <div className="metric">
-            <span className="metric-value">+554%</span>
-            <span className="metric-label">9x Leveraged Return</span>
+          <div className="sys2-vital">
+            <div className="sys2-vital-label">Test coverage</div>
+            <div className="sys2-vital-value">325<span className="sys2-vital-unit">+5</span></div>
+            <div className="sys2-vital-sub">Rust unit + integration</div>
+          </div>
+          <div className="sys2-vital">
+            <div className="sys2-vital-label">Calmar (validated)</div>
+            <div className="sys2-vital-value">44.89</div>
+            <div className="sys2-vital-sub">SOL Survivor 2.69 · 9× lev</div>
           </div>
         </div>
       </section>
 
-      {/* How it works — above the fold */}
-      <section className="how-it-works" style={{ display: "block" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingBottom: "var(--space-md)" }}>
-          <span className="hiw-toggle-label" style={{ fontSize: "0.6875rem", fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--text-tertiary)" }}>
-            How it works
-          </span>
-          <div className="hero-actions">
-            <Link href="/launch" style={{
-              display: "inline-flex", alignItems: "center", gap: 6,
-              background: "var(--coral)", color: "#fff", borderRadius: 6,
-              padding: "10px 20px", fontSize: "0.875rem", fontWeight: 500,
-              textDecoration: "none", transition: "opacity 0.15s",
-            }}>
-              Try it live →
-            </Link>
-            <Link href="/docs" style={{
-              display: "inline-flex", alignItems: "center", gap: 6,
-              background: "var(--surface-2)", color: "var(--text-secondary)", borderRadius: 6,
-              padding: "10px 20px", fontSize: "0.875rem", fontWeight: 500,
-              textDecoration: "none", border: "1px solid var(--border)",
-              transition: "border-color 0.15s",
-            }}>
-              Read the docs
-            </Link>
+      {/* ════════ §1 LIVE TRADER CONSOLE ════════ */}
+      <section className="sys2-section" id="live">
+        <header className="sys2-sect-head">
+          <div>
+            <div className="sys2-sect-eyebrow">§1 · live console</div>
+            <h2 className="sys2-sect-title">The trader, right now</h2>
           </div>
-        </div>
-        <div className="hiw-steps">
-          <div className="hiw-step">
-            <span className="hiw-num">1</span>
-            <div className="hiw-content">
-              <p className="hiw-text">
-                Token adopts RTP. Trading fees (SOL) route to a per-token treasury PDA. Each token has its own isolated treasury. No shared pool, no honeypot.
-              </p>
-              <a
-                className="hiw-link"
-                href={`https://explorer.solana.com/address/${TREASURY_PDA}?cluster=devnet`}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                View treasury on Explorer ↗
-              </a>
-            </div>
-          </div>
-          <div className="hiw-step">
-            <span className="hiw-num">2</span>
-            <div className="hiw-content">
-              <p className="hiw-text">
-                The research engine tests 30,000 strategy configs per night, validates survivors via 9-fold walk-forward analysis with Monte Carlo robustness testing. Best result: +554% at 9x leverage, Calmar 44.89, 100% consistency.
-              </p>
-              <Link
-                className="hiw-link"
-                href="/system"
-              >
-                Explore the system →
-              </Link>
-            </div>
-          </div>
-          <div className="hiw-step">
-            <span className="hiw-num">3</span>
-            <div className="hiw-content">
-              <p className="hiw-text">
-                The Trading Wing submits the validated strategy to the Treasury PDA, which executes it on Flash Trade via CPI (invoke_signed). Positions are on-chain Solana perps. 20% max position enforced on-chain before CPI. Soulguard enforces constitutional constraints before every trade.
-              </p>
-            </div>
-          </div>
-          <div className="hiw-step">
-            <span className="hiw-num">4</span>
-            <div className="hiw-content">
-              <p className="hiw-text">
-                SOL yield returns to the treasury PDA when positions close (single chain, no bridge). The Anchor program splits it 70% holders / 20% dev / 10% ecosystem — on-chain, deterministic, no discretion.
-              </p>
-              <a
-                className="hiw-link"
-                href="https://explorer.solana.com/tx/4RVehmPVpnFYHrsF6N64RjVh7mszRzKF9DQVHd8TUqBHwrnyDYavf3TnDYJC4b5PrJWVSubZkNuyVkF1oJzk71RT?cluster=devnet"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                View redistribution tx ↗
-              </a>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Mid section: feed + wings + invariants */}
-      <section className="mid-section">
-        <div className="feed">
-          <div className="feed-header">
-            <span className="feed-title">Swarm Activity</span>
-            <span className="feed-status">
-              {cycle ? `Last cycle: ${lastRun}` : "Latest Night Shift Results"}
+          <div className="sys2-sect-side">
+            <span className={`sys2-status-pill ${traderStatus}`}>
+              <span className="sys2-status-dot" />
+              {traderStatus === "in_position" ? "Position open on mainnet" :
+               traderStatus === "watching" ? "Flat — watching the tape" : "Connecting…"}
             </span>
           </div>
-          <div className="feed-body">
-            {feedLines.map((line, i) => (
-              <div className="feed-line" key={i}>
-                <span className="feed-ts">{line.ts}</span>
-                <span
-                  className={`feed-tag ${
-                    line.tag === "validated" || line.tag === "adapted"
-                      ? "validated"
-                      : line.tag === "approved"
-                      ? "approved"
-                      : ""
-                  }`}
-                >
-                  {line.tag}
-                </span>
-                <span className="feed-msg">{line.msg}</span>
+        </header>
+
+        <div className="console-grid">
+          <div className="console-card">
+            <div className="console-card-eyebrow">CURRENT POSITION</div>
+            {trader?.open_position ? (
+              <>
+                <div className="console-big">SOL/USDT · LONG · 9×</div>
+                <div className="console-row">
+                  <span>Entry</span><span className="mono">${trader.open_position.entry_price.toFixed(4)}</span>
+                </div>
+                <div className="console-row">
+                  <span>Peak</span><span className="mono">${trader.open_position.peak_price.toFixed(4)}</span>
+                </div>
+                <div className="console-row">
+                  <span>Size</span><span className="mono">${trader.open_position.size_usd.toFixed(2)}</span>
+                </div>
+                <div className="console-row">
+                  <span>Entry score</span><span className="mono">{trader.open_position.entry_score.toFixed(3)}</span>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="console-big console-muted">Flat</div>
+                <div className="console-empty-text">
+                  Survivor 2.69 enters when score &gt; 0.25 with 3+ bullish timeframes. The next valid signal
+                  triggers a 9× SOL LONG of 20% capital. Stop-loss 2.7× ATR, take-profit 5.0× ATR, trailing 0.14× ATR.
+                </div>
+              </>
+            )}
+            <div className="console-foot">
+              Last poll · <span className="mono">{trader?.last_poll?.slice(11, 19) ?? "—"}</span>
+            </div>
+          </div>
+
+          <div className="console-card chart-card">
+            <div className="console-card-eyebrow">CUMULATIVE PNL · ALL CLOSED TRADES</div>
+            <PnlSparkline trades={trader?.trade_history ?? []} />
+            <div className="chart-stats">
+              <div className="chart-stat">
+                <span className="chart-stat-val">{trader?.total_trades ?? 0}</span>
+                <span className="chart-stat-lab">trades</span>
               </div>
-            ))}
+              <div className="chart-stat">
+                <span className={`chart-stat-val ${totalPnlPct >= 0 ? "pos" : "neg"}`}>
+                  {totalPnlPct >= 0 ? "+" : ""}{totalPnlPct.toFixed(2)}%
+                </span>
+                <span className="chart-stat-lab">cumulative</span>
+              </div>
+              <div className="chart-stat">
+                <span className="chart-stat-val">{winRate == null ? "—" : `${winRate.toFixed(0)}%`}</span>
+                <span className="chart-stat-lab">win rate</span>
+              </div>
+              <div className="chart-stat">
+                <span className="chart-stat-val mono">{trader?.total_pnl_sol?.toFixed(4) ?? "0.0000"}</span>
+                <span className="chart-stat-lab">SOL realized</span>
+              </div>
+            </div>
           </div>
         </div>
 
-        <div className="wings">
-          <div className="wings-header">Wings</div>
-          <ul className="wing-list">
-            {wings.map((w) => (
-              <li className="wing-item" key={w.name}>
-                <span className="wing-name">{w.name}</span>
-                <span className={`wing-status ${w.active ? "active" : ""}`}>
-                  {w.status}
-                </span>
-              </li>
-            ))}
-          </ul>
+        {/* Trade tape */}
+        <div className="trade-tape">
+          <div className="trade-tape-head">
+            <span>RECENT TAPE</span>
+            <span className="mono trade-tape-sub">last {Math.min(8, trader?.trade_history?.length ?? 0)} trades</span>
+          </div>
+          {(trader?.trade_history?.length ?? 0) === 0 ? (
+            <div className="trade-tape-empty">No tape yet. The first close will print here in real time.</div>
+          ) : (
+            <div className="trade-tape-rows">
+              {[...(trader?.trade_history ?? [])].slice(-8).reverse().map((t, i) => (
+                <div key={i} className={`trade-row ${t.pnl_pct >= 0 ? "pos" : "neg"}`}>
+                  <span className="mono">SOL/USDT</span>
+                  <span className="mono dim">${t.entry_price.toFixed(2)} → ${t.exit_price.toFixed(2)}</span>
+                  <span className="trade-reason">{t.exit_reason}</span>
+                  <span className="mono">${t.size_usd.toFixed(0)}</span>
+                  <span className={`mono trade-pnl ${t.pnl_pct >= 0 ? "pos" : "neg"}`}>
+                    {t.pnl_pct >= 0 ? "+" : ""}{t.pnl_pct.toFixed(2)}%
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
+      </section>
 
-        <div className="invariants">
-          <div className="invariants-header">Constitutional Invariants</div>
-          {INVARIANTS.map((inv, i) => (
-            <div className="invariant-item" key={i}>
-              <span className="invariant-check">✓</span>
-              <span>{inv}</span>
+      {/* ════════ §2 CLOSED LOOP ════════ */}
+      <section className="sys2-section" id="loop">
+        <header className="sys2-sect-head">
+          <div>
+            <div className="sys2-sect-eyebrow">§2 · the closed loop</div>
+            <h2 className="sys2-sect-title">Self-correcting in six steps</h2>
+            <p className="sys2-sect-lede">
+              Research validates. The bridge marshals. The LLM proposes mutations. The gates reject anything
+              outside the soulcontract bounds. The Treasury PDA executes on Solana. PnL feeds back into the
+              next research cycle. The loop runs every six hours, indefinitely.
+            </p>
+          </div>
+        </header>
+        <div className="loop-stage">
+          <ClosedLoopSVG activeIdx={activeIdx} liveLabels={liveLabels} />
+        </div>
+        <div className="loop-legend">
+          {LOOP_NODES.map((n, i) => (
+            <div key={n.key} className={`loop-legend-item ${activeIdx === i ? "active" : ""}`}>
+              <span className="loop-legend-num">{String(i + 1).padStart(2, "0")}</span>
+              <div>
+                <div className="loop-legend-label">{n.label}</div>
+                <div className="loop-legend-sub">{liveLabels[i]}</div>
+              </div>
             </div>
           ))}
         </div>
       </section>
 
-      {/* Capital flow */}
-      <section style={{
-        padding: "var(--space-xl) 0", borderTop: "1px solid var(--border)",
-        display: "flex", flexDirection: "column", alignItems: "center", gap: "var(--space-md)",
-      }}>
-        <div style={{ fontSize: "0.6875rem", fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase" as const, color: "var(--text-tertiary)" }}>
-          Capital Flow
+      {/* ════════ §3 ARCHITECTURE STACK ════════ */}
+      <section className="sys2-section" id="architecture">
+        <header className="sys2-sect-head">
+          <div>
+            <div className="sys2-sect-eyebrow">§3 · architecture</div>
+            <h2 className="sys2-sect-title">Three layers, one invariant</h2>
+            <p className="sys2-sect-lede">
+              Agents propose. Constraints dispose. Every layer can fail open without bringing the others down,
+              because the on-chain program is the only authority that can move funds.
+            </p>
+          </div>
+        </header>
+
+        <div className="arch2-stack">
+          <div className="arch2-layer arch2-research">
+            <div className="arch2-layer-side">
+              <div className="arch2-layer-tag">PYTHON</div>
+              <div className="arch2-layer-name">Research Layer</div>
+              <div className="arch2-layer-sub">Where strategies earn the right to be executed</div>
+            </div>
+            <div className="arch2-layer-cells">
+              <div className="arch2-cell">
+                <div className="arch2-cell-title">Night Shift</div>
+                <div className="arch2-cell-sub">30K configs · 9-fold WFA · Darwinian evolution · Monte Carlo + CPCV robustness</div>
+              </div>
+              <div className="arch2-cell">
+                <div className="arch2-cell-title">Strategy Selector</div>
+                <div className="arch2-cell-sub">LLM reads library + dead ends · picks 3 most promising candidates per cycle</div>
+              </div>
+              <div className="arch2-cell">
+                <div className="arch2-cell-title">5 Strategy Plugins</div>
+                <div className="arch2-cell-sub">S02 Breakout · S04 RSI Exhaustion · S06 Vol Squeeze · S10 Momentum · S13 ADX</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="arch2-bridge">
+            <span className="arch2-bridge-line" />
+            <span className="arch2-bridge-label">bridge.rs · typed JSON · ExecutePermit payload</span>
+            <span className="arch2-bridge-line" />
+          </div>
+
+          <div className="arch2-layer arch2-swarm">
+            <div className="arch2-layer-side">
+              <div className="arch2-layer-tag">RUST</div>
+              <div className="arch2-layer-name">Swarm Runtime</div>
+              <div className="arch2-layer-sub">Six wings under one Coordinator</div>
+            </div>
+            <div className="arch2-layer-cells wings">
+              {[
+                { name: "Trading", desc: "Flash Trade CPI · REST · PnL", live: true },
+                { name: "Evolve", desc: "LLM proposer · gates · rollback", live: true },
+                { name: "Audit", desc: "3-agent tribunal · consensus" },
+                { name: "Security", desc: "Threats · rate limits · alerts" },
+                { name: "Knowledge", desc: "JSON store · cross-wing graph" },
+                { name: "Futureproof", desc: "Deprecation · heartbeat" },
+              ].map((w) => (
+                <div key={w.name} className={`arch2-wing ${w.live ? "live" : ""}`}>
+                  <div className="arch2-wing-head">
+                    <span className="arch2-wing-name">{w.name}</span>
+                    {w.live && <span className="arch2-wing-pulse" />}
+                  </div>
+                  <div className="arch2-wing-desc">{w.desc}</div>
+                </div>
+              ))}
+            </div>
+            <div className="arch2-coord">
+              <span className="arch2-coord-tag">COORDINATOR</span>
+              Soulguard parses <code className="inline-code">SOULCONTRACT.md</code> and validates every message · 325 unit + 5 integration tests
+            </div>
+          </div>
+
+          <div className="arch2-bridge">
+            <span className="arch2-bridge-line" />
+            <span className="arch2-bridge-label">invoke_signed · Treasury PDA seeds · no human key</span>
+            <span className="arch2-bridge-line" />
+          </div>
+
+          <div className="arch2-layer arch2-onchain">
+            <div className="arch2-layer-side">
+              <div className="arch2-layer-tag">SOLANA · ANCHOR</div>
+              <div className="arch2-layer-name">On-Chain Program</div>
+              <div className="arch2-layer-sub">The only authority that can move funds</div>
+            </div>
+            <div className="arch2-layer-cells">
+              <div className="arch2-cell">
+                <div className="arch2-cell-title">Treasury PDA</div>
+                <div className="arch2-cell-sub">Per-mint isolation · receives SOL fees · signs Flash Trade CPI · 70/20/10 redistribute</div>
+              </div>
+              <div className="arch2-cell">
+                <div className="arch2-cell-title">Constitutional Invariants</div>
+                <div className="arch2-cell-sub">PDA ownership · 20% position cap · phase irreversible · emergency freeze · zero-address rejection</div>
+              </div>
+              <div className="arch2-cell">
+                <div className="arch2-cell-title">Strategy Lifecycle</div>
+                <div className="arch2-cell-sub">Register → Live → hard stops (10% DD, 5 losses) → soft decay (3 strikes) → retire</div>
+              </div>
+            </div>
+          </div>
         </div>
-        <div style={{
-          display: "flex", alignItems: "center", gap: "var(--space-sm)", flexWrap: "wrap", justifyContent: "center",
-          fontFamily: "var(--font-mono)", fontSize: "0.75rem", color: "var(--text-secondary)",
-        }}>
+
+        <div className="rail-strip">
+          <span className="rail-label">7 Railway services · all green</span>
+          <div className="rail-pills">
+            {["rtp-trader", "rtp-dashboard", "rtp-devnet-loop", "rtp-night-shift", "rtp-swarm-ci", "rtp-fee-crank", "rtp-promote-strategy"].map((svc) => (
+              <span key={svc} className="rail-pill">
+                <span className="rail-dot" />
+                {svc.replace("rtp-", "")}
+              </span>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ════════ §4 RESEARCH PIPELINE ════════ */}
+      <section className="sys2-section" id="pipeline">
+        <header className="sys2-sect-head">
+          <div>
+            <div className="sys2-sect-eyebrow">§4 · research pipeline</div>
+            <h2 className="sys2-sect-title">How a strategy earns the right to trade real SOL</h2>
+            <p className="sys2-sect-lede">
+              Every config goes through five gates before a single lamport moves. None of these are heuristics —
+              they are codified in <code className="inline-code">research/promotion_criteria.py</code>.
+            </p>
+          </div>
+        </header>
+
+        <ol className="pipe2-steps">
           {[
-            { label: "Creator Fees (SOL)", color: "var(--coral)" },
-            { label: "→" },
-            { label: "Treasury PDA", color: "var(--emerald)" },
-            { label: "→" },
-            { label: "Flash Trade CPI", color: "var(--coral)" },
-            { label: "→" },
-            { label: "SOL Yield", color: "var(--text-tertiary)" },
-            { label: "→" },
-            { label: "70/20/10 Split", color: "var(--emerald)" },
-          ].map((item, i) => (
-            <span key={i} style={{
-              color: item.color || "var(--text-muted)",
-              ...(item.label !== "→" ? {
-                background: "var(--surface-1)", padding: "4px 10px", borderRadius: 4,
-                border: "1px solid var(--border)", fontSize: "0.6875rem",
-              } : {}),
-            }}>
-              {item.label}
-            </span>
+            { n: "01", t: "Grid Search", m: "30,000", u: "configs swept per symbol per night", d: "Exhaustive sweep across signal threshold, TP/SL multipliers, trailing stop, hold time, alignment." },
+            { n: "02", t: "Walk-Forward Validation", m: `${night?.num_folds ?? 9}`, u: "expanding-window folds · 36 days OOS each", d: "No look-ahead. Median OOS Sharpe wins, not mean. Each candidate tested on 9 independent windows." },
+            { n: "03", t: "Darwinian Evolution", m: "5×50", u: "generations × population = 250 refined survivors", d: "Top survivors mutate and compete. Fragility is a penalty, not rejection: survivor *= 1/(1+fragility)." },
+            { n: "04", t: "Overfitting Detection", m: "3", u: "independent checks — IS/OOS gap, fold consistency, fragility", d: "Monte Carlo drawdown over 10K paths + Combinatorial Purged CV with PBO. Anything fragile is dropped." },
+            { n: "05", t: "Full-Sim Validation", m: "0.1%", u: "fees + 10 bps slippage + 20% position cap + compounding", d: "Top candidates re-run through the production simulator. Fast vs full sim calibrated weekly." },
+          ].map((s, i) => (
+            <li key={s.n} className="pipe2-step">
+              <div className="pipe2-num">{s.n}</div>
+              <div className="pipe2-body">
+                <div className="pipe2-title">{s.t}</div>
+                <div className="pipe2-metric">
+                  <span className="pipe2-big">{s.m}</span>
+                  <span className="pipe2-unit">{s.u}</span>
+                </div>
+                <div className="pipe2-desc">{s.d}</div>
+              </div>
+              {i < 4 && <div className="pipe2-tick">▾</div>}
+            </li>
+          ))}
+        </ol>
+
+        <div className="validated-card">
+          <div className="validated-head">
+            <span className="validated-tag">VALIDATED · LIVE ON MAINNET</span>
+            <span className="validated-title">SOL/USDT Survivor 2.69 · 9× leverage</span>
+          </div>
+          <div className="validated-grid">
+            {[
+              { v: "44.89", l: "Calmar Ratio" }, { v: "+554%", l: "9× return" },
+              { v: "12.3%", l: "Max drawdown" }, { v: "100%", l: "Fold consistency" },
+              { v: "0", l: "Liquidations" }, { v: "16,228", l: "Candidates tested" },
+            ].map((m) => (
+              <div key={m.l} className="validated-cell">
+                <span className="validated-val">{m.v}</span>
+                <span className="validated-lab">{m.l}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ════════ §5 STRATEGY INTELLIGENCE ════════ */}
+      <section className="sys2-section" id="strategies">
+        <header className="sys2-sect-head">
+          <div>
+            <div className="sys2-sect-eyebrow">§5 · strategy intelligence</div>
+            <h2 className="sys2-sect-title">15 strategies catalogued · {deadEnds.length || 9} failures remembered</h2>
+            <p className="sys2-sect-lede">
+              The LLM consults the library and the dead-ends log before every exploration run. Failures are
+              never repeated; the system learns by remembering what does not work.
+            </p>
+          </div>
+        </header>
+
+        <div className="intel-grid">
+          <article className="intel-panel intel-active">
+            <header className="intel-panel-head">
+              <span className="intel-pill live">LIVE</span>
+              <span className="intel-panel-title">Active Strategy</span>
+            </header>
+            <div className="intel-active-name">SOL/USDT · Survivor 2.69</div>
+            <div className="intel-active-type">Multi-timeframe trend following · 9× leverage</div>
+            <div className="intel-chips">
+              {[["signal_threshold","0.25"],["tp_atr","5.0"],["sl_atr","2.7"],["trail_atr","0.14"],["min_alignment","3"],["max_hold","36h"]].map(([k, v]) => (
+                <span key={k} className="intel-chip"><span className="dim">{k}</span>={v}</span>
+              ))}
+            </div>
+            <div className="intel-active-status">
+              <span className={`status-dot ${trader ? "live" : ""}`} />
+              {trader ? trader.open_position ? "Position open on mainnet" : `Watching · ${trader.candle_count} candles · ${trader.total_trades} trades` : "Connecting to trader…"}
+            </div>
+          </article>
+
+          <article className="intel-panel">
+            <header className="intel-panel-head">
+              <span className="intel-pill explore">{strategies.length || 15} STRATEGIES</span>
+              <span className="intel-panel-title">Strategy Library</span>
+            </header>
+            <div className="intel-list">
+              {strategies.map((s) => (
+                <div key={s.id} className={`intel-row priority-${s.priority}`}>
+                  <span className="intel-id mono">{s.id}</span>
+                  <span className="intel-name">{s.name}</span>
+                  <span className="intel-type" style={{ color: TYPE_COLORS[s.type] || "var(--text-muted)" }}>
+                    {s.type.replace("risk_premium", "momentum").replace("_", " ")}
+                  </span>
+                  <span className="intel-regime mono">{REGIME_LABELS[s.regime] || s.regime}</span>
+                </div>
+              ))}
+            </div>
+          </article>
+
+          <article className="intel-panel intel-dead">
+            <header className="intel-panel-head">
+              <span className="intel-pill dead">{deadEnds.length || 9} DEAD ENDS</span>
+              <span className="intel-panel-title">Failure Memory</span>
+            </header>
+            <div className="intel-list">
+              {deadEnds.map((d, i) => (
+                <div key={i} className="intel-dead-row">
+                  <div className="intel-dead-title">{d.title}</div>
+                  <div className="intel-dead-meta">
+                    <span className="intel-dead-cause">{d.root_cause}</span>
+                    {d.date !== "unknown" && <span className="intel-dead-date mono">{d.date}</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="intel-dead-foot">Read before every exploration run · failures never repeated</div>
+          </article>
+        </div>
+      </section>
+
+      {/* ════════ §6 ON-CHAIN PROOF ════════ */}
+      <section className="sys2-section" id="proof">
+        <header className="sys2-sect-head">
+          <div>
+            <div className="sys2-sect-eyebrow">§6 · on-chain proof</div>
+            <h2 className="sys2-sect-title">Real mainnet transactions, not testnet</h2>
+            <p className="sys2-sect-lede">
+              The Treasury PDA opens and closes Flash Trade positions on Solana mainnet via
+              <code className="inline-code">invoke_signed</code>. No human keypair is involved in trading.
+              Click any transaction to verify on Explorer.
+            </p>
+          </div>
+        </header>
+
+        <div className="proof2-grid">
+          {MAINNET_TXS.map((tx) => (
+            <a key={tx.tx} href={`https://explorer.solana.com/tx/${tx.tx}`}
+              target="_blank" rel="noopener noreferrer" className={`proof2-card kind-${tx.kind}`}>
+              <div className="proof2-head">
+                <span className="proof2-kind">{tx.kind === "open" ? "OPEN" : "CLOSE"}</span>
+                <span className="proof2-link">↗</span>
+              </div>
+              <div className="proof2-label">{tx.label}</div>
+              <div className="proof2-tx mono">{tx.tx.slice(0, 10)}…{tx.tx.slice(-8)}</div>
+              <div className="proof2-note">{tx.note}</div>
+            </a>
           ))}
         </div>
+
+        <div className="proof2-extras">
+          <a href="https://explorer.solana.com/tx/4RVehmPVpnFYHrsF6N64RjVh7mszRzKF9DQVHd8TUqBHwrnyDYavf3TnDYJC4b5PrJWVSubZkNuyVkF1oJzk71RT?cluster=devnet"
+            target="_blank" rel="noopener noreferrer" className="proof2-extra">Devnet redistribution TX ↗</a>
+          <a href="https://explorer.solana.com/address/8rt6yiBnRTyHy8F69jUd7exWwwShUs4Eokeq41auo2RB?cluster=devnet"
+            target="_blank" rel="noopener noreferrer" className="proof2-extra">Treasury program (devnet) ↗</a>
+          <a href="https://github.com/tradewife/resilient-token-protocol"
+            target="_blank" rel="noopener noreferrer" className="proof2-extra">Source on GitHub ↗</a>
+        </div>
       </section>
 
-      {/* Live autonomous trader */}
-      <section style={{
-        padding: "var(--space-xl) 0", borderTop: "1px solid var(--border)",
-        display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))", gap: "var(--space-xl)",
-        alignItems: "start",
-      }}>
-        <div>
-          <div style={{ fontSize: "0.6875rem", fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase" as const, color: "var(--text-tertiary)", marginBottom: "var(--space-md)" }}>
-            Live Autonomous Trader
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-md)" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: "var(--space-xs)" }}>
-              <span style={{
-                width: 8, height: 8, borderRadius: "50%",
-                background: "var(--emerald)",
-                boxShadow: "0 0 6px var(--emerald)",
-              }} />
-              <span style={{ fontSize: "0.8125rem", fontWeight: 500, color: "var(--emerald)" }}>
-                {traderState ? "LIVE — Autonomous Trading on Mainnet" : "LIVE — Connecting to trader..."}
-              </span>
-            </div>
-            {traderState && (
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-sm)" }}>
-                {[
-                  { label: "Status", value: traderState.open_position ? "OPEN (SOL LONG)" : "FLAT — Watching" },
-                  { label: "Total Trades", value: String(traderState.total_trades) },
-                  { label: "Candles", value: String(traderState.candle_count) },
-                  { label: "PnL", value: `${traderState.total_pnl_sol >= 0 ? "+" : ""}${traderState.total_pnl_sol.toFixed(4)} SOL` },
-                  { label: "Last Poll", value: traderState.last_poll ? new Date(traderState.last_poll).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "—" },
-                  { label: "Position Size", value: "0.20 SOL (10% bankroll)" },
-                ].map((s, i) => (
-                  <div key={i} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                    <span style={{
-                      fontFamily: "var(--font-display)", fontSize: "0.9375rem", fontWeight: 400,
-                      color: i === 0 && traderState.open_position ? "var(--coral)" : "var(--text-primary)",
-                    }}>
-                      {s.value}
-                    </span>
-                    <span style={{ fontSize: "0.625rem", color: "var(--text-muted)", letterSpacing: "0.06em", textTransform: "uppercase" }}>
-                      {s.label}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-            {traderState && traderState.trade_history.length > 0 && (
-              <div style={{ marginTop: "var(--space-sm)" }}>
-                <div style={{ fontSize: "0.6875rem", color: "var(--text-muted)", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 4 }}>
-                  Recent Trades
-                </div>
-                {traderState.trade_history.slice(-3).reverse().map((t, i) => (
-                  <div key={i} style={{
-                    fontSize: "0.75rem", color: t.pnl_pct >= 0 ? "var(--emerald)" : "var(--coral)",
-                    fontFamily: "var(--font-mono)",
-                  }}>
-                    {t.pnl_pct >= 0 ? "+" : ""}{t.pnl_pct.toFixed(2)}% — {t.exit_reason}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-        <div>
-          <div style={{ fontSize: "0.6875rem", fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase" as const, color: "var(--text-tertiary)", marginBottom: "var(--space-md)" }}>
-            Confirmed Mainnet Transactions
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-xs)" }}>
-            {MAINNET_TXS.map((tx, i) => (
-              <a key={i} href={`https://explorer.solana.com/tx/${tx.tx}`}
-                target="_blank" rel="noopener noreferrer"
-                style={{
-                  display: "flex", justifyContent: "space-between", alignItems: "center",
-                  padding: "var(--space-xs) var(--space-md)",
-                  background: "var(--surface-0)", border: "1px solid var(--border)",
-                  borderRadius: 6, textDecoration: "none",
-                  fontSize: "0.75rem", color: "var(--text-secondary)",
-                  transition: "border-color 0.15s",
-                }}
-              >
-                <span>
-                  <span style={{ color: "var(--text-primary)", fontWeight: 500 }}>{tx.label}</span>
-                  <span style={{ color: "var(--text-tertiary)", marginLeft: 8, fontFamily: "var(--font-mono)", fontSize: "0.625rem" }}>
-                    {tx.tx.slice(0, 8)}...
-                  </span>
-                </span>
-                <span style={{ fontSize: "0.625rem", color: "var(--emerald)", fontWeight: 500, letterSpacing: "0.04em" }}>
-                  {tx.note} ↗
-                </span>
+      {/* ════════ §7 INTEGRATE CTA ════════ */}
+      <section className="sys2-section sys2-cta-section" id="integrate">
+        <div className="cta2-card">
+          <div className="cta2-content">
+            <div className="sys2-sect-eyebrow">§7 · integrate</div>
+            <h2 className="cta2-title">One function call. A program-enforced treasury for any token.</h2>
+            <p className="cta2-lede">
+              No RTP token. No custody. No new wallet. The SDK registers a Token-2022 mint with its own
+              Treasury PDA in a single call. Trading fees flow in. Yield flows out 70/20/10. The program is
+              the only thing that can sign — by design.
+            </p>
+            <pre className="cta2-code"><code>{`import { registerWithRTP } from "@resilient-protocol/sdk";
+
+const result = await registerWithRTP(connection, payer, {
+  authority: payer.publicKey,
+});
+
+// result.treasuryPDA → program-owned, no human can sign for it`}</code></pre>
+            <div className="cta2-actions">
+              <a href="https://github.com/tradewife/resilient-token-protocol" target="_blank" rel="noopener noreferrer" className="sys2-cta-primary">
+                Adopt with the SDK ↗
               </a>
-            ))}
-          </div>
-          <div style={{ marginTop: "var(--space-md)", fontSize: "0.6875rem", color: "var(--text-muted)", lineHeight: 1.6 }}>
-            Strategy: <strong style={{ color: "var(--text-primary)" }}>Survivor 2.69 (9x)</strong> — signal 0.25 · TP 5×ATR · SL 2.7×ATR · Trail 0.14×ATR · Align 3+ · Max 36h
-            <br />Runs on Railway 24/7. Calmar 44.89. 100% fold consistency. 0 liquidations.
+              <Link href="/docs" className="sys2-cta-secondary">Read the docs →</Link>
+              <Link href="/launch" className="sys2-cta-tertiary">Or launch a token now →</Link>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* Validated strategy proof */}
-      <section style={{
-        padding: "var(--space-xl) 0", borderTop: "1px solid var(--border)",
-        display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: "var(--space-xl)",
-        alignItems: "start",
-      }}>
-        <div>
-          <div style={{ fontSize: "0.6875rem", fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase" as const, color: "var(--text-tertiary)", marginBottom: "var(--space-md)" }}>
-            Validated Strategy — SOL/USDT
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-md)" }}>
-            {[
-              { label: "Calmar Ratio", value: "44.89" },
-              { label: "9x Return", value: "+554%" },
-              { label: "Max Drawdown", value: "12.3%" },
-              { label: "Consistency", value: "100%" },
-              { label: "Leverage", value: "9x" },
-              { label: "Liquidations", value: "0" },
-            ].map((s, i) => (
-              <div key={i} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                <span style={{
-                  fontFamily: "var(--font-display)", fontSize: "1.125rem", fontWeight: 400,
-                  color: i < 2 ? "var(--coral)" : "var(--text-primary)", fontVariantNumeric: "tabular-nums",
-                }}>
-                  {s.value}
-                </span>
-                <span style={{ fontSize: "0.6875rem", color: "var(--text-muted)", letterSpacing: "0.06em", textTransform: "uppercase" }}>
-                  {s.label}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-        <div>
-          <div style={{ fontSize: "0.6875rem", fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase" as const, color: "var(--text-tertiary)", marginBottom: "var(--space-md)" }}>
-            What We Built
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-sm)" }}>
-            {[
-              { label: "On-chain constitution", detail: "Anchor program with irrevocable constraints — per-token isolation, 70/20/10 redistribution, strategy lifecycle, Flash Trade CPI, emergency freeze. No one can override the rules." },
-              { label: "6-wing agent swarm", detail: "Rust runtime with Trading, Security, Evolve, Knowledge, Audit, and Futureproof wings. 325 unit + 5 integration tests. Coordinator message bus with soulcontract enforcement." },
-              { label: "Flash Trade CPI execution", detail: "Treasury PDA signs via invoke_signed. On-chain perps on Solana. Position open/close confirmed on mainnet. SOL stays on Solana — no bridge, no cross-chain." },
-              { label: "Live autonomous trader", detail: "rtp-trader running 24/7 on Railway. 9x leverage Calmar-optimized config, REST API trading, HTTP status server. Open positions visible on Solana Explorer." },
-              { label: "Per-token isolation", detail: "Each token gets its own Treasury PDA + vault. Same strategy, isolated capital. No shared pool — one exploit can't drain all adopters." },
-              { label: "TypeScript SDK", detail: "One function call to register any token with RTP. Launchpads integrate in minutes — no chain ops to run." },
-            ].map((item, i) => (
-              <div key={i} style={{
-                padding: "var(--space-sm) var(--space-md)",
-                background: "var(--surface-0)", border: "1px solid var(--border)", borderRadius: 6,
-              }}>
-                <span style={{ fontSize: "0.8125rem", color: "var(--text-primary)", fontWeight: 500 }}>{item.label}</span>
-                <span style={{ fontSize: "0.75rem", color: "var(--text-tertiary)", marginLeft: "var(--space-sm)" }}>{item.detail}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Bottom vitals */}
+      {/* Footer */}
       <footer className="vitals">
         <div className="vital">
           <span className="vital-value">
@@ -812,85 +961,21 @@ export default function Home() {
           <span className="vital-label">Current Phase</span>
         </div>
         <div className="vital">
-          <a
-            className="vital-link"
-            href="https://explorer.solana.com/tx/4RVehmPVpnFYHrsF6N64RjVh7mszRzKF9DQVHd8TUqBHwrnyDYavf3TnDYJC4b5PrJWVSubZkNuyVkF1oJzk71RT?cluster=devnet"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            On-Chain Proof ↗
-          </a>
+          <a className="vital-link" href="https://explorer.solana.com/tx/4RVehmPVpnFYHrsF6N64RjVh7mszRzKF9DQVHd8TUqBHwrnyDYavf3TnDYJC4b5PrJWVSubZkNuyVkF1oJzk71RT?cluster=devnet"
+            target="_blank" rel="noopener noreferrer">On-Chain Proof ↗</a>
           <span className="vital-label">On-Chain Proof</span>
         </div>
         <div className="vital">
-          <a
-            className="vital-link"
-            href="https://github.com/tradewife/resilient-token-protocol"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Source on GitHub ↗
-          </a>
+          <a className="vital-link" href="https://github.com/tradewife/resilient-token-protocol"
+            target="_blank" rel="noopener noreferrer">Source on GitHub ↗</a>
           <span className="vital-label">Repository</span>
         </div>
         <div className="vital">
-          <a
-            className="vital-link"
-            href={`https://explorer.solana.com/address/${TREASURY_PDA}?cluster=devnet`}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Solana Explorer ↗
-          </a>
+          <a className="vital-link" href={`https://explorer.solana.com/address/${TREASURY_PDA}?cluster=devnet`}
+            target="_blank" rel="noopener noreferrer">Solana Explorer ↗</a>
           <span className="vital-label">Treasury</span>
         </div>
-
       </footer>
     </div>
   );
-}
-
-/* Helpers */
-
-function buildFeedFromCycle(c: CycleData): Array<{ ts: string; tag: string; msg: string }> {
-  const lines: Array<{ ts: string; tag: string; msg: string }> = [];
-  const ts = c.cycle_id
-    ? new Date(c.cycle_id).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit" })
-    : "--:--:--";
-
-  lines.push({ ts, tag: "cycle", msg: `Cycle started — ${c.used_llm ? `LLM evolution (${c.model_label})` : "deterministic"}` });
-  lines.push({ ts, tag: "night shift", msg: `Params: signal=${c.params_used.signal_threshold ?? "?"}, tp_atr=${c.params_used.tp_atr ?? "?"}, sl_atr=${c.params_used.sl_atr ?? "?"}` });
-
-  if (c.mutations_accepted.length > 0) {
-    for (const m of c.mutations_accepted) {
-      lines.push({ ts, tag: "adapted", msg: `${m.param}: ${m.rationale}` });
-    }
-  }
-  if (c.mutations_rejected.length > 0) {
-    for (const m of c.mutations_rejected) {
-      lines.push({ ts, tag: "rejected", msg: `${m.param} rejected: ${m.rationale}` });
-    }
-  }
-  if (c.diffs.length > 0) {
-    const diffStr = c.diffs.map(d => `${d.param}: ${d.from} → ${d.to}`).join(", ");
-    lines.push({ ts, tag: "validated", msg: `Strategy adapted — ${diffStr}` });
-  } else {
-    lines.push({ ts, tag: "validated", msg: "No parameter changes this cycle (stable)" });
-  }
-
-  lines.push({ ts, tag: "memory", msg: `${c.memory_file_count} memory files persisted across tiers` });
-
-  return lines;
-}
-
-function buildWingsFromCycle(c: CycleData): Array<{ name: string; status: string; active: boolean }> {
-  const nAcc = c.mutations_accepted.length;
-  return [
-    { name: "Trading", status: `signal=${c.params_used.signal_threshold ?? "?"}, tp=${c.params_used.tp_atr ?? "?"}`, active: true },
-    { name: "Security", status: "Monitoring", active: true },
-    { name: "Evolve", status: nAcc > 0 ? `Active (${nAcc} mutation${nAcc > 1 ? "s" : ""})` : "Idle", active: nAcc > 0 },
-    { name: "Knowledge", status: `${c.memory_file_count} files`, active: c.memory_file_count > 0 },
-    { name: "Audit", status: "3/3 approved", active: true },
-    { name: "Futureproof", status: "Monitoring", active: true },
-  ];
 }
