@@ -36,6 +36,102 @@ impl Default for StrategyParams {
     }
 }
 
+impl StrategyParams {
+    /// Load strategy params from the daemon's `config.json` output.
+    ///
+    /// Resolution order:
+    /// 1. `RTP_STRATEGY_CONFIG` env var (explicit override)
+    /// 2. `data/devnet-cycles/latest/config.json` (daemon mutation output)
+    /// 3. `StrategyParams::default()` (hardcoded baseline)
+    ///
+    /// Values outside soulcontract bounds are silently clamped — this is a
+    /// safety net, not a replacement for the daemon's validation.
+    pub fn load_from_daemon_config() -> Self {
+        let config_path = std::env::var("RTP_STRATEGY_CONFIG")
+            .ok()
+            .map(std::path::PathBuf::from)
+            .or_else(|| {
+                // Resolve repo root relative to CARGO_MANIFEST_DIR (rtp/swarm/)
+                let manifest = std::env::var("CARGO_MANIFEST_DIR").ok()?;
+                Some(std::path::Path::new(&manifest).join("../../data/devnet-cycles/latest/config.json"))
+            });
+
+        let path = match config_path {
+            Some(p) => p,
+            None => return Self::default(),
+        };
+
+        match std::fs::read_to_string(&path) {
+            Ok(content) => {
+                // The daemon writes a StrategyConfig which has the same fields
+                // but is a different type. Parse generically.
+                match serde_json::from_str::<serde_json::Value>(&content) {
+                    Ok(v) => {
+                        let base = Self::default();
+                        let params = Self {
+                            signal_threshold: clamp_param(
+                                v.get("signal_threshold").and_then(|v| v.as_f64()),
+                                0.1, 0.5, base.signal_threshold,
+                            ),
+                            tp_atr: clamp_param(
+                                v.get("tp_atr").and_then(|v| v.as_f64()),
+                                1.5, 5.0, base.tp_atr,
+                            ),
+                            sl_atr: clamp_param(
+                                v.get("sl_atr").and_then(|v| v.as_f64()),
+                                0.5, 3.0, base.sl_atr,
+                            ),
+                            max_hold_hours: clamp_param(
+                                v.get("max_hold_hours").and_then(|v| v.as_f64()),
+                                12.0, 72.0, base.max_hold_hours,
+                            ),
+                            trailing_stop_atr: clamp_param(
+                                v.get("trailing_stop_atr").and_then(|v| v.as_f64()),
+                                0.2, 1.5, base.trailing_stop_atr,
+                            ),
+                            time_decay_hours: base.time_decay_hours,
+                            min_alignment: base.min_alignment,
+                        };
+                        tracing::info!(
+                            "[STRATEGY] loaded from daemon config: signal={:.2} tp={:.1} sl={:.1} hold={:.0}h trail={:.2}",
+                            params.signal_threshold, params.tp_atr, params.sl_atr,
+                            params.max_hold_hours, params.trailing_stop_atr,
+                        );
+                        params
+                    }
+                    Err(e) => {
+                        tracing::warn!("[STRATEGY] parse error on {}: {}. Using defaults.", path.display(), e);
+                        Self::default()
+                    }
+                }
+            }
+            Err(e) => {
+                tracing::info!(
+                    "[STRATEGY] no daemon config at {} ({}). Using defaults.",
+                    path.display(), e,
+                );
+                Self::default()
+            }
+        }
+    }
+}
+
+/// Clamp a parameter value to soulcontract bounds.
+/// Returns the default if the parsed value is None or out of range.
+fn clamp_param(parsed: Option<f64>, min: f64, max: f64, default: f64) -> f64 {
+    match parsed {
+        Some(v) if v >= min && v <= max => v,
+        Some(v) => {
+            tracing::warn!(
+                "[STRATEGY] clamped out-of-bounds param: {} not in [{}, {}]",
+                v, min, max,
+            );
+            default
+        }
+        None => default,
+    }
+}
+
 /// Computed multi-TF confluence score and metadata.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SignalResult {

@@ -199,7 +199,7 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
     // Load or create state — shared with HTTP status server via Arc<Mutex>
     let initial = TraderState::load(&config.state_path).unwrap_or_else(|| TraderState::new(&wallet));
     let state = Arc::new(Mutex::new(initial));
-    let params = StrategyParams::default();
+    let params = StrategyParams::load_from_daemon_config();
     let mut buffer = CandleBuffer::new(300); // 300 candles ≈ 12.5 days of 1h data
 
     // Start HTTP status server for live dashboard access

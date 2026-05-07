@@ -9,6 +9,7 @@ pub mod proposer;
 pub mod rollback;
 
 use crate::types::WingId;
+use crate::wings::trading::StrategyConfig;
 use assessor::{Assessor, PerformanceMetrics};
 use proposer::Proposer;
 use rollback::RollbackManager;
@@ -66,25 +67,139 @@ pub struct ProposeResult {
     pub used_llm: bool,
     /// The model name used (or "deterministic-fallback").
     pub model_label: String,
+    /// Raw LLM response content (for audit trail). None if fallback used.
+    pub raw_llm_response: Option<String>,
 }
 
-/// Build the system prompt for strategy mutation proposals.
-fn build_mutation_prompt() -> String {
-    "You are the Evolve Wing of RTP, an autonomous treasury management \
-     swarm on Solana. The current strategy is SOL/USDT Survivor 2.69 \
-     with params: signal_threshold=0.25, tp_atr=5.0, sl_atr=2.7, \
-     max_hold=36h, trailing_stop_atr=0.14. 9x leverage. \
-     Last cycle: yield=0.175 USDC, sharpe=3.96, 47 trades. \
-     The heartbeat has detected stagnation. Propose exactly 3 parameter \
-     mutations as JSON. Each mutation must change exactly one param. \
-     Stay within these bounds: signal_threshold [0.1-0.5], \
-     tp_atr [1.5-5.0], sl_atr [0.5-3.0], max_hold [12h-72h], \
-     trailing_stop_atr [0.2-1.5]. \
-     Respond ONLY with valid JSON array, no explanation: \
-     [{\"param\": \"signal_threshold\", \"value\": 0.28, \"rationale\": \"...\"}, \
-     {\"param\": \"tp_atr\", \"value\": 3.5, \"rationale\": \"...\"}, \
-     {\"param\": \"trailing_stop_atr\", \"value\": 0.4, \"rationale\": \"...\"}]"
-        .to_string()
+/// Live performance context injected into the LLM prompt.
+///
+/// Replaces hardcoded metrics with real data from the trading system.
+/// Every field is Optional — if data is unavailable, the prompt omits
+/// that section rather than fabricating numbers.
+#[derive(Debug, Clone, Default)]
+pub struct MutationContext {
+    /// Current strategy parameters (not the hardcoded ones).
+    pub current_params: Option<StrategyConfig>,
+    /// Total realized PnL in SOL from live trading.
+    pub total_pnl_sol: Option<f64>,
+    /// Number of live trades completed.
+    pub total_trades: Option<usize>,
+    /// Number of winning trades.
+    pub winning_trades: Option<usize>,
+    /// Whether a position is currently open.
+    pub has_open_position: bool,
+    /// Hours since last trade (if any).
+    pub hours_since_last_trade: Option<f64>,
+    /// Current SOL price (from Flash Trade oracle).
+    pub sol_price: Option<f64>,
+    /// Recent volatility (ATR-based, annualized).
+    pub recent_volatility: Option<f64>,
+    /// Whether the market regime appears trending or ranging.
+    pub regime_hint: Option<String>,
+    /// Previous cycle's mutation results (for learning).
+    pub prev_mutations_applied: Option<Vec<StrategyMutation>>,
+    /// Previous cycle's PnL change after mutation (for feedback).
+    pub prev_pnl_delta: Option<f64>,
+}
+
+/// Build the mutation prompt using real performance context.
+///
+/// If context is sparse (e.g. first cycle, no live data), the prompt
+/// explicitly says so — the LLM should not assume fictional performance.
+fn build_mutation_prompt(ctx: &MutationContext) -> String {
+    let defaults = StrategyConfig::default();
+
+    let signal = ctx.current_params.as_ref()
+        .map(|p| p.signal_threshold)
+        .unwrap_or(defaults.signal_threshold);
+    let tp = ctx.current_params.as_ref()
+        .map(|p| p.tp_atr)
+        .unwrap_or(defaults.tp_atr);
+    let sl = ctx.current_params.as_ref()
+        .map(|p| p.sl_atr)
+        .unwrap_or(defaults.sl_atr);
+    let hold = ctx.current_params.as_ref()
+        .map(|p| p.max_hold_hours)
+        .unwrap_or(defaults.max_hold_hours);
+    let trail = ctx.current_params.as_ref()
+        .map(|p| p.trailing_stop_atr)
+        .unwrap_or(defaults.trailing_stop_atr);
+
+    let perf_section = match (ctx.total_pnl_sol, ctx.total_trades, ctx.winning_trades) {
+        (Some(pnl), Some(n), Some(wins)) => {
+            let win_rate = if n > 0 { wins as f64 / n as f64 * 100.0 } else { 0.0 };
+            format!(
+                "LIVE PERFORMANCE: total_pnl={:.6} SOL, trades={}, win_rate={:.0}%, open_position={}",
+                pnl, n, win_rate, ctx.has_open_position,
+            )
+        }
+        _ => "LIVE PERFORMANCE: no live trading data yet (starting from validated backtest baseline).".to_string(),
+    };
+
+    let regime_section = match &ctx.regime_hint {
+        Some(r) => format!("MARKET REGIME: {}", r),
+        None => "MARKET REGIME: unknown (treat as uncertain).".to_string(),
+    };
+
+    let volatility_section = match ctx.recent_volatility {
+        Some(v) => format!("RECENT_VOLATILITY: {:.1}% annualized", v * 100.0),
+        None => "RECENT_VOLATILITY: unknown.".to_string(),
+    };
+
+    let feedback_section = match (&ctx.prev_mutations_applied, ctx.prev_pnl_delta) {
+        (Some(prev), Some(delta)) if !prev.is_empty() => {
+            let prev_desc: Vec<String> = prev.iter()
+                .map(|m| format!("{}={:.2}", m.param, m.value))
+                .collect();
+            format!(
+                "PREVIOUS MUTATIONS: applied [{}]. Resulting PnL delta: {:.6} SOL. {}",
+                prev_desc.join(", "),
+                delta,
+                if delta > 0.0 { "Mutations helped — continue in this direction." }
+                else if delta < 0.0 { "Mutations hurt — consider reversing or trying a different direction." }
+                else { "No measurable impact — try more aggressive changes." },
+            )
+        }
+        _ => "PREVIOUS MUTATIONS: none (first mutation cycle).".to_string(),
+    };
+
+    format!(
+        "You are the Evolve Wing of RTP, an autonomous treasury management \
+         swarm on Solana. Your job is to propose parameter mutations that \
+         improve REALIZED PnL, not backtest aesthetics.
+
+CURRENT STRATEGY: SOL/USDT Survivor 2.69 (MultiTF trend-following)
+Current params: signal_threshold={}, tp_atr={}, sl_atr={}, max_hold={}h, trailing_stop_atr={}. 9x leverage.
+
+{}
+{}
+{}
+{}
+
+SOULCONTRACT BOUNDS (never exceed these):
+- signal_threshold: [0.1, 0.5]
+- tp_atr: [1.5, 5.0]
+- sl_atr: [0.5, 3.0]
+- max_hold: [12, 72] hours
+- trailing_stop_atr: [0.2, 1.5]
+
+CONSTRAINTS:
+- Propose exactly 3 parameter mutations. Each must change exactly one param.
+- Small changes only: max ±20% from current value. Large jumps cause regime mismatch.
+- If performance is good, propose conservative tweaks. If bad, propose more aggressive changes.
+- NEVER propose the same change twice if previous mutations hurt (see feedback above).
+- Prioritize reducing drawdown over increasing return. Survival > profit.
+
+Respond ONLY with valid JSON array, no explanation:
+[{{\"param\": \"signal_threshold\", \"value\": 0.28, \"rationale\": \"...\"}}, \
+ {{\"param\": \"tp_atr\", \"value\": 3.5, \"rationale\": \"...\"}}, \
+ {{\"param\": \"trailing_stop_atr\", \"value\": 0.4, \"rationale\": \"...\"}}]",
+        signal, tp, sl, hold, trail,
+        perf_section,
+        regime_section,
+        volatility_section,
+        feedback_section,
+    )
 }
 
 /// Soulcontract-enforced bounds for strategy parameters.
@@ -136,8 +251,61 @@ pub fn validate_all_mutations(mutations: Vec<StrategyMutation>) -> Vec<StrategyM
         .filter(|m| match validate_mutation_bounds(m) {
             Ok(()) => true,
             Err(e) => {
-                tracing::warn!("[EVOLVE] ❌ rejected mutation: {}", e);
+                tracing::warn!("[EVOLVE] rejected mutation (bounds): {}", e);
                 false
+            }
+        })
+        .collect()
+}
+
+/// Maximum allowed delta (fractional change) from current value.
+/// Prevents the LLM from proposing wild swings that would be
+/// equivalent to a completely new (untested) strategy.
+const MAX_MUTATION_DELTA: f64 = 0.20; // 20%
+
+/// Validate mutations against a maximum delta from the current config.
+///
+/// This is the second gate after bounds checking. It rejects mutations
+/// that change a parameter by more than 20% — per the PDF's guidance
+/// that large parameter changes are equivalent to untested new strategies
+/// and should go through full walk-forward validation, not LLM mutation.
+///
+/// Returns only mutations within the delta threshold.
+pub fn validate_mutation_deltas(
+    mutations: Vec<StrategyMutation>,
+    current: &StrategyConfig,
+) -> Vec<StrategyMutation> {
+    mutations
+        .into_iter()
+        .filter(|m| {
+            let current_val = match m.param.as_str() {
+                "signal_threshold" => current.signal_threshold,
+                "tp_atr" => current.tp_atr,
+                "sl_atr" => current.sl_atr,
+                "max_hold" => current.max_hold_hours,
+                "trailing_stop_atr" => current.trailing_stop_atr,
+                _ => return true, // unknown params already filtered by bounds check
+            };
+            if current_val == 0.0 {
+                return true; // avoid division by zero
+            }
+            let delta = ((m.value - current_val) / current_val).abs();
+            if delta > MAX_MUTATION_DELTA {
+                tracing::warn!(
+                    "[EVOLVE] rejected mutation (delta {:.0}% > {}% cap): {} {} → {}",
+                    delta * 100.0,
+                    MAX_MUTATION_DELTA * 100.0,
+                    m.param,
+                    current_val,
+                    m.value,
+                );
+                false
+            } else {
+                tracing::info!(
+                    "[EVOLVE] delta check passed: {} {} → {} ({:.1}%)",
+                    m.param, current_val, m.value, delta * 100.0,
+                );
+                true
             }
         })
         .collect()
@@ -145,26 +313,59 @@ pub fn validate_all_mutations(mutations: Vec<StrategyMutation>) -> Vec<StrategyM
 
 /// Deterministic fallback mutations used when the LLM is unavailable.
 ///
-/// These are the same three mutations the LLM would typically propose:
-/// tighter signal filter, wider take-profit, tighter trailing stop.
-pub fn deterministic_fallback_mutations() -> Vec<StrategyMutation> {
-    vec![
-        StrategyMutation {
-            param: "signal_threshold".to_string(),
-            value: 0.28,
-            rationale: "reduce noise sensitivity".to_string(),
-        },
-        StrategyMutation {
-            param: "tp_atr".to_string(),
-            value: 3.5,
-            rationale: "extend profit target in ranging market".to_string(),
-        },
-        StrategyMutation {
-            param: "trailing_stop_atr".to_string(),
-            value: 0.4,
-            rationale: "tighten drawdown protection".to_string(),
-        },
-    ]
+/// When the system has no performance data (first cycle, no live trades),
+/// returns an empty vec — no mutations is safer than random mutations.
+/// When performance data exists and is negative, returns conservative
+/// defensive tweaks. When positive, returns small exploratory tweaks.
+pub fn deterministic_fallback_mutations(ctx: &MutationContext) -> Vec<StrategyMutation> {
+    let defaults = StrategyConfig::default();
+    let signal = ctx.current_params.as_ref()
+        .map(|p| p.signal_threshold).unwrap_or(defaults.signal_threshold);
+    let tp = ctx.current_params.as_ref()
+        .map(|p| p.tp_atr).unwrap_or(defaults.tp_atr);
+    let trail = ctx.current_params.as_ref()
+        .map(|p| p.trailing_stop_atr).unwrap_or(defaults.trailing_stop_atr);
+
+    // If we have positive PnL, don't mess with it — small explorations only.
+    // If negative, make defensive adjustments. If no data, stay flat.
+    match (ctx.total_pnl_sol, ctx.total_trades) {
+        (Some(pnl), Some(n)) if n > 0 && pnl >= 0.0 => {
+            // Winning — tiny exploratory tweaks
+            vec![
+                StrategyMutation {
+                    param: "signal_threshold".to_string(),
+                    value: (signal * 1.04).clamp(0.1, 0.5),
+                    rationale: "exploratory: slightly tighter entry filter while profitable".to_string(),
+                },
+                StrategyMutation {
+                    param: "tp_atr".to_string(),
+                    value: (tp * 1.03).clamp(1.5, 5.0),
+                    rationale: "exploratory: let winners run slightly longer".to_string(),
+                },
+            ]
+        }
+        (Some(pnl), Some(n)) if n > 0 && pnl < 0.0 => {
+            // Losing — defensive adjustments
+            vec![
+                StrategyMutation {
+                    param: "trailing_stop_atr".to_string(),
+                    value: (trail * 0.85).clamp(0.2, 1.5),
+                    rationale: "defensive: tighter trailing stop to protect capital".to_string(),
+                },
+                StrategyMutation {
+                    param: "sl_atr".to_string(),
+                    value: (defaults.sl_atr * 0.9).clamp(0.5, 3.0),
+                    rationale: "defensive: tighter stop-loss to limit drawdown".to_string(),
+                },
+            ]
+        }
+        _ => {
+            // No live data — do NOT mutate. The validated backtest baseline
+            // is better than uninformed parameter changes.
+            tracing::info!("[EVOLVE] no live performance data — skipping deterministic mutations (safer to stay flat)");
+            vec![]
+        }
+    }
 }
 
 /// Parse the LLM response content into a Vec<StrategyMutation>.
@@ -191,7 +392,10 @@ fn parse_mutation_response(content: &str) -> Result<Vec<StrategyMutation>, Strin
 /// If `LLM_API_KEY` is not set or the call fails, returns the
 /// deterministic fallback mutations instead. Tests use this fallback
 /// path (no API key in CI) so they always pass.
-pub async fn propose_strategy_mutation(config: Option<LlmProposerConfig>) -> ProposeResult {
+pub async fn propose_strategy_mutation(
+    config: Option<LlmProposerConfig>,
+    ctx: &MutationContext,
+) -> ProposeResult {
     match config {
         Some(cfg) => {
             let client = reqwest::Client::new();
@@ -206,7 +410,7 @@ pub async fn propose_strategy_mutation(config: Option<LlmProposerConfig>) -> Pro
                     },
                     {
                         "role": "user",
-                        "content": build_mutation_prompt()
+                        "content": build_mutation_prompt(ctx)
                     }
                 ],
                 "temperature": 0.3,
@@ -257,6 +461,7 @@ pub async fn propose_strategy_mutation(config: Option<LlmProposerConfig>) -> Pro
                                         mutations: validated,
                                         used_llm: true,
                                         model_label: cfg.model.clone(),
+                                        raw_llm_response: Some(content),
                                     }
                                 }
                                 Ok(_) | Err(_) => {
@@ -264,9 +469,10 @@ pub async fn propose_strategy_mutation(config: Option<LlmProposerConfig>) -> Pro
                                         "[EVOLVE] LLM response unparseable — using deterministic fallback"
                                     );
                                     ProposeResult {
-                                        mutations: deterministic_fallback_mutations(),
+                                        mutations: deterministic_fallback_mutations(ctx),
                                         used_llm: false,
                                         model_label: "deterministic-fallback".to_string(),
+                                        raw_llm_response: Some(content),
                                     }
                                 }
                             }
@@ -277,9 +483,10 @@ pub async fn propose_strategy_mutation(config: Option<LlmProposerConfig>) -> Pro
                                 e
                             );
                             ProposeResult {
-                                mutations: deterministic_fallback_mutations(),
+                                mutations: deterministic_fallback_mutations(ctx),
                                 used_llm: false,
                                 model_label: "deterministic-fallback".to_string(),
+                                raw_llm_response: None,
                             }
                         }
                     }
@@ -290,9 +497,10 @@ pub async fn propose_strategy_mutation(config: Option<LlmProposerConfig>) -> Pro
                         e
                     );
                     ProposeResult {
-                        mutations: deterministic_fallback_mutations(),
+                        mutations: deterministic_fallback_mutations(ctx),
                         used_llm: false,
                         model_label: "deterministic-fallback".to_string(),
+                        raw_llm_response: None,
                     }
                 }
             }
@@ -300,9 +508,10 @@ pub async fn propose_strategy_mutation(config: Option<LlmProposerConfig>) -> Pro
         None => {
             tracing::info!("[EVOLVE] LLM unavailable — using deterministic fallback proposer");
             ProposeResult {
-                mutations: deterministic_fallback_mutations(),
+                mutations: deterministic_fallback_mutations(ctx),
                 used_llm: false,
                 model_label: "deterministic-fallback".to_string(),
+                raw_llm_response: None,
             }
         }
     }
@@ -500,12 +709,50 @@ mod tests {
 
     // LLM proposer tests
 
+    fn empty_ctx() -> MutationContext {
+        MutationContext::default()
+    }
+
+    fn winning_ctx() -> MutationContext {
+        MutationContext {
+            total_pnl_sol: Some(0.5),
+            total_trades: Some(10),
+            winning_trades: Some(7),
+            ..Default::default()
+        }
+    }
+
+    fn losing_ctx() -> MutationContext {
+        MutationContext {
+            total_pnl_sol: Some(-0.3),
+            total_trades: Some(8),
+            winning_trades: Some(2),
+            ..Default::default()
+        }
+    }
+
     #[test]
-    fn deterministic_fallback_returns_three_mutations() {
-        let mutations = deterministic_fallback_mutations();
-        assert_eq!(mutations.len(), 3);
-        assert_eq!(mutations[0].param, "signal_threshold");
-        assert!((mutations[0].value - 0.28).abs() < f64::EPSILON);
+    fn deterministic_fallback_no_data_returns_empty() {
+        let mutations = deterministic_fallback_mutations(&empty_ctx());
+        assert!(mutations.is_empty(), "no data = no mutations (safer)");
+    }
+
+    #[test]
+    fn deterministic_fallback_winning_returns_exploratory() {
+        let mutations = deterministic_fallback_mutations(&winning_ctx());
+        assert!(!mutations.is_empty());
+        // All within bounds
+        for m in &mutations {
+            assert!(validate_mutation_bounds(m).is_ok());
+        }
+    }
+
+    #[test]
+    fn deterministic_fallback_losing_returns_defensive() {
+        let mutations = deterministic_fallback_mutations(&losing_ctx());
+        assert!(!mutations.is_empty());
+        // Should include defensive adjustments
+        assert!(mutations.iter().any(|m| m.param == "trailing_stop_atr" || m.param == "sl_atr"));
     }
 
     #[test]
@@ -522,10 +769,11 @@ mod tests {
 
     #[tokio::test]
     async fn propose_with_no_config_uses_fallback() {
-        let result = propose_strategy_mutation(None).await;
+        let result = propose_strategy_mutation(None, &empty_ctx()).await;
         assert!(!result.used_llm);
         assert_eq!(result.model_label, "deterministic-fallback");
-        assert_eq!(result.mutations.len(), 3);
+        assert!(result.mutations.is_empty()); // empty ctx = no mutations
+        assert!(result.raw_llm_response.is_none());
     }
 
     #[tokio::test]
@@ -535,9 +783,9 @@ mod tests {
             api_key: "test-key".to_string(),
             model: "test-model".to_string(),
         };
-        let result = propose_strategy_mutation(Some(cfg)).await;
+        let result = propose_strategy_mutation(Some(cfg), &empty_ctx()).await;
         assert!(!result.used_llm);
-        assert_eq!(result.mutations.len(), 3);
+        assert!(result.raw_llm_response.is_none());
     }
 
     #[test]
@@ -650,7 +898,7 @@ mod tests {
     #[test]
     fn deterministic_fallback_all_within_bounds() {
         // Verify all deterministic fallback mutations pass validation.
-        let mutations = deterministic_fallback_mutations();
+        let mutations = deterministic_fallback_mutations(&winning_ctx());
         for m in &mutations {
             assert!(
                 validate_mutation_bounds(m).is_ok(),
@@ -659,5 +907,75 @@ mod tests {
                 m.value
             );
         }
+    }
+
+    // Delta gate tests
+
+    #[test]
+    fn delta_gate_allows_small_change() {
+        let current = StrategyConfig::default();
+        let mutations = vec![
+            StrategyMutation {
+                param: "signal_threshold".to_string(),
+                value: 0.27, // 0.25 → 0.27 = 8% change
+                rationale: "test".to_string(),
+            },
+        ];
+        let accepted = validate_mutation_deltas(mutations, &current);
+        assert_eq!(accepted.len(), 1);
+    }
+
+    #[test]
+    fn delta_gate_rejects_large_change() {
+        let current = StrategyConfig::default();
+        let mutations = vec![
+            StrategyMutation {
+                param: "tp_atr".to_string(),
+                value: 2.0, // 5.0 → 2.0 = 60% change — should be rejected
+                rationale: "test".to_string(),
+            },
+        ];
+        let accepted = validate_mutation_deltas(mutations, &current);
+        assert!(accepted.is_empty(), "60% change should be rejected");
+    }
+
+    #[test]
+    fn delta_gate_boundary_exactly_20pct() {
+        let current = StrategyConfig::default();
+        let mutations = vec![
+            StrategyMutation {
+                param: "sl_atr".to_string(),
+                value: 2.7 * 1.20, // exactly 20% up
+                rationale: "test".to_string(),
+            },
+        ];
+        let accepted = validate_mutation_deltas(mutations, &current);
+        assert_eq!(accepted.len(), 1, "exactly 20% should pass (<=)");
+    }
+
+    #[test]
+    fn delta_gate_mix_accepted_rejected() {
+        let current = StrategyConfig::default();
+        let mutations = vec![
+            StrategyMutation {
+                param: "signal_threshold".to_string(),
+                value: 0.28, // 12% — ok
+                rationale: "test".to_string(),
+            },
+            StrategyMutation {
+                param: "tp_atr".to_string(),
+                value: 1.5, // 70% — rejected
+                rationale: "test".to_string(),
+            },
+            StrategyMutation {
+                param: "trailing_stop_atr".to_string(),
+                value: 0.15, // 7% — ok
+                rationale: "test".to_string(),
+            },
+        ];
+        let accepted = validate_mutation_deltas(mutations, &current);
+        assert_eq!(accepted.len(), 2);
+        assert!(accepted.iter().any(|m| m.param == "signal_threshold"));
+        assert!(accepted.iter().any(|m| m.param == "trailing_stop_atr"));
     }
 }

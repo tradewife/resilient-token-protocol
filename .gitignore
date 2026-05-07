@@ -110,3 +110,4 @@ demo_output_*.txt
 
 # --- Swarm runtime data (ephemeral) ---
 rtp/swarm/data/
+.gstack/

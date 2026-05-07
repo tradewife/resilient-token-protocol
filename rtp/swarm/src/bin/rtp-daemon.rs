@@ -8,7 +8,8 @@ use rtp_swarm::chain_client::{
     build_open_flash_position_ix, build_close_flash_position_ix, submit_or_simulate,
 };
 use rtp_swarm::wings::evolve::{
-    LlmProposerConfig, propose_strategy_mutation, validate_all_mutations,
+    LlmProposerConfig, MutationContext, propose_strategy_mutation,
+    validate_all_mutations, validate_mutation_deltas,
 };
 use rtp_swarm::wings::trading::{StrategyConfig, apply_mutations};
 use serde::{Deserialize, Serialize};
@@ -28,6 +29,7 @@ struct CycleOutput {
     params_next: StrategyConfig,
     used_llm: bool,
     model_label: String,
+    raw_llm_response: Option<String>,
     memory_files: Vec<String>,
 }
 
@@ -335,6 +337,7 @@ async fn run_cycle_with_retry(max_retries: u32) {
                         params_next: StrategyConfig::default(),
                         used_llm: false,
                         model_label: "none".to_string(),
+                        raw_llm_response: None,
                         memory_files: vec![],
                     };
                     let json = serde_json::to_string_pretty(&degraded).unwrap_or_default();
@@ -636,7 +639,59 @@ let knowledge_wing: Option<rtp_swarm::wings::knowledge::KnowledgeWing> =
     tracing::info!(" ");
     tracing::info!("=== STRATEGY MUTATION PROPOSAL ===");
     let llm_config = LlmProposerConfig::from_env();
-    let propose_result = propose_strategy_mutation(llm_config).await;
+
+    // Build mutation context from real performance data.
+    let mut ctx = MutationContext {
+        current_params: Some(params_used.clone()),
+        prev_mutations_applied: None,
+        prev_pnl_delta: None,
+        ..Default::default()
+    };
+
+    // Read live trader state for real PnL data.
+    let trader_state_path = repo_root().join("data/trader-state.json");
+    if let Ok(content) = std::fs::read_to_string(&trader_state_path) {
+        match serde_json::from_str::<serde_json::Value>(&content) {
+            Ok(ts) => {
+                ctx.total_pnl_sol = ts.get("total_pnl_sol").and_then(|v| v.as_f64());
+                ctx.total_trades = ts.get("total_trades").and_then(|v| v.as_u64()).map(|n| n as usize);
+                ctx.has_open_position = ts.get("open_position")
+                    .and_then(|v| v.as_object())
+                    .map(|o| !o.is_empty())
+                    .unwrap_or(false);
+                tracing::info!(
+                    "[DAEMON] trader state: pnl={:?} trades={:?} pos={}",
+                    ctx.total_pnl_sol, ctx.total_trades, ctx.has_open_position,
+                );
+            }
+            Err(e) => {
+                tracing::info!("[DAEMON] trader state parse error: {} — using empty context", e);
+            }
+        }
+    } else {
+        tracing::info!("[DAEMON] no trader state at {} — using empty context", trader_state_path.display());
+    }
+
+    // Read previous cycle output for mutation feedback.
+    let prev_cycle_path = repo_root().join("data/devnet-cycles/latest/cycle.json");
+    if let Ok(content) = std::fs::read_to_string(&prev_cycle_path) {
+        if let Ok(prev) = serde_json::from_str::<serde_json::Value>(&content) {
+            ctx.prev_mutations_applied = prev.get("mutations_accepted")
+                .and_then(|v| serde_json::from_value(v.clone()).ok());
+            // Compute PnL delta: current PnL vs. the pnl that existed when
+            // the previous mutations were applied. If this is the first cycle
+            // with live data, we can't compute a delta.
+            if ctx.total_pnl_sol.is_some() {
+                // The delta is just the total — we don't have the previous
+                // total stored separately. A more robust approach would store
+                // pnl_at_mutation in the cycle output. For now, use the total
+                // as a signal direction (positive = good, negative = bad).
+                ctx.prev_pnl_delta = ctx.total_pnl_sol;
+            }
+        }
+    }
+
+    let propose_result = propose_strategy_mutation(llm_config, &ctx).await;
 
     tracing::info!(
         "[DAEMON] proposer: {} (model: {})",
@@ -656,8 +711,11 @@ let knowledge_wing: Option<rtp_swarm::wings::knowledge::KnowledgeWing> =
     }
 
     // 4. Validate and apply mutations.
+    // Gate 1: soulcontract bounds (range check)
+    // Gate 2: delta check (max 20% change per parameter — prevents wild swings)
     let all_proposed = propose_result.mutations.clone();
-    let accepted = validate_all_mutations(propose_result.mutations);
+    let bounds_checked = validate_all_mutations(propose_result.mutations);
+    let accepted = validate_mutation_deltas(bounds_checked, &params_used);
     let rejected: Vec<_> = all_proposed
         .iter()
         .filter(|m| !accepted.contains(m))
@@ -720,6 +778,7 @@ let knowledge_wing: Option<rtp_swarm::wings::knowledge::KnowledgeWing> =
         params_next: next_config,
         used_llm: propose_result.used_llm,
         model_label: propose_result.model_label,
+        raw_llm_response: propose_result.raw_llm_response,
         memory_files: collect_memory_files(),
     };
 

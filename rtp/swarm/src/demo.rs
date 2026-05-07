@@ -9,7 +9,7 @@ use crate::orchestrator::{
 };
 use crate::types::{Message, Payload, ProposalKind, RiskLevel, WingId};
 use crate::wings::audit::AuditWing;
-use crate::wings::evolve::{LlmProposerConfig, propose_strategy_mutation};
+use crate::wings::evolve::{LlmProposerConfig, MutationContext, propose_strategy_mutation};
 use crate::wings::futureproof::FutureproofWing;
 use crate::wings::knowledge::KnowledgeWing;
 use crate::wings::security::SecurityWing;
@@ -1049,7 +1049,8 @@ pub async fn run_two_cycle_demo() -> TwoCycleDemoResult {
 
     // Evolve Wing: LLM strategy mutations
     let llm_config = LlmProposerConfig::from_env();
-    let propose_result = propose_strategy_mutation(llm_config).await;
+    let demo_ctx = MutationContext::default();
+    let propose_result = propose_strategy_mutation(llm_config, &demo_ctx).await;
 
     // Live HL round-trip
     let hl_round_trip = std::thread::spawn(run_hl_round_trip).join().ok();
