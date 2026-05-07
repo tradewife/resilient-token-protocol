@@ -34,8 +34,8 @@ const FALLBACK_WINGS = [
 
 const INVARIANTS = [
   "PDA owns treasury — no private key exists. No one can sign funds away.",
-  "Native SOL treasury — fees collected as SOL into per-authority treasury PDA.",
-  "Per-authority isolation — each authority gets its own Treasury PDA.",
+  "Native SOL treasury — fees collected as SOL into per-token treasury PDA.",
+  "Per-token isolation — each token gets its own Treasury PDA + vault. No shared pool, no honeypot.",
   "Flash Trade CPI-only execution — Treasury PDA signs via invoke_signed, no human keypair involved in trading.",
   "Phase transitions irreversible — Sustenance → Ecosystem → Humanity, no downgrade.",
 ];
@@ -111,7 +111,6 @@ export default function Home() {
   const [memory, setMemory] = useState<MemoryData | null>(null);
   const [liveness, setLiveness] = useState<LivenessData | null>(null);
   const [traderState, setTraderState] = useState<TraderState | null>(null);
-  const [showHowItWorks, setShowHowItWorks] = useState(true);
   const [yieldReceived, setYieldReceived] = useState<number | null>(null);
   const [yieldLoading, setYieldLoading] = useState(false);
   const [isFrozen, setIsFrozen] = useState(false);
@@ -438,8 +437,8 @@ export default function Home() {
 
         <div className="hero-metrics">
           <div className="metric">
-            <span className="metric-value accent">330</span>
-            <span className="metric-label">Tests Passing</span>
+            <span className="metric-value accent">325+5</span>
+            <span className="metric-label">Unit + Integration Tests</span>
           </div>
           <div className="metric">
             <span className="metric-value accent">{cycleCount}</span>
@@ -452,6 +451,90 @@ export default function Home() {
           <div className="metric">
             <span className="metric-value">+554%</span>
             <span className="metric-label">9x Leveraged Return</span>
+          </div>
+        </div>
+      </section>
+
+      {/* How it works — above the fold */}
+      <section className="how-it-works" style={{ display: "block" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingBottom: "var(--space-md)" }}>
+          <span className="hiw-toggle-label" style={{ fontSize: "0.6875rem", fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--text-tertiary)" }}>
+            How it works
+          </span>
+          <div className="hero-actions">
+            <Link href="/launch" style={{
+              display: "inline-flex", alignItems: "center", gap: 6,
+              background: "var(--coral)", color: "#fff", borderRadius: 6,
+              padding: "10px 20px", fontSize: "0.875rem", fontWeight: 500,
+              textDecoration: "none", transition: "opacity 0.15s",
+            }}>
+              Try it live →
+            </Link>
+            <Link href="/docs" style={{
+              display: "inline-flex", alignItems: "center", gap: 6,
+              background: "var(--surface-2)", color: "var(--text-secondary)", borderRadius: 6,
+              padding: "10px 20px", fontSize: "0.875rem", fontWeight: 500,
+              textDecoration: "none", border: "1px solid var(--border)",
+              transition: "border-color 0.15s",
+            }}>
+              Read the docs
+            </Link>
+          </div>
+        </div>
+        <div className="hiw-steps">
+          <div className="hiw-step">
+            <span className="hiw-num">1</span>
+            <div className="hiw-content">
+              <p className="hiw-text">
+                Token adopts RTP. Trading fees (SOL) route to a per-token treasury PDA. Each token has its own isolated treasury. No shared pool, no honeypot.
+              </p>
+              <a
+                className="hiw-link"
+                href={`https://explorer.solana.com/address/${TREASURY_PDA}?cluster=devnet`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                View treasury on Explorer ↗
+              </a>
+            </div>
+          </div>
+          <div className="hiw-step">
+            <span className="hiw-num">2</span>
+            <div className="hiw-content">
+              <p className="hiw-text">
+                The research engine tests 30,000 strategy configs per night, validates survivors via 9-fold walk-forward analysis with Monte Carlo robustness testing. Best result: +554% at 9x leverage, Calmar 44.89, 100% consistency.
+              </p>
+              <Link
+                className="hiw-link"
+                href="/system"
+              >
+                Explore the system →
+              </Link>
+            </div>
+          </div>
+          <div className="hiw-step">
+            <span className="hiw-num">3</span>
+            <div className="hiw-content">
+              <p className="hiw-text">
+                The Trading Wing submits the validated strategy to the Treasury PDA, which executes it on Flash Trade via CPI (invoke_signed). Positions are on-chain Solana perps. 20% max position enforced on-chain before CPI. Soulguard enforces constitutional constraints before every trade.
+              </p>
+            </div>
+          </div>
+          <div className="hiw-step">
+            <span className="hiw-num">4</span>
+            <div className="hiw-content">
+              <p className="hiw-text">
+                SOL yield returns to the treasury PDA when positions close (single chain, no bridge). The Anchor program splits it 70% holders / 20% dev / 10% ecosystem — on-chain, deterministic, no discretion.
+              </p>
+              <a
+                className="hiw-link"
+                href="https://explorer.solana.com/tx/4RVehmPVpnFYHrsF6N64RjVh7mszRzKF9DQVHd8TUqBHwrnyDYavf3TnDYJC4b5PrJWVSubZkNuyVkF1oJzk71RT?cluster=devnet"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                View redistribution tx ↗
+              </a>
+            </div>
           </div>
         </div>
       </section>
@@ -684,8 +767,8 @@ export default function Home() {
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-sm)" }}>
             {[
-              { label: "Anchor program", detail: "19 on-chain instructions — fee collection, 70/20/10 redistribution, strategy lifecycle, Flash Trade CPI, emergency controls. Per-token isolation. Deployed to devnet." },
-              { label: "Rust swarm runtime", detail: "6 wings (Trading, Security, Evolve, Knowledge, Audit, Futureproof), Coordinator message bus, 325 unit + 5 integration tests" },
+              { label: "On-chain constitution", detail: "Anchor program with irrevocable constraints — per-token isolation, 70/20/10 redistribution, strategy lifecycle, Flash Trade CPI, emergency freeze. No one can override the rules." },
+              { label: "6-wing agent swarm", detail: "Rust runtime with Trading, Security, Evolve, Knowledge, Audit, and Futureproof wings. 325 unit + 5 integration tests. Coordinator message bus with soulcontract enforcement." },
               { label: "Flash Trade CPI execution", detail: "Treasury PDA signs via invoke_signed. On-chain perps on Solana. Position open/close confirmed on mainnet. SOL stays on Solana — no bridge, no cross-chain." },
               { label: "Live autonomous trader", detail: "rtp-trader running 24/7 on Railway. 9x leverage Calmar-optimized config, REST API trading, HTTP status server. Open positions visible on Solana Explorer." },
               { label: "Per-token isolation", detail: "Each token gets its own Treasury PDA + vault. Same strategy, isolated capital. No shared pool — one exploit can't drain all adopters." },
@@ -701,99 +784,6 @@ export default function Home() {
             ))}
           </div>
         </div>
-      </section>
-
-      {/* How it works accordion (C1) */}
-      <section className="how-it-works">
-        <button
-          className="hiw-toggle"
-          onClick={() => setShowHowItWorks(!showHowItWorks)}
-        >
-          <span className="hiw-toggle-label">How it works in 30 seconds</span>
-          <span className="hiw-toggle-icon">{showHowItWorks ? "−" : "+"}</span>
-        </button>
-        {showHowItWorks && (
-          <>
-            <div className="hiw-steps">
-              <div className="hiw-step">
-                <span className="hiw-num">1</span>
-                <div className="hiw-content">
-                  <p className="hiw-text">
-                    Token adopts RTP. Trading fees (SOL) route to an authority-seeded treasury PDA. Each authority has its own isolated treasury. No shared pool, no honeypot.
-                  </p>
-                  <a
-                    className="hiw-link"
-                    href={`https://explorer.solana.com/address/${TREASURY_PDA}?cluster=devnet`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    View treasury on Explorer ↗
-                  </a>
-                </div>
-              </div>
-              <div className="hiw-step">
-                <span className="hiw-num">2</span>
-                <div className="hiw-content">
-                  <p className="hiw-text">
-                    The research engine tests 30,000 strategy configs per night, validates survivors via 9-fold walk-forward analysis with Monte Carlo robustness testing. Best result: +554% at 9x leverage, Calmar 44.89, 100% consistency.
-                  </p>
-                  <Link
-                    className="hiw-link"
-                    href="/system"
-                  >
-                    Explore the system →
-                  </Link>
-                </div>
-              </div>
-              <div className="hiw-step">
-                <span className="hiw-num">3</span>
-                <div className="hiw-content">
-                  <p className="hiw-text">
-                    The Trading Wing submits the validated strategy to the Treasury PDA, which executes it on Flash Trade via CPI (invoke_signed). Positions are on-chain Solana perps. 20% max position enforced on-chain before CPI. Soulguard enforces constitutional constraints before every trade.
-                  </p>
-                </div>
-              </div>
-              <div className="hiw-step">
-                <span className="hiw-num">4</span>
-                <div className="hiw-content">
-                  <p className="hiw-text">
-                    SOL yield returns to the treasury PDA when positions close (single chain, no bridge). The Anchor program splits it 70% holders / 20% dev / 10% ecosystem — on-chain, deterministic, no discretion.
-                  </p>
-                  <a
-                    className="hiw-link"
-                    href="https://explorer.solana.com/tx/4RVehmPVpnFYHrsF6N64RjVh7mszRzKF9DQVHd8TUqBHwrnyDYavf3TnDYJC4b5PrJWVSubZkNuyVkF1oJzk71RT?cluster=devnet"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    View redistribution tx ↗
-                  </a>
-                </div>
-              </div>
-            </div>
-
-            <div style={{ display: "flex", justifyContent: "flex-end", paddingBottom: "var(--space-lg)" }}>
-              <div className="hero-actions">
-                <Link href="/launch" style={{
-                  display: "inline-flex", alignItems: "center", gap: 6,
-                  background: "var(--coral)", color: "#fff", borderRadius: 6,
-                  padding: "10px 20px", fontSize: "0.875rem", fontWeight: 500,
-                  textDecoration: "none", transition: "opacity 0.15s",
-                }}>
-                  Try it live →
-                </Link>
-                <Link href="/docs" style={{
-                  display: "inline-flex", alignItems: "center", gap: 6,
-                  background: "var(--surface-2)", color: "var(--text-secondary)", borderRadius: 6,
-                  padding: "10px 20px", fontSize: "0.875rem", fontWeight: 500,
-                  textDecoration: "none", border: "1px solid var(--border)",
-                  transition: "border-color 0.15s",
-                }}>
-                  Read the docs
-                </Link>
-              </div>
-            </div>
-          </>
-        )}
       </section>
 
       {/* Bottom vitals */}

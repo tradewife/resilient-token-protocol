@@ -86,7 +86,7 @@ const DOC_GROUPS: DocGroup[] = [
 
             <h3>How It Works</h3>
             <ol>
-              <li><strong>Fees arrive</strong> — creator fees (SOL) from the token flow to its own per-authority treasury PDA — isolated from every other token</li>
+              <li><strong>Fees arrive</strong> — creator fees (SOL) from the token flow to its own per-token treasury PDA — isolated from every other token</li>
               <li><strong>Swarm trades</strong> — the Treasury PDA executes validated strategies via Flash Trade CPI (on-chain Solana perps, invoke_signed), or the live autonomous trader executes directly via REST API. No cross-chain bridge. Each token&apos;s capital is traded independently.</li>
               <li><strong>Yield returns</strong> — generated yield flows back to that token&apos;s own treasury PDA</li>
               <li><strong>Redistribution</strong> — 70% to holders, 20% to project dev, 10% to ecosystem (enforced on-chain)</li>
@@ -103,7 +103,7 @@ const DOC_GROUPS: DocGroup[] = [
 │  Treasury PDA: fees → yield → redistribute           │
 │  19 instructions · PDA-owned · CPI-only transfers     │
 ├──────────────────────────────────────────────────────┤
-│              SWARM RUNTIME (Rust · 325 tests)         │
+│              SWARM RUNTIME (Rust · 325+5 tests)        │
 │  Coordinator → message bus → 6 wings                  │
 │  Trading → Flash Trade CPI → on-chain perps → SOL     │
 │  Security · Evolve · Knowledge · Audit · Futureproof  │
@@ -513,7 +513,7 @@ RTP_MAINNET_RPC // "https://api.mainnet-beta.solana.com"`}</CodeBlock>
   authority: string;     // base58 authority pubkey
   signature: string;      // registration tx signature
   explorerUrl: string;    // Solana Explorer link
-  treasuryPDA: string;    // Per-authority treasury state account
+  treasuryPDA: string;    // Per-token treasury state account
   adopterPDA: string;     // Adopter registration account
 }`}</CodeBlock>
 
@@ -633,13 +633,13 @@ PublicKey.findProgramAddressSync(
             <ul>
               <li><strong>PDA Ownership</strong> — no private key exists. No one can sign funds away from the treasury.</li>
               <li><strong>CPI-Only Transfers</strong> — all SOL movements are Cross-Program Invocations, atomic and verifiable.</li>
-              <li><strong>Per-Authority Isolation</strong> — each authority gets its own Treasury PDA and vault. Seeds: <code>[&quot;treasury&quot;, authority]</code>. One authority&apos;s reserves are invisible to every other PDA.</li>
+              <li><strong>Per-Token Isolation</strong> — each token gets its own Treasury PDA and vault. Seeds: <code>[&quot;treasury&quot;, authority]</code>. One token&apos;s reserves are invisible to every other PDA.</li>
               <li><strong>Deterministic Derivation</strong> — anyone can derive the PDA from the authority pubkey.</li>
               <li><strong>No shared pool</strong> — there is no single treasury holding all tokens&apos; fees. Each PDA is its own isolated vault. This eliminates the honeypot risk: exploiting one treasury does not expose any other.</li>
             </ul>
 
-            <Callout type="tip" title="Why Per-Authority Isolation Matters">
-              <p>Aggregating many tokens&apos; fees into a shared pool creates a high-value target. Per-authority PDAs mean each treasury is independently secured. The swarm copy-trades the same validated strategy across all tokens with isolated capital — same alpha, zero cross-contamination.</p>
+            <Callout type="tip" title="Why Per-Token Isolation Matters">
+              <p>Aggregating many tokens&apos; fees into a shared pool creates a high-value target. Per-token PDAs mean each treasury is independently secured. The swarm copy-trades the same validated strategy across all tokens with isolated capital — same alpha, zero cross-contamination.</p>
             </Callout>
 
             <h3>Trust Model</h3>

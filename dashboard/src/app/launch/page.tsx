@@ -998,7 +998,7 @@ export default function LaunchPage() {
             <div className="info-card">
               <span className="info-label">Mint Address</span>
               <span className="info-value" style={{ fontSize: "0.75rem", wordBreak: "break-all" }}>{result.mint}</span>
-              <a href={`https://explorer.solana.com/address/${result.mint}?cluster=mainnet-beta`}
+              <a href={`https://explorer.solana.com/address/${result.mint}?cluster=${result.explorerUrl.includes("devnet") ? "devnet" : "mainnet-beta"}`}
                 target="_blank" rel="noopener noreferrer" style={{ color: "var(--coral)", fontSize: "0.75rem" }}>
                 View on Explorer ↗
               </a>
@@ -1009,7 +1009,7 @@ export default function LaunchPage() {
                 <span className="info-value" style={{ fontSize: "0.75rem", wordBreak: "break-all" }}>
                   {result.treasuryPDA || rtpResult?.treasuryPDA}
                 </span>
-                <a href={`https://explorer.solana.com/address/${result.treasuryPDA || rtpResult?.treasuryPDA}?cluster=mainnet-beta`}
+                <a href={`https://explorer.solana.com/address/${result.treasuryPDA || rtpResult?.treasuryPDA}?cluster=${result.explorerUrl.includes("devnet") ? "devnet" : "mainnet-beta"}`}
                   target="_blank" rel="noopener noreferrer" style={{ color: "var(--coral)", fontSize: "0.75rem" }}>
                   View on Explorer ↗
                 </a>

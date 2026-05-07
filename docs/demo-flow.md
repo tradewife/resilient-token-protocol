@@ -32,7 +32,7 @@
 
 ## 1:30 — Railway — Autonomous Infrastructure
 
-> "The entire system runs on Railway. Six services, all green."
+> "The entire system runs on Railway. Seven services, all green."
 
 **Show:** Railway dashboard — rtp-trader (Online), rtp-dashboard (Online), rtp-devnet-loop (Completed), rtp-night-shift (Completed), rtp-swarm-ci (Completed).
 - "The trader runs as an always-on service. Polls every 5 minutes. Self-funded."
@@ -54,7 +54,7 @@
 
 **Show:** Dashboard footer → "Rejection proof" link.
 - Explorer shows `BelowPriceFloor` error — the program rejected an invalid phase evolution.
-- "Six wings, 18 invariants, enforced in Rust AND on-chain. Agents propose, constraints dispose."
+- "Six wings, 16 constitutional invariants, enforced in Rust AND on-chain. Agents propose, constraints dispose."
 
 ## 3:00 — Close
 
@@ -72,6 +72,6 @@
 | "Why Flash Trade?" | Only Solana perps DEX supporting CPI. Liquidity grows with composability proof. |
 | "Why not Drift/Jupiter?" | No CPI interface for autonomous program-to-program trading. |
 | "What about the program deployment cost?" | 372KB binary, ~2.6 SOL. Using direct REST API trading to prove the loop first. Program deployment when budget allows. |
-| "How is this different from AI yield agents?" | Infrastructure, not a product. Any token adopts RTP — we don't custody funds, the PDA does. |
+| "How is this different from AI yield agents?" | Infrastructure, not a product. Any token adopts RTP — we don't custody funds, the PDA does. 6 wings, 16 constitutional invariants, enforced in Rust AND on-chain. |
 | "What happens if the trader loses?" | Max 12.3% drawdown observed at 9x leverage. Stop-loss at 2.7× ATR per trade. Tight trailing stop at 0.14× ATR captures gains fast. Per-token isolation means one loss doesn't affect others. |
 | "Can I see it trade live?" | Yes — the trader is running right now on Railway. When market conditions trigger a signal, a position opens automatically. |

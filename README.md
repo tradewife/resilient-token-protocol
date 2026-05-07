@@ -220,7 +220,7 @@ Treasury program deployed and operational on Solana devnet (Apr 11 2026).
 | Item | Value |
 |------|-------|
 | Program ID | `8rt6yiBnRTyHy8F69jUd7exWwwShUs4Eokeq41auo2RB` |
-| Treasury PDA | Per-authority — demo: `6PYPAnwiMoZvzphAWEu3EsNz3PpwjJ6YcZabj34qVQ4Z` |
+| Treasury PDA | Per-token — demo: `6PYPAnwiMoZvzphAWEu3EsNz3PpwjJ6YcZabj34qVQ4Z` |
 | Explorer | [View demo treasury](https://explorer.solana.com/address/6PYPAnwiMoZvzphAWEu3EsNz3PpwjJ6YcZabj34qVQ4Z?cluster=devnet) |
 | Init tx | [View transaction](https://explorer.solana.com/tx/4RVehmPVpnFYHrsF6N64RjVh7mszRzKF9DQVHd8TUqBHwrnyDYavf3TnDYJC4b5PrJWVSubZkNuyVkF1oJzk71RT?cluster=devnet) |
 
@@ -517,7 +517,7 @@ opens positions on Solana. SOL returned on position close. Single asset, single 
 
 **Rug-proof by design**: SPL TransferFeeConfig fee percentage is immutable once minted. PDA owns treasury (no private key). All transfers via CPI (atomic, verifiable). Platform fee routing is separate — Pump.fun allows one redirect, Bags.fm is updateable, Raydium is manual.
 
-### Per-Authority Isolation — No Shared Pool, No Honeypot
+### Per-Token Isolation — No Shared Pool, No Honeypot
 
 Every token that adopts RTP gets its **own isolated treasury** — a separate PDA and adopter record. There is no shared pool. One token's trading loss cannot affect another's reserves.
 

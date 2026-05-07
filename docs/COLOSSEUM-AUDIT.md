@@ -106,7 +106,7 @@
 
 6. **No mainnet treasury funds.** The CPI is proven with micro positions (~$11-12 USDC). No real capital is at stake. This is honest (it's a hackathon) but a skeptical judge will note the gap between "mainnet proven" and "proven at scale." Fix: Frame as "mainnet CPI plumbing proven — capital scaling is the next milestone." Be precise about what "mainnet proven" means.
 
-7. **Constitutional governance is impressive but hard to demo.** The soulcontract is 18 invariants enforced in Rust AND on-chain. This is real depth. But it's invisible in a 3-minute presentation. Fix: Make it visible. Show the soulguard rejecting a bad message. Show the Anchor constraint firing. The "it won't let you do the wrong thing" moment is powerful if demonstrated.
+7. **Constitutional governance is impressive but hard to demo.** The soulcontract is 16 invariants enforced in Rust AND on-chain. This is real depth. But it's invisible in a 3-minute presentation. Fix: Make it visible. Show the soulguard rejecting a bad message. Show the Anchor constraint firing. The "it won't let you do the wrong thing" moment is powerful if demonstrated.
 
 ### LOW IMPACT
 

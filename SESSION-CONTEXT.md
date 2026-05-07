@@ -398,7 +398,7 @@ State as of Apr 29:
 - Cross-directory imports: `../../../sdk/index.ts` and `../../../scripts/*.ts` with `.d.ts` type declarations
 - TypeScript compiles clean (`tsc --noEmit`)
 
-**Railway status (all 6 services SUCCESS):**
+**Railway status (all 6 services SUCCESS, pre-rtp-trader):**
 | Service | Last Deploy |
 |---------|------------|
 | rtp-dashboard | 2026-04-29 03:04 UTC |

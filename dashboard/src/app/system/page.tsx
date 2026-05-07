@@ -185,6 +185,7 @@ export default function SystemPage() {
         <div className="sys-hero-label">SELF-EVOLVING AUTONOMOUS INTELLIGENCE</div>
         <h1 className="sys-hero-title">The Closed Loop</h1>
         <p className="sys-hero-sub">
+          Token projects adopt RTP. Their fees generate yield. Here is the machine that makes it happen.
           Research validates. The daemon evolves. The trader executes. Performance feeds back.
           No human in the loop. Every mutation is gated. Every trade is on-chain.
         </p>
@@ -501,7 +502,7 @@ export default function SystemPage() {
                 <span className="arch-box-detail">Fees → yield → 70/20/10 redistribute · Flash Trade CPI via invoke_signed</span>
               </div>
               <div className="arch-box">
-                <span className="arch-box-title">18 Constitutional Invariants</span>
+                <span className="arch-box-title">Constitutional Invariants</span>
                 <span className="arch-box-detail">PDA ownership · per-token isolation · 20% position cap · phase transitions irreversible · emergency freeze</span>
               </div>
               <div className="arch-box">
@@ -535,7 +536,7 @@ export default function SystemPage() {
               </div>
               <div className="arch-coordinator">
                 <span className="arch-coord-label">Coordinator</span>
-                <span className="arch-coord-detail">Soulguard enforces SOULCONTRACT.md on every message · 330 tests passing</span>
+                <span className="arch-coord-detail">Soulguard enforces SOULCONTRACT.md on every message · 325 unit + 5 integration tests</span>
               </div>
             </div>
           </div>
@@ -615,11 +616,11 @@ export default function SystemPage() {
       {/* Footer */}
       <footer className="vitals">
         <div className="vital">
-          <span className="vital-value">330 tests</span>
+          <span className="vital-value">325+5 tests</span>
           <span className="vital-label">Rust + Anchor</span>
         </div>
         <div className="vital">
-          <span className="vital-value">18 invariants</span>
+          <span className="vital-value">16 invariants</span>
           <span className="vital-label">Constitutional</span>
         </div>
         <div className="vital">
