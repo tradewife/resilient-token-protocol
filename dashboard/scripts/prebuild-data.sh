@@ -170,6 +170,87 @@ else:
                "candle_count": 0, "last_poll": "", "total_pnl_sol": 0.0, "total_trades": 0},
               open(os.path.join(DATA_DIR, "trader-state.json"), "w"), indent=2)
     print("trader-state.json: fallback (no source)")
+
+# ── strategy-library.json ──
+sl = os.path.join(REPO, "research", "strategy_library.md")
+if os.path.isfile(sl):
+    import re
+    content = open(sl).read()
+    strategies = []
+    # Parse strategy cards: ### S01 — Name ...
+    pattern = r'###\s+(S\d+)\s+[—-]\s+(.+?)(?:\n|$)'
+    for m in re.finditer(pattern, content):
+        sid = m.group(1)
+        name = m.group(2).strip()
+        # Find the block after this heading until next ### or end
+        block_start = m.end()
+        next_heading = content.find("\n###", block_start)
+        block = content[block_start:next_heading] if next_heading > 0 else content[block_start:]
+        
+        # Extract fields
+        def extract_field(field_name, block_text, default=""):
+            pat = rf'-\s*\*\*{field_name}\*\*:\s*(.+?)(?:\n|$)'
+            fm = re.search(pat, block_text)
+            return fm.group(1).strip() if fm else default
+        
+        stype = extract_field("Edge type", block, "unknown")
+        regime = extract_field("Regime fit", block, "both")
+        priority_str = extract_field("Priority", block, "3")
+        try:
+            priority = int(priority_str)
+        except ValueError:
+            priority = 3
+        decay = extract_field("Decay risk", block, "medium")
+        entry = extract_field("Entry logic", block, "")
+        exit_logic = extract_field("Exit logic", block, "")
+        
+        strategies.append({
+            "id": sid,
+            "name": name,
+            "type": stype,
+            "regime": regime,
+            "priority": priority,
+            "decay_risk": decay,
+            "entry": entry[:120] + ("..." if len(entry) > 120 else ""),
+            "exit": exit_logic[:120] + ("..." if len(exit_logic) > 120 else ""),
+        })
+    json.dump(strategies, open(os.path.join(DATA_DIR, "strategy-library.json"), "w"), indent=2)
+    print(f"strategy-library.json written ({len(strategies)} strategies)")
+else:
+    json.dump([], open(os.path.join(DATA_DIR, "strategy-library.json"), "w"))
+    print("strategy-library.json: no source file")
+
+# ── dead-ends.json ──
+de = os.path.join(REPO, "research", "dead_ends.md")
+if os.path.isfile(de):
+    de_content = open(de).read()
+    dead_ends = []
+    # Parse entries: ### Title (lines starting with ### under the retirement criteria section)
+    for m in re.finditer(r'###\s+(.+?)(?:\n|$)', de_content):
+        title = m.group(1).strip()
+        if title.startswith("Dead Ends") or title.startswith("Retirement"):
+            continue
+        block_start = m.end()
+        next_h = de_content.find("\n###", block_start)
+        block = de_content[block_start:next_h] if next_h > 0 else de_content[block_start:]
+        
+        def extract_de_field(field, text, default=""):
+            pat = rf'-\s*\*\*{field}\*\*:\s*(.+?)(?:\n|$)'
+            fm2 = re.search(pat, text)
+            return fm2.group(1).strip() if fm2 else default
+        
+        dead_ends.append({
+            "title": title,
+            "date": extract_de_field("Date logged", block, "unknown"),
+            "root_cause": extract_de_field("Root cause", block, "unknown"),
+            "verdict": extract_de_field("Verdict", block, ""),
+            "test_result": extract_de_field("Test result", block, ""),
+        })
+    json.dump(dead_ends, open(os.path.join(DATA_DIR, "dead-ends.json"), "w"), indent=2)
+    print(f"dead-ends.json written ({len(dead_ends)} entries)")
+else:
+    json.dump([], open(os.path.join(DATA_DIR, "dead-ends.json"), "w"))
+    print("dead-ends.json: no source file")
 PYEOF
 
 echo "Data files ready in $DATA_DIR"

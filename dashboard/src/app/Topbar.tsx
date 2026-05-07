@@ -6,13 +6,13 @@ import { useWallet } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 
 interface TopbarProps {
-  activePage?: "dashboard" | "launch" | "research" | "docs";
+  activePage?: "dashboard" | "launch" | "research" | "system" | "docs";
 }
 
 const NAV_ITEMS = [
   { href: "/", label: "Dashboard", key: "dashboard" },
+  { href: "/system", label: "System", key: "system" },
   { href: "/launch", label: "Launch", key: "launch" },
-  { href: "/research", label: "Research", key: "research" },
   { href: "/docs", label: "Docs", key: "docs" },
 ] as const;
 

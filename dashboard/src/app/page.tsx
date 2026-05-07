@@ -438,7 +438,7 @@ export default function Home() {
 
         <div className="hero-metrics">
           <div className="metric">
-            <span className="metric-value accent">325</span>
+            <span className="metric-value accent">330</span>
             <span className="metric-label">Tests Passing</span>
           </div>
           <div className="metric">
@@ -739,9 +739,9 @@ export default function Home() {
                   </p>
                   <Link
                     className="hiw-link"
-                    href="/research"
+                    href="/system"
                   >
-                    View night shift results →
+                    Explore the system →
                   </Link>
                 </div>
               </div>

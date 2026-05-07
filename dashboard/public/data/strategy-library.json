@@ -1,0 +1,152 @@
+[
+  {
+    "id": "S01",
+    "name": "Momentum Persistence",
+    "type": "risk_premium",
+    "regime": "trending",
+    "priority": 1,
+    "decay_risk": "low",
+    "entry": "IF close > SMA(close, 20) AND close[t] > close[t-20] AND volume_ratio > 1.0 THEN buy_long. IF close < SMA(close, 20) AND...",
+    "exit": "Trailing stop at 2x ATR from peak. Max hold 72h. Signal reversal (close crosses below SMA20 for longs, above for shorts)..."
+  },
+  {
+    "id": "S02",
+    "name": "Breakout-Band Expansion",
+    "type": "risk_premium",
+    "regime": "trending",
+    "priority": 1,
+    "decay_risk": "medium",
+    "entry": "IF Bollinger_Band_Width (upper - lower) / middle < percentile_10(lookback=100) AND close > upper_band THEN buy_long. IF ...",
+    "exit": "Take profit at 3x ATR from entry. Stop loss at 1.5x ATR. Max hold 48h. Exit if BB_Width expands beyond percentile_80 (ex..."
+  },
+  {
+    "id": "S03",
+    "name": "Funding Rate Carry",
+    "type": "risk_premium",
+    "regime": "both",
+    "priority": 1,
+    "decay_risk": "low",
+    "entry": "IF funding_rate_8h > 0.05% (annualized ~55%) THEN sell_short (collect funding from longs paying shorts). IF funding_rate...",
+    "exit": "Exit when funding rate crosses zero or reverses sign. Stop loss at 3% adverse price movement. Time exit after 7 days (fu..."
+  },
+  {
+    "id": "S04",
+    "name": "Mean-Reversion RSI Exhaustion",
+    "type": "risk_premium",
+    "regime": "ranging",
+    "priority": 1,
+    "decay_risk": "medium",
+    "entry": "IF RSI(14) < 25 AND close < Bollinger_Lower(20, 2.0) AND daily_trend == bullish (SMA200 > price * 0.97) THEN buy_long. I...",
+    "exit": "Take profit when RSI crosses back through 45 (long) or 55 (short). Stop loss at 2x ATR. Max hold 36h. Exit if price reac..."
+  },
+  {
+    "id": "S05",
+    "name": "Bollinger Bounce with Trend Filter",
+    "type": "risk_premium",
+    "regime": "ranging",
+    "priority": 1,
+    "decay_risk": "low",
+    "entry": "IF close <= BB_lower(20, 2.0) AND SMA(200) > close * 0.95 (long-term uptrend intact) AND RSI(14) < 35 AND volume_ratio >...",
+    "exit": "Target at BB_middle for 50% of position, BB_upper for remaining 50%. Stop loss at 1.5x ATR below entry. Max hold 48h."
+  },
+  {
+    "id": "S06",
+    "name": "Volatility Breakout (Squeeze)",
+    "type": "inefficiency",
+    "regime": "both",
+    "priority": 1,
+    "decay_risk": "medium",
+    "entry": "IF ATR(14) / close < percentile_20(lookback=100) (low vol regime) THEN set breakout levels: highest_high(20) + 0.5*ATR a...",
+    "exit": "Take profit at 4x ATR from entry. Stop loss at 1.5x ATR. Max hold 60h. Trail stop at 1x ATR after 2x ATR profit reached."
+  },
+  {
+    "id": "S07",
+    "name": "Dual Moving Average Cross",
+    "type": "risk_premium",
+    "regime": "trending",
+    "priority": 2,
+    "decay_risk": "low",
+    "entry": "IF SMA(close, 10) crosses above SMA(close, 30) AND ADX(14) > 20 AND volume_ratio > 0.9 THEN buy_long. IF SMA(10) crosses...",
+    "exit": "Exit on opposing cross. Stop loss at 2x ATR. No take profit \u2014 ride the trend until cross reverses."
+  },
+  {
+    "id": "S08",
+    "name": "Mean-Reversion Band Walk",
+    "type": "risk_premium",
+    "regime": "ranging",
+    "priority": 2,
+    "decay_risk": "medium",
+    "entry": "IF price touches BB_lower(20, 2.0) AND then closes ABOVE BB_lower within next 3 bars AND RSI(14) < 40 AND ADX(14) < 25 (...",
+    "exit": "Target at BB_middle. Stop loss at 2x ATR below BB_lower. Max hold 24h. If price walks up the band (consecutive closes al..."
+  },
+  {
+    "id": "S09",
+    "name": "Funding Rate Momentum",
+    "type": "risk_premium",
+    "regime": "trending",
+    "priority": 2,
+    "decay_risk": "medium",
+    "entry": "IF funding_rate_8h > 0.03% AND funding_rate_8h_increasing (current > 8h_ago > 16h_ago) AND close > SMA(20) THEN buy_long...",
+    "exit": "Exit when funding_rate changes direction (from increasing to decreasing or vice versa). Stop loss at 2.5x ATR. Max hold ..."
+  },
+  {
+    "id": "S10",
+    "name": "Momentum Divergence",
+    "type": "inefficiency",
+    "regime": "both",
+    "priority": 2,
+    "decay_risk": "high",
+    "entry": "IF price makes higher high AND RSI(14) makes lower high (bearish divergence) AND RSI > 60 THEN sell_short. IF price make...",
+    "exit": "Take profit at 2x ATR. Stop loss at 1.5x ATR. Exit on RSI cross through 50. Max hold 48h."
+  },
+  {
+    "id": "S11",
+    "name": "ATR Channel Breakout",
+    "type": "risk_premium",
+    "regime": "trending",
+    "priority": 2,
+    "decay_risk": "medium",
+    "entry": "Compute ATR_Channel = SMA(20) +/- 2*ATR(14). IF close > upper_ATR_channel AND close[1] <= upper_ATR_channel[1] (fresh br...",
+    "exit": "Take profit at 3.5x ATR. Stop loss at 1x ATR (tight for breakout). Max hold 60h. Exit if close returns inside channel."
+  },
+  {
+    "id": "S12",
+    "name": "Multi-TF RSI Confluence",
+    "type": "risk_premium",
+    "regime": "both",
+    "priority": 2,
+    "decay_risk": "medium",
+    "entry": "IF RSI(1h, 14) < 30 AND RSI(4h, 14) < 40 AND RSI(1d, 14) < 50 THEN buy_long (oversold across all timeframes). IF RSI(1h)...",
+    "exit": "Take profit when RSI(1h) crosses above 55 (long) or below 45 (short). Stop loss at 2x ATR. Max hold 36h."
+  },
+  {
+    "id": "S13",
+    "name": "Trend-Following with ADX Filter",
+    "type": "risk_premium",
+    "regime": "trending",
+    "priority": 3,
+    "decay_risk": "low",
+    "entry": "IF ADX(14) > 30 AND Plus_DI(14) > Minus_DI(14) AND close > SMA(close, 50) THEN buy_long. IF ADX > 30 AND Minus_DI > Plus...",
+    "exit": "Exit when ADX drops below 20 or DI cross reverses. Stop loss at 2x ATR. Trail stop at 1.5x ATR from peak after 2x ATR pr..."
+  },
+  {
+    "id": "S14",
+    "name": "Volatility Regime Switch",
+    "type": "risk_premium",
+    "regime": "both",
+    "priority": 3,
+    "decay_risk": "low",
+    "entry": "Compute vol_regime = ATR(14) / close relative to percentile bands. IF vol_regime < 25th_percentile THEN use S07 (Dual MA...",
+    "exit": "Exit by the active sub-strategy's rules. Switch strategy when vol regime changes. Force exit on regime switch."
+  },
+  {
+    "id": "S15",
+    "name": "Cumulative Volume Delta Proxy",
+    "type": "risk_premium",
+    "regime": "both",
+    "priority": 3,
+    "decay_risk": "high",
+    "entry": "Compute CVD_proxy = cumsum(volume * sign(close - close[1])). IF CVD_proxy makes new 20-bar high AND close has NOT made n...",
+    "exit": "Take profit at 3x ATR. Stop loss at 2x ATR. Max hold 72h. Exit on CVD divergence exhaustion (CVD reverses direction for ..."
+  }
+]

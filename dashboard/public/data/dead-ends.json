@@ -1,0 +1,65 @@
+[
+  {
+    "title": "BTC/USDT Wide TP + Wide SL Overfitting",
+    "date": "2026-04-12",
+    "root_cause": "overfitting",
+    "verdict": "retry_with_changes",
+    "test_result": "OOS Sharpe +1.35 but overfitting_score=0.57 > threshold 0.5. IS-OOS gap too large \u2014 model memorized training data. Flagged in night shift 2026-04-12 report."
+  },
+  {
+    "title": "XRP/USDT \u2014 Dropped from Active Symbols",
+    "date": "2026-04-05",
+    "root_cause": "regime mismatch \u2014 XRP price action dominated by regulatory events, not technical signals",
+    "verdict": "DO_NOT_RETRY",
+    "test_result": "Net negative across all tested configs. Portfolio return with XRP: +49.2%. Without XRP: +49.2% (XRP contributed 0.31% but with negative risk-adjusted return). Consistently lowest win rate (28-29%) and weakest Sharpe across all strategies."
+  },
+  {
+    "title": "ETH/USDT Production Baseline \u2014 Marginal",
+    "date": "2026-04-12",
+    "root_cause": "regime mismatch \u2014 ETH more sensitive to macro events, less driven by pure momentum",
+    "verdict": "retry_with_changes",
+    "test_result": "ETH/USDT OOS Sharpe +0.97, consistency 56% (5/9 folds), survivor score 0.06. Marginal. Fold 1 and fold 7 had negative OOS (-2.19 and -2.57 Sharpe)."
+  },
+  {
+    "title": "BNB/USDT Production Baseline \u2014 Inconsistent",
+    "date": "2026-04-12",
+    "root_cause": "regime mismatch \u2014 BNB oscillates between Binance ecosystem news-driven moves and quiet ranging",
+    "verdict": "retry_with_changes",
+    "test_result": "BNB/USDT OOS Sharpe +1.47, consistency 56% (5/9 folds), survivor 0.11. Fold 1: -8.41 Sharpe, Fold 2: -0.34, Fold 5: -2.54, Fold 7: -1.66. Extremely volatile fold-level performance."
+  },
+  {
+    "title": "SOL/USDT Production Baseline \u2014 Suboptimal",
+    "date": "2026-04-12",
+    "root_cause": "overfitting \u2014 the production config was overfit to multi-symbol optimization (good average across all symbols, not optimal for SOL specifically)",
+    "verdict": "retry_with_changes",
+    "test_result": "OOS Sharpe +2.05, consistency 67% (6/9 folds), survivor 0.23. Decent but dominated by the optimized config (Sharpe +3.96, 100% consistency, survivor 2.69). The wide TP and long max_hold were leaving money on the table."
+  },
+  {
+    "title": "BB Mean Reversion \u2014 Broad Failure",
+    "date": "2026-04-12",
+    "root_cause": "regime mismatch \u2014 April 2026 market is strongly trending (all 4 symbols in TREND regime with ADX 27-50). BB mean reversion requires RANGING regime.",
+    "verdict": "retry_with_changes",
+    "test_result": "864 BB candidates evaluated across all symbols in night shift. None appeared in the top 20 candidates. BB strategies had consistently lower survivor scores than MultiTF strategies for all symbols during the tested period."
+  },
+  {
+    "title": "High Signal Threshold (>0.45) for All Symbols",
+    "date": "2026-04-12",
+    "root_cause": "overfitting \u2014 fewer trades means noisier metrics, more variance between folds",
+    "verdict": "DO_NOT_RETRY",
+    "test_result": "signal_threshold=0.45 and 0.50 consistently produced fewer trades (10-15/fold) with no improvement in Sharpe. The optimal threshold is 0.30-0.35 for SOL and 0.40 for BTC/BNB. Higher thresholds over-filter and reduce the sample size below statistical reliability."
+  },
+  {
+    "title": "Long Max Hold (>72h) with Tight SL",
+    "date": "2026-04-12",
+    "root_cause": "execution cost \u2014 tight SL + long hold = high stop-out rate before trend materializes",
+    "verdict": "DO_NOT_RETRY",
+    "test_result": "Counter-intuitively, longer max hold with tight SL leads to getting stopped out more. The tight SL triggers before the trend develops, and then the max_hold is never reached. Results were uniformly worse than shorter max_hold (36-48h) with matching SL (1.5 ATR)."
+  },
+  {
+    "title": "SOL/USDT Survivor 2.69 Fragility Baseline",
+    "date": "2026-04-12",
+    "root_cause": "overfitting \u2014 production config was optimized for average across all symbols, not specifically for SOL",
+    "verdict": "DO_NOT_RETRY",
+    "test_result": "The optimized config (Survivor 2.69) reduced fragility from 2.89 to 0.29 \u2014 a 10x improvement. The production config was fragile because its wide parameters (tp_atr=6.0, sl_atr=2.5) were not specifically tuned for SOL volatility. The new config with tighter parameters (tp_atr=3.0, sl_atr=1.5) is in a flat region of the parameter landscape."
+  }
+]
