@@ -534,7 +534,7 @@ export default function Home() {
               <>
                 <div className="console-big console-muted">Flat</div>
                 <div className="console-empty-text">
-                  Survivor 2.69 enters when score &gt; 0.25 with 3+ bullish timeframes. The next valid signal
+                  <a href="#pipeline" title="View research pedigree ↓" style={{ color: "var(--text-primary)", borderBottom: "1px dotted var(--border)", textDecoration: "none" }}>Survivor 2.69</a> enters when score &gt; 0.25 with 3+ bullish timeframes. The next valid signal
                   triggers a 9× SOL LONG of 20% capital. Stop-loss 2.7× ATR, take-profit 5.0× ATR, trailing 0.14× ATR.
                 </div>
               </>
@@ -740,7 +740,7 @@ export default function Home() {
       </section>
 
       {/* ════════ §4 RESEARCH PIPELINE ════════ */}
-      <section className="sys2-section" id="pipeline">
+      <section className="sys2-section" id="pipeline" style={{ marginTop: "var(--space-4xl)" }}>
         <header className="sys2-sect-head">
           <div>
             <div className="sys2-sect-eyebrow">§4 · research pipeline</div>
