@@ -487,7 +487,7 @@ export default function Home() {
         <header className="sys2-sect-head">
           <div>
             <div className="sys2-sect-eyebrow">§1 · live console</div>
-            <h2 className="sys2-sect-title">The trader, right now</h2>
+            <h2 className="sys2-sect-title">No human in the loop</h2>
           </div>
           <div className="sys2-sect-side">
             <span className={`sys2-status-pill ${traderStatus}`}>
