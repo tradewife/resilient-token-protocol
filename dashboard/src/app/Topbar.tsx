@@ -11,7 +11,7 @@ interface TopbarProps {
 
 const NAV_ITEMS = [
   { href: "/#live", label: "Live Console", key: "dashboard" },
-  { href: "/#architecture", label: "Architecture", key: "architecture" },
+  { href: "/#trust", label: "Architecture", key: "architecture" },
   { href: "/#pipeline", label: "Research Pipeline", key: "pipeline" },
   { href: "/launch", label: "Launch", key: "launch" },
   { href: "/docs", label: "Docs", key: "docs" },
