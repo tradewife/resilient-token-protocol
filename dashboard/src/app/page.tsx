@@ -493,7 +493,7 @@ export default function Home() {
               the Treasury PDA — no private key exists. Every action is bounded by a constitutional
               document, <code className="inline-code">SOULCONTRACT.md</code>, enforced in both the Rust
               runtime and the Anchor program. This is agentic tokenomics: creator fees become a perpetual
-              trading treasury that grows reserves and returns yield to holders, not just governs them.
+              trading treasury that grows reserves and returns yield to holders — sustenance for the trenches, not another extraction layer.
             </p>
           </div>
           <div className="sys2-sect-side">
