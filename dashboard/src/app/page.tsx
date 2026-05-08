@@ -99,13 +99,12 @@ interface DeadEnd {
 
 /* ── SVG Components ── */
 
-function ClosedLoopSVG({ activeIdx, liveLabels }: { activeIdx: number; liveLabels: string[] }) {
+function ClosedLoopSVG({ hoveredIdx, onHover, liveLabels }: { hoveredIdx: number | null; onHover: (i: number | null) => void; liveLabels: string[] }) {
   const cx = 320, cy = 320, R = 215, nodeR = 60;
   const positions = LOOP_NODES.map((_, i) => {
     const a = -Math.PI / 2 + (i * 2 * Math.PI) / 6;
     return { x: cx + R * Math.cos(a), y: cy + R * Math.sin(a) };
   });
-  const trackD = `M ${cx + R} ${cy} A ${R} ${R} 0 1 1 ${cx + R - 0.001} ${cy}`;
 
   return (
     <svg viewBox="0 0 640 640" className="loop-svg" role="img" aria-label="Closed loop diagram">
@@ -127,12 +126,6 @@ function ClosedLoopSVG({ activeIdx, liveLabels }: { activeIdx: number; liveLabel
             fill="none" stroke="var(--emerald-dim)" strokeWidth="1.5" opacity="0.6" />
         );
       })}
-      <path id="loop-track" d={trackD} fill="none" stroke="transparent" />
-      <circle r="5" fill="var(--coral)" opacity="0.95">
-        <animateMotion dur="14s" repeatCount="indefinite" rotate="auto">
-          <mpath href="#loop-track" />
-        </animateMotion>
-      </circle>
       <g transform={`translate(${cx}, ${cy})`}>
         <circle r="78" fill="var(--surface-0)" stroke="var(--emerald-dim)" />
         <circle r="78" fill="none" stroke="var(--emerald)" strokeWidth="0.5" opacity="0.4" />
@@ -142,14 +135,16 @@ function ClosedLoopSVG({ activeIdx, liveLabels }: { activeIdx: number; liveLabel
       </g>
       {LOOP_NODES.map((node, i) => {
         const p = positions[i];
-        const active = activeIdx === i;
+        const active = hoveredIdx === i;
         return (
-          <g key={node.key} transform={`translate(${p.x}, ${p.y})`}>
+          <g key={node.key} transform={`translate(${p.x}, ${p.y})`}
+            onMouseEnter={() => onHover(i)} onMouseLeave={() => onHover(null)}
+            style={{ cursor: "pointer" }}>
             <circle r={nodeR + 6} fill="none" stroke="var(--emerald)" strokeWidth="1.5"
-              opacity={active ? 0.5 : 0} style={{ transition: "opacity 0.5s" }} />
+              opacity={active ? 0.5 : 0} style={{ transition: "opacity 0.3s" }} />
             <circle r={nodeR} fill={active ? "oklch(18% 0.04 160)" : "var(--surface-0)"}
               stroke={active ? "var(--emerald)" : "var(--border)"}
-              strokeWidth={active ? 2 : 1} style={{ transition: "all 0.4s" }} />
+              strokeWidth={active ? 2 : 1} style={{ transition: "all 0.25s" }} />
             <text textAnchor="middle" y="-10" className="loop-node-eyebrow">{String(i + 1).padStart(2, "0")}</text>
             <text textAnchor="middle" y="10" className="loop-node-title">{node.label}</text>
             <text textAnchor="middle" y="28" className="loop-node-sub">{liveLabels[i] ?? node.desc}</text>
@@ -228,7 +223,7 @@ export default function Home() {
   const [night, setNight] = useState<NightData | null>(null);
   const [strategies, setStrategies] = useState<StrategyCard[]>([]);
   const [deadEnds, setDeadEnds] = useState<DeadEnd[]>([]);
-  const [activeIdx, setActiveIdx] = useState(0);
+  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
 
   // ── Treasury PDA balance (devnet) ──
   useEffect(() => {
@@ -373,12 +368,6 @@ export default function Home() {
     return () => { cancelled = true; };
   }, [publicKey]);
 
-  // ── Loop animation ──
-  useEffect(() => {
-    const id = setInterval(() => setActiveIdx((n) => (n + 1) % 6), 2200);
-    return () => clearInterval(id);
-  }, []);
-
   /* ── Derived ── */
 
   const totalPnlPct = useMemo(
@@ -440,12 +429,10 @@ export default function Home() {
           </div>
 
           <div className="sys2-hero-cta-row" style={{ marginBottom: "var(--space-lg)" }}>
-            <a href="https://explorer.solana.com/tx/2bLg1FuJ6iqwYq6SKi5EcZQWszarDZhS68bCbGTRLKMwhYqsU7G57fTtG4G6GFx3ZKN15qhb85zy28pGJvSdrnG3"
-              target="_blank" rel="noopener noreferrer" className="sys2-cta-primary">
-              View mainnet proof ↗
-            </a>
+            <Link href="/launch" className="sys2-cta-primary">
+              Launch a token <span className="cta-badge-devnet">DEVNET</span>
+            </Link>
             <Link href="/docs" className="sys2-cta-secondary">Read the docs →</Link>
-            <Link href="/launch" className="sys2-cta-tertiary">Or launch a token →</Link>
           </div>
 
           {connected && publicKey && (yieldLoading || (yieldReceived !== null && yieldReceived > 0)) && (
@@ -613,11 +600,13 @@ export default function Home() {
           </div>
         </header>
         <div className="loop-stage">
-          <ClosedLoopSVG activeIdx={activeIdx} liveLabels={liveLabels} />
+          <ClosedLoopSVG hoveredIdx={hoveredIdx} onHover={setHoveredIdx} liveLabels={liveLabels} />
         </div>
         <div className="loop-legend">
           {LOOP_NODES.map((n, i) => (
-            <div key={n.key} className={`loop-legend-item ${activeIdx === i ? "active" : ""}`}>
+            <div key={n.key} className={`loop-legend-item ${hoveredIdx === i ? "active" : ""}`}
+              onMouseEnter={() => setHoveredIdx(i)} onMouseLeave={() => setHoveredIdx(null)}
+              style={{ cursor: "pointer" }}>
               <span className="loop-legend-num">{String(i + 1).padStart(2, "0")}</span>
               <div>
                 <div className="loop-legend-label">{n.label}</div>
@@ -928,11 +917,10 @@ const result = await registerWithRTP(connection, payer, {
 
 // result.treasuryPDA → program-owned, no human can sign for it`}</code></pre>
             <div className="cta2-actions">
-              <a href="https://github.com/tradewife/resilient-token-protocol" target="_blank" rel="noopener noreferrer" className="sys2-cta-primary">
-                Adopt with the SDK ↗
-              </a>
+              <Link href="/launch" className="sys2-cta-primary">
+                Launch a token <span className="cta-badge-devnet">DEVNET</span>
+              </Link>
               <Link href="/docs" className="sys2-cta-secondary">Read the docs →</Link>
-              <Link href="/launch" className="sys2-cta-tertiary">Or launch a token now →</Link>
             </div>
           </div>
         </div>
