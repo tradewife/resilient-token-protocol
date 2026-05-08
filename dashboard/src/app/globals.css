@@ -71,6 +71,7 @@ body {
   max-width: 1440px;
   margin: 0 auto;
   padding: var(--space-xl) var(--space-2xl);
+  overflow-x: hidden;
 }
 
 /* Top bar */
@@ -3053,6 +3054,8 @@ body {
   line-height: 1.55;
   color: var(--text-secondary);
   overflow-x: auto;
+  max-width: 100%;
+  box-sizing: border-box;
   margin-bottom: var(--space-xl);
 }
 
@@ -3097,9 +3100,10 @@ body {
 }
 
 @media (max-width: 720px) {
-  .page.sys2 { padding: var(--space-md); }
+  .page { padding: var(--space-md); }
   .sys2-section { padding: var(--space-2xl) 0; }
   .sys2-vitals { grid-template-columns: repeat(2, 1fr); }
+  .sys2-sect-lede { max-width: 100%; }
   .arch2-layer-cells { grid-template-columns: 1fr; }
   .pipe2-step { grid-template-columns: 1fr; padding-left: var(--space-md); margin-left: 24px; }
   .pipe2-num { left: -24px; width: 48px; height: 48px; font-size: 0.875rem; }
@@ -3112,4 +3116,5 @@ body {
   .chart-stats { grid-template-columns: repeat(2, 1fr); }
   .loop-legend { grid-template-columns: 1fr; }
   .cta2-card { padding: var(--space-xl); }
+  .cta2-code { font-size: 0.75rem; padding: var(--space-md); }
 }
