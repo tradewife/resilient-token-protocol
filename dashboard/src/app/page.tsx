@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useCallback, useMemo } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { PublicKey, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import Link from "next/link";
@@ -20,24 +20,6 @@ const MAINNET_TXS = [
   { label: "Open · REST autonomous", tx: "YtGKq46wEgeUqoWouV5LXvv6mAxb5dCYmRHy622i7UtP5UoXsKZJtqscJf9fWLjzjZwCZhGw7r4EMgKV3wU2CBg", note: "score = 0.400", kind: "open" },
   { label: "Close · REST autonomous", tx: "56PLUQAPGqtAcvRUgJBreMrubAETZkpFCoyHzkwt3jCGCwZYHeonbxcJp244ZipeHuNBAwAX6r1wWkcR9LFcdmM6", note: "settled mainnet", kind: "close" },
 ];
-
-const TYPE_COLORS: Record<string, string> = {
-  trend: "var(--emerald)", mean_reversion: "var(--coral)", volatility: "#a78bfa",
-  carry: "#f59e0b", risk_premium: "var(--emerald)", mr: "var(--coral)", vol: "#a78bfa",
-};
-
-const REGIME_LABELS: Record<string, string> = {
-  trending: "Trending", ranging: "Ranging", both: "All Regimes",
-};
-
-const LOOP_NODES = [
-  { key: "research", label: "Research", desc: "30K configs · 9-fold WFA" },
-  { key: "bridge",   label: "Bridge",   desc: "Python → Rust JSON" },
-  { key: "evolve",   label: "Evolve",   desc: "LLM proposes mutations" },
-  { key: "gates",    label: "Gates",    desc: "Bounds + delta check" },
-  { key: "execute",  label: "Execute",  desc: "Treasury PDA invoke_signed" },
-  { key: "feedback", label: "Feedback", desc: "PnL → next cycle" },
-] as const;
 
 /* ── Interfaces ── */
 
@@ -88,72 +70,7 @@ interface NightData {
   }>;
 }
 
-interface StrategyCard {
-  id: string; name: string; type: string;
-  regime: string; priority: number; decay_risk: string;
-}
-
-interface DeadEnd {
-  title: string; date: string; root_cause: string;
-}
-
 /* ── SVG Components ── */
-
-function ClosedLoopSVG({ hoveredIdx, onHover, liveLabels }: { hoveredIdx: number | null; onHover: (i: number | null) => void; liveLabels: string[] }) {
-  const cx = 320, cy = 320, R = 215, nodeR = 60;
-  const positions = LOOP_NODES.map((_, i) => {
-    const a = -Math.PI / 2 + (i * 2 * Math.PI) / 6;
-    return { x: cx + R * Math.cos(a), y: cy + R * Math.sin(a) };
-  });
-
-  return (
-    <svg viewBox="0 0 640 640" className="loop-svg" role="img" aria-label="Closed loop diagram">
-      <defs>
-        <radialGradient id="centerGlow" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor="var(--emerald)" stopOpacity="0.18" />
-          <stop offset="100%" stopColor="var(--emerald)" stopOpacity="0" />
-        </radialGradient>
-        <marker id="arrowHead" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-          <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--emerald-dim)" />
-        </marker>
-      </defs>
-      <circle cx={cx} cy={cy} r={R - 12} fill="url(#centerGlow)" />
-      <circle cx={cx} cy={cy} r={R} fill="none" stroke="var(--border)" strokeWidth="1" strokeDasharray="2 8" />
-      {positions.map((p, i) => {
-        const next = positions[(i + 1) % 6];
-        return (
-          <path key={`arc-${i}`} d={`M ${p.x} ${p.y} A ${R} ${R} 0 0 1 ${next.x} ${next.y}`}
-            fill="none" stroke="var(--emerald-dim)" strokeWidth="1.5" opacity="0.6" />
-        );
-      })}
-      <g transform={`translate(${cx}, ${cy})`}>
-        <circle r="78" fill="var(--surface-0)" stroke="var(--emerald-dim)" />
-        <circle r="78" fill="none" stroke="var(--emerald)" strokeWidth="0.5" opacity="0.4" />
-        <text textAnchor="middle" y="-12" className="loop-center-eyebrow">GOVERNED BY</text>
-        <text textAnchor="middle" y="10" className="loop-center-title">SOULCONTRACT</text>
-        <text textAnchor="middle" y="30" className="loop-center-sub">16 invariants · enforced</text>
-      </g>
-      {LOOP_NODES.map((node, i) => {
-        const p = positions[i];
-        const active = hoveredIdx === i;
-        return (
-          <g key={node.key} transform={`translate(${p.x}, ${p.y})`}
-            onMouseEnter={() => onHover(i)} onMouseLeave={() => onHover(null)}
-            style={{ cursor: "pointer" }}>
-            <circle r={nodeR + 6} fill="none" stroke="var(--emerald)" strokeWidth="1.5"
-              opacity={active ? 0.5 : 0} style={{ transition: "opacity 0.3s" }} />
-            <circle r={nodeR} fill={active ? "oklch(18% 0.04 160)" : "var(--surface-0)"}
-              stroke={active ? "var(--emerald)" : "var(--border)"}
-              strokeWidth={active ? 2 : 1} style={{ transition: "all 0.25s" }} />
-            <text textAnchor="middle" y="-10" className="loop-node-eyebrow">{String(i + 1).padStart(2, "0")}</text>
-            <text textAnchor="middle" y="10" className="loop-node-title">{node.label}</text>
-            <text textAnchor="middle" y="28" className="loop-node-sub">{liveLabels[i] ?? node.desc}</text>
-          </g>
-        );
-      })}
-    </svg>
-  );
-}
 
 function PnlSparkline({ trades }: { trades: TraderState["trade_history"] }) {
   const W = 720, H = 180, PAD_X = 14, PAD_Y = 22;
@@ -206,6 +123,17 @@ function PnlSparkline({ trades }: { trades: TraderState["trade_history"] }) {
   );
 }
 
+/* ── Invariant data ── */
+
+const INVARIANTS = [
+  { title: "PDA Ownership", desc: "The treasury is controlled by a program-derived address. No private key exists. The program IS the only authority." },
+  { title: "Per-Token Isolation", desc: "Each mint gets its own Treasury PDA and vault. One token's exploit cannot affect another's reserves. No shared pool, no honeypot." },
+  { title: "Emergency Freeze", desc: "Authority-gated halt. All 15 state-mutating instructions check the frozen flag. Unfreeze requires multisig approval." },
+  { title: "Strategy Lifecycle", desc: "Hard stops auto-suspend: 10% drawdown, 5 consecutive losses. Soft decay auto-retires after 3 strikes. Recovery needs 3 consecutive positive updates." },
+  { title: "CPI-Only Execution", desc: "All trading via Flash Trade CPI on Solana. invoke_signed with Treasury PDA seeds. Funds never leave the chain." },
+  { title: "Phase Irreversible", desc: "Sustenance \u2192 Ecosystem \u2192 Humanity. On-chain transitions with no downgrade path. The protocol grows up, never down." },
+] as const;
+
 /* ── Main Page ── */
 
 export default function Home() {
@@ -221,9 +149,6 @@ export default function Home() {
   const [yieldLoading, setYieldLoading] = useState(false);
   const [isFrozen, setIsFrozen] = useState(false);
   const [night, setNight] = useState<NightData | null>(null);
-  const [strategies, setStrategies] = useState<StrategyCard[]>([]);
-  const [deadEnds, setDeadEnds] = useState<DeadEnd[]>([]);
-  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
 
   // ── Treasury PDA balance (devnet) ──
   useEffect(() => {
@@ -283,12 +208,10 @@ export default function Home() {
     return () => { alive = false; clearInterval(id); };
   }, []);
 
-  // ── Fetch night/strategies/deadends ──
+  // ── Fetch night data ──
   useEffect(() => {
     (async () => {
       try { const r = await fetch("/data/night.json"); if (r.ok) { const d = await r.json(); if (!d.error) setNight(d); } } catch {}
-      try { const r = await fetch("/data/strategy-library.json"); if (r.ok) setStrategies(await r.json()); } catch {}
-      try { const r = await fetch("/data/dead-ends.json"); if (r.ok) setDeadEnds(await r.json()); } catch {}
     })();
   }, []);
 
@@ -378,19 +301,9 @@ export default function Home() {
     return (trader.trade_history.filter((t) => t.pnl_pct > 0).length / trader.trade_history.length) * 100;
   }, [trader]);
 
-  const lastTrade = trader?.trade_history?.slice(-1)[0];
   const traderStatus =
     trader == null ? "connecting" :
     trader.open_position ? "in_position" : "watching";
-
-  const liveLabels = [
-    night ? `${night.num_folds}-fold WFA` : "30K configs",
-    "typed JSON",
-    cycle ? (cycle.used_llm ? cycle.model_label : "deterministic") : "—",
-    cycle ? `${cycle.mutations_accepted.length}/${cycle.mutations_accepted.length + cycle.mutations_rejected.length} pass` : "—",
-    trader ? (trader.open_position ? "POSITION OPEN" : `${trader.candle_count} candles`) : "—",
-    lastTrade ? `${lastTrade.pnl_pct >= 0 ? "+" : ""}${lastTrade.pnl_pct.toFixed(2)}%` : "first trade pending",
-  ];
 
   /* ── Render ── */
 
@@ -477,23 +390,22 @@ export default function Home() {
           <div className="sys2-vital">
             <div className="sys2-vital-label">Calmar (validated)</div>
             <div className="sys2-vital-value">44.89</div>
-            <div className="sys2-vital-sub"><a href="#pipeline" title="View research pedigree ↓" style={{ color: "inherit", borderBottom: "1px dotted var(--border)", textDecoration: "none" }}>SOL Survivor 2.69</a> · 9× lev</div>
+            <div className="sys2-vital-sub">SOL Survivor 2.69 · 9x lev</div>
           </div>
         </div>
       </section>
 
-      {/* ════════ §1 LIVE TRADER CONSOLE ════════ */}
+      {/* ════════ §1 PROVEN ON MAINNET ════════ */}
       <section className="sys2-section" id="live">
         <header className="sys2-sect-head">
           <div>
-            <div className="sys2-sect-eyebrow">§1 · live console</div>
-            <h2 className="sys2-sect-title">No human in the loop</h2>
+            <div className="sys2-sect-eyebrow">§1 · proven on mainnet</div>
+            <h2 className="sys2-sect-title">The yield engine is running. Right now.</h2>
             <p className="sys2-sect-lede">
-              A Rust agent swarm executes validated strategies on-chain via Flash Trade CPI, signed by
-              the Treasury PDA — no private key exists. Every action is bounded by a constitutional
-              document, <code className="inline-code">SOULCONTRACT.md</code>, enforced in both the Rust
-              runtime and the Anchor program. This is agentic tokenomics: creator fees become a perpetual
-              trading treasury that grows reserves and returns SOL to holders — sustenance for the trenches, not another extraction layer.
+              Rather than an underfunded mainnet deploy, the most critical component — the yield
+              engine — is live with real capital. A Rust agent executes validated strategies on-chain
+              via Flash Trade CPI, signed by the Treasury PDA. No human keypair exists. Every
+              position is an on-chain transaction verifiable on Solana Explorer.
             </p>
           </div>
           <div className="sys2-sect-side">
@@ -512,7 +424,6 @@ export default function Home() {
               <>
                 <div className="console-big">
                   SOL/USDT · LONG · 9×
-                  <a href="#pipeline" style={{ display: "inline-block", fontSize: "0.625rem", marginLeft: "16px", color: "var(--text-tertiary)", borderBottom: "1px dotted var(--border)", textDecoration: "none", verticalAlign: "middle", transform: "translateY(-4px)" }} title="View research pedigree ↓">Survivor 2.69 ↓</a>
                 </div>
                 <div className="console-row">
                   <span>Entry</span><span className="mono">${trader.open_position.entry_price.toFixed(4)}</span>
@@ -531,7 +442,7 @@ export default function Home() {
               <>
                 <div className="console-big console-muted">Flat</div>
                 <div className="console-empty-text">
-                  <a href="#pipeline" title="View research pedigree ↓" style={{ color: "var(--text-primary)", borderBottom: "1px dotted var(--border)", textDecoration: "none" }}>Survivor 2.69</a> enters when score &gt; 0.25 with 3+ bullish timeframes. The next valid signal
+                  Survivor 2.69 enters when score &gt; 0.25 with 3+ bullish timeframes. The next valid signal
                   triggers a 9× SOL LONG of 20% capital. Stop-loss 2.7× ATR, take-profit 5.0× ATR, trailing 0.14× ATR.
                 </div>
               </>
@@ -568,14 +479,12 @@ export default function Home() {
         </div>
 
         {/* Trade tape */}
-        <div className="trade-tape">
-          <div className="trade-tape-head">
-            <span>RECENT TAPE</span>
-            <span className="mono trade-tape-sub">last {Math.min(8, trader?.trade_history?.length ?? 0)} trades</span>
-          </div>
-          {(trader?.trade_history?.length ?? 0) === 0 ? (
-            <div className="trade-tape-empty">No tape yet. The first close will print here in real time.</div>
-          ) : (
+        {(trader?.trade_history?.length ?? 0) > 0 && (
+          <div className="trade-tape">
+            <div className="trade-tape-head">
+              <span>RECENT TAPE</span>
+              <span className="mono trade-tape-sub">last {Math.min(8, trader?.trade_history?.length ?? 0)} trades</span>
+            </div>
             <div className="trade-tape-rows">
               {[...(trader?.trade_history ?? [])].slice(-8).reverse().map((t, i) => (
                 <div key={i} className={`trade-row ${t.pnl_pct >= 0 ? "pos" : "neg"}`}>
@@ -589,164 +498,86 @@ export default function Home() {
                 </div>
               ))}
             </div>
-          )}
+          </div>
+        )}
+
+        {/* Mainnet proof */}
+        <div style={{ marginTop: "var(--space-2xl)" }}>
+          <header className="sys2-sect-head" style={{ marginBottom: "var(--space-lg)" }}>
+            <div>
+              <div className="sys2-sect-eyebrow">ON-CHAIN PROOF</div>
+              <h2 style={{ fontFamily: "var(--font-display)", fontSize: "clamp(1.125rem, 2vw, 1.5rem)", fontWeight: 500, color: "var(--text-primary)", letterSpacing: "-0.01em", margin: 0 }}>
+                Real mainnet transactions, not testnet
+              </h2>
+            </div>
+          </header>
+          <div className="proof2-grid">
+            {MAINNET_TXS.map((tx) => (
+              <a key={tx.tx} href={`https://explorer.solana.com/tx/${tx.tx}`}
+                target="_blank" rel="noopener noreferrer" className={`proof2-card kind-${tx.kind}`}>
+                <div className="proof2-head">
+                  <span className="proof2-kind">{tx.kind === "open" ? "OPEN" : "CLOSE"}</span>
+                  <span className="proof2-link">↗</span>
+                </div>
+                <div className="proof2-label">{tx.label}</div>
+                <div className="proof2-tx mono">{tx.tx.slice(0, 10)}…{tx.tx.slice(-8)}</div>
+                <div className="proof2-note">{tx.note}</div>
+              </a>
+            ))}
+          </div>
+          <div className="proof2-extras">
+            <a href="https://explorer.solana.com/tx/4RVehmPVpnFYHrsF6N64RjVh7mszRzKF9DQVHd8TUqBHwrnyDYavf3TnDYJC4b5PrJWVSubZkNuyVkF1oJzk71RT?cluster=devnet"
+              target="_blank" rel="noopener noreferrer" className="proof2-extra">Devnet redistribution TX ↗</a>
+            <a href="https://explorer.solana.com/address/8rt6yiBnRTyHy8F69jUd7exWwwShUs4Eokeq41auo2RB?cluster=devnet"
+              target="_blank" rel="noopener noreferrer" className="proof2-extra">Treasury program (devnet) ↗</a>
+            <a href="https://github.com/tradewife/resilient-token-protocol"
+              target="_blank" rel="noopener noreferrer" className="proof2-extra">Source on GitHub ↗</a>
+          </div>
         </div>
       </section>
 
-      {/* ════════ §2 CLOSED LOOP ════════ */}
-      <section className="sys2-section" id="loop">
+      {/* ════════ §2 TRUSTLESS BY DESIGN ════════ */}
+      <section className="sys2-section" id="trust">
         <header className="sys2-sect-head">
           <div>
-            <div className="sys2-sect-eyebrow">§2 · the closed loop</div>
-            <h2 className="sys2-sect-title">Self-improving in six steps</h2>
+            <div className="sys2-sect-eyebrow">§2 · trustless by design</div>
+            <h2 className="sys2-sect-title">Agents propose. The program disposes.</h2>
             <p className="sys2-sect-lede">
-              Research validates. The bridge marshals. The LLM proposes mutations. The gates reject anything
-              outside the soulcontract bounds. The Treasury PDA executes on Solana. PnL feeds back into the
-              next research cycle. The loop runs every six hours, indefinitely.
+              16 constitutional invariants are enforced in both the Rust runtime (<code className="inline-code">soulguard.rs</code>)
+              and the on-chain Anchor program. No human can sign for the treasury. No human can override
+              the rules — not even the authority. The program is the only authority.
             </p>
           </div>
         </header>
-        <div className="loop-stage">
-          <ClosedLoopSVG hoveredIdx={hoveredIdx} onHover={setHoveredIdx} liveLabels={liveLabels} />
-        </div>
-        <div className="loop-legend">
-          {LOOP_NODES.map((n, i) => (
-            <div key={n.key} className={`loop-legend-item ${hoveredIdx === i ? "active" : ""}`}
-              onMouseEnter={() => setHoveredIdx(i)} onMouseLeave={() => setHoveredIdx(null)}
-              style={{ cursor: "pointer" }}>
-              <span className="loop-legend-num">{String(i + 1).padStart(2, "0")}</span>
-              <div>
-                <div className="loop-legend-label">{n.label}</div>
-                <div className="loop-legend-sub">{liveLabels[i]}</div>
-              </div>
+
+        <div className="arch2-layer-cells">
+          {INVARIANTS.map((inv) => (
+            <div key={inv.title} className="arch2-cell" style={{ borderLeft: "2px solid var(--emerald-dim)" }}>
+              <div className="arch2-cell-title">{inv.title}</div>
+              <div className="arch2-cell-sub">{inv.desc}</div>
             </div>
           ))}
         </div>
-      </section>
 
-      {/* ════════ §3 ARCHITECTURE STACK ════════ */}
-      <section className="sys2-section" id="architecture">
-        <header className="sys2-sect-head">
-          <div>
-            <div className="sys2-sect-eyebrow">§3 · architecture</div>
-            <h2 className="sys2-sect-title">Three layers, one invariant</h2>
-            <p className="sys2-sect-lede">
-              Agents propose. Constraints dispose. Every layer can fail open without bringing the others down,
-              because the on-chain program is the only authority that can move funds.
-            </p>
-          </div>
-        </header>
-
-        <div className="arch2-stack">
-          <div className="arch2-layer arch2-research">
-            <div className="arch2-layer-side">
-              <div className="arch2-layer-tag">PYTHON</div>
-              <div className="arch2-layer-name">Research Layer</div>
-              <div className="arch2-layer-sub">Where strategies earn the right to be executed</div>
-            </div>
-            <div className="arch2-layer-cells">
-              <div className="arch2-cell">
-                <div className="arch2-cell-title">Night Shift</div>
-                <div className="arch2-cell-sub">30K configs · 9-fold WFA · Darwinian evolution · Monte Carlo + CPCV robustness</div>
-              </div>
-              <div className="arch2-cell">
-                <div className="arch2-cell-title">Strategy Selector</div>
-                <div className="arch2-cell-sub">LLM reads library + dead ends · picks 3 most promising candidates per cycle</div>
-              </div>
-              <div className="arch2-cell">
-                <div className="arch2-cell-title">5 Strategy Plugins</div>
-                <div className="arch2-cell-sub">S02 Breakout · S04 RSI Exhaustion · S06 Vol Squeeze · S10 Momentum · S13 ADX</div>
-              </div>
-            </div>
-          </div>
-
-          <div className="arch2-bridge">
-            <span className="arch2-bridge-line" />
-            <span className="arch2-bridge-label">bridge.rs · typed JSON · ExecutePermit payload</span>
-            <span className="arch2-bridge-line" />
-          </div>
-
-          <div className="arch2-layer arch2-swarm">
-            <div className="arch2-layer-side">
-              <div className="arch2-layer-tag">RUST</div>
-              <div className="arch2-layer-name">Swarm Runtime</div>
-              <div className="arch2-layer-sub">Six wings under one Coordinator</div>
-            </div>
-            <div className="arch2-layer-cells wings">
-              {[
-                { name: "Trading", desc: "Flash Trade CPI · REST · PnL", live: true },
-                { name: "Evolve", desc: "LLM proposer · gates · rollback", live: true },
-                { name: "Audit", desc: "3-agent tribunal · consensus" },
-                { name: "Security", desc: "Threats · rate limits · alerts" },
-                { name: "Knowledge", desc: "JSON store · cross-wing graph" },
-                { name: "Futureproof", desc: "Deprecation · heartbeat" },
-              ].map((w) => (
-                <div key={w.name} className={`arch2-wing ${w.live ? "live" : ""}`}>
-                  <div className="arch2-wing-head">
-                    <span className="arch2-wing-name">{w.name}</span>
-                    {w.live && <span className="arch2-wing-pulse" />}
-                  </div>
-                  <div className="arch2-wing-desc">{w.desc}</div>
-                </div>
-              ))}
-            </div>
-            <div className="arch2-coord">
-              <span className="arch2-coord-tag">COORDINATOR</span>
-              Soulguard parses <code className="inline-code">SOULCONTRACT.md</code> and validates every message · 325 unit + 5 integration tests
-            </div>
-          </div>
-
-          <div className="arch2-bridge">
-            <span className="arch2-bridge-line" />
-            <span className="arch2-bridge-label">invoke_signed · Treasury PDA seeds · no human key</span>
-            <span className="arch2-bridge-line" />
-          </div>
-
-          <div className="arch2-layer arch2-onchain">
-            <div className="arch2-layer-side">
-              <div className="arch2-layer-tag">SOLANA · ANCHOR</div>
-              <div className="arch2-layer-name">On-Chain Program</div>
-              <div className="arch2-layer-sub">The only authority that can move funds</div>
-            </div>
-            <div className="arch2-layer-cells">
-              <div className="arch2-cell">
-                <div className="arch2-cell-title">Treasury PDA</div>
-                <div className="arch2-cell-sub">Per-mint isolation · receives SOL fees · signs Flash Trade CPI · 70/20/10 redistribute</div>
-              </div>
-              <div className="arch2-cell">
-                <div className="arch2-cell-title">Constitutional Invariants</div>
-                <div className="arch2-cell-sub">PDA ownership · 20% position cap · phase irreversible · emergency freeze · zero-address rejection</div>
-              </div>
-              <div className="arch2-cell">
-                <div className="arch2-cell-title">Strategy Lifecycle</div>
-                <div className="arch2-cell-sub">Register → Live → hard stops (10% DD, 5 losses) → soft decay (3 strikes) → retire</div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="rail-strip">
-          <span className="rail-label">7 Railway services · all green</span>
-          <div className="rail-pills">
-            {["rtp-trader", "rtp-dashboard", "rtp-devnet-loop", "rtp-night-shift", "rtp-swarm-ci", "rtp-fee-crank", "rtp-promote-strategy"].map((svc) => (
-              <span key={svc} className="rail-pill">
-                <span className="rail-dot" />
-                {svc.replace("rtp-", "")}
-              </span>
-            ))}
-          </div>
+        <div className="arch2-coord" style={{ marginTop: "var(--space-xl)" }}>
+          <span className="arch2-coord-tag">ENFORCEMENT</span>
+          Every message between wings is validated against <code className="inline-code">SOULCONTRACT.md</code> by soulguard.rs.
+          The on-chain program adds a second enforcement layer: PDA seed constraints, authority gates,
+          strategy lifecycle gates, and overflow-safe math. 325 unit + 5 integration tests verify both layers.
         </div>
       </section>
 
-      {/* ════════ §4 RESEARCH PIPELINE ════════ */}
+      {/* ════════ §3 SELF-IMPROVING RESEARCH ENGINE ════════ */}
       <section className="sys2-section" id="pipeline" style={{ marginTop: "var(--space-4xl)" }}>
         <header className="sys2-sect-head">
           <div>
-            <div className="sys2-sect-eyebrow">§4 · research pipeline</div>
-            <h2 className="sys2-sect-title">How a strategy earns the right to trade real SOL</h2>
+            <div className="sys2-sect-eyebrow">§3 · self-improving research engine</div>
+            <h2 className="sys2-sect-title">30,000 hypotheses tested every night. Only the survivors reach the chain.</h2>
             <p className="sys2-sect-lede">
-              Every config goes through five gates before a single lamport moves. None of these are heuristics —
-              they are codified in <code className="inline-code">research/promotion_criteria.py</code>.
+              The Night Shift runs exhaustive parameter search, validates through 9 independent time
+              windows, applies Darwinian evolution, and stress-tests with Monte Carlo simulation.
+              An LLM consults a library of 15 strategies and a log of remembered failures before
+              every exploration run. Nothing is repeated. The system learns by remembering what does not work.
             </p>
           </div>
         </header>
@@ -792,22 +623,9 @@ export default function Home() {
             ))}
           </div>
         </div>
-      </section>
 
-      {/* ════════ §5 STRATEGY INTELLIGENCE ════════ */}
-      <section className="sys2-section" id="strategies">
-        <header className="sys2-sect-head">
-          <div>
-            <div className="sys2-sect-eyebrow">§5 · strategy intelligence</div>
-            <h2 className="sys2-sect-title">15 strategies catalogued · {deadEnds.length || 9} failures remembered</h2>
-            <p className="sys2-sect-lede">
-              The LLM consults the library and the dead-ends log before every exploration run. Failures are
-              never repeated; the system learns by remembering what does not work.
-            </p>
-          </div>
-        </header>
-
-        <div className="intel-grid">
+        {/* Compact: active strategy + failure memory */}
+        <div className="intel-grid" style={{ marginTop: "var(--space-2xl)", gridTemplateColumns: "1fr 1fr" }}>
           <article className="intel-panel intel-active">
             <header className="intel-panel-head">
               <span className="intel-pill live">LIVE</span>
@@ -828,88 +646,36 @@ export default function Home() {
 
           <article className="intel-panel">
             <header className="intel-panel-head">
-              <span className="intel-pill explore">{strategies.length || 15} STRATEGIES</span>
-              <span className="intel-panel-title">Strategy Library</span>
+              <span className="intel-pill explore">6 WINGS</span>
+              <span className="intel-panel-title">Swarm Architecture</span>
             </header>
-            <div className="intel-list">
-              {strategies.map((s) => (
-                <div key={s.id} className={`intel-row priority-${s.priority}`}>
-                  <span className="intel-id mono">{s.id}</span>
-                  <span className="intel-name">{s.name}</span>
-                  <span className="intel-type" style={{ color: TYPE_COLORS[s.type] || "var(--text-muted)" }}>
-                    {s.type.replace("risk_premium", "momentum").replace("_", " ")}
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+              {[
+                { name: "Trading", desc: "Flash Trade CPI · REST · PnL", live: true },
+                { name: "Evolve", desc: "LLM proposer · gates · rollback", live: true },
+                { name: "Audit", desc: "3-agent tribunal · consensus" },
+                { name: "Security", desc: "Threats · rate limits · alerts" },
+                { name: "Knowledge", desc: "Persistent store · cross-wing graph" },
+                { name: "Futureproof", desc: "Deprecation · heartbeat" },
+              ].map((w) => (
+                <div key={w.name} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 0", borderBottom: "1px solid var(--border)" }}>
+                  <span style={{ fontSize: "0.8125rem", fontWeight: 500, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: "6px" }}>
+                    {w.name}
+                    {w.live && <span className="arch2-wing-pulse" style={{ width: "5px", height: "5px" }} />}
                   </span>
-                  <span className="intel-regime mono">{REGIME_LABELS[s.regime] || s.regime}</span>
+                  <span style={{ fontSize: "0.6875rem", color: "var(--text-tertiary)" }}>{w.desc}</span>
                 </div>
               ))}
             </div>
           </article>
-
-          <article className="intel-panel intel-dead">
-            <header className="intel-panel-head">
-              <span className="intel-pill dead">{deadEnds.length || 9} DEAD ENDS</span>
-              <span className="intel-panel-title">Failure Memory</span>
-            </header>
-            <div className="intel-list">
-              {deadEnds.map((d, i) => (
-                <div key={i} className="intel-dead-row">
-                  <div className="intel-dead-title">{d.title}</div>
-                  <div className="intel-dead-meta">
-                    <span className="intel-dead-cause">{d.root_cause}</span>
-                    {d.date !== "unknown" && <span className="intel-dead-date mono">{d.date}</span>}
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="intel-dead-foot">Read before every exploration run · failures never repeated</div>
-          </article>
         </div>
       </section>
 
-      {/* ════════ §6 ON-CHAIN PROOF ════════ */}
-      <section className="sys2-section" id="proof">
-        <header className="sys2-sect-head">
-          <div>
-            <div className="sys2-sect-eyebrow">§6 · on-chain proof</div>
-            <h2 className="sys2-sect-title">Real mainnet transactions, not testnet</h2>
-            <p className="sys2-sect-lede">
-              The Treasury PDA opens and closes Flash Trade positions on Solana mainnet via
-              <code className="inline-code">invoke_signed</code>. No human keypair is involved in trading.
-              Click any transaction to verify on Explorer.
-            </p>
-          </div>
-        </header>
-
-        <div className="proof2-grid">
-          {MAINNET_TXS.map((tx) => (
-            <a key={tx.tx} href={`https://explorer.solana.com/tx/${tx.tx}`}
-              target="_blank" rel="noopener noreferrer" className={`proof2-card kind-${tx.kind}`}>
-              <div className="proof2-head">
-                <span className="proof2-kind">{tx.kind === "open" ? "OPEN" : "CLOSE"}</span>
-                <span className="proof2-link">↗</span>
-              </div>
-              <div className="proof2-label">{tx.label}</div>
-              <div className="proof2-tx mono">{tx.tx.slice(0, 10)}…{tx.tx.slice(-8)}</div>
-              <div className="proof2-note">{tx.note}</div>
-            </a>
-          ))}
-        </div>
-
-        <div className="proof2-extras">
-          <a href="https://explorer.solana.com/tx/4RVehmPVpnFYHrsF6N64RjVh7mszRzKF9DQVHd8TUqBHwrnyDYavf3TnDYJC4b5PrJWVSubZkNuyVkF1oJzk71RT?cluster=devnet"
-            target="_blank" rel="noopener noreferrer" className="proof2-extra">Devnet redistribution TX ↗</a>
-          <a href="https://explorer.solana.com/address/8rt6yiBnRTyHy8F69jUd7exWwwShUs4Eokeq41auo2RB?cluster=devnet"
-            target="_blank" rel="noopener noreferrer" className="proof2-extra">Treasury program (devnet) ↗</a>
-          <a href="https://github.com/tradewife/resilient-token-protocol"
-            target="_blank" rel="noopener noreferrer" className="proof2-extra">Source on GitHub ↗</a>
-        </div>
-      </section>
-
-      {/* ════════ §7 INTEGRATE CTA ════════ */}
+      {/* ════════ §4 INTEGRATE ════════ */}
       <section className="sys2-section sys2-cta-section" id="integrate">
         <div className="cta2-card">
           <div className="cta2-content">
-            <div className="sys2-sect-eyebrow">§7 · integrate</div>
+            <div className="sys2-sect-eyebrow">§4 · integrate</div>
             <h2 className="cta2-title">One function call. A program-enforced treasury for any token.</h2>
             <p className="cta2-lede">
               No RTP token. No custody. No new wallet. The SDK registers a Token-2022 mint with its own
