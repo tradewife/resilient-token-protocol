@@ -206,6 +206,7 @@ body {
   align-items: start;
   margin-bottom: var(--space-4xl);
   min-height: 420px;
+  animation: fadeUp 0.5s ease-out both;
 }
 
 .hero-image-wrap {
@@ -1909,6 +1910,7 @@ body {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 1px;
+  animation: fadeUp 0.6s ease-out 0.2s both;
   background: var(--border);
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -1975,8 +1977,20 @@ body {
 .sys2-section {
   padding: var(--space-3xl) 0;
   border-top: 1px solid var(--border);
+  animation: fadeUp 0.6s ease-out both;
 }
 .sys2-section:first-of-type { border-top: none; }
+.sys2-section:nth-child(2) { animation-delay: 0.08s; }
+.sys2-section:nth-child(3) { animation-delay: 0.16s; }
+.sys2-section:nth-child(4) { animation-delay: 0.24s; }
+.sys2-section:nth-child(5) { animation-delay: 0.32s; }
+.sys2-section:nth-child(6) { animation-delay: 0.40s; }
+.sys2-section:nth-child(7) { animation-delay: 0.48s; }
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(18px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
 
 .sys2-sect-head {
   display: flex;
