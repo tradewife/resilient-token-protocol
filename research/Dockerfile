@@ -13,9 +13,9 @@ COPY configs/ configs/
 # Copy the commit script
 COPY scripts/commit-night-results.sh .
 
-# Night Shift writes results to /data/night_results in the container's writable layer.
-# The commit script copies them into the git working tree before pushing.
-ENV NIGHT_RESULTS_DIR=/data/night_results
+# Night Shift writes results to /app/data/night_results (relative to WORKDIR).
+# The commit script reads from the same path and copies into the git working tree.
+ENV NIGHT_RESULTS_DIR=/app/data/night_results
 
 # Run night shift, then commit results back to repo
 CMD ["sh", "-c", "python3 -m research.orchestration.night_shift --skip-fetch && sh commit-night-results.sh"]

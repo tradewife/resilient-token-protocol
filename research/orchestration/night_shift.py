@@ -2424,9 +2424,11 @@ def run_night_shift(
         full_results = {}
         if os.path.exists(val_json):
             with open(val_json) as vf:
-                full_data = json.load(vf)
-            for entry in full_data:
-                full_results.setdefault(entry["symbol"], []).append(entry)
+                val_data = json.load(vf)
+            val_entries = val_data.get("results", val_data) if isinstance(val_data, dict) else val_data
+            for entry in val_entries:
+                if isinstance(entry, dict) and "symbol" in entry:
+                    full_results.setdefault(entry["symbol"], []).append(entry)
 
         discrepancies = detect_discrepancies(fast_results, full_results)
         history = update_flag_history(discrepancies)
