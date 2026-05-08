@@ -1,6 +1,6 @@
 ---
 title: Getting Started — Token Creators
-description: Get an RTP treasury for your token — launch from our site or register an existing token.
+description: Get an RTP treasury for your token: launch from our site or register an existing token.
 ---
 
 ## Two Paths
@@ -11,10 +11,10 @@ Two ways to get an RTP treasury for your token: launch from our site, or registe
 
 Use the [RTP launch page](/launch). Pick your platform, fill in token details, sign with your Solana wallet. The token goes live on-chain and the RTP treasury is initialized automatically.
 
-1. **Pick a platform** — Pump.fun, Bags.fm, or Raydium LaunchLab
-2. **Fill in token details** — name, symbol, image, description
-3. **Sign with your wallet** — one transaction creates the token on-chain
-4. **RTP treasury auto-initializes** — treasury PDA, vault PDA, and adopter record created
+1. **Pick a platform:** Pump.fun, Bags.fm, or Raydium LaunchLab
+2. **Fill in token details:** name, symbol, image, description
+3. **Sign with your wallet:** one transaction creates the token on-chain
+4. **RTP treasury auto-initializes:** treasury PDA, vault PDA, and adopter record created
 
 ### Path B: Register An Existing Token
 
@@ -38,10 +38,10 @@ const result = await registerWithRTP(connection, wallet, {
 
 ## After Registration: What Happens
 
-1. **Fees accumulate** — trading fees flow into your treasury vault PDA
-2. **Swarm activates** — Treasury PDA executes validated strategies via Flash Trade CPI (on-chain Solana perps, invoke_signed)
-3. **Yield returns** — generated yield flows back to the treasury PDA
-4. **Redistribution** — 70% to holders, 20% to project dev, 10% to ecosystem (enforced on-chain)
+1. **Fees accumulate:** trading fees flow into your treasury vault PDA
+2. **Swarm activates:** Treasury PDA executes validated strategies via Flash Trade CPI (on-chain Solana perps, invoke_signed)
+3. **Yield returns:** generated yield flows back to the treasury PDA
+4. **Redistribution:** 70% to holders, 20% to project dev, 10% to ecosystem (enforced on-chain)
 
 ## Fee Routing Per Platform
 
@@ -53,6 +53,6 @@ Trading fees must reach the RTP treasury vault. The mechanism differs per platfo
 | Bags.fm | Yes | Anytime | Set treasury PDA as fee claimer. Update claimers anytime via admin API. |
 | Raydium | Yes | Limited | Creator fees go to pool_creator wallet. Forward to RTP manually or via platform redirect. |
 
-> **Pump.fun One-Time Redirect** — Pump.fun allows only **one** post-launch fee redirect per token. If you redirect to the RTP treasury PDA, that's your one shot. After redirecting, the RTP keeper handles claiming and forwarding automatically.
+> **Pump.fun One-Time Redirect:** Pump.fun allows only **one** post-launch fee redirect per token. If you redirect to the RTP treasury PDA, that's your one shot. After redirecting, the RTP keeper handles claiming and forwarding automatically.
 
-> **No RTP Token Required** — RTP is infrastructure, not a token. You keep your own token. RTP wraps it with treasury functionality.
+> **No RTP Token Required:** RTP is infrastructure, not a token. You keep your own token. RTP wraps it with treasury functionality.

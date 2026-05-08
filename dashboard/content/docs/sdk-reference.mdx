@@ -3,7 +3,7 @@ title: SDK Reference (For Platforms)
 description: Complete API reference for the @resilient-protocol/sdk package. For launchpads and platforms integrating RTP directly.
 ---
 
-The `@resilient-protocol/sdk` TypeScript package is for launchpads and platforms integrating RTP directly. If you're a token creator, your launchpad handles this — see [Getting Started — Token Creators](/docs/getting-started-creators).
+The `@resilient-protocol/sdk` TypeScript package is for launchpads and platforms integrating RTP directly. If you're a token creator, your launchpad handles this: see [Getting Started — Token Creators](/docs/getting-started-creators).
 
 ## Installation
 
@@ -123,9 +123,9 @@ async function registerWithRTP(
 ```
 
 **Parameters:**
-- `connection` — Solana RPC connection (devnet or mainnet)
-- `payer` — Keypair or wallet adapter for signing transactions
-- `config` — Registration configuration (see `RTPRegistrationConfig`)
+- `connection`: Solana RPC connection (devnet or mainnet)
+- `payer`: Keypair or wallet adapter for signing transactions
+- `config`: Registration configuration (see `RTPRegistrationConfig`)
 
 **Returns:** `Promise<RTPRegistrationResult>`
 
@@ -170,11 +170,11 @@ async function withdrawAndRedistribute(
 ```
 
 **Returns:**
-- `withdrawSig` — always present (fee withdrawal completed)
-- `redistributeSig` — only present if vault balance exceeded the redistribution threshold
+- `withdrawSig`: always present (fee withdrawal completed)
+- `redistributeSig`: only present if vault balance exceeded the redistribution threshold
 
 **Errors:**
-- `BelowThreshold` (code 6000) — vault doesn't have enough for redistribution. This is expected and not an error condition — fees were still withdrawn.
+- `BelowThreshold` (code 6000): vault doesn't have enough for redistribution. This is expected and not an error condition; fees were still withdrawn.
 
 ---
 

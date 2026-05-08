@@ -90,7 +90,7 @@ Pump.fun sends creator fees to the deployer wallet. RTP provides a keeper servic
 3. Forwards claimed fees to the RTP treasury vault PDA
 4. Triggers `check_redistribute` if the vault balance exceeds the threshold
 
-The keeper runs automatically — no action needed from the launchpad.
+The keeper runs automatically: no action needed from the launchpad.
 
 ## Fee Structure
 
@@ -104,9 +104,9 @@ Creator fees are dynamic based on market cap. The RTP keeper accounts for this w
 
 ## Limitations
 
-- **No direct PDA routing** — Pump.fun sends fees to the deployer wallet, not an arbitrary PDA
-- **Mainnet only** — Pump.fun operates on Solana mainnet, no devnet support
-- **No API key required** — PumpPortal is a public API (rate limits apply)
+- **No direct PDA routing:** Pump.fun sends fees to the deployer wallet, not an arbitrary PDA
+- **Mainnet only:** Pump.fun operates on Solana mainnet, no devnet support
+- **No API key required:** PumpPortal is a public API (rate limits apply)
 
 ## Example: Full Launch + RTP Registration
 

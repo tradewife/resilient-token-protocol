@@ -5,16 +5,16 @@ description: Route Raydium LaunchLab creator fees to an RTP treasury PDA using t
 
 ## Overview
 
-Raydium is the #1 DEX/AMM on Solana by TVL. LaunchLab is its token launch vehicle with bonding curve + CPMM migration. Raydium explicitly supports PDA-based fee collection — the best architectural fit for RTP.
+Raydium is the #1 DEX/AMM on Solana by TVL. LaunchLab is its token launch vehicle with bonding curve + CPMM migration. Raydium explicitly supports PDA-based fee collection: the best architectural fit for RTP.
 
 ## Why Raydium
 
-- **Explicit PDA fee collection** — documented and recommended by Raydium
+- **Explicit PDA fee collection:** documented and recommended by Raydium
 - `updatePlatformCpCreator` redirects all creator fees to a PDA
 - `collectMultiCreatorFees` for batch collection
 - **Devnet support** with sUSDC as quote token
 - **Full TypeScript SDK** (`@raydium-io/raydium-sdk-v2`)
-- **Largest DEX** — tokens launched here get maximum liquidity access
+- **Largest DEX:** tokens launched here get maximum liquidity access
 
 ## How It Works
 
@@ -177,6 +177,6 @@ async function launchRaydiumWithRTP(wallet) {
 
 ## Limitations
 
-- **Creator fee redirect requires graduation** — bonding curve phase uses a different fee mechanism
+- **Creator fee redirect requires graduation:** bonding curve phase uses a different fee mechanism
 - **Platform registration** may be needed for custom creator fee configuration
-- **SDK is large** — `@raydium-io/raydium-sdk-v2` adds significant bundle size
+- **SDK is large:** `@raydium-io/raydium-sdk-v2` adds significant bundle size

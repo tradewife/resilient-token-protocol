@@ -430,7 +430,7 @@ export default function LaunchPage() {
     setUploadError("");
     try {
       const url = await uploadImageToPinata(file);
-      if (url) { setImageUrl(url); } else { setUploadError("Upload failed — try pasting a URL instead"); }
+      if (url) { setImageUrl(url); } else { setUploadError("Upload failed. Try pasting a URL instead"); }
     } catch { setUploadError("Upload failed"); }
     setUploading(false);
   };
@@ -568,7 +568,7 @@ export default function LaunchPage() {
   const handleLaunch = useCallback(async () => {
     if (!wallet || !publicKey) return;
     if (isFrozen) {
-      setError("Treasury is frozen — all operations are halted. Contact authority to unfreeze.");
+      setError("Treasury is frozen: all operations are halted. Contact authority to unfreeze.");
       return;
     }
     setPhase("launching");
@@ -693,7 +693,7 @@ export default function LaunchPage() {
           <div style={{ marginTop: "var(--space-lg)", display: "flex", justifyContent: "flex-start" }}>
             <button onClick={handleDevnetDemo} className="sys2-cta-secondary"
               style={{ borderColor: "var(--emerald)", color: "var(--emerald)" }}>
-              Demo on Devnet — Create test token + treasury in one click
+              Demo on Devnet: Create test token + treasury in one click
             </button>
           </div>
         )}
@@ -846,7 +846,7 @@ export default function LaunchPage() {
                   </div>
                 </div>
                 <div className="form-note">
-                  Calls PumpPortal API to build a local <code>VersionedTransaction</code> — signed
+                  Calls PumpPortal API to build a local <code>VersionedTransaction</code>, signed
                   in-browser by your wallet. No API key needed. Pure client-side. Token-2022 with TransferFeeConfig
                   is not compatible with Pump.fun&apos;s bonding curve; RTP treasury initialized separately.
                 </div>

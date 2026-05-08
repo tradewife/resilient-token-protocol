@@ -318,14 +318,14 @@ export default function Home() {
           textAlign: "center", fontSize: "0.875rem", fontWeight: 600,
           letterSpacing: "0.04em",
         }}>
-          TREASURY FROZEN — All operations halted by authority. Unfreeze requires 2-of-3 multisig approval + 24h time lock.
+          TREASURY FROZEN: All operations halted by authority. Unfreeze requires 2-of-3 multisig approval + 24h time lock.
         </div>
       )}
 
       {/* ════════ HERO ════════ */}
       <section className="hero" style={{ marginBottom: 0 }}>
         <div className="hero-image-wrap">
-          <img src="/bg-flower.jpg" alt="Ethereal flower in emerald and coral — the organic intelligence that drives RTP" />
+          <img src="/bg-flower.jpg" alt="Ethereal flower in emerald and coral: the organic intelligence that drives RTP" />
         </div>
 
         <div className="hero-content">
@@ -402,8 +402,8 @@ export default function Home() {
             <div className="sys2-sect-eyebrow">§1 · proven on mainnet</div>
             <h2 className="sys2-sect-title">The yield engine is running. Right now.</h2>
             <p className="sys2-sect-lede">
-              Rather than an underfunded mainnet deploy, the most critical component — the yield
-              engine — is live with real capital. A Rust agent executes validated strategies on-chain
+              Rather than an underfunded mainnet deploy, the most critical component (the yield
+              engine) is live with real capital. A Rust agent executes validated strategies on-chain
               via Flash Trade CPI, signed by the Treasury PDA. No human keypair exists. Every
               position is an on-chain transaction verifiable on Solana Explorer.
             </p>
@@ -412,7 +412,7 @@ export default function Home() {
             <span className={`sys2-status-pill ${traderStatus}`}>
               <span className="sys2-status-dot" />
               {traderStatus === "in_position" ? "Position open on mainnet" :
-               traderStatus === "watching" ? "Flat — watching the tape" : "Connecting…"}
+               traderStatus === "watching" ? "Flat, watching the tape" : "Connecting…"}
             </span>
           </div>
         </header>
@@ -545,7 +545,7 @@ export default function Home() {
             <p className="sys2-sect-lede">
               16 constitutional invariants are enforced in both the Rust runtime (<code className="inline-code">soulguard.rs</code>)
               and the on-chain Anchor program. No human can sign for the treasury. No human can override
-              the rules — not even the authority. The program is the only authority.
+              the rules, not even the authority. The program is the only authority.
             </p>
           </div>
         </header>
@@ -587,7 +587,7 @@ export default function Home() {
             { n: "01", t: "Grid Search", m: "30,000", u: "configs swept per symbol per night", d: "Exhaustive sweep across signal threshold, TP/SL multipliers, trailing stop, hold time, alignment." },
             { n: "02", t: "Walk-Forward Validation", m: `${night?.num_folds ?? 9}`, u: "expanding-window folds · 36 days OOS each", d: "No look-ahead. Median OOS Sharpe wins, not mean. Each candidate tested on 9 independent windows." },
             { n: "03", t: "Darwinian Evolution", m: "5×50", u: "generations × population = 250 refined survivors", d: "Top survivors mutate and compete. Fragility is a penalty, not rejection: survivor *= 1/(1+fragility)." },
-            { n: "04", t: "Overfitting Detection", m: "3", u: "independent checks — IS/OOS gap, fold consistency, fragility", d: "Monte Carlo drawdown over 10K paths + Combinatorial Purged CV with PBO. Anything fragile is dropped." },
+            { n: "04", t: "Overfitting Detection", m: "3", u: "independent checks: IS/OOS gap, fold consistency, fragility", d: "Monte Carlo drawdown over 10K paths + Combinatorial Purged CV with PBO. Anything fragile is dropped." },
             { n: "05", t: "Full-Sim Validation", m: "0.1%", u: "fees + 10 bps slippage + 20% position cap + compounding", d: "Top candidates re-run through the production simulator. Fast vs full sim calibrated weekly." },
           ].map((s, i) => (
             <li key={s.n} className="pipe2-step">
@@ -680,7 +680,7 @@ export default function Home() {
             <p className="cta2-lede">
               No RTP token. No custody. No new wallet. The SDK registers a Token-2022 mint with its own
               Treasury PDA in a single call. Trading fees flow in. SOL flows out 70/20/10. The program is
-              the only thing that can sign — by design.
+              the only thing that can sign, by design.
             </p>
             <pre className="cta2-code"><code>{`import { registerWithRTP } from "@resilient-protocol/sdk";
 

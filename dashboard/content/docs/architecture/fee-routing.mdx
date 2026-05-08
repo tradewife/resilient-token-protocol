@@ -73,16 +73,16 @@ Raydium supports `updatePlatformCpCreator` to redirect all creator fees to a PDA
 
 When the vault has sufficient capital:
 
-1. **Commit SOL via CPI** — Treasury PDA commits SOL via invoke_signed → Flash Trade CPI opens position
-2. **Execute strategy** — on-chain Flash Trade perps position opened via CPI (Treasury PDA signs)
-3. **Collect yield** — SOL returned when position closes via Flash Trade CPI
-4. **Return to treasury** — SOL yield deposited back to the treasury PDA (single chain)
+1. **Commit SOL via CPI:** Treasury PDA commits SOL via invoke_signed → Flash Trade CPI opens position
+2. **Execute strategy:** on-chain Flash Trade perps position opened via CPI (Treasury PDA signs)
+3. **Collect yield:** SOL returned when position closes via Flash Trade CPI
+4. **Return to treasury:** SOL yield deposited back to the treasury PDA (single chain)
 
 The entire cycle is visible on-chain: every CPI instruction, every position open/close, every treasury deposit has a transaction signature.
 
 ## Capital Safety
 
-- **SOL throughout** — positions opened with SOL via Flash Trade CPI. No USDC conversion, no cross-chain bridge.
-- **Max 20% position size** — no single trade risks more than 20% of treasury reserves
-- **Fee-only capital** — the swarm only trades with fee revenue, never with user deposits
-- **On-chain execution** — all trading happens on Solana via CPI. Funds never leave the chain.
+- **SOL throughout:** positions opened with SOL via Flash Trade CPI. No USDC conversion, no cross-chain bridge.
+- **Max 20% position size:** no single trade risks more than 20% of treasury reserves
+- **Fee-only capital:** the swarm only trades with fee revenue, never with user deposits
+- **On-chain execution:** all trading happens on Solana via CPI. Funds never leave the chain.

@@ -71,25 +71,25 @@ const DOC_GROUPS: DocGroup[] = [
         title: "What is RTP?",
         content: (
           <>
-            <p>RTP (Resilient Token Protocol) gives every token a program-enforced treasury vault on Solana. Trading fees accumulate in the vault, the Treasury PDA executes yield strategies via Flash Trade CPI on Solana, and yield flows back to holders, developers, and ecosystem — 70/20/10 split, enforced on-chain. Forever.</p>
+            <p>RTP (Resilient Token Protocol) gives every token a program-enforced treasury vault on Solana. Trading fees accumulate in the vault, the Treasury PDA executes yield strategies via Flash Trade CPI on Solana, and yield flows back to holders, developers, and ecosystem (70/20/10 split, enforced on-chain). Forever.</p>
             <p>There is no RTP token. RTP is infrastructure.</p>
 
             <h3>Why This Is Different</h3>
             <ul>
-              <li><strong>Constitutional governance</strong> — soulcontract enforced in Rust AND on-chain (Anchor program). No one — not even the team — can override the rules. This is not a promise — it&apos;s a <code>require!</code> constraint.</li>
-              <li><strong>Per-token isolation</strong> — every token gets its own Treasury PDA and vault. No shared pool means no honeypot. One token&apos;s bad trade cannot affect another&apos;s reserves. The swarm copy-trades the same validated strategy across all tokens with isolated capital.</li>
-              <li><strong>Self-funding economics</strong> — treasury generates its own yield via Flash Trade on-chain perps (Solana CPI), with irreversible phase evolution (Sustenance → Ecosystem → Humanity). No VC dependency.</li>
-              <li><strong>Proven research engine</strong> — 30,000 strategy configs tested per night, 9-fold walk-forward validation, Darwinian evolution. Not a backtest screenshot — out-of-sample results across 9 independent time windows.</li>
-              <li><strong>Real execution</strong> — Treasury PDA signs via invoke_signed, positions open/close on Flash Trade (on-chain Solana perps). Mainnet CPI proofs: Open TX 2bLg1Fu..., Close TX dFqkoP2.... SOL never leaves Solana.</li>
-              <li><strong>325 Rust tests, 0 failures</strong> — 6-wing swarm architecture with Security, Audit, Evolve, Knowledge, and Futureproof wings. Not a wrapper around an API — a real multi-agent system.</li>
+              <li><strong>Constitutional governance:</strong> soulcontract enforced in Rust AND on-chain (Anchor program). No one (not even the team) can override the rules. This is not a promise; it&apos;s a <code>require!</code> constraint.</li>
+              <li><strong>Per-token isolation:</strong> every token gets its own Treasury PDA and vault. No shared pool means no honeypot. One token&apos;s bad trade cannot affect another&apos;s reserves. The swarm copy-trades the same validated strategy across all tokens with isolated capital.</li>
+              <li><strong>Self-funding economics:</strong> treasury generates its own yield via Flash Trade on-chain perps (Solana CPI), with irreversible phase evolution (Sustenance → Ecosystem → Humanity). No VC dependency.</li>
+              <li><strong>Proven research engine:</strong> 30,000 strategy configs tested per night, 9-fold walk-forward validation, Darwinian evolution. Not a backtest screenshot; out-of-sample results across 9 independent time windows.</li>
+              <li><strong>Real execution:</strong> Treasury PDA signs via invoke_signed, positions open/close on Flash Trade (on-chain Solana perps). Mainnet CPI proofs: Open TX 2bLg1Fu..., Close TX dFqkoP2.... SOL never leaves Solana.</li>
+              <li><strong>325 Rust tests, 0 failures:</strong> 6-wing swarm architecture with Security, Audit, Evolve, Knowledge, and Futureproof wings. Not a wrapper around an API; a real multi-agent system.</li>
             </ul>
 
             <h3>How It Works</h3>
             <ol>
-              <li><strong>Fees arrive</strong> — creator fees (SOL) from the token flow to its own per-token treasury PDA — isolated from every other token</li>
-              <li><strong>Swarm trades</strong> — the Treasury PDA executes validated strategies via Flash Trade CPI (on-chain Solana perps, invoke_signed), or the live autonomous trader executes directly via REST API. No cross-chain bridge. Each token&apos;s capital is traded independently.</li>
-              <li><strong>Yield returns</strong> — generated yield flows back to that token&apos;s own treasury PDA</li>
-              <li><strong>Redistribution</strong> — 70% to holders, 20% to project dev, 10% to ecosystem (enforced on-chain)</li>
+              <li><strong>Fees arrive:</strong> creator fees (SOL) from the token flow to its own per-token treasury PDA, isolated from every other token</li>
+              <li><strong>Swarm trades:</strong> the Treasury PDA executes validated strategies via Flash Trade CPI (on-chain Solana perps, invoke_signed), or the live autonomous trader executes directly via REST API. No cross-chain bridge. Each token&apos;s capital is traded independently.</li>
+              <li><strong>Yield returns:</strong> generated yield flows back to that token&apos;s own treasury PDA</li>
+              <li><strong>Redistribution:</strong> 70% to holders, 20% to project dev, 10% to ecosystem (enforced on-chain)</li>
             </ol>
 
             <h3>Architecture</h3>
@@ -112,7 +112,7 @@ const DOC_GROUPS: DocGroup[] = [
 │  Night Shift: 30K configs → WFA → Darwinian           │
 │  Validated: SOL/USDT Calmar 44.89, +554% at 9x, 100% consistency │
 └──────────────────────────────────────────────────────┘
-  Signing: Treasury PDA (invoke_signed — no private key)
+  Signing: Treasury PDA (invoke_signed, no private key)
   Capital: SOL → Treasury PDA → Flash Trade CPI → SOL yield → PDA`}</pre>
             </div>
 
@@ -121,9 +121,9 @@ const DOC_GROUPS: DocGroup[] = [
               headers={["Dimension", "Squads Multisig", "Yield Aggregator", "RTP"]}
               rows={[
                 ["Who controls funds?", "Multi-sig signers (humans)", "Smart contract (immutable)", "PDA + constitutional agent swarm"],
-                ["Can funds be rug-pulled?", "Yes — signers can approve any tx", "No — but no active yield either", "No — PDA has no private key, agents bounded by on-chain constraints"],
+                ["Can funds be rug-pulled?", "Yes: signers can approve any tx", "No: but no active yield either", "No: PDA has no private key, agents bounded by on-chain constraints"],
                 ["Who executes yield?", "Manual / no one", "Preset AMM logic", "Autonomous 6-wing swarm with validated strategies"],
-                ["Exploit blast radius?", "All funds in one wallet", "All funds in one contract", "Per-token isolated PDA — one exploit cannot drain all adopters"],
+                ["Exploit blast radius?", "All funds in one wallet", "All funds in one contract", "Per-token isolated PDA: one exploit cannot drain all adopters"],
                 ["Trust model", "Trust the signers", "Trust the contract", "Trust the program + audit the agent trail"],
                 ["Adaptation", "None", "None", "Nightly research (30K configs), LLM evolution, memory persistence"],
               ]}
@@ -139,8 +139,8 @@ const DOC_GROUPS: DocGroup[] = [
                 ["Live autonomous trader", "✅ Running 24/7", "rtp-trader on Railway, 9x Calmar-optimized strategy, REST API trading, HTTP status server on port 8080"],
                 ["Treasury yield deposit", "✅ On-chain confirmed", "USDC yield → SOL → treasury PDA via CPI transfer"],
                 ["Autonomous daemon", "✅ 7 cycles completed", "6h cron, LLM-driven strategy evolution, auditable trail"],
-                ["SDK", "✅ Shipped", "<code>@resilient-protocol/sdk</code> — one function call to register any token"],
-                ["Dashboard", "✅ Live", "<a href='https://resilientprotocol.xyz' style='color: var(--coral)'>resilientprotocol.xyz</a> — live treasury state, wallet connect"],
+                ["SDK", "✅ Shipped", "<code>@resilient-protocol/sdk</code>: one function call to register any token"],
+                ["Dashboard", "✅ Live", "<a href='https://resilientprotocol.xyz' style='color: var(--coral)'>resilientprotocol.xyz</a>: live treasury state, wallet connect"],
               ]}
             />
 
@@ -160,10 +160,10 @@ const DOC_GROUPS: DocGroup[] = [
             <h3>Path A: Launch From RTP</h3>
             <p>Use the <a href="/launch" style={{ color: "var(--coral)" }}>RTP launch page</a>. Pick your platform, fill in token details, sign with your Solana wallet. The token goes live on-chain and the RTP treasury is initialized automatically.</p>
             <ol>
-              <li><strong>Pick a platform</strong> — Pump.fun, Bags.fm, or Raydium LaunchLab</li>
-              <li><strong>Fill in token details</strong> — name, symbol, image, description</li>
-              <li><strong>Sign with your wallet</strong> — one transaction creates the token on-chain</li>
-              <li><strong>RTP treasury auto-initializes</strong> — treasury PDA and adopter record created</li>
+              <li><strong>Pick a platform:</strong> Pump.fun, Bags.fm, or Raydium LaunchLab</li>
+              <li><strong>Fill in token details:</strong> name, symbol, image, description</li>
+              <li><strong>Sign with your wallet:</strong> one transaction creates the token on-chain</li>
+              <li><strong>RTP treasury auto-initializes:</strong> treasury PDA and adopter record created</li>
             </ol>
 
             <h3>Path B: Register An Existing Token</h3>
@@ -176,15 +176,15 @@ const result = await registerWithRTP(connection, wallet, {
   authority: publicKey,
 });
 
-// result.treasuryPDA — your token's treasury
-// result.adopterPDA — adopter record`}</CodeBlock>
+// result.treasuryPDA: your token's treasury
+// result.adopterPDA: adopter record`}</CodeBlock>
 
             <h3>After Registration: What Happens</h3>
             <ol>
-              <li><strong>Fees accumulate</strong> — trading fees flow into your treasury PDA as native SOL</li>
-              <li><strong>Swarm activates</strong> — Treasury PDA executes validated strategies via Flash Trade CPI (on-chain Solana perps, invoke_signed)</li>
-              <li><strong>Yield returns</strong> — generated yield flows back to the treasury PDA</li>
-              <li><strong>Redistribution</strong> — 70% to holders, 20% to project dev, 10% to ecosystem (enforced on-chain)</li>
+              <li><strong>Fees accumulate:</strong> trading fees flow into your treasury PDA as native SOL</li>
+              <li><strong>Swarm activates:</strong> Treasury PDA executes validated strategies via Flash Trade CPI (on-chain Solana perps, invoke_signed)</li>
+              <li><strong>Yield returns:</strong> generated yield flows back to the treasury PDA</li>
+              <li><strong>Redistribution:</strong> 70% to holders, 20% to project dev, 10% to ecosystem (enforced on-chain)</li>
             </ol>
 
             <h3>Fee Routing Per Platform</h3>
@@ -199,7 +199,7 @@ const result = await registerWithRTP(connection, wallet, {
             />
 
             <Callout type="info" title="Pump.fun One-Time Redirect">
-              <p>Pump.fun allows only <strong>one</strong> post-launch fee redirect per token. If you redirect to the RTP treasury PDA, that&apos;s your one shot — make it count. After redirecting, the RTP keeper handles claiming and forwarding automatically.</p>
+              <p>Pump.fun allows only <strong>one</strong> post-launch fee redirect per token. If you redirect to the RTP treasury PDA, that&apos;s your one shot; make it count. After redirecting, the RTP keeper handles claiming and forwarding automatically.</p>
             </Callout>
 
             <Callout type="tip" title="No RTP Token Required">
@@ -320,7 +320,7 @@ const state = await fetchTreasuryState(connection, rtpResult.authority);
             />
 
             <Callout type="info" title="Limitations">
-              <p>No direct PDA routing — fees go to deployer wallet. RTP keeper handles claiming. Mainnet only. No API key required.</p>
+              <p>No direct PDA routing; fees go to deployer wallet. RTP keeper handles claiming. Mainnet only. No API key required.</p>
             </Callout>
           </>
         ),
@@ -330,7 +330,7 @@ const state = await fetchTreasuryState(connection, rtpResult.authority);
         title: "Bags.fm",
         content: (
           <>
-            <p>Bags.fm runs on Meteora DLMM pools. Its standout feature for RTP is <strong>multi-claimer fee sharing</strong> — up to 100 fee claimers with custom basis point splits. Set the RTP treasury PDA as a fee claimer and fees route there automatically.</p>
+            <p>Bags.fm runs on Meteora DLMM pools. Its standout feature for RTP is <strong>multi-claimer fee sharing:</strong> up to 100 fee claimers with custom basis point splits. Set the RTP treasury PDA as a fee claimer and fees route there automatically.</p>
 
             <h3>How It Works</h3>
             <ol>
@@ -387,15 +387,15 @@ const configRes = await fetch("https://api.bags.fm/v1/config/create-fee-share", 
         title: "Raydium LaunchLab",
         content: (
           <>
-            <p>Raydium is the #1 DEX/AMM on Solana by TVL. LaunchLab supports explicit PDA-based fee collection — the best architectural fit for RTP. Full TypeScript SDK with <code>@raydium-io/raydium-sdk-v2</code>.</p>
+            <p>Raydium is the #1 DEX/AMM on Solana by TVL. LaunchLab supports explicit PDA-based fee collection, the best architectural fit for RTP. Full TypeScript SDK with <code>@raydium-io/raydium-sdk-v2</code>.</p>
 
             <h3>Why Raydium</h3>
             <ul>
-              <li><strong>Explicit PDA fee collection</strong> — documented and recommended by Raydium</li>
+              <li><strong>Explicit PDA fee collection:</strong> documented and recommended by Raydium</li>
               <li><code>updatePlatformCpCreator</code> redirects all creator fees to a PDA</li>
               <li><code>collectMultiCreatorFees</code> for batch collection</li>
               <li><strong>Devnet support</strong> with sUSDC as quote token</li>
-              <li><strong>Largest DEX</strong> — maximum liquidity access</li>
+              <li><strong>Largest DEX:</strong> maximum liquidity access</li>
             </ul>
 
             <h3>Create a LaunchLab Token</h3>
@@ -453,7 +453,7 @@ await raydium.launchpad.updatePlatformCpCreator({
         title: "Enterprise API (Planned)",
         content: (
           <>
-            <Callout type="warning" title="Planned Feature — Not Yet Available">
+            <Callout type="warning" title="Planned Feature: Not Yet Available">
               <p>The Enterprise API is a planned REST API for launchpads that prefer not to run chain operations themselves. It will offer the same functionality as the SDK via simple HTTP calls: <code>POST /v1/adopt</code>, <code>POST /v1/fee-route</code>, <code>GET /v1/treasury/:authority</code>, <code>POST /v1/crank</code>.</p>
               <p style={{ marginTop: 8 }}>Today, use the <a href="#sdk-reference" style={{ color: "var(--coral)" }}>TypeScript SDK</a> for direct integration. Core functions: <code>registerWithRTP</code>, <code>fetchTreasuryState</code>, <code>depositSol</code>, <code>checkRedistribute</code>.</p>
             </Callout>
@@ -485,7 +485,7 @@ await raydium.launchpad.updatePlatformCpCreator({
         title: "SDK Reference (For Platforms)",
         content: (
           <>
-            <p>The <code>@resilient-protocol/sdk</code> TypeScript package is for launchpads and platforms integrating RTP directly. If you&apos;re a token creator, your launchpad handles this — see <a href="#getting-started-creators" style={{ color: "var(--coral)" }}>Getting Started for Token Creators</a>.</p>
+            <p>The <code>@resilient-protocol/sdk</code> TypeScript package is for launchpads and platforms integrating RTP directly. If you&apos;re a token creator, your launchpad handles this. See <a href="#getting-started-creators" style={{ color: "var(--coral)" }}>Getting Started for Token Creators</a>.</p>
 
             <h3>Installation</h3>
             <CodeBlock>{`npm install @resilient-protocol/sdk @solana/web3.js @coral-xyz/anchor`}</CodeBlock>
@@ -627,40 +627,40 @@ PublicKey.findProgramAddressSync(
         title: "Treasury PDA",
         content: (
           <>
-            <p>Every token registered with RTP gets its own treasury — a <strong>program-derived address (PDA)</strong> where SOL fees accumulate. The PDA has no private key; it&apos;s controlled exclusively by the on-chain program.</p>
+            <p>Every token registered with RTP gets its own treasury, a <strong>program-derived address (PDA)</strong> where SOL fees accumulate. The PDA has no private key; it&apos;s controlled exclusively by the on-chain program.</p>
 
             <h3>Key Properties</h3>
             <ul>
-              <li><strong>PDA Ownership</strong> — no private key exists. No one can sign funds away from the treasury.</li>
-              <li><strong>CPI-Only Transfers</strong> — all SOL movements are Cross-Program Invocations, atomic and verifiable.</li>
-              <li><strong>Per-Token Isolation</strong> — each token gets its own Treasury PDA and vault. Seeds: <code>[&quot;treasury&quot;, authority]</code>. One token&apos;s reserves are invisible to every other PDA.</li>
-              <li><strong>Deterministic Derivation</strong> — anyone can derive the PDA from the authority pubkey.</li>
-              <li><strong>No shared pool</strong> — there is no single treasury holding all tokens&apos; fees. Each PDA is its own isolated vault. This eliminates the honeypot risk: exploiting one treasury does not expose any other.</li>
+              <li><strong>PDA Ownership:</strong> no private key exists. No one can sign funds away from the treasury.</li>
+              <li><strong>CPI-Only Transfers:</strong> all SOL movements are Cross-Program Invocations, atomic and verifiable.</li>
+              <li><strong>Per-Token Isolation:</strong> each token gets its own Treasury PDA and vault. Seeds: <code>[&quot;treasury&quot;, authority]</code>. One token&apos;s reserves are invisible to every other PDA.</li>
+              <li><strong>Deterministic Derivation:</strong> anyone can derive the PDA from the authority pubkey.</li>
+              <li><strong>No shared pool:</strong> there is no single treasury holding all tokens&apos; fees. Each PDA is its own isolated vault. This eliminates the honeypot risk: exploiting one treasury does not expose any other.</li>
             </ul>
 
             <Callout type="tip" title="Why Per-Token Isolation Matters">
-              <p>Aggregating many tokens&apos; fees into a shared pool creates a high-value target. Per-token PDAs mean each treasury is independently secured. The swarm copy-trades the same validated strategy across all tokens with isolated capital — same alpha, zero cross-contamination.</p>
+              <p>Aggregating many tokens&apos; fees into a shared pool creates a high-value target. Per-token PDAs mean each treasury is independently secured. The swarm copy-trades the same validated strategy across all tokens with isolated capital, same alpha, zero cross-contamination.</p>
             </Callout>
 
             <h3>Trust Model</h3>
             <h4>Authority-Gated Actions</h4>
             <p>These require the treasury authority&apos;s signature:</p>
             <ul>
-              <li><code>initialize</code> — creates treasury</li>
-              <li><code>evolve_phase</code> — irreversible phase transitions</li>
-              <li><code>register_strategy</code> — promotes strategy to Live</li>
-              <li><code>force_retire_strategy</code> — emergency strategy retirement</li>
-              <li><code>end_beta</code> — ends beta participation</li>
-              <li><code>freeze_treasury</code> — emergency halt (no time lock)</li>
-              <li><code>unfreeze_treasury</code> — resume operations</li>
+              <li><code>initialize</code>: creates treasury</li>
+              <li><code>evolve_phase</code>: irreversible phase transitions</li>
+              <li><code>register_strategy</code>: promotes strategy to Live</li>
+              <li><code>force_retire_strategy</code>: emergency strategy retirement</li>
+              <li><code>end_beta</code>: ends beta participation</li>
+              <li><code>freeze_treasury</code>: emergency halt (no time lock)</li>
+              <li><code>unfreeze_treasury</code>: resume operations</li>
             </ul>
 
             <h4>Permissionless Actions</h4>
-            <p>Anyone can call these — they move funds INTO the PDA (never out) or record state:</p>
+            <p>Anyone can call these. They move funds INTO the PDA (never out) or record state:</p>
             <ul>
-              <li><code>deposit_sol</code> — deposits native SOL into treasury</li>
-              <li><code>check_redistribute</code> — triggers 70/20/10 split (deterministic)</li>
-              <li><code>hydrate_swarm</code> — proposes funding (gated by strategy status)</li>
+              <li><code>deposit_sol</code>: deposits native SOL into treasury</li>
+              <li><code>check_redistribute</code>: triggers 70/20/10 split (deterministic)</li>
+              <li><code>hydrate_swarm</code>: proposes funding (gated by strategy status)</li>
             </ul>
 
             <h3>Program Deployment</h3>
@@ -683,19 +683,19 @@ PublicKey.findProgramAddressSync(
 
             <h3>Yield Generation from Fees</h3>
             <ol>
-              <li><strong>Commit SOL via CPI</strong> — Treasury PDA commits SOL via invoke_signed → Flash Trade CPI opens position</li>
-              <li><strong>Execute strategy</strong> — on-chain Flash Trade perps position opened via CPI (Treasury PDA signs)</li>
-              <li><strong>Collect yield</strong> — SOL returned when position closes via Flash Trade CPI</li>
-              <li><strong>Return to treasury</strong> — SOL yield deposited back to the treasury PDA (single chain)</li>
-              <li><strong>Deposit to treasury</strong> — SOL returned to the treasury PDA</li>
+              <li><strong>Commit SOL via CPI:</strong> Treasury PDA commits SOL via invoke_signed → Flash Trade CPI opens position</li>
+              <li><strong>Execute strategy:</strong> on-chain Flash Trade perps position opened via CPI (Treasury PDA signs)</li>
+              <li><strong>Collect yield:</strong> SOL returned when position closes via Flash Trade CPI</li>
+              <li><strong>Return to treasury:</strong> SOL yield deposited back to the treasury PDA (single chain)</li>
+              <li><strong>Deposit to treasury:</strong> SOL returned to the treasury PDA</li>
             </ol>
 
             <h3>Capital Safety</h3>
             <ul>
-              <li><strong>Per-token isolation</strong> — each token&apos;s fees and yield are in a separate PDA. No cross-contamination between tokens.</li>
-              <li><strong>SOL throughout</strong> — positions opened with SOL via Flash Trade CPI. No USDC conversion, no cross-chain bridge.</li>
-              <li><strong>Max 20% position size</strong> — no single trade risks more than 20% of treasury reserves</li>
-              <li><strong>Fee-only capital</strong> — the swarm only trades with fee revenue, never with user deposits</li>
+              <li><strong>Per-token isolation:</strong> each token&apos;s fees and yield are in a separate PDA. No cross-contamination between tokens.</li>
+              <li><strong>SOL throughout:</strong> positions opened with SOL via Flash Trade CPI. No USDC conversion, no cross-chain bridge.</li>
+              <li><strong>Max 20% position size:</strong> no single trade risks more than 20% of treasury reserves</li>
+              <li><strong>Fee-only capital:</strong> the swarm only trades with fee revenue, never with user deposits</li>
             </ul>
           </>
         ),
@@ -709,11 +709,11 @@ PublicKey.findProgramAddressSync(
 
             <h3>Trading Wing Lifecycle</h3>
             <ol>
-              <li><strong>Receive strategy</strong> — Coordinator delivers validated config from research layer</li>
-              <li><strong>Build instruction</strong> — Constructs Anchor instruction for open_flash_position (Treasury PDA signer)</li>
-              <li><strong>Submit</strong> — invoke_signed via Treasury PDA → Flash Trade CPI (on-chain Solana perps)</li>
-              <li><strong>Track position</strong> — Monitors fills, computes PnL on close</li>
-              <li><strong>Return yield</strong> — close_flash_position returns SOL to treasury PDA (single chain)</li>
+              <li><strong>Receive strategy:</strong> Coordinator delivers validated config from research layer</li>
+              <li><strong>Build instruction:</strong> Constructs Anchor instruction for open_flash_position (Treasury PDA signer)</li>
+              <li><strong>Submit:</strong> invoke_signed via Treasury PDA → Flash Trade CPI (on-chain Solana perps)</li>
+              <li><strong>Track position:</strong> Monitors fills, computes PnL on close</li>
+              <li><strong>Return yield:</strong> close_flash_position returns SOL to treasury PDA (single chain)</li>
             </ol>
 
             <h3>Swarm Wings</h3>
@@ -757,11 +757,11 @@ PublicKey.findProgramAddressSync(
 
             <h3>On-Chain Mechanics</h3>
             <ol>
-              <li><strong>Threshold check</strong> — treasury SOL balance must exceed <code>min_runway_balance</code></li>
-              <li><strong>Calculate splits</strong> — 70%, 20%, 10% of the surplus</li>
-              <li><strong>Native SOL transfers</strong> — atomic lamport debit from treasury, credit to each recipient wallet</li>
-              <li><strong>Emit event</strong> — <code>Redistribution</code> event logged for auditability</li>
-              <li><strong>Update counters</strong> — cumulative totals updated with <code>saturating_add</code></li>
+              <li><strong>Threshold check:</strong> treasury SOL balance must exceed <code>min_runway_balance</code></li>
+              <li><strong>Calculate splits:</strong> 70%, 20%, 10% of the surplus</li>
+              <li><strong>Native SOL transfers:</strong> atomic lamport debit from treasury, credit to each recipient wallet</li>
+              <li><strong>Emit event:</strong> <code>Redistribution</code> event logged for auditability</li>
+              <li><strong>Update counters:</strong> cumulative totals updated with <code>saturating_add</code></li>
             </ol>
 
             <h3>Phase Evolution</h3>
@@ -773,7 +773,7 @@ PublicKey.findProgramAddressSync(
                 ["Humanity", "Treasury > large threshold", "Fund public goods"],
               ]}
             />
-            <p>Phase transitions are <strong>irreversible</strong> — enforced on-chain by the Anchor program.</p>
+            <p>Phase transitions are <strong>irreversible</strong>, enforced on-chain by the Anchor program.</p>
 
             <p><a href="https://explorer.solana.com/tx/4RVehmPVpnFYHrsF6N64RjVh7mszRzKF9DQVHd8TUqBHwrnyDYavf3TnDYJC4b5PrJWVSubZkNuyVkF1oJzk71RT?cluster=devnet" target="_blank" rel="noopener noreferrer" style={{ color: "var(--coral)" }}>View demo redistribution tx on Solana Explorer</a></p>
           </>
@@ -794,29 +794,29 @@ PublicKey.findProgramAddressSync(
               headers={["Layer", "Mechanism", "Scope"]}
               rows={[
                 ["On-chain", "Anchor constraints, PDA authority checks", "All fund movements"],
-                ["Isolation", "Per-token Treasury PDA + vault — no shared pool", "Exploit containment"],
+                ["Isolation", "Per-token Treasury PDA + vault: no shared pool", "Exploit containment"],
                 ["Runtime", "soulguard.rs validates against invariants", "All swarm operations"],
                 ["Execution", "Trading Wing position limits", "Capital deployment"],
-                ["Governance", "soulcontract.md — constitutional invariants", "All protocol changes"],
+                ["Governance", "soulcontract.md: constitutional invariants", "All protocol changes"],
               ]}
             />
 
             <h3>On-Chain Invariants</h3>
             <ol>
-              <li><strong>PDA owns treasury</strong> — no private key can sign funds away</li>
-              <li><strong>Per-token isolation</strong> — each mint has its own PDA + vault. No shared pool.</li>
-              <li><strong>CPI-only transfers</strong> — all movements are atomic, program-controlled</li>
-              <li><strong>Phase transitions irreversible</strong> — Sustenance → Ecosystem → Humanity</li>
-              <li><strong>Self-hydration gated</strong> — ops funding only if sustenance &gt; 90-day runway</li>
-              <li><strong>Counters saturate</strong> — <code>saturating_add</code> prevents overflow</li>
+              <li><strong>PDA owns treasury:</strong> no private key can sign funds away</li>
+              <li><strong>Per-token isolation:</strong> each mint has its own PDA + vault. No shared pool.</li>
+              <li><strong>CPI-only transfers:</strong> all movements are atomic, program-controlled</li>
+              <li><strong>Phase transitions irreversible:</strong> Sustenance → Ecosystem → Humanity</li>
+              <li><strong>Self-hydration gated:</strong> ops funding only if sustenance &gt; 90-day runway</li>
+              <li><strong>Counters saturate:</strong> <code>saturating_add</code> prevents overflow</li>
             </ol>
 
             <h3>Soulcontract Governance</h3>
             <ul>
-              <li><strong>No SOL liquidation</strong> — SOL reserves are never sold</li>
-              <li><strong>Max 20% position size</strong> — per-trade risk limit</li>
-              <li><strong>Auto-rollback</strong> — if performance drops &gt; 5% post-amendment</li>
-              <li><strong>24h monitoring</strong> — no instant self-modification of governance</li>
+              <li><strong>No SOL liquidation:</strong> SOL reserves are never sold</li>
+              <li><strong>Max 20% position size:</strong> per-trade risk limit</li>
+              <li><strong>Auto-rollback:</strong> if performance drops &gt; 5% post-amendment</li>
+              <li><strong>24h monitoring:</strong> no instant self-modification of governance</li>
             </ul>
 
             <Callout type="info" title="Full Audit">

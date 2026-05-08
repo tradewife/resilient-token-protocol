@@ -56,9 +56,9 @@ function LaunchButton({ mintAddress }) {
 ```
 
 This creates:
-- **Treasury PDA** — the on-chain treasury state account for this mint
-- **Vault PDA** — the token account that receives trading fees
-- **Adopter Record** — registration of the token as an RTP adopter
+- **Treasury PDA:** the on-chain treasury state account for this mint
+- **Vault PDA:** the token account that receives trading fees
+- **Adopter Record:** registration of the token as an RTP adopter
 
 ### Step 2: Configure fee routing
 
@@ -87,11 +87,11 @@ const state = await fetchTreasuryState(connection, mintAddress);
 
 Once a token is registered with RTP:
 
-1. **Fees accumulate** — trading fees build up in the treasury vault
-2. **Swarm activates** — the autonomous agent swarm monitors the treasury and executes strategies when capital is sufficient
-3. **Yield generates** — strategies execute via Flash Trade CPI (on-chain Solana perps), generating yield
-4. **Redistribution triggers** — when yield exceeds the runway threshold, 70/20/10 split happens automatically on-chain
-5. **Phase evolves** — as the treasury grows, it evolves through Sustenance → Ecosystem → Humanity phases
+1. **Fees accumulate:** trading fees build up in the treasury vault
+2. **Swarm activates:** the autonomous agent swarm monitors the treasury and executes strategies when capital is sufficient
+3. **Yield generates:** strategies execute via Flash Trade CPI (on-chain Solana perps), generating yield
+4. **Redistribution triggers:** when yield exceeds the runway threshold, 70/20/10 split happens automatically on-chain
+5. **Phase evolves:** as the treasury grows, it evolves through Sustenance → Ecosystem → Humanity phases
 
 ## Architecture Overview
 

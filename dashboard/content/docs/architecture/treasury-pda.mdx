@@ -5,7 +5,7 @@ description: How RTP's per-mint treasury vault PDA works on Solana.
 
 ## Per-Mint Treasury Architecture
 
-Every token registered with RTP gets its own treasury — a **program-derived address (PDA)** that owns the vault where fees accumulate. The PDA has no private key; it's controlled exclusively by the on-chain program.
+Every token registered with RTP gets its own treasury: a **program-derived address (PDA)** that owns the vault where fees accumulate. The PDA has no private key; it's controlled exclusively by the on-chain program.
 
 ```mermaid
 flowchart TB
@@ -31,15 +31,15 @@ flowchart TB
 
 ### PDA Ownership
 
-The treasury is a PDA — it has no associated private key. No one, not even the protocol creators, can sign a transaction "from" the treasury. All fund movements happen through program instructions with hard constraints.
+The treasury is a PDA: it has no associated private key. No one, not even the protocol creators, can sign a transaction "from" the treasury. All fund movements happen through program instructions with hard constraints.
 
 ### CPI-Only Transfers
 
-All token movements are Cross-Program Invocation (CPI) calls. The program decides when and how funds move — no external signer can bypass the constraints.
+All token movements are Cross-Program Invocation (CPI) calls. The program decides when and how funds move; no external signer can bypass the constraints.
 
 ### Per-Mint Isolation
 
-Each token gets its own treasury PDA, vault, and adopter record. Tokens are completely isolated — one token's treasury cannot be affected by another token's activity.
+Each token gets its own treasury PDA, vault, and adopter record. Tokens are completely isolated: one token's treasury cannot be affected by another token's activity.
 
 ### Deterministic Derivation
 
@@ -76,26 +76,26 @@ The treasury account stores:
 | `total_distributed_ecosystem` | u64 | Cumulative ecosystem payouts |
 | `total_hydration` | u64 | Cumulative swarm funding |
 
-All cumulative counters use `saturating_add` — they never overflow.
+All cumulative counters use `saturating_add`: they never overflow.
 
 ## Trust Model
 
 ### Authority-Gated Actions
 
 These require the treasury authority's signature:
-- `initialize` — creates treasury
-- `evolve_phase` — irreversible phase transitions
-- `register_strategy` — promotes strategy to Live
-- `force_retire_strategy` — emergency retirement
-- `end_beta` — ends beta participation
+- `initialize`: creates treasury
+- `evolve_phase`: irreversible phase transitions
+- `register_strategy`: promotes strategy to Live
+- `force_retire_strategy`: emergency retirement
+- `end_beta`: ends beta participation
 
 ### Permissionless Actions
 
-Anyone can call these — they either move funds INTO the PDA (never out) or record state:
-- `withdraw_fees` — pulls fees into vault (not out)
-- `check_redistribute` — triggers 70/20/10 split (deterministic)
-- `hydrate_swarm` — proposes funding (gated by strategy status)
-- `record_fee_deposit` — accounting only
+Anyone can call these: they either move funds INTO the PDA (never out) or record state:
+- `withdraw_fees`: pulls fees into vault (not out)
+- `check_redistribute`: triggers 70/20/10 split (deterministic)
+- `hydrate_swarm`: proposes funding (gated by strategy status)
+- `record_fee_deposit`: accounting only
 
 ## Program Deployment
 

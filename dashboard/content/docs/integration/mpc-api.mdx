@@ -3,20 +3,20 @@ title: Enterprise API (Planned)
 description: The RTP Enterprise API lets launchpads offer RTP treasury infrastructure to their token creators via a simple REST API.
 ---
 
-> **Planned Feature** — The Enterprise API is in development. This section documents the planned API surface for platform integrators. Endpoints and schemas may change before launch.
+> **Planned Feature:** The Enterprise API is in development. This section documents the planned API surface for platform integrators. Endpoints and schemas may change before launch.
 
 ## Overview
 
-The RTP Enterprise API lets launchpads offer RTP treasury infrastructure to their token creators via a simple REST API. Your platform adds an "Enable RTP Treasury" button, and the Enterprise API handles PDA creation, fee routing configuration, and treasury state queries — no SDK installation or Solana wallet management required on your end.
+The RTP Enterprise API lets launchpads offer RTP treasury infrastructure to their token creators via a simple REST API. Your platform adds an "Enable RTP Treasury" button, and the Enterprise API handles PDA creation, fee routing configuration, and treasury state queries: no SDK installation or Solana wallet management required on your end.
 
 ### How It Works
 
 1. **Your platform** adds an "Enable RTP Treasury" option for token creators
-2. **Token creator clicks enable** — your frontend calls the Enterprise API
+2. **Token creator clicks enable:** your frontend calls the Enterprise API
 3. **Enterprise API** creates the treasury PDA, vault PDA, and adopter record on-chain
 4. **Enterprise API** configures fee routing to the treasury PDA
 5. **RTP swarm** begins monitoring the treasury and executing yield strategies
-6. **Yield flows back** — 70% to holders, 20% to project dev, 10% to ecosystem
+6. **Yield flows back:** 70% to holders, 20% to project dev, 10% to ecosystem
 
 **Base URL:** `https://api.resilientprotocol.com` (planned)
 

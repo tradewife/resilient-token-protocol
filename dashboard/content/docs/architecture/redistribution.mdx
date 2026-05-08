@@ -15,7 +15,7 @@ When the treasury vault accumulates enough yield, the on-chain program automatic
 
 ## How It Works
 
-The redistribution is triggered by the `check_redistribute` instruction — a **permissionless crank** that anyone can call.
+The redistribution is triggered by the `check_redistribute` instruction: a **permissionless crank** that anyone can call.
 
 ```mermaid
 flowchart TB
@@ -34,19 +34,19 @@ flowchart TB
 
 ### On-Chain Mechanics
 
-1. **Threshold check** — vault balance must exceed `min_runway_balance`
-2. **Calculate splits** — 70%, 20%, 10% of the surplus
-3. **SPL transfers** — atomic CPI transfers to each recipient's Associated Token Account
-4. **Emit event** — `Redistribution` event logged for auditability
-5. **Update counters** — cumulative totals updated with `saturating_add`
+1. **Threshold check:** vault balance must exceed `min_runway_balance`
+2. **Calculate splits:** 70%, 20%, 10% of the surplus
+3. **SPL transfers:** atomic CPI transfers to each recipient's Associated Token Account
+4. **Emit event:** `Redistribution` event logged for auditability
+5. **Update counters:** cumulative totals updated with `saturating_add`
 
 ### The Crank Pattern
 
 Redistribution uses the **crank pattern** common in Solana programs:
 
-- Anyone can call `check_redistribute` — it's permissionless
+- Anyone can call `check_redistribute`: it's permissionless
 - The program enforces all constraints (thresholds, correct splits)
-- No authority signature needed — the program is the authority
+- No authority signature needed: the program is the authority
 - Multiple crank calls are idempotent (won't double-distribute)
 
 ## Self-Hydration
@@ -73,7 +73,7 @@ As the treasury grows, it evolves through irreversible phases:
 | **Ecosystem** | Vault > threshold | Auto-invest in top RTP token LPs |
 | **Humanity** | Treasury > large threshold | Fund public goods and humanity projects |
 
-Phase transitions are **irreversible** — once the treasury enters Ecosystem, it cannot go back to Sustenance. This is enforced on-chain by the Anchor program.
+Phase transitions are **irreversible**: once the treasury enters Ecosystem, it cannot go back to Sustenance. This is enforced on-chain by the Anchor program.
 
 ## Viewing Redistribution Events
 

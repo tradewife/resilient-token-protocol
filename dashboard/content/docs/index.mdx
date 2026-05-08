@@ -5,17 +5,17 @@ description: Autonomous treasury infrastructure for Solana token launches. One i
 
 ## What is RTP?
 
-RTP (Resilient Token Protocol) gives every token a program-enforced treasury vault on Solana. Trading fees accumulate in the vault, the Treasury PDA executes yield strategies via Flash Trade CPI on Solana, and yield flows back to holders, developers, and ecosystem — 70/20/10 split, enforced on-chain. Forever.
+RTP (Resilient Token Protocol) gives every token a program-enforced treasury vault on Solana. Trading fees accumulate in the vault, the Treasury PDA executes yield strategies via Flash Trade CPI on Solana, and yield flows back to holders, developers, and ecosystem: 70/20/10 split, enforced on-chain. Forever.
 
 There is no RTP token. RTP is infrastructure.
 
 ### Why This Is Different
 
-- **Constitutional governance** — soulcontract enforced in Rust AND on-chain (Anchor program). No one — not even the team — can override the rules.
-- **Self-funding economics** — treasury generates its own yield via Flash Trade on-chain perps (Solana CPI), with irreversible phase evolution (Sustenance → Ecosystem → Humanity).
-- **Proven research engine** — 30,000 configs tested per night, 9-fold walk-forward validation, fee-aware simulation.
-- **On-chain constraint proof** — the Anchor program deliberately rejects invalid transactions. Constraint rejection IS the demo.
-- **Flash Trade CPI execution** — Treasury PDA signs via invoke_signed, positions open/close on Flash Trade (on-chain Solana perps). Mainnet CPI proofs: Open TX `2bLg1Fu...`, Close TX `dFqkoP2...`. SOL never leaves Solana.
+- **Constitutional governance:** soulcontract enforced in Rust AND on-chain (Anchor program). No one, not even the team, can override the rules.
+- **Self-funding economics:** treasury generates its own yield via Flash Trade on-chain perps (Solana CPI), with irreversible phase evolution (Sustenance → Ecosystem → Humanity).
+- **Proven research engine:** 30,000 configs tested per night, 9-fold walk-forward validation, fee-aware simulation.
+- **On-chain constraint proof:** the Anchor program deliberately rejects invalid transactions. Constraint rejection IS the demo.
+- **Flash Trade CPI execution:** Treasury PDA signs via invoke_signed, positions open/close on Flash Trade (on-chain Solana perps). Mainnet CPI proofs: Open TX `2bLg1Fu...`, Close TX `dFqkoP2...`. SOL never leaves Solana.
 
 ### How It Works
 
@@ -36,10 +36,10 @@ sequenceDiagram
     RTP->>User: 70% holders / 20% dev / 10% ecosystem
 ```
 
-1. **Fees arrive** — trading fees from the token flow to the per-mint treasury vault PDA
-2. **Swarm trades** — the Treasury PDA executes validated strategies via Flash Trade CPI (on-chain Solana perps, invoke_signed). No cross-chain bridge.
-3. **Yield returns** — generated yield flows back to the treasury PDA
-4. **Redistribution** — 70% to holders, 20% to project dev, 10% to ecosystem (enforced on-chain)
+1. **Fees arrive:** trading fees from the token flow to the per-mint treasury vault PDA
+2. **Swarm trades:** the Treasury PDA executes validated strategies via Flash Trade CPI (on-chain Solana perps, invoke_signed). No cross-chain bridge.
+3. **Yield returns:** generated yield flows back to the treasury PDA
+4. **Redistribution:** 70% to holders, 20% to project dev, 10% to ecosystem (enforced on-chain)
 
 ### Token Creator or Platform?
 
