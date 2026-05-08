@@ -490,7 +490,7 @@ export default function Home() {
           <div className="sys2-vital">
             <div className="sys2-vital-label">Calmar (validated)</div>
             <div className="sys2-vital-value">44.89</div>
-            <div className="sys2-vital-sub">SOL Survivor 2.69 · 9× lev</div>
+            <div className="sys2-vital-sub"><a href="#pipeline" title="View research pedigree ↓" style={{ color: "inherit", borderBottom: "1px dotted var(--border)", textDecoration: "none" }}>SOL Survivor 2.69</a> · 9× lev</div>
           </div>
         </div>
       </section>
@@ -516,7 +516,10 @@ export default function Home() {
             <div className="console-card-eyebrow">CURRENT POSITION</div>
             {trader?.open_position ? (
               <>
-                <div className="console-big">SOL/USDT · LONG · 9×</div>
+                <div className="console-big">
+                  SOL/USDT · LONG · 9×
+                  <a href="#pipeline" style={{ display: "inline-block", fontSize: "0.625rem", marginLeft: "16px", color: "var(--text-tertiary)", borderBottom: "1px dotted var(--border)", textDecoration: "none", verticalAlign: "middle", transform: "translateY(-4px)" }} title="View research pedigree ↓">Survivor 2.69 ↓</a>
+                </div>
                 <div className="console-row">
                   <span>Entry</span><span className="mono">${trader.open_position.entry_price.toFixed(4)}</span>
                 </div>
