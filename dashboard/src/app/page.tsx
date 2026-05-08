@@ -417,14 +417,14 @@ export default function Home() {
 
         <div className="hero-content">
           <div className="hero-copy">
-            <span className="hero-label">SOLANA-NATIVE · AUTONOMOUS YIELD · SELF-FUNDING</span>
+            <span className="hero-label">SOLANA-NATIVE · AUTONOMOUS TREASURY · SELF-FUNDING</span>
             <h1 className="hero-title">
               Every token gets a
               <br />
               program-enforced treasury
             </h1>
             <p className="hero-subtitle">
-              Token projects route trading fees to RTP → the swarm generates yield via on-chain perps → yield flows back to holders. 70/20/10 split, enforced on-chain. No RTP token. Pure infrastructure.
+              Token projects route trading fees to RTP → the swarm generates returns via on-chain perps → SOL flows back to holders. 70/20/10 split, enforced on-chain. No RTP token. Pure infrastructure.
             </p>
           </div>
 
@@ -489,11 +489,11 @@ export default function Home() {
             <div className="sys2-sect-eyebrow">§1 · live console</div>
             <h2 className="sys2-sect-title">No human in the loop</h2>
             <p className="sys2-sect-lede">
-              A Rust agent swarm executes validated yield strategies on-chain via Flash Trade CPI, signed by
+              A Rust agent swarm executes validated strategies on-chain via Flash Trade CPI, signed by
               the Treasury PDA — no private key exists. Every action is bounded by a constitutional
               document, <code className="inline-code">SOULCONTRACT.md</code>, enforced in both the Rust
               runtime and the Anchor program. This is agentic tokenomics: creator fees become a perpetual
-              trading treasury that grows reserves and returns yield to holders — sustenance for the trenches, not another extraction layer.
+              trading treasury that grows reserves and returns SOL to holders — sustenance for the trenches, not another extraction layer.
             </p>
           </div>
           <div className="sys2-sect-side">
@@ -598,7 +598,7 @@ export default function Home() {
         <header className="sys2-sect-head">
           <div>
             <div className="sys2-sect-eyebrow">§2 · the closed loop</div>
-            <h2 className="sys2-sect-title">Self-correcting in six steps</h2>
+            <h2 className="sys2-sect-title">Self-improving in six steps</h2>
             <p className="sys2-sect-lede">
               Research validates. The bridge marshals. The LLM proposes mutations. The gates reject anything
               outside the soulcontract bounds. The Treasury PDA executes on Solana. PnL feeds back into the
@@ -913,7 +913,7 @@ export default function Home() {
             <h2 className="cta2-title">One function call. A program-enforced treasury for any token.</h2>
             <p className="cta2-lede">
               No RTP token. No custody. No new wallet. The SDK registers a Token-2022 mint with its own
-              Treasury PDA in a single call. Trading fees flow in. Yield flows out 70/20/10. The program is
+              Treasury PDA in a single call. Trading fees flow in. SOL flows out 70/20/10. The program is
               the only thing that can sign — by design.
             </p>
             <pre className="cta2-code"><code>{`import { registerWithRTP } from "@resilient-protocol/sdk";
