@@ -73,8 +73,10 @@ configs/.env*
 # --- Log files ---
 *.log
 
-# --- Video ---
-video/
+# --- Video / Media ---
+media/*
+!media/specs/
+!media/specs/**
 
 # --- Skills lock ---
 skills-lock.json

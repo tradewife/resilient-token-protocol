@@ -150,19 +150,27 @@ export default function Home() {
   const [isFrozen, setIsFrozen] = useState(false);
   const [night, setNight] = useState<NightData | null>(null);
 
-  // ── Treasury PDA balance (devnet) ──
+  // ── Trader wallet balance (mainnet) ──
+  // The yield engine runs on mainnet. The devnet demo PDA only holds rent-exempt minimum.
+  // Show the mainnet trader wallet balance as the real "Treasury SOL" figure.
+  const TRADER_WALLET = "Driyi8Sw2622yCefU34zrjBsQynrDoGD31tBecXrEF6R";
   useEffect(() => {
     let alive = true;
     const poll = async () => {
       try {
-        const lamports = await connection.getBalance(new PublicKey(TREASURY_PDA));
+        const res = await fetch(MAINNET_RPC, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "getBalance", params: [TRADER_WALLET] }),
+        });
+        const json = await res.json();
+        const lamports: number = json?.result?.value ?? 0;
         if (alive) setTreasurySol(lamports / LAMPORTS_PER_SOL);
       } catch { /* retry on next poll */ }
     };
     poll();
-    const id = setInterval(poll, 10_000);
+    const id = setInterval(poll, 15_000);
     return () => { alive = false; clearInterval(id); };
-  }, [connection]);
+  }, []);
 
   // ── Connected wallet balance (mainnet) ──
   useEffect(() => {
@@ -375,7 +383,7 @@ export default function Home() {
             <div className="sys2-vital-value">
               {treasurySol !== null && treasurySol > 0 ? treasurySol.toFixed(4) : "—"}
             </div>
-            <div className="sys2-vital-sub">{treasurySol !== null && treasurySol > 0 ? "6PYPAn...Q4Z" : "Devnet"}</div>
+            <div className="sys2-vital-sub">{treasurySol !== null && treasurySol > 0 ? "Mainnet · Driyi8...EF6R" : "Mainnet"}</div>
           </div>
           <div className="sys2-vital">
             <div className="sys2-vital-label">Mainnet TXs</div>
@@ -400,7 +408,7 @@ export default function Home() {
         <header className="sys2-sect-head">
           <div>
             <div className="sys2-sect-eyebrow">§1 · proven on mainnet</div>
-            <h2 className="sys2-sect-title">The yield engine is running. Right now.</h2>
+            <h2 className="sys2-sect-title">The yield engine is running. With real capital.</h2>
             <p className="sys2-sect-lede">
               Rather than an underfunded mainnet deploy, the most critical component (the yield
               engine) is live with real capital. A Rust agent executes validated strategies on-chain
@@ -713,8 +721,8 @@ const result = await registerWithRTP(connection, payer, {
           <span className="vital-label">Program ID (Devnet)</span>
         </div>
         <div className="vital">
-          <span className="vital-value">6PYPAn...Q4Z</span>
-          <span className="vital-label">Treasury PDA</span>
+          <span className="vital-value">Driyi8...EF6R</span>
+          <span className="vital-label">Trader Wallet (Mainnet)</span>
         </div>
         <div className="vital">
           <span className="vital-value">70 / 20 / 10</span>
@@ -735,9 +743,9 @@ const result = await registerWithRTP(connection, payer, {
           <span className="vital-label">Repository</span>
         </div>
         <div className="vital">
-          <a className="vital-link" href={`https://explorer.solana.com/address/${TREASURY_PDA}?cluster=devnet`}
+          <a className="vital-link" href={`https://explorer.solana.com/address/${TRADER_WALLET}`}
             target="_blank" rel="noopener noreferrer">Solana Explorer ↗</a>
-          <span className="vital-label">Treasury</span>
+          <span className="vital-label">Trader Wallet (Mainnet)</span>
         </div>
       </footer>
     </div>
