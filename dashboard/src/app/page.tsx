@@ -12,7 +12,6 @@ import { fetchTreasuryState } from "../lib/sdk";
 const TREASURY_AUTHORITY = "********************************************";
 const TREASURY_PDA = "6PYPAnwiMoZvzphAWEu3EsNz3PpwjJ6YcZabj34qVQ4Z";
 const DEVNET_RPC = "https://api.devnet.solana.com";
-const MAINNET_RPC = "https://rpc.ankr.com/solana";
 
 const MAINNET_TXS = [
   { label: "Open · CPI invoke_signed", tx: "2bLg1FuJ6iqwYq6SKi5EcZQWszarDZhS68bCbGTRLKMwhYqsU7G57fTtG4G6GFx3ZKN15qhb85zy28pGJvSdrnG3", note: "99,214 CU", kind: "open" },
@@ -153,18 +152,15 @@ export default function Home() {
   // ── Trader wallet balance (mainnet) ──
   // The yield engine runs on mainnet. The devnet demo PDA only holds rent-exempt minimum.
   // Show the mainnet trader wallet balance as the real "Treasury SOL" figure.
+  // Uses server-side API route to avoid CORS issues with public Solana RPC.
   const TRADER_WALLET = "Driyi8Sw2622yCefU34zrjBsQynrDoGD31tBecXrEF6R";
   useEffect(() => {
     let alive = true;
     const poll = async () => {
       try {
-        const res = await fetch(MAINNET_RPC, {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "getBalance", params: [TRADER_WALLET] }),
-        });
+        const res = await fetch("/api/mainnet-balance");
         const json = await res.json();
-        const lamports: number = json?.result?.value ?? 0;
-        if (alive) setTreasurySol(lamports / LAMPORTS_PER_SOL);
+        if (alive) setTreasurySol(json.sol ?? 0);
       } catch { /* retry on next poll */ }
     };
     poll();
@@ -172,19 +168,15 @@ export default function Home() {
     return () => { alive = false; clearInterval(id); };
   }, []);
 
-  // ── Connected wallet balance (mainnet) ──
+  // ── Connected wallet balance (mainnet, via API route) ──
   useEffect(() => {
     if (!publicKey) return;
     let alive = true;
     const poll = async () => {
       try {
-        const res = await fetch(MAINNET_RPC, {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "getBalance", params: [publicKey.toBase58()] }),
-        });
+        const res = await fetch(`/api/mainnet-balance?wallet=${publicKey.toBase58()}`);
         const json = await res.json();
-        const lamports: number = json?.result?.value ?? 0;
-        if (alive) setWalletSol(lamports / LAMPORTS_PER_SOL);
+        if (alive) setWalletSol(json.sol ?? 0);
       } catch { /* retry */ }
     };
     poll();
