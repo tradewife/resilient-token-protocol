@@ -12,7 +12,7 @@ import { fetchTreasuryState } from "../lib/sdk";
 const TREASURY_AUTHORITY = "********************************************";
 const TREASURY_PDA = "6PYPAnwiMoZvzphAWEu3EsNz3PpwjJ6YcZabj34qVQ4Z";
 const DEVNET_RPC = "https://api.devnet.solana.com";
-const MAINNET_RPC = "https://api.mainnet-beta.solana.com";
+const MAINNET_RPC = "https://rpc.ankr.com/solana";
 
 const MAINNET_TXS = [
   { label: "Open · CPI invoke_signed", tx: "2bLg1FuJ6iqwYq6SKi5EcZQWszarDZhS68bCbGTRLKMwhYqsU7G57fTtG4G6GFx3ZKN15qhb85zy28pGJvSdrnG3", note: "99,214 CU", kind: "open" },
