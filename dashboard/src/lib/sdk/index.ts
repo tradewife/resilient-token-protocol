@@ -37,14 +37,14 @@ export const RTP_MAINNET_RPC = "https://api.mainnet-beta.solana.com";
 const SEED_TREASURY = Buffer.from("treasury");
 const SEED_ADOPTER = Buffer.from("adopter");
 
-function deriveTreasuryPDA(authority: PublicKey): [PublicKey, number] {
+export function deriveTreasuryPDA(authority: PublicKey): [PublicKey, number] {
   return PublicKey.findProgramAddressSync(
     [SEED_TREASURY, authority.toBuffer()],
     RTP_PROGRAM_ID,
   );
 }
 
-function deriveAdopterPDA(treasury: PublicKey, adopterId: string): [PublicKey, number] {
+export function deriveAdopterPDA(treasury: PublicKey, adopterId: string): [PublicKey, number] {
   return PublicKey.findProgramAddressSync(
     [SEED_ADOPTER, treasury.toBuffer(), Buffer.from(adopterId)],
     RTP_PROGRAM_ID,
@@ -245,8 +245,9 @@ export async function registerWithRTP(
   const ecosystemWallet = config.ecosystemWallet ?? payerPubkey;
   const minRunwayBalance = config.minRunwayBalance ?? 10_000_000;
 
-  // Default adopter_id = authority.toBase58() (any string works, this is backwards-compatible)
-  const adopterId = authority.toBase58();
+  // PDA seeds max 32 bytes — base58 pubkey is 44 chars, too long.
+  // Use first 8 chars of the authority as adopter_id.
+  const adopterId = authority.toBase58().slice(0, 8);
   const [adopterPDA] = deriveAdopterPDA(treasuryPDA, adopterId);
 
   const idl = loadPatchedIdl();

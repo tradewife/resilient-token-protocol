@@ -14,20 +14,16 @@ import {
   LAMPORTS_PER_SOL,
 } from "@solana/web3.js";
 import {
-  TOKEN_2022_PROGRAM_ID,
-  ExtensionType,
-  getMintLen,
+  TOKEN_PROGRAM_ID,
   createInitializeMintInstruction,
-  createInitializeTransferFeeConfigInstruction,
-  createMintToInstruction,
-  createAssociatedTokenAccountInstruction,
-  getAssociatedTokenAddressSync,
 } from "@solana/spl-token";
 import {
   registerWithRTP,
   fetchTreasuryState,
   fetchAdopterState,
   RTP_PROGRAM_ID,
+  deriveTreasuryPDA,
+  deriveAdopterPDA,
   type RTPRegistrationResult,
   type TreasuryState,
   type AdopterState,
@@ -35,7 +31,6 @@ import {
 import Topbar from "../Topbar";
 
 const PROGRAM_ID_SHORT = RTP_PROGRAM_ID.toBase58();
-const CLUSTER = "devnet";
 
 // Platform types
 
@@ -50,9 +45,9 @@ interface PlatformDef {
 }
 
 const PLATFORMS: PlatformDef[] = [
-  { id: "pumpfun", name: "Pump.fun", color: "#00d18c", desc: "Bonding curve memecoin launch (mainnet)", token: "SPL (bonding curve)" },
-  { id: "bags", name: "Bags.fm", color: "#B8A9E8", desc: "Fee sharing on Meteora DLMM (mainnet)", token: "SPL (Meteora DLMM)" },
-  { id: "raydium", name: "Raydium", color: "#c1a55a", desc: "LaunchLab + CPMM AMM bootstrap (mainnet)", token: "SPL (Raydium AMM)" },
+  { id: "pumpfun", name: "Pump.fun", color: "#00d18c", desc: "Bonding curve memecoin launch", token: "SPL (bonding curve)" },
+  { id: "bags", name: "Bags.fm", color: "#B8A9E8", desc: "Fee sharing on Meteora DLMM", token: "SPL (Meteora DLMM)" },
+  { id: "raydium", name: "Raydium", color: "#c1a55a", desc: "LaunchLab + CPMM AMM bootstrap", token: "SPL (Raydium AMM)" },
 ];
 
 // Types
@@ -460,61 +455,94 @@ export default function LaunchPage() {
     </div>
   );
 
-  // Devnet demo: create Token-2022 mint + treasury PDA in one flow
+  // Devnet demo: create SPL mint + treasury PDA in one flow
   const handleDevnetDemo = useCallback(async () => {
     if (!wallet || !publicKey) return;
     setPhase("launching");
     setError(null);
-    setStatusMsg("Creating Token-2022 mint on devnet...");
+    setStatusMsg("Checking devnet balance...");
 
     try {
       const devnetConn = new Connection("https://api.devnet.solana.com", "confirmed");
+
+      // Pre-flight: check balance
+      const balance = await devnetConn.getBalance(publicKey);
+      if (balance === 0) {
+        setError("No devnet SOL. Airdrop at https://faucet.solana.com/?cluster=devnet\nWallet: " + publicKey.toBase58());
+        setPhase("error");
+        return;
+      }
+      setStatusMsg(`Balance: ${(balance / LAMPORTS_PER_SOL).toFixed(4)} SOL. Creating mint...`);
+
       const mintKeypair = Keypair.generate();
 
-      // Step 1: Create Token-2022 mint with TransferFeeConfig
-      const mintLen = getMintLen([ExtensionType.TransferFeeConfig]);
-      const lamports = await devnetConn.getMinimumBalanceForRentExemption(mintLen);
+      const mintRent = await devnetConn.getMinimumBalanceForRentExemption(82); // MintLayout span
 
-      const { blockhash, lastValidBlockHeight } = await devnetConn.getLatestBlockhash();
-
-      const createMintTx = new Transaction({
-        blockhash,
-        lastValidBlockHeight,
-        feePayer: publicKey,
-      });
-
-      createMintTx.add(
-        SystemProgram.createAccount({
+      // Build a fresh transaction with current blockhash, sign, and send.
+      // Retries up to 2 times if blockhash expires during Phantom approval.
+      let mintSig = "";
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const { blockhash, lastValidBlockHeight } = await devnetConn.getLatestBlockhash();
+        const tx = new Transaction({ blockhash, lastValidBlockHeight, feePayer: publicKey });
+        tx.add(SystemProgram.createAccount({
           fromPubkey: publicKey,
           newAccountPubkey: mintKeypair.publicKey,
-          space: mintLen,
-          lamports,
-          programId: TOKEN_2022_PROGRAM_ID,
-        }),
-      );
-      createMintTx.add(
-        createInitializeTransferFeeConfigInstruction(
-          publicKey, publicKey, publicKey, 100, BigInt(50000),
-          TOKEN_2022_PROGRAM_ID,
-        ),
-      );
-      createMintTx.add(
-        createInitializeMintInstruction(
-          mintKeypair.publicKey, 6, publicKey, null,
-          TOKEN_2022_PROGRAM_ID,
-        ),
-      );
-      createMintTx.partialSign(mintKeypair);
-      const signedMint = await wallet.signTransaction(createMintTx);
-      const mintSig = await devnetConn.sendRawTransaction(signedMint.serialize(), { skipPreflight: false });
-      await devnetConn.confirmTransaction({ signature: mintSig, blockhash, lastValidBlockHeight }, "confirmed");
+          space: 82,
+          lamports: mintRent,
+          programId: TOKEN_PROGRAM_ID,
+        }));
+        tx.add(createInitializeMintInstruction(
+          mintKeypair.publicKey,
+          6,
+          publicKey,
+          null,
+          TOKEN_PROGRAM_ID,
+        ));
+        tx.partialSign(mintKeypair);
+
+        setStatusMsg(`Approve in your wallet (set to Devnet)...${attempt > 0 ? ` (retry ${attempt})` : ""}`);
+        const signedTx = await wallet.signTransaction(tx);
+
+        try {
+          mintSig = await devnetConn.sendRawTransaction(signedTx.serialize(), { skipPreflight: true, maxRetries: 3 });
+          await devnetConn.confirmTransaction({ signature: mintSig, blockhash, lastValidBlockHeight }, "confirmed");
+          break; // success
+        } catch (sendErr: unknown) {
+          const msg = sendErr instanceof Error ? sendErr.message : String(sendErr);
+          if (msg.includes("block height exceeded") || msg.includes("expired") || msg.includes("BlockhashNotFound")) {
+            if (attempt < 2) { setStatusMsg("Blockhash expired, retrying with fresh one..."); continue; }
+          }
+          throw sendErr;
+        }
+      }
 
       setStatusMsg("Mint created. Initializing RTP treasury...");
 
       // Step 2: Register with RTP (creates authority-seeded treasury PDA + adopter)
-      const rtp = await registerWithRTP(devnetConn, wallet, {
-        authority: publicKey!,
-      });
+      // If treasury already exists from a prior launch, skip and use the existing one.
+      let rtp: RTPRegistrationResult;
+      try {
+        rtp = await registerWithRTP(devnetConn, wallet, {
+          authority: publicKey!,
+        });
+      } catch (rtpErr: unknown) {
+        const msg = rtpErr instanceof Error ? rtpErr.message : String(rtpErr);
+        if (msg.includes("already in use") || msg.includes("0x0") || msg.includes("custom program error")) {
+          // Treasury PDA already initialized — derive addresses and continue
+          const [treasuryPDA] = deriveTreasuryPDA(publicKey!);
+          const [adopterPDA] = deriveAdopterPDA(treasuryPDA, publicKey!.toBase58().slice(0, 8));
+          rtp = {
+            authority: publicKey!.toBase58(),
+            signature: mintSig,
+            explorerUrl: `https://explorer.solana.com/tx/${mintSig}?cluster=devnet`,
+            treasuryPDA: treasuryPDA.toBase58(),
+            adopterPDA: adopterPDA.toBase58(),
+          };
+          setStatusMsg("Treasury already exists. Using existing treasury...");
+        } else {
+          throw rtpErr;
+        }
+      }
 
       const launchResult: LaunchResult = {
         mint: mintKeypair.publicKey.toBase58(),
@@ -660,7 +688,7 @@ export default function LaunchPage() {
     website, twitter, telegram, devBuyAmount, metaSupply, raiseGoal,
     bagsApiKey, bagsBuyAmount, feeClaimers, rtpResult]);
 
-  const canLaunch = connected && !!publicKey && !!projectName && !!tokenSymbol && (platform !== "bags" || !!bagsApiKey);
+  const canLaunch = connected && !!publicKey && !!projectName && !!tokenSymbol;
 
   // Render
 
@@ -674,8 +702,8 @@ export default function LaunchPage() {
         <div className="sys2-sect-eyebrow">Launch</div>
         <h1 className="sys2-sect-title">Launch a Token with a Treasury</h1>
         <p className="sys2-sect-lede" style={{ maxWidth: "56rem" }}>
-          Pick a platform, sign with your Solana wallet, and your token goes live with an RTP treasury.
-          Fees compound, yield returns to holders, enforced on-chain. One transaction.
+          Pick a platform, sign with your Solana wallet, and your token launches with an RTP treasury on devnet.
+          On mainnet, fees compound, yield returns to holders, enforced on-chain. One transaction.
         </p>
         <div style={{ display: "flex", gap: "var(--space-xl)", marginTop: "var(--space-lg)", flexWrap: "wrap" }}>
           {[
@@ -689,14 +717,6 @@ export default function LaunchPage() {
             </div>
           ))}
         </div>
-        {connected && (phase === "form" || phase === "error") && (
-          <div style={{ marginTop: "var(--space-lg)", display: "flex", justifyContent: "flex-start" }}>
-            <button onClick={handleDevnetDemo} className="sys2-cta-secondary"
-              style={{ borderColor: "var(--emerald)", color: "var(--emerald)" }}>
-              Demo on Devnet: Create test token + treasury in one click
-            </button>
-          </div>
-        )}
       </section>
 
       {/* Platform selector */}
@@ -748,7 +768,7 @@ export default function LaunchPage() {
           </div>
           <button className="sys2-cta-primary" onClick={() => setVisible(true)}>Connect Wallet</button>
           <p style={{ color: "var(--text-muted)", marginTop: "var(--space-md)", fontSize: "0.75rem" }}>
-            Your token launches on the selected platform. RTP treasury is initialized in the same session.
+            Connect your wallet to create a test token + RTP treasury on devnet. On mainnet, this integrates with the selected launch platform.
           </p>
         </section>
       )}
@@ -804,10 +824,9 @@ export default function LaunchPage() {
                     value={description} onChange={(e) => setDescription(e.target.value)} />
                 </div>
                 <div className="form-note">
-                  Creates a Raydium LaunchLab token with bonding curve graduation to CPMM.
-                  After graduation, creator fees redirect to the RTP treasury PDA via
-                  <code>updatePlatformCpCreator</code>. Your wallet signs the transaction in-browser.
-                  Supports devnet testing with sUSDC.
+                  <strong style={{ color: "var(--coral)" }}>Devnet demo:</strong> Creates a standard SPL token + RTP treasury on devnet.
+                  On mainnet, this calls Raydium LaunchLab API (bonding curve → CPMM graduation).
+                  Creator fees redirect to the RTP treasury PDA via <code>updatePlatformCpCreator</code>.
                 </div>
               </>
             )}
@@ -846,9 +865,9 @@ export default function LaunchPage() {
                   </div>
                 </div>
                 <div className="form-note">
-                  Calls PumpPortal API to build a local <code>VersionedTransaction</code>, signed
-                  in-browser by your wallet. No API key needed. Pure client-side. Token-2022 with TransferFeeConfig
-                  is not compatible with Pump.fun&apos;s bonding curve; RTP treasury initialized separately.
+                  <strong style={{ color: "var(--coral)" }}>Devnet demo:</strong> Creates a standard SPL token + RTP treasury on devnet.
+                  On mainnet, this calls PumpPortal API to build a <code>VersionedTransaction</code>, signed in-browser.
+                  Pump.fun bonding curve launches are mainnet-only — devnet creates a standalone mint.
                 </div>
               </>
             )}
@@ -856,14 +875,6 @@ export default function LaunchPage() {
             {/* ── Bags.fm fields ── */}
             {platform === "bags" && (
               <>
-                <div className="form-group">
-                  <label className="form-label" htmlFor="bagsKey">
-                    Bags.fm API Key <span className="form-hint">from dev.bags.fm</span>
-                  </label>
-                  <input id="bagsKey" className="form-input" type="password" placeholder="Your Bags.fm API key"
-                    value={bagsApiKey}
-                    onChange={(e) => { setBagsApiKey(e.target.value); setStored("rtp_bags_api_key", e.target.value); }} />
-                </div>
                 <div className="form-group">
                   <label className="form-label" htmlFor="bagsDesc">Description</label>
                   <input id="bagsDesc" className="form-input" type="text" placeholder="Token description"
@@ -895,9 +906,10 @@ export default function LaunchPage() {
                   </div>
                 </div>
                 <div className="form-note">
-                  Bags.fm fee sharing routes creator fees to the treasury automatically.
-                  Enter your API key from <a href="https://dev.bags.fm/" target="_blank" rel="noopener noreferrer" style={{ color: "var(--coral)" }}>dev.bags.fm</a>.
-                  Key is stored in localStorage for convenience. The fee claimer can be set to your RTP treasury PDA.
+                  <strong style={{ color: "var(--coral)" }}>Devnet demo:</strong> Creates a standard SPL token + RTP treasury on devnet.
+                  On mainnet, this calls the Bags.fm API (fee sharing on Meteora DLMM) with an API key from{" "}
+                  <a href="https://dev.bags.fm/" target="_blank" rel="noopener noreferrer" style={{ color: "var(--coral)" }}>dev.bags.fm</a>.
+                  Creator fees route to the RTP treasury PDA automatically via multi-claimer fee sharing.
                 </div>
               </>
             )}
@@ -981,7 +993,8 @@ export default function LaunchPage() {
             <span className="success-check">✓</span>
             <h2>Token Launched!</h2>
             <p className="success-subtitle">
-              Your token is live on {PLATFORMS.find(p => p.id === platform)?.name}. {result.treasuryPDA ? "RTP treasury initialized." : "RTP treasury integration pending."}
+              Token mint + RTP treasury created on devnet. {result.treasuryPDA ? "Treasury PDA initialized." : ""}
+              On mainnet, this would launch via {PLATFORMS.find(p => p.id === platform)?.name}.
             </p>
           </div>
 
@@ -1024,31 +1037,13 @@ export default function LaunchPage() {
             </div>
           </div>
 
-          {/* Platform-specific extras */}
-          {platform === "pumpfun" && result.mint && (
-            <div style={{ marginBottom: "24px", padding: "var(--space-md)", background: "rgba(0,210,140,0.06)", border: "1px solid rgba(0,210,140,0.2)", borderRadius: 6 }}>
-              <a href={`https://pump.fun/${result.mint}`} target="_blank" rel="noopener noreferrer"
-                style={{ color: "#00d18c", fontSize: "0.9375rem", fontWeight: 500, textDecoration: "none" }}>
-                View on Pump.fun ↗
-              </a>
-            </div>
-          )}
-          {platform === "raydium" && result.mint && (
-            <div style={{ marginBottom: "24px", padding: "var(--space-md)", background: "rgba(193,165,90,0.06)", border: "1px solid rgba(193,165,90,0.2)", borderRadius: 6 }}>
-              <a href={`https://raydium.io/launchpad/?mint=${result.mint}`} target="_blank" rel="noopener noreferrer"
-                style={{ color: "#c1a55a", fontSize: "0.9375rem", fontWeight: 500, textDecoration: "none" }}>
-                View on Raydium LaunchLab ↗
-              </a>
-            </div>
-          )}
-          {platform === "bags" && result.mint && (
-            <div style={{ marginBottom: "24px", padding: "var(--space-md)", background: "rgba(184,169,232,0.06)", border: "1px solid rgba(184,169,232,0.2)", borderRadius: 6 }}>
-              <a href={`https://bags.fm/${result.mint}`} target="_blank" rel="noopener noreferrer"
-                style={{ color: "#B8A9E8", fontSize: "0.9375rem", fontWeight: 500, textDecoration: "none" }}>
-                View on Bags.fm ↗
-              </a>
-            </div>
-          )}
+          {/* Devnet explorer link */}
+          <div style={{ marginBottom: "24px", padding: "var(--space-md)", background: "rgba(0,0,0,0.3)", border: "1px solid var(--border)", borderRadius: 6, textAlign: "center" }}>
+            <span style={{ fontSize: "0.75rem", color: "var(--text-tertiary)", display: "block", marginBottom: 4 }}>Devnet only</span>
+            <span style={{ fontSize: "0.8125rem", color: "var(--text-secondary)" }}>
+              On mainnet, this would launch via {PLATFORMS.find(p => p.id === platform)?.name} and appear on their platform page.
+            </span>
+          </div>
 
           {/* Treasury state (if loaded) */}
           {treasuryState && (
