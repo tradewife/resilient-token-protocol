@@ -764,7 +764,7 @@ export default function LaunchPage() {
             Configure your token &rarr;
           </h3>
 
-          <form className="launch-form" onSubmit={(e) => { e.preventDefault(); handleLaunch(); }}>
+          <form className="launch-form" onSubmit={(e) => { e.preventDefault(); handleDevnetDemo(); }}>
             {/* ── Shared: name + symbol ── */}
             <div className="form-group">
               <label className="form-label" htmlFor="projectName">Project Name</label>
@@ -934,7 +934,7 @@ export default function LaunchPage() {
                 borderColor: PLATFORMS.find(p => p.id === platform)?.color,
                 fontSize: "1rem", padding: "14px 32px", fontWeight: 600,
               }}>
-              Launch on {PLATFORMS.find(p => p.id === platform)?.name}
+              Launch Token + Treasury on Devnet
             </button>
           </form>
 
