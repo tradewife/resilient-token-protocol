@@ -820,7 +820,7 @@ PublicKey.findProgramAddressSync(
             </ul>
 
             <Callout type="info" title="Full Audit">
-              <p>See the <a href="#security" style={{ color: "var(--coral)" }}>Security Model</a> section above for the full breakdown of on-chain invariants and enforcement layers.</p>
+              <p>See the on-chain invariants and enforcement layers detailed below.</p>
             </Callout>
           </>
         ),
