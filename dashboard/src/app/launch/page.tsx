@@ -1124,7 +1124,7 @@ export default function LaunchPage() {
           <span className="vital-label">Treasury Vault</span>
         </div>
         <div className="vital">
-          <span className="vital-value">MIT</span>
+          <span className="vital-value">Proprietary</span>
           <span className="vital-label">License</span>
         </div>
         <Link href="/" className="vital-link">Back to Dashboard ↗</Link>

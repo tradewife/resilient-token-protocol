@@ -938,7 +938,7 @@ export default function DocsPage() {
           <span className="vital-label">Protocol</span>
         </div>
         <div className="vital">
-          <span className="vital-value">MIT</span>
+          <span className="vital-value">Proprietary</span>
           <span className="vital-label">License</span>
         </div>
         <div className="vital">
