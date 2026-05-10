@@ -1916,7 +1916,7 @@ body {
 /* Live vitals strip */
 .sys2-vitals {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 1px;
   animation: fadeUp 0.6s ease-out 0.2s both;
   background: var(--border);
