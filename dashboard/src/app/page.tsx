@@ -301,6 +301,11 @@ export default function Home() {
     return (trader.trade_history.filter((t) => t.pnl_pct > 0).length / trader.trade_history.length) * 100;
   }, [trader]);
 
+  const daysRunning = useMemo(() => {
+    const deployedAt = new Date("2026-05-04T23:29:46Z").getTime();
+    return Math.max(1, Math.ceil((Date.now() - deployedAt) / 86400000));
+  }, []);
+
   const traderStatus =
     trader == null ? "connecting" :
     trader.open_position ? "in_position" : "watching";
@@ -369,6 +374,11 @@ export default function Home() {
               {totalPnlPct >= 0 ? "+" : ""}{totalPnlPct.toFixed(2)}%
             </div>
             <div className="sys2-vital-sub">{trader?.total_trades ?? 0} closed trades</div>
+          </div>
+          <div className="sys2-vital">
+            <div className="sys2-vital-label">Days Active</div>
+            <div className="sys2-vital-value">{daysRunning}</div>
+            <div className="sys2-vital-sub">Since May 4 · Railway</div>
           </div>
           <div className="sys2-vital">
             <div className="sys2-vital-label">Treasury SOL</div>
@@ -530,8 +540,8 @@ export default function Home() {
               target="_blank" rel="noopener noreferrer" className="proof2-extra">Devnet redistribution TX ↗</a>
             <a href="https://explorer.solana.com/address/8rt6yiBnRTyHy8F69jUd7exWwwShUs4Eokeq41auo2RB?cluster=devnet"
               target="_blank" rel="noopener noreferrer" className="proof2-extra">Treasury program (devnet) ↗</a>
-            <a href="https://github.com/tradewife/resilient-token-protocol"
-              target="_blank" rel="noopener noreferrer" className="proof2-extra">Source on GitHub ↗</a>
+            <a href="https://explorer.solana.com/tx/2bLg1FuJ6iqwYq6SKi5EcZQWszarDZhS68bCbGTRLKMwhYqsU7G57fTtG4G6GFx3ZKN15qhb85zy28pGJvSdrnG3"
+              target="_blank" rel="noopener noreferrer" className="proof2-extra">Mainnet CPI proof ↗</a>
           </div>
         </div>
       </section>
@@ -561,7 +571,7 @@ export default function Home() {
 
         <div className="arch2-coord" style={{ marginTop: "var(--space-xl)" }}>
           <span className="arch2-coord-tag">ENFORCEMENT</span>
-          Every message between wings is validated against <code className="inline-code">SOULCONTRACT.md</code> by soulguard.rs.
+          Every message between wings is validated against the constitutional governance layer by soulguard.rs.
           The on-chain program adds a second enforcement layer: PDA seed constraints, authority gates,
           strategy lifecycle gates, and overflow-safe math. 325 unit + 5 integration tests verify both layers.
         </div>
@@ -730,9 +740,8 @@ const result = await registerWithRTP(connection, payer, {
           <span className="vital-label">On-Chain Proof</span>
         </div>
         <div className="vital">
-          <a className="vital-link" href="https://github.com/tradewife/resilient-token-protocol"
-            target="_blank" rel="noopener noreferrer">Source on GitHub ↗</a>
-          <span className="vital-label">Repository</span>
+          <a className="vital-link" href="https://resilientprotocol.xyz" target="_blank" rel="noopener noreferrer">resilientprotocol.xyz ↗</a>
+          <span className="vital-label">Dashboard</span>
         </div>
         <div className="vital">
           <a className="vital-link" href={`https://explorer.solana.com/address/${TRADER_WALLET}`}

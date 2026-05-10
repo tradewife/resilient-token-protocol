@@ -797,7 +797,7 @@ PublicKey.findProgramAddressSync(
                 ["Isolation", "Per-token Treasury PDA + vault: no shared pool", "Exploit containment"],
                 ["Runtime", "soulguard.rs validates against invariants", "All swarm operations"],
                 ["Execution", "Trading Wing position limits", "Capital deployment"],
-                ["Governance", "soulcontract.md: constitutional invariants", "All protocol changes"],
+                ["Governance", "Constitutional invariants (soulcontract)", "All protocol changes"],
               ]}
             />
 
@@ -820,7 +820,7 @@ PublicKey.findProgramAddressSync(
             </ul>
 
             <Callout type="info" title="Full Audit">
-              <p><a href="https://github.com/tradewife/resilient-token-protocol/blob/main/docs/AUDIT-COPILOT-WK-1.md" target="_blank" rel="noopener noreferrer" style={{ color: "var(--coral)" }}>Read the security audit report</a></p>
+              <p>See the <a href="#security" style={{ color: "var(--coral)" }}>Security Model</a> section above for the full breakdown of on-chain invariants and enforcement layers.</p>
             </Callout>
           </>
         ),
@@ -838,11 +838,16 @@ export default function DocsPage() {
   const activeSection = ALL_SECTIONS.find((s) => s.slug === activeSlug) || ALL_SECTIONS[0];
 
   useEffect(() => {
-    const hash = window.location.hash.replace("#", "");
-    if (hash) {
-      const match = ALL_SECTIONS.find((s) => s.slug === hash);
-      if (match) setActiveSlug(hash);
-    }
+    const handleHashChange = () => {
+      const hash = window.location.hash.replace("#", "");
+      if (hash) {
+        const match = ALL_SECTIONS.find((s) => s.slug === hash);
+        if (match) setActiveSlug(hash);
+      }
+    };
+    handleHashChange();
+    window.addEventListener("hashchange", handleHashChange);
+    return () => window.removeEventListener("hashchange", handleHashChange);
   }, []);
 
   const handleNav = (slug: string) => {
@@ -941,8 +946,8 @@ export default function DocsPage() {
           <span className="vital-label">Treasury</span>
         </div>
         <div className="vital">
-          <a className="vital-link" href="https://github.com/tradewife/resilient-token-protocol" target="_blank" rel="noopener noreferrer">Source on GitHub ↗</a>
-          <span className="vital-label">Repository</span>
+          <a className="vital-link" href="https://resilientprotocol.xyz" target="_blank" rel="noopener noreferrer">resilientprotocol.xyz ↗</a>
+          <span className="vital-label">Dashboard</span>
         </div>
         <Link href="/" className="vital-link">← Dashboard</Link>
       </footer>

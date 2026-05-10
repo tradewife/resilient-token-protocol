@@ -153,7 +153,7 @@ npx tsx cli/bin/rtp.ts demo --execute
 # ./demo.sh
 ```
 
-See [docs/demo-flow.md](docs/demo-flow.md) for the 3-minute hackathon demo script.
+See [demo-flow.md](media/specs/demo-flow.md) for the 3-minute hackathon demo script.
 
 ## SDK — One Function Call
 
