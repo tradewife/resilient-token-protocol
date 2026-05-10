@@ -3114,7 +3114,7 @@ body {
   .arch2-layer-cells { grid-template-columns: 1fr; }
   .pipe2-step { grid-template-columns: 1fr; padding-left: var(--space-md); margin-left: 24px; }
   .pipe2-num { left: -24px; width: 48px; height: 48px; font-size: 0.875rem; }
-  .validated-card { margin-left: 24px; }
+  .validated-card { margin-left: 0; }
   .validated-grid { grid-template-columns: repeat(2, 1fr); }
   .validated-cell { border-left: none; padding-left: 0; }
   .proof2-grid { grid-template-columns: 1fr; }
