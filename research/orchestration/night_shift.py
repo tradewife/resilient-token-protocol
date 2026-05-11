@@ -937,8 +937,10 @@ def auto_validate_top_candidates(all_results: Dict[str, List[CandidateResult]],
     validated = []
 
     for symbol, results in all_results.items():
-        # Skip if results are not CandidateResult objects
-        if not results or not hasattr(results[0], 'survivor_score'):
+        # Filter to WFA CandidateResult objects (LeverageCandidate exploration
+        # results lack survivor_score / oos_* fields and are validated separately).
+        results = [r for r in results if isinstance(r, CandidateResult)]
+        if not results:
             continue
 
         # Filter: non-rejected, not coarse-only, beats production baseline
@@ -1325,7 +1327,9 @@ def generate_report(
 
     all_candidates = []
     for sym, results in all_results.items():
-        all_candidates.extend(results)
+        # Exclude LeverageCandidate (strategy exploration) — they lack WFA fields.
+        # They are reported separately and consumed by run_robustness_phase via _score().
+        all_candidates.extend(r for r in results if isinstance(r, CandidateResult))
     all_candidates.sort(key=lambda r: r.survivor_score, reverse=True)
 
     # Filter: only fully-validated candidates (5+ folds) for rankings
@@ -1413,6 +1417,9 @@ def generate_report(
     w(f"## Per-Symbol WFA Fold Detail")
     w(f"")
     for sym, results in all_results.items():
+        # Restrict to WFA CandidateResult — LeverageCandidate exploration results
+        # don't have is_coarse_only / folds and aren't part of the WFA fold report.
+        results = [r for r in results if isinstance(r, CandidateResult)]
         # Only show WFA-validated candidates (5+ folds), not coarse-only
         validated = [r for r in results if not r.is_coarse_only and not r.rejected]
         if not validated:
@@ -2369,9 +2376,11 @@ def run_night_shift(
     )
 
     for symbol, results in all_results.items():
-        non_rejected = [r for r in results if not r.rejected]
+        # Only WFA CandidateResult objects have survivor_score / oos_* fields.
+        wfa_results = [r for r in results if isinstance(r, CandidateResult)]
+        non_rejected = [r for r in wfa_results if not r.rejected]
         best = max(non_rejected, key=lambda r: r.survivor_score) if non_rejected else None
-        prod = next((r for r in results if r.params == PRODUCTION_CONFIG), None)
+        prod = next((r for r in wfa_results if r.params == PRODUCTION_CONFIG), None)
         if best:
             log(f"  {symbol}: best survivor={best.survivor_score:.3f} "
                 f"(OOS Sharpe={best.oos_sharpe:+.2f}, consistency={best.oos_consistency:.0%})")
@@ -2400,8 +2409,11 @@ def run_night_shift(
     os.makedirs(os.path.dirname(json_path), exist_ok=True)
     full_data = {}
     for sym, results in all_results.items():
+        # Sort by survivor_score for WFA CandidateResult, calmar_ratio for LeverageCandidate.
+        def _rank(r):
+            return getattr(r, 'survivor_score', getattr(r, 'calmar_ratio', 0))
         full_data[sym] = [
-            {**asdict(r)} for r in sorted(results, key=lambda r: r.survivor_score, reverse=True)[:50]
+            {**asdict(r)} for r in sorted(results, key=_rank, reverse=True)[:50]
         ]
     with open(json_path, "w") as f:
         json.dump(full_data, f, indent=2, default=str)
