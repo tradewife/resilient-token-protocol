@@ -2,6 +2,7 @@
 name = "rtp-swarm"
 version = "0.1.0"
 edition = "2024"
+license = "BSL-1.1"
 
 [features]
 default = []

@@ -635,7 +635,7 @@ export default function Home() {
         </div>
 
         {/* Compact: active strategy + failure memory */}
-        <div className="intel-grid" style={{ marginTop: "var(--space-2xl)", gridTemplateColumns: "1fr 1fr" }}>
+        <div className="intel-grid intel-grid--2col" style={{ marginTop: "var(--space-2xl)" }}>
           <article className="intel-panel intel-active">
             <header className="intel-panel-head">
               <span className="intel-pill live">LIVE</span>

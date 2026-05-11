@@ -90,4 +90,4 @@ There is no RTP token. RTP is infrastructure. It serves the tokens that adopt it
 
 ## License
 
-MIT
+Business Source License 1.1 (BSL 1.1). Non-production use only until 2030-05-11, then Apache 2.0. See root [LICENSE](../LICENSE).

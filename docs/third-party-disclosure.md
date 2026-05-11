@@ -19,7 +19,7 @@ RTP (Resilient Token Protocol) uses the following open-source frameworks and spo
 |---------|------|------------|
 | **Flash Trade Perpetuals** | https://flashapi.trade | **Execution venue.** On-chain Solana perps DEX. CPI via `invoke_signed` from Treasury PDA. REST API for queries (prices, positions, markets). Pool-to-peer model, up to 100x leverage, Pyth oracle pricing. |
 | **Flash Trade Composability** | `FSWAPViR8ny5K96hezav8jynVubP2dJ2L7SbKzds2hwm` | Atomic swap-and-open / close-and-swap for SOL input to Flash Trade positions. |
-| Phantom Connect | https://docs.phantom.com/phantom-connect | Browser wallet for dashboard (freeze/unfreeze, wallet connect, token launch). `@solana/wallet-adapter-react`. |
+| Solana Wallet Adapter | https://github.com/solana-labs/wallet-adapter | Browser wallet for dashboard (freeze/unfreeze, wallet connect, token launch). Supports Phantom, Solflare, Backpack, and any Solana wallet. `@solana/wallet-adapter-react`. |
 | **Phantom MCP Server** | https://help.phantom.com/hc/en-us/articles/49235725504147 | **[ARCHIVED]** Gated behind `#[cfg(feature = "hyperliquid")]`. Not compiled by default. Available for legacy reference. |
 | Phantom × Hyperliquid | https://unchainedcrypto.com/phantom-wallet-launches-direct-perpetual-trading-with-hyperliquid/ | **[ARCHIVED]** Was native perps integration. Replaced by Flash Trade on-chain CPI. |
 

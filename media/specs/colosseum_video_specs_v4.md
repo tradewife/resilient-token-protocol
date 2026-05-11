@@ -920,7 +920,7 @@ DOCS · INTEGRATION SURFACE
 Navigate to `/launch`:
 
 - Platform selector: Pump.fun, Bags.fm, Raydium.
-- Phantom wallet connect.
+- Solana wallet connect (any wallet).
 - Token form.
 - Devnet treasury creation language.
 - If wallet is not connected, do not fake a connected state. Show that the flow exists and is ready.

@@ -7,7 +7,7 @@ This file provides guidance to Claude Code when working with this repository.
 **RTP (Resilient Token Protocol)** — a Solana-native, self-funding treasury governed by a modular Rust swarm. Any token project adopts RTP — their trading fees route to the swarm, which autonomously researches, validates, and executes yield strategies — returning yield back to the project and its holders. The swarm executes validated strategies as **on-chain perpetuals via Flash Trade CPI**, signed by the **Treasury PDA via `invoke_signed`** (no human keypair). All execution stays on Solana — no cross-chain bridge, no off-chain signing.
 
 **Hackathon**: SWARMs / Canteen × Colosseum, deadline May 11, 2026.
-**License**: MIT
+**License**: BSL 1.1 (converts to Apache 2.0 on 2030-05-11)
 
 ---
 
@@ -57,7 +57,7 @@ Fee-Payer Wallet (gas only, DONE)
 | Flash Trade Program (mainnet) | `FLASH6Lo6h3iasJKWDs2F8TkW2UKf3s15C8PMGuVfgBn` |
 | Flash Trade Program (devnet) | `FTPP4jEWW1n8s2FEccwVfS9KCPjpndaswg7Nkkuz4ER4` |
 | Composability Program (mainnet) | `FSWAPViR8ny5K96hezav8jynVubP2dJ2L7SbKzds2hwm` |
-| Phantom Connect docs (browser wallet) | https://docs.phantom.com/phantom-connect |
+| Solana Wallet Adapter | Browser wallet for dashboard (`@solana/wallet-adapter-react`). Supports Phantom, Solflare, Backpack, and any Solana wallet. |
 
 **Legacy (archived behind `#[cfg(feature = "hyperliquid")]`):**
 | Resource | URL |
@@ -69,7 +69,7 @@ Fee-Payer Wallet (gas only, DONE)
 ### Signing Architecture
 - **Flash Trade CPI signing**: Treasury PDA `invoke_signed` — no private key exists. The program IS the only authority.
 - **Fee-payer wallet**: Funded keypair for Solana gas fees only — has zero authority over treasury funds
-- **Dashboard signing**: `@solana/wallet-adapter-react` for browser wallet ops (freeze/unfreeze, multisig status)
+- **Dashboard signing**: `@solana/wallet-adapter-react` for browser wallet ops (freeze/unfreeze, multisig status). Supports Phantom, Solflare, Backpack, and any Solana wallet.
 - **Phantom MCP** (archived): `phantom_mcp.rs` gated behind `#[cfg(feature = "hyperliquid")]`. Not compiled in default build. Available for legacy reference.
 
 ### Security Hardening (v1.1 → v1.2)
@@ -443,7 +443,7 @@ The on-chain program separates instructions into two categories:
 | Resource | Use in RTP | Link |
 |---------|-----------|------|
 | Flash Trade Perpetuals | **Execution venue**. On-chain Solana perps DEX. CPI via `invoke_signed` from Treasury PDA. REST API for queries (prices, positions, markets). Pool-to-peer model, up to 100x leverage, Pyth oracle pricing. | `flash-trade/SKILL.md` (in repo), https://flashapi.trade |
-| Phantom Connect | **Browser wallet only**. `@solana/wallet-adapter-react` wired to dashboard (/, /launch, /docs). Wallet connect + live token launch flow operational on devnet. | https://docs.phantom.com/introduction |
+| Solana Wallet Adapter | **Browser wallet**. `@solana/wallet-adapter-react` wired to dashboard (/, /launch, /docs). Supports Phantom, Solflare, Backpack, and any Solana wallet. Wallet connect + live token launch flow operational on devnet. | https://github.com/solana-labs/wallet-adapter |
 | CASH stablecoin | Third-party resource (not currently used) | https://docs.phantom.com/phantom-connect |
 | Squads Multisig | Post-launch: `treasury.authority` rotation to Squads PDA for 2-of-3 multisig governance | https://docs.squads.so |
 | Swig | Programmable smart wallets for wing message bus | https://docs.swig.fi |

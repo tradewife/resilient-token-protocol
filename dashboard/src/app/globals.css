@@ -2760,6 +2760,9 @@ body {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--space-md);
 }
+.intel-grid.intel-grid--2col {
+  grid-template-columns: 1fr 1fr;
+}
 
 .intel-panel {
   background: var(--surface-0);
@@ -3104,7 +3107,8 @@ body {
   .loop-legend { grid-template-columns: repeat(3, 1fr); }
   .arch2-layer { grid-template-columns: 1fr; }
   .arch2-layer-side { border-right: none; border-bottom: 1px solid var(--border); padding-bottom: var(--space-md); }
-  .intel-grid { grid-template-columns: 1fr; }
+  .intel-grid,
+  .intel-grid.intel-grid--2col { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 720px) {
@@ -3124,11 +3128,12 @@ body {
   .chart-stats { grid-template-columns: repeat(2, 1fr); }
   .loop-legend { grid-template-columns: 1fr; }
   .cta2-card { padding: var(--space-xl); }
-  .cta2-code { font-size: 0.75rem; padding: var(--space-md); }
+  .cta2-code { font-size: 0.75rem; padding: var(--space-md); white-space: pre-wrap; word-break: break-all; }
   .cta2-content { max-width: 100%; }
   .cta2-actions { flex-direction: column; }
   .cta2-actions a { text-align: center; }
-  .intel-grid { grid-template-columns: 1fr; }
+  .intel-grid,
+  .intel-grid.intel-grid--2col { grid-template-columns: 1fr; }
   .intel-panel { min-width: 0; overflow: hidden; }
   .intel-chips { gap: 3px; }
   .intel-chip { font-size: 0.625rem; padding: 2px 6px; }

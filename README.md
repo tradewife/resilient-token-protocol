@@ -175,7 +175,7 @@ const result = await registerWithRTP(connection, payer, {
 // result.authority, result.treasuryPDA, result.adopterPDA
 ```
 
-For browser wallets (e.g. Phantom), pass the wallet adapter directly — no keypair needed:
+For browser wallets (e.g. Phantom, Solflare, Backpack), pass the wallet adapter directly — no keypair needed:
 ```typescript
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 
@@ -750,7 +750,7 @@ Treasury program audit-remediated. All 6 wings built. Coordinator with full qual
 Wire remaining wings and complete the end-to-end demo flow.
 
 - Sentinel dashboard deployed to GitHub Pages (live URL for judges)
-- Phantom SDK "Fund Treasury" button (SOL → USDC swap via Jupiter routing)
+- Wallet adapter "Fund Treasury" button (SOL → USDC swap via Jupiter routing)
 - Knowledge Wing hardening beyond in-memory store
 - Security Wing hardening beyond in-memory alert/rate-limit logic
 
@@ -807,8 +807,8 @@ npx tsx cli/bin/rtp.ts status --all
 | **Functionality** | ? | Working demo with real transactions | Live: adopt → fees → Flash Trade CPI → yield → redistribute on mainnet |
 | **Potential Impact** | ? | Project with lasting real-world value | 10,000+ Solana token projects need this — unruggable yield standard |
 | **Novelty** | ? | Novel approach, original architecture | First fee-routing treasury protocol with on-chain CPI execution |
-| **UX** | ? | Great demo experience | Phantom Connect wallet, devnet treasury live, 3-min demo |
-| **Open-source** | ? | Clean, well-documented repo | Full swarm + treasury program (MIT), 325 Rust tests, clean history |
+| **UX** | ? | Great demo experience | Solana wallet connect (any wallet), devnet treasury live, 3-min demo |
+| **Open-source** | ? | Clean, well-documented repo | Full swarm + treasury program (BSL-1.1), 325 Rust tests, clean history |
 | **Business Plan** | ? | Viable business model | Self-funding economics — treasury generates its own yield, no VC dependency |
 
 ### Demo Flow (3 minutes)
@@ -824,7 +824,7 @@ npx tsx cli/bin/rtp.ts status --all
 | Component | Status | Use |
 |-----------|--------|-----|
 | Flash Trade | **Live** | On-chain Solana perps DEX — execution venue. CPI via invoke_signed, REST API for queries. |
-| Phantom Connect | **Live** | Browser wallet for dashboard (`@solana/wallet-adapter-react`). Wallet connect + live token launch flow on /launch. |
+| Solana Wallets | **Live** | Browser wallet for dashboard (`@solana/wallet-adapter-react`). Supports Phantom, Solflare, Backpack, and any Solana wallet. Wallet connect + live token launch flow on /launch. |
 | Solana Token-2022 | **Live** | TransferFeeConfig for fee capture. SPL token extensions used in treasury program. |
 
 ## Roadmap (Post-Hackathon)
@@ -839,4 +839,6 @@ npx tsx cli/bin/rtp.ts status --all
 
 ## License
 
-MIT
+Business Source License 1.1 (BSL 1.1). The source code is publicly visible for evaluation, testing, academic research, and hackathon participation. **Production deployment or commercial use requires a separate commercial license.** On 2030-05-11, this license automatically converts to Apache License, Version 2.0. See [LICENSE](./LICENSE) for full terms.
+
+Copyright (c) 2024-2026 Resilient Token Protocol Contributors. All rights reserved.

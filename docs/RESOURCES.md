@@ -73,21 +73,17 @@ See `cli/README.md` for full documentation.
 - TypeScript SDK: `flash-sdk` (NPM package)
 - **RTP integration:** CPI via `invoke_signed` from Treasury PDA. REST API for queries only (prices, positions, markets). Execution is CPI only — no REST API execution. Pyth oracle prices are mainnet-only (devnet has stale/zero prices).
 
-### Phantom Connect + CASH (Browser Wallet)
-- Docs: https://docs.phantom.com/phantom-connect
-- Get Started: https://phantom.app/phantom-connect
-- React Template: https://github.com/phantom-labs/phantom-connect-react
-- JS Template: https://github.com/phantom-labs/phantom-connect-js
-- CASH stablecoin: https://phantom.app/cash (third-party, not currently used — treasury uses USDC)
-- **Phantom MCP Server** (v1.2.x, 28+ tools — swap, sign, perps trading, yield distribution, balance queries): https://help.phantom.com/hc/en-us/articles/49235725504147
-- MCP changelog: https://docs.phantom.com/updates
+### Solana Wallet Adapter (Browser Wallet)
+- Docs: https://github.com/solana-labs/wallet-adapter
+- Supports: Phantom, Solflare, Backpack, and any Solana wallet
+- React integration: `@solana/wallet-adapter-react`
 - **[ARCHIVED]** Phantom MCP is gated behind `#[cfg(feature = "hyperliquid")]` in the Rust swarm. Not compiled by default. Available for legacy reference.
-- **Phantom × Hyperliquid native perps** (UI feature only — NOT a programmatic API):
+- **[ARCHIVED]** Phantom × Hyperliquid native perps (UI feature only — NOT a programmatic API):
   https://unchainedcrypto.com/phantom-wallet-launches-direct-perpetual-trading-with-hyperliquid/
 
 > **RTP integration note (updated Apr 28):** The execution venue is now Flash Trade (on-chain Solana CPI).
 > The Treasury PDA signs via `invoke_signed` — no human keypair involved.
-> Phantom's role in RTP is the browser wallet (dashboard freeze/unfreeze, wallet connect).
+> The dashboard uses `@solana/wallet-adapter-react` — any Solana wallet can connect.
 > The Hyperliquid/Phantom MCP execution path is archived behind a feature flag.
 > Flash Trade handles all perps execution on Solana.
 
@@ -177,7 +173,7 @@ See `cli/README.md` for full documentation.
 |---|---|
 | Hyperliquid for execution | **Archived.** Replaced by Flash Trade on-chain CPI. HL path gated behind `#[cfg(feature = "hyperliquid")]`. |
 | Phantom MCP for execution | **Archived.** Replaced by Treasury PDA invoke_signed. MCP module not compiled by default. |
-| Phantom × HL native perps for execution | UI feature only, not a programmatic API. Flash Trade provides on-chain CPI instead. |
+| Phantom × HL native perps for execution | **Archived.** UI feature only, not a programmatic API. Flash Trade provides on-chain CPI instead. |
 | World Coin | Toxic sentiment — skip entirely |
 | Privy | Not yet available |
 | Coinbase | Not yet available |

@@ -415,7 +415,7 @@ BEAT  TIME      CONTENT                                          ENGINE         
                 Part F — Launch Page (2:00-2:10, 10s):
                   40. Click "Launch" in nav
                   41. Launch page loads — show the token creation form
-                  42. Read the form fields, beta toggle, Phantom connect button
+                  42. Read the form fields, beta toggle, wallet connect button
                   43. Navigate back to dashboard via brand logo click
 
 2     2:10-2:50 CPI CODE FLOW — what the website can't show       HyperFrames     Medium-High

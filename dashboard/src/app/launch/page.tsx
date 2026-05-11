@@ -479,7 +479,7 @@ export default function LaunchPage() {
       const mintRent = await devnetConn.getMinimumBalanceForRentExemption(82); // MintLayout span
 
       // Build a fresh transaction with current blockhash, sign, and send.
-      // Retries up to 2 times if blockhash expires during Phantom approval.
+      // Retries up to 2 times if blockhash expires during wallet approval.
       let mintSig = "";
       for (let attempt = 0; attempt < 3; attempt++) {
         const { blockhash, lastValidBlockHeight } = await devnetConn.getLatestBlockhash();

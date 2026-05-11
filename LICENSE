@@ -1,0 +1,113 @@
+Business Source License 1.1
+
+License text copyright (c) 2024-2026 Resilient Token Protocol Contributors
+(https://github.com/tradewife/resilient-token-protocol)
+
+Parameters applicable to this license:
+
+  Licensor:             Resilient Token Protocol Contributors
+  Licensed Work:        Resilient Token Protocol (RTP)
+                        A Solana-native, self-funding treasury protocol with
+                        autonomous agent swarm for yield generation and
+                        redistribution.
+  Additional Use Grant: You may use the Licensed Work for non-production
+                        purposes including, but not limited to, evaluation,
+                        testing, academic research, personal learning,
+                        and hackathon participation. Production deployment
+                        or commercial use of the Licensed Work, or any
+                        derivative works, requires a separate commercial
+                        license from the Licensor.
+  Change Date:          2030-05-11
+  Change License:       Apache License, Version 2.0
+
+Terms:
+
+The Licensor hereby grants you a non-exclusive, worldwide, non-sublicensable,
+non-transferable license to use the Licensed Work, subject to the conditions
+set forth below.
+
+1.  Use. You may use the Licensed Work only for the Additional Use Grant
+    specified above, and only subject to the restrictions set forth in this
+    license.
+
+2.  No Production Use. You may not use the Licensed Work, or any derivative
+    works thereof, in a production environment or for any commercial purpose
+    unless you have obtained a separate commercial license from the Licensor.
+    For the purposes of this license, "production use" means any use that
+    directly or indirectly generates revenue, is offered as a service to
+    third parties, or is deployed in a live environment serving real users
+    or real transactions.
+
+3.  Redistribution. You may reproduce and distribute copies of the Licensed
+    Work, provided that you meet the following conditions:
+
+    a. You must give any other recipients of the Licensed Work a copy of
+       this license; and
+    b. You must cause any modified files to carry prominent notices stating
+       that you changed the files; and
+    c. You must retain all copyright, patent, trademark, and attribution
+       notices present in the Licensed Work, excluding those notices that
+       do not pertain to any part of the Licensed Work.
+
+4.  Derivative Works. You may create derivative works of the Licensed Work,
+    but you may not use such derivative works for any production or commercial
+    purpose unless you have obtained a separate commercial license from the
+    Licensor. All derivative works distributed by you must be subject to
+    the terms of this license.
+
+5.  No Sublicensing. You may not sublicense the Licensed Work or any
+    derivative works thereof to any third party.
+
+6.  No Trademark Rights. This license does not grant you any rights to use
+    the Licensor's trademarks, trade names, or service marks.
+
+7.  Disclaimer of Warranty. The Licensed Work is provided "as is" without
+    warranty of any kind, either express or implied, including, without
+    limitation, the implied warranties of merchantability, fitness for a
+    particular purpose, and non-infringement.
+
+8.  Limitation of Liability. In no event shall the Licensor be liable for
+    any direct, indirect, incidental, special, exemplary, or consequential
+    damages (including, but not limited to, procurement of substitute goods
+    or services; loss of use, data, or profits; or business interruption),
+    however caused and on any theory of liability, whether in contract,
+    strict liability, or tort (including negligence or otherwise) arising
+    in any way out of the use of the Licensed Work, even if the Licensor
+    has been advised of the possibility of such damage.
+
+9.  Termination. This license and the rights granted hereunder will
+    terminate automatically upon any breach by you of the terms of this
+    license. Upon termination, you shall destroy all copies of the Licensed
+    Work and derivative works in your possession.
+
+10. Change Date. On or after the Change Date, this license will automatically
+    convert to the Change License (Apache License, Version 2.0), at which
+    point the Licensed Work will be freely available for production and
+    commercial use under the terms of the Apache License, Version 2.0.
+
+11. Severability. If any provision of this license is held to be unenforceable
+    or invalid, that provision shall be eliminated or limited to the minimum
+    extent necessary so that this license shall otherwise remain in full force
+    and effect.
+
+---
+
+Apache License, Version 2.0
+
+This license will apply to the Licensed Work on or after the Change Date
+(2030-05-11). The full text of the Apache License, Version 2.0 is available
+at http://www.apache.org/licenses/LICENSE-2.0.
+
+Copyright (c) 2024-2026 Resilient Token Protocol Contributors
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.

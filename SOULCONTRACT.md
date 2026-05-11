@@ -130,7 +130,7 @@ No strategy goes live or stays live without clearing codified gates. All thresho
 | Flash Trade REST API | https://flashapi.trade |
 | Flash Trade SKILL.md | `flash-trade/SKILL.md` (in repo) |
 | Flash Trade Program (mainnet) | `FLASH6Lo6h3iasJKWDs2F8TkW2UKf3s15C8PMGuVfgBn` |
-| Phantom Connect | https://docs.phantom.com/phantom-connect |
+| Solana Wallet Adapter | https://github.com/solana-labs/wallet-adapter |
 | MoonPay Agents | https://www.moonpay.com/developers/agents |
 | Treasury program | `rtp/programs/rtp-treasury/` |
 | Soulguard enforcement | `rtp/swarm/src/coordinator/soulguard.rs` |
