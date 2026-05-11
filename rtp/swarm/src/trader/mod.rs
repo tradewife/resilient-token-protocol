@@ -83,6 +83,10 @@ pub struct TraderState {
     pub last_poll: String,
     pub total_pnl_sol: f64,
     pub total_trades: usize,
+    /// Watchdog: tracks consecutive cycle errors. Resets to 0 on success.
+    pub consecutive_errors: u32,
+    /// Watchdog: last time a full cycle completed successfully.
+    pub last_healthy: String,
 }
 
 impl TraderState {
@@ -95,6 +99,8 @@ impl TraderState {
             last_poll: String::new(),
             total_pnl_sol: 0.0,
             total_trades: 0,
+            consecutive_errors: 0,
+            last_healthy: String::new(),
         }
     }
 
@@ -125,7 +131,7 @@ async fn fetch_wallet_balance(rpc_url: &str, wallet: &str) -> Result<f64, String
     });
     let resp = client.post(rpc_url)
         .json(&body)
-        .timeout(std::time::Duration::from_secs(10))
+        .timeout(std::time::Duration::from_secs(15))
         .send()
         .await
         .map_err(|e| format!("RPC request failed: {}", e))?;
@@ -255,8 +261,13 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
         }
     }
 
-    // Main loop
-    tracing::info!("[LOOP] Starting autonomous trading loop...");
+    // Main loop with watchdog — each cycle is wrapped in a timeout.
+    // If a cycle hangs (e.g., HTTP request stalls), the watchdog kills it,
+    // increments consecutive_errors, and retries after a backoff.
+    const CYCLE_TIMEOUT_SECS: u64 = 120; // max time for one trading cycle
+    const MAX_CONSECUTIVE_ERRORS: u32 = 10; // after this many, sleep longer
+
+    tracing::info!("[LOOP] Starting autonomous trading loop (watchdog: {}s cycle timeout)...", CYCLE_TIMEOUT_SECS);
     loop {
         let cycle_start = Utc::now();
         {
@@ -264,183 +275,35 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
             s.last_poll = cycle_start.to_rfc3339();
         }
 
-        // 1. Fetch current SOL price from Flash Trade
-        match executor::get_sol_price().await {
-            Ok(price) => {
-                buffer.append_tick(price, cycle_start.timestamp());
-                let has_pos = state.lock().await.open_position.is_some();
-                tracing::info!(
-                    "[POLL] SOL=${:.2} | candles={} | pos={}",
-                    price,
-                    buffer.len(),
-                    if has_pos { "OPEN" } else { "FLAT" }
-                );
+        let cycle_result = tokio::time::timeout(
+            std::time::Duration::from_secs(CYCLE_TIMEOUT_SECS),
+            run_cycle(&config, &keypair, &wallet, &params, &mut buffer, &state),
+        ).await;
+
+        match cycle_result {
+            Ok(Ok(())) => {
+                // Cycle completed successfully
+                let mut s = state.lock().await;
+                s.consecutive_errors = 0;
+                s.last_healthy = Utc::now().to_rfc3339();
             }
-            Err(e) => {
-                tracing::warn!("[POLL] Price fetch failed: {}", e);
-                tokio::time::sleep(std::time::Duration::from_secs(config.poll_secs)).await;
-                continue;
+            Ok(Err(e)) => {
+                // Cycle returned an error — log and continue
+                tracing::error!("[WATCHDOG] Cycle error: {}", e);
+                let mut s = state.lock().await;
+                s.consecutive_errors += 1;
+                tracing::warn!("[WATCHDOG] Consecutive errors: {}/{}", s.consecutive_errors, MAX_CONSECUTIVE_ERRORS);
             }
-        }
-
-        let closes = buffer.closes();
-        let volumes = buffer.volumes();
-
-        // 2. Check exit on existing position
-        let exit_info = {
-            let s = state.lock().await;
-            if let Some(ref pos) = s.open_position {
-                if let Some(signal) = strategy::compute_signal(&closes, &volumes) {
-                    let now_secs = Utc::now().timestamp();
-                    let current_price = closes.last().copied().unwrap_or(0.0);
-                    let exit = strategy::check_exit(
-                        &params,
-                        pos.entry_price,
-                        pos.entry_time,
-                        pos.peak_price,
-                        pos.entry_rsi,
-                        current_price,
-                        signal.score,
-                        signal.rsi,
-                        signal.atr,
-                        now_secs,
-                    );
-                    Some((exit, pos.clone(), signal.score))
-                } else {
-                    None
-                }
-            } else {
-                None
-            }
-        };
-
-        if let Some((Some(reason), pos_info, _)) = exit_info {
-            tracing::info!("[EXIT] {:?} triggered!", reason);
-
-            if !config.dry_run {
-                match executor::get_positions(&wallet).await {
-                    Ok(positions) => {
-                        if let Some(pos_api) = positions.iter().find(|p| {
-                            p.market_symbol == "SOL" && p.side_ui == "Long"
-                        }) {
-                            match executor::close_position(
-                                &keypair,
-                                &pos_api.key,
-                                &pos_api.size_usd_ui,
-                            )
-                            .await
-                            {
-                                Ok((sig, pnl)) => {
-                                    tracing::info!("[EXIT] TX: https://explorer.solana.com/tx/{}?cluster=mainnet-beta", sig);
-                                    tracing::info!("[EXIT] PnL: ${:.4}", pnl);
-
-                                    let exit_price = closes.last().copied().unwrap_or(0.0);
-                                    let trade = TradeRecord {
-                                        entry_price: pos_info.entry_price,
-                                        exit_price,
-                                        entry_time: pos_info.entry_time,
-                                        exit_time: Utc::now().timestamp(),
-                                        pnl_pct: if pos_info.entry_price > 0.0 {
-                                            (exit_price - pos_info.entry_price) / pos_info.entry_price * 100.0
-                                        } else { 0.0 },
-                                        exit_reason: format!("{:?}", reason),
-                                        size_usd: pos_info.size_usd,
-                                    };
-                                    let mut s = state.lock().await;
-                                    s.trade_history.push(trade);
-                                    s.total_trades += 1;
-                                }
-                                Err(e) => {
-                                    tracing::error!("[EXIT] Close failed: {}", e);
-                                }
-                            }
-                        } else {
-                            tracing::warn!("[EXIT] No SOL Long position found on Flash Trade");
-                        }
-                    }
-                    Err(e) => {
-                        tracing::error!("[EXIT] Positions fetch failed: {}", e);
-                    }
-                }
-            } else {
-                tracing::info!("[DRY RUN] Would close position: {:?}", reason);
-            }
-
-            state.lock().await.open_position = None;
-        } else if let Some((None, pos_info, _)) = exit_info {
-            // No exit triggered — update peak price for trailing stop
-            let current_price = closes.last().copied().unwrap_or(0.0);
-            if current_price > pos_info.peak_price {
-                if let Some(ref mut pos) = state.lock().await.open_position {
-                    pos.peak_price = current_price;
-                }
-            }
-        } else {
-            // 3. Check entry signal (only if flat)
-            if let Some(signal) = strategy::compute_signal(&closes, &volumes) {
-                tracing::debug!(
-                    "[SIGNAL] score={:.3} rsi={:.1} bull={} atr={:.2} reasons={:?}",
-                    signal.score, signal.rsi, signal.bullish_count, signal.atr, signal.reasons
-                );
-                if signal.score > params.signal_threshold && signal.bullish_count >= params.min_alignment {
-                    tracing::info!(
-                        "[ENTRY] Signal: score={:.3} rsi={:.1} bull={} reasons={:?}",
-                        signal.score,
-                        signal.rsi,
-                        signal.bullish_count,
-                        signal.reasons
-                    );
-
-                    if !config.dry_run {
-                        // Compute position size as fraction of wallet balance
-                        let amount_sol = match fetch_wallet_balance(&config.rpc_url, &wallet).await {
-                            Ok(balance) => {
-                                let sized = balance * config.position_fraction;
-                                tracing::info!(
-                                    "[ENTRY] Wallet: {:.4} SOL → position: {:.4} SOL ({:.0}% @ {}x)",
-                                    balance, sized, config.position_fraction * 100.0, config.leverage
-                                );
-                                sized
-                            }
-                            Err(e) => {
-                                tracing::warn!("[ENTRY] Balance fetch failed ({}). Using fallback: {} SOL", e, config.amount_sol);
-                                config.amount_sol
-                            }
-                        };
-                        match executor::open_position(&keypair, amount_sol, config.leverage).await {
-                            Ok((sig, size_usd, entry_price)) => {
-                                tracing::info!("[ENTRY] TX: https://explorer.solana.com/tx/{}?cluster=mainnet-beta", sig);
-
-                                let pos_key = executor::get_positions(&wallet)
-                                    .await
-                                    .ok()
-                                    .and_then(|p| p.into_iter().find(|p| p.market_symbol == "SOL" && p.side_ui == "Long"))
-                                    .map(|p| p.key)
-                                    .unwrap_or_default();
-
-                                state.lock().await.open_position = Some(OpenPosition {
-                                    entry_price,
-                                    entry_time: Utc::now().timestamp(),
-                                    peak_price: entry_price,
-                                    entry_rsi: signal.rsi,
-                                    entry_atr: signal.atr,
-                                    entry_score: signal.score,
-                                    position_key: pos_key,
-                                    size_usd,
-                                });
-                            }
-                            Err(e) => {
-                                tracing::error!("[ENTRY] Open failed: {}", e);
-                            }
-                        }
-                    } else {
-                        tracing::info!("[DRY RUN] Would open {} SOL LONG @ {}x ({}%)", config.amount_sol, config.leverage, config.position_fraction * 100.0);
-                    }
-                }
+            Err(_) => {
+                // Cycle timed out — watchdog killed it
+                tracing::error!("[WATCHDOG] Cycle timed out after {}s — likely HTTP hang", CYCLE_TIMEOUT_SECS);
+                let mut s = state.lock().await;
+                s.consecutive_errors += 1;
+                tracing::warn!("[WATCHDOG] Consecutive errors: {}/{}", s.consecutive_errors, MAX_CONSECUTIVE_ERRORS);
             }
         }
 
-        // 4. Save state
+        // Save state after every cycle (success or failure)
         {
             let mut s = state.lock().await;
             s.candle_count = buffer.len();
@@ -449,13 +312,214 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
             }
         }
 
-        // 5. Sleep
-        let elapsed = (Utc::now() - cycle_start).num_seconds() as u64;
-        let sleep_secs = config.poll_secs.saturating_sub(elapsed);
+        // Backoff sleep: longer if we're in an error streak
+        let err_count = state.lock().await.consecutive_errors;
+        let base_sleep = config.poll_secs;
+        let sleep_secs = if err_count >= MAX_CONSECUTIVE_ERRORS {
+            tracing::warn!("[WATCHDOG] Max errors reached — sleeping 5 min before retry");
+            300
+        } else if err_count > 0 {
+            // Exponential backoff: 30s, 60s, 90s, 120s...
+            base_sleep.max(30 * err_count as u64)
+        } else {
+            let elapsed = (Utc::now() - cycle_start).num_seconds() as u64;
+            base_sleep.saturating_sub(elapsed)
+        };
+
         if sleep_secs > 0 {
             tokio::time::sleep(std::time::Duration::from_secs(sleep_secs)).await;
         }
     }
 }
 
-// cache-bust: 2026-05-11T04:00Z
+/// Run a single trading cycle: fetch price → check exit → check entry → save.
+/// Returns Err only for fatal-ish errors. Most errors are logged and swallowed.
+async fn run_cycle(
+    config: &TraderConfig,
+    keypair: &solana_sdk::signature::Keypair,
+    wallet: &str,
+    params: &StrategyParams,
+    buffer: &mut CandleBuffer,
+    state: &Arc<Mutex<TraderState>>,
+) -> Result<(), String> {
+    let cycle_start = Utc::now();
+
+    // 1. Fetch current SOL price from Flash Trade
+    let price = match executor::get_sol_price().await {
+        Ok(p) => p,
+        Err(e) => {
+            tracing::warn!("[POLL] Price fetch failed: {}", e);
+            return Ok(()); // non-fatal, will retry next cycle
+        }
+    };
+
+    buffer.append_tick(price, cycle_start.timestamp());
+    let has_pos = state.lock().await.open_position.is_some();
+    tracing::info!(
+        "[POLL] SOL=${:.2} | candles={} | pos={}",
+        price,
+        buffer.len(),
+        if has_pos { "OPEN" } else { "FLAT" }
+    );
+
+    let closes = buffer.closes();
+    let volumes = buffer.volumes();
+
+    // 2. Check exit on existing position
+    let exit_info = {
+        let s = state.lock().await;
+        if let Some(ref pos) = s.open_position {
+            if let Some(signal) = strategy::compute_signal(&closes, &volumes) {
+                let now_secs = Utc::now().timestamp();
+                let current_price = closes.last().copied().unwrap_or(0.0);
+                let exit = strategy::check_exit(
+                    params,
+                    pos.entry_price,
+                    pos.entry_time,
+                    pos.peak_price,
+                    pos.entry_rsi,
+                    current_price,
+                    signal.score,
+                    signal.rsi,
+                    signal.atr,
+                    now_secs,
+                );
+                Some((exit, pos.clone(), signal.score))
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    };
+
+    if let Some((Some(reason), pos_info, _)) = exit_info {
+        tracing::info!("[EXIT] {:?} triggered!", reason);
+
+        if !config.dry_run {
+            match executor::get_positions(wallet).await {
+                Ok(positions) => {
+                    if let Some(pos_api) = positions.iter().find(|p| {
+                        p.market_symbol == "SOL" && p.side_ui == "Long"
+                    }) {
+                        match executor::close_position(
+                            keypair,
+                            &pos_api.key,
+                            &pos_api.size_usd_ui,
+                        )
+                        .await
+                        {
+                            Ok((sig, pnl)) => {
+                                tracing::info!("[EXIT] TX: https://explorer.solana.com/tx/{}?cluster=mainnet-beta", sig);
+                                tracing::info!("[EXIT] PnL: ${:.4}", pnl);
+
+                                let exit_price = closes.last().copied().unwrap_or(0.0);
+                                let trade = TradeRecord {
+                                    entry_price: pos_info.entry_price,
+                                    exit_price,
+                                    entry_time: pos_info.entry_time,
+                                    exit_time: Utc::now().timestamp(),
+                                    pnl_pct: if pos_info.entry_price > 0.0 {
+                                        (exit_price - pos_info.entry_price) / pos_info.entry_price * 100.0
+                                    } else { 0.0 },
+                                    exit_reason: format!("{:?}", reason),
+                                    size_usd: pos_info.size_usd,
+                                };
+                                let mut s = state.lock().await;
+                                s.trade_history.push(trade);
+                                s.total_trades += 1;
+                            }
+                            Err(e) => {
+                                tracing::error!("[EXIT] Close failed: {}", e);
+                            }
+                        }
+                    } else {
+                        tracing::warn!("[EXIT] No SOL Long position found on Flash Trade");
+                    }
+                }
+                Err(e) => {
+                    tracing::error!("[EXIT] Positions fetch failed: {}", e);
+                }
+            }
+        } else {
+            tracing::info!("[DRY RUN] Would close position: {:?}", reason);
+        }
+
+        state.lock().await.open_position = None;
+    } else if let Some((None, pos_info, _)) = exit_info {
+        // No exit triggered — update peak price for trailing stop
+        let current_price = closes.last().copied().unwrap_or(0.0);
+        if current_price > pos_info.peak_price {
+            if let Some(ref mut pos) = state.lock().await.open_position {
+                pos.peak_price = current_price;
+            }
+        }
+    } else {
+        // 3. Check entry signal (only if flat)
+        if let Some(signal) = strategy::compute_signal(&closes, &volumes) {
+            tracing::debug!(
+                "[SIGNAL] score={:.3} rsi={:.1} bull={} atr={:.2} reasons={:?}",
+                signal.score, signal.rsi, signal.bullish_count, signal.atr, signal.reasons
+            );
+            if signal.score > params.signal_threshold && signal.bullish_count >= params.min_alignment {
+                tracing::info!(
+                    "[ENTRY] Signal: score={:.3} rsi={:.1} bull={} reasons={:?}",
+                    signal.score,
+                    signal.rsi,
+                    signal.bullish_count,
+                    signal.reasons
+                );
+
+                if !config.dry_run {
+                    // Compute position size as fraction of wallet balance
+                    let amount_sol = match fetch_wallet_balance(&config.rpc_url, wallet).await {
+                        Ok(balance) => {
+                            let sized = balance * config.position_fraction;
+                            tracing::info!(
+                                "[ENTRY] Wallet: {:.4} SOL → position: {:.4} SOL ({:.0}% @ {}x)",
+                                balance, sized, config.position_fraction * 100.0, config.leverage
+                            );
+                            sized
+                        }
+                        Err(e) => {
+                            tracing::warn!("[ENTRY] Balance fetch failed ({}). Using fallback: {} SOL", e, config.amount_sol);
+                            config.amount_sol
+                        }
+                    };
+                    match executor::open_position(keypair, amount_sol, config.leverage).await {
+                        Ok((sig, size_usd, entry_price)) => {
+                            tracing::info!("[ENTRY] TX: https://explorer.solana.com/tx/{}?cluster=mainnet-beta", sig);
+
+                            let pos_key = executor::get_positions(wallet)
+                                .await
+                                .ok()
+                                .and_then(|p| p.into_iter().find(|p| p.market_symbol == "SOL" && p.side_ui == "Long"))
+                                .map(|p| p.key)
+                                .unwrap_or_default();
+
+                            state.lock().await.open_position = Some(OpenPosition {
+                                entry_price,
+                                entry_time: Utc::now().timestamp(),
+                                peak_price: entry_price,
+                                entry_rsi: signal.rsi,
+                                entry_atr: signal.atr,
+                                entry_score: signal.score,
+                                position_key: pos_key,
+                                size_usd,
+                            });
+                        }
+                        Err(e) => {
+                            tracing::error!("[ENTRY] Open failed: {}", e);
+                        }
+                    }
+                } else {
+                    tracing::info!("[DRY RUN] Would open {} SOL LONG @ {}x ({}%)", config.amount_sol, config.leverage, config.position_fraction * 100.0);
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
+// cache-bust: 2026-05-11T20:00Z

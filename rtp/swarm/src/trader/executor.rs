@@ -23,9 +23,14 @@ pub struct PositionInfo {
     pub leverage_ui: String,
 }
 
-/// Execute a POST to Flash Trade API.
+const REQUEST_TIMEOUT_SECS: u64 = 30;
+
+/// Execute a POST to Flash Trade API with timeout.
 async fn flash_post(path: &str, body: &serde_json::Value) -> Result<serde_json::Value, String> {
-    let client = reqwest::Client::new();
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(REQUEST_TIMEOUT_SECS))
+        .build()
+        .map_err(|e| format!("HTTP client build failed: {}", e))?;
     let url = format!("{}{}", FLASH_API, path);
     let resp = client
         .post(&url)
@@ -33,7 +38,7 @@ async fn flash_post(path: &str, body: &serde_json::Value) -> Result<serde_json::
         .json(body)
         .send()
         .await
-        .map_err(|e| format!("Flash API request failed: {}", e))?;
+        .map_err(|e| format!("Flash API POST {} failed: {}", path, e))?;
 
     if !resp.status().is_success() {
         let text = resp.text().await.unwrap_or_default();
@@ -45,15 +50,18 @@ async fn flash_post(path: &str, body: &serde_json::Value) -> Result<serde_json::
         .map_err(|e| format!("Flash API parse error: {}", e))
 }
 
-/// Execute a GET to Flash Trade API.
+/// Execute a GET to Flash Trade API with timeout.
 async fn flash_get(path: &str) -> Result<serde_json::Value, String> {
-    let client = reqwest::Client::new();
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(REQUEST_TIMEOUT_SECS))
+        .build()
+        .map_err(|e| format!("HTTP client build failed: {}", e))?;
     let url = format!("{}{}", FLASH_API, path);
     let resp = client
         .get(&url)
         .send()
         .await
-        .map_err(|e| format!("Flash API request failed: {}", e))?;
+        .map_err(|e| format!("Flash API GET {} failed: {}", path, e))?;
 
     if !resp.status().is_success() {
         let text = resp.text().await.unwrap_or_default();
@@ -219,7 +227,10 @@ async fn sign_and_submit(
 
 /// Send a base64-encoded transaction via Solana JSON-RPC.
 async fn rpc_send_transaction(rpc_url: &str, b64_tx: &str) -> Result<String, String> {
-    let client = reqwest::Client::new();
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+        .map_err(|e| format!("RPC client build failed: {}", e))?;
 
     // Up to 3 attempts with backoff
     let mut last_err = String::new();
