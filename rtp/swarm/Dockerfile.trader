@@ -3,6 +3,9 @@ FROM rust:${RUST_VERSION} AS builder
 RUN apt-get update && apt-get install -y pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*
 WORKDIR /build
 
+# Force cache bust on every build
+ARG CACHEBUST=1
+
 COPY rtp/swarm/Cargo.toml rtp/swarm/Cargo.lock ./
 COPY rtp/swarm/src/ src/
 COPY rtp/swarm/tests/ tests/
