@@ -8,9 +8,6 @@ COPY requirements-ci.txt .
 RUN pip install --no-cache-dir -r requirements-ci.txt
 COPY research/ research/
 COPY data/ data/
-COPY configs/ configs/
-
-# Copy the commit script
 COPY scripts/commit-night-results.sh .
 
 # Night Shift writes results to /app/data/night_results (relative to WORKDIR).
