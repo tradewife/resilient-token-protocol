@@ -457,4 +457,5 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
         }
     }
 }
-# rebuilt 2026-05-11T00:53Z
+
+// cache-bust: 2026-05-11T04:00Z
