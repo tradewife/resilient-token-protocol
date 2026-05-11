@@ -22,10 +22,12 @@ use solana_sdk::signer::Signer;
 pub struct TraderConfig {
     pub keypair_path: PathBuf,
     pub amount_sol: f64,
+    pub position_fraction: f64,
     pub leverage: f64,
     pub poll_secs: u64,
     pub dry_run: bool,
     pub state_path: PathBuf,
+    pub rpc_url: String,
 }
 
 impl TraderConfig {
@@ -36,6 +38,10 @@ impl TraderConfig {
             .unwrap_or_else(|_| "0.20".to_string())
             .parse()
             .map_err(|e: std::num::ParseFloatError| format!("Invalid RTP_TRADER_AMOUNT: {}", e))?;
+        let position_fraction: f64 = std::env::var("RTP_TRADER_POSITION_FRACTION")
+            .unwrap_or_else(|_| "0.20".to_string())
+            .parse()
+            .map_err(|e: std::num::ParseFloatError| format!("Invalid RTP_TRADER_POSITION_FRACTION: {}", e))?;
         let leverage = std::env::var("RTP_TRADER_LEVERAGE")
             .unwrap_or_else(|_| "9.0".to_string())
             .parse()
@@ -51,13 +57,18 @@ impl TraderConfig {
         let state_path = std::env::var("RTP_TRADER_STATE_PATH")
             .unwrap_or_else(|_| "data/trader-state.json".to_string());
 
+        let rpc_url = std::env::var("RTP_TRADER_RPC_URL")
+            .unwrap_or_else(|_| "https://api.mainnet-beta.solana.com".to_string());
+
         Ok(Self {
             keypair_path: PathBuf::from(keypair_path),
             amount_sol,
+            position_fraction: position_fraction.clamp(0.01, 1.0),
             leverage,
             poll_secs: poll_secs.max(60),
             dry_run,
             state_path: PathBuf::from(state_path),
+            rpc_url,
         })
     }
 }
@@ -101,6 +112,26 @@ impl TraderState {
         let json = serde_json::to_string_pretty(self).map_err(|e| format!("serialize: {}", e))?;
         std::fs::write(path, json).map_err(|e| format!("write: {}", e))
     }
+}
+
+/// Fetch SOL balance of a wallet via RPC. Returns SOL (not lamports).
+async fn fetch_wallet_balance(rpc_url: &str, wallet: &str) -> Result<f64, String> {
+    let client = reqwest::Client::new();
+    let body = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "getBalance",
+        "params": [wallet]
+    });
+    let resp = client.post(rpc_url)
+        .json(&body)
+        .timeout(std::time::Duration::from_secs(10))
+        .send()
+        .await
+        .map_err(|e| format!("RPC request failed: {}", e))?;
+    let val: serde_json::Value = resp.json().await.map_err(|e| format!("RPC parse failed: {}", e))?;
+    let lamports: u64 = val["result"]["value"].as_u64().unwrap_or(0);
+    Ok(lamports as f64 / 1e9)
 }
 
 /// Spawn a lightweight HTTP server that serves GET /state with current trader state.
@@ -189,7 +220,8 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
 
     tracing::info!("=== RTP Autonomous Trader ===");
     tracing::info!("Wallet:     {}", wallet);
-    tracing::info!("Amount:     {} SOL", config.amount_sol);
+    tracing::info!("Amount:     {} SOL (fallback)", config.amount_sol);
+    tracing::info!("Fraction:   {}% of wallet balance", config.position_fraction * 100.0);
     tracing::info!("Leverage:   {}x", config.leverage);
     tracing::info!("Poll:       {}s", config.poll_secs);
     tracing::info!("Dry run:    {}", config.dry_run);
@@ -360,7 +392,22 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
                     );
 
                     if !config.dry_run {
-                        match executor::open_position(&keypair, config.amount_sol, config.leverage).await {
+                        // Compute position size as fraction of wallet balance
+                        let amount_sol = match fetch_wallet_balance(&config.rpc_url, &wallet).await {
+                            Ok(balance) => {
+                                let sized = balance * config.position_fraction;
+                                tracing::info!(
+                                    "[ENTRY] Wallet: {:.4} SOL → position: {:.4} SOL ({:.0}% @ {}x)",
+                                    balance, sized, config.position_fraction * 100.0, config.leverage
+                                );
+                                sized
+                            }
+                            Err(e) => {
+                                tracing::warn!("[ENTRY] Balance fetch failed ({}). Using fallback: {} SOL", e, config.amount_sol);
+                                config.amount_sol
+                            }
+                        };
+                        match executor::open_position(&keypair, amount_sol, config.leverage).await {
                             Ok((sig, size_usd, entry_price)) => {
                                 tracing::info!("[ENTRY] TX: https://explorer.solana.com/tx/{}?cluster=mainnet-beta", sig);
 
@@ -387,7 +434,7 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
                             }
                         }
                     } else {
-                        tracing::info!("[DRY RUN] Would open {} SOL LONG @ {}x", config.amount_sol, config.leverage);
+                        tracing::info!("[DRY RUN] Would open {} SOL LONG @ {}x ({}%)", config.amount_sol, config.leverage, config.position_fraction * 100.0);
                     }
                 }
             }
