@@ -93,6 +93,7 @@ Fee-Payer Wallet (gas only, DONE)
 
 ### Operational Notes (Lessons Learned)
 - **Never use `railway up` for redeployment** — it wipes custom domain registrations. Use Railway dashboard redeploy instead. If domains are lost, re-add via GraphQL `customDomainCreate` + `customDomainUpdate` to trigger verification.
+- **rtp-night-shift may lose GitHub repo connection** — if the service stops auto-deploying on push, reconnect the repo in Railway dashboard (Settings → Connect Repo → select `tradewife/resilient-token-protocol`). Root directory must be `/` (repo root), Dockerfile path stays `research/Dockerfile`.
 - **Dashboard RPC must match treasury network**: WalletProvider uses devnet RPC. The `/launch` page creates a separate mainnet connection for platform launches. Never mix networks — treasury balance reads from wrong RPC return 0.
 - **Frozen state must use SDK decoder**: Never read on-chain frozen field via hardcoded byte offsets — the Anchor account layout can change. Use `fetchTreasuryState()` from the SDK which uses Borsh decoding.
 - **FlashTradeClient is async**: The REST client uses async `reqwest` with retry (3 attempts, exponential backoff). Synchronous callers use `_blocking()` wrappers that create a tokio current-thread runtime.
@@ -296,7 +297,7 @@ All commands support `--json` (machine-readable), `--quiet` (errors only), `--cl
 | `rtp/swarm/src/wings/trading/phantom_mcp.rs` | **[ARCHIVED]** Phantom MCP client — gated behind `#[cfg(feature = "hyperliquid")]`, not compiled by default |
 | `rtp/swarm/src/bin/rtp-daemon.rs` | **Devnet loop daemon — real chain execution via chain_client, stale position close, single-cycle (Railway cron) or watchdog mode (RTP_WATCHDOG=1)** |
 | `rtp/swarm/src/chain_client.rs` | **On-chain client — ChainConfig from env, ExecutionMode simulate/devnet/mainnet, PDA derivation, open/close instruction builders, submit/simulate with retry** |
-| `rtp/swarm/src/trader/mod.rs` | **Live autonomous trader — REST API trading via Flash Trade, Arc<Mutex<TraderState>> shared state, HTTP status server on configurable port** |
+| `rtp/swarm/src/trader/mod.rs` | **Live autonomous trader — REST API trading via Flash Trade, Arc<Mutex<TraderState>> shared state, HTTP status server on configurable port, watchdog (120s cycle timeout, consecutive error tracking, exponential backoff)** |
 | `rtp/swarm/src/wings/security/mod.rs` | Threat detection, rate-limiting, suspicious-proposal detection |
 | `rtp/swarm/src/wings/evolve/` | Assessor, proposer, rollback (complete, tested) |
 | `rtp/swarm/src/wings/knowledge/mod.rs` | Persistent knowledge store (JSON file-backed), cross-wing queries |
@@ -444,7 +445,7 @@ The on-chain program separates instructions into two categories:
 |---------|-----------|------|
 | Flash Trade Perpetuals | **Execution venue**. On-chain Solana perps DEX. CPI via `invoke_signed` from Treasury PDA. REST API for queries (prices, positions, markets). Pool-to-peer model, up to 100x leverage, Pyth oracle pricing. | `flash-trade/SKILL.md` (in repo), https://flashapi.trade |
 | Solana Wallet Adapter | **Browser wallet**. `@solana/wallet-adapter-react` wired to dashboard (/, /launch, /docs). Supports Phantom, Solflare, Backpack, and any Solana wallet. Wallet connect + live token launch flow operational on devnet. | https://github.com/solana-labs/wallet-adapter |
-| CASH stablecoin | Third-party resource (not currently used) | https://docs.phantom.com/phantom-connect |
+| CASH stablecoin | Third-party resource (not currently used) | https://phantom.app/cash |
 | Squads Multisig | Post-launch: `treasury.authority` rotation to Squads PDA for 2-of-3 multisig governance | https://docs.squads.so |
 | Swig | Programmable smart wallets for wing message bus | https://docs.swig.fi |
 | MoonPay Agents | Agent money movement infrastructure | https://www.moonpay.com/developers/agents |
@@ -509,7 +510,7 @@ All CI/CD runs on **Railway** (migrated from GitHub Actions to conserve Actions 
 - **rtp-devnet-loop**: Rust `rtp-daemon` binary. Dockerfile uses `rust:1.88-slim` builder + `debian:bookworm-slim` runner. Connected to GitHub repo (`tradewife/resilient-token-protocol`), auto-deploys on push. Build context is repo root — COPY paths in Dockerfile use `rtp/swarm/` prefix. Needs env vars: `LLM_API_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`.
 - **rtp-night-shift**: Python 3.12, installs from `requirements-ci.txt`, runs `night_shift --skip-fetch`. One-shot: runs to completion and exits. OHLCV data in `data/ohlcv/` included via `.railwayignore` exclusion.
 - **rtp-swarm-ci**: Rust builder with Solana CLI + Anchor. Runs `cargo build`, `cargo test`, `cargo clippy`, `cargo fmt --check`, `anchor build`. One-shot CI validation.
-- **rtp-trader**: Always-on Rust binary (`rtp-trader`). Runs Survivor 2.69 strategy autonomously, polls Flash Trade every 5 minutes, executes SOL LONG positions when signal conditions met. HTTP status server on port 8080 serves `GET /state` (live TraderState JSON) and `GET /health`. State shared via `Arc<Mutex<TraderState>>` between trading loop and HTTP handler. Dashboard fetches via Railway private networking (`http://rtp-trader.railway.internal:8080/state`). Dockerfile: `rtp/swarm/Dockerfile.trader`. Env var `RTP_TRADER_HTTP_PORT` (default 8080).
+- **rtp-trader**: Always-on Rust binary (`rtp-trader`). Runs Survivor 2.69 strategy autonomously, polls Flash Trade every 5 minutes, executes SOL LONG positions when signal conditions met. HTTP status server on port 8080 serves `GET /state` (live TraderState JSON) and `GET /health`. State shared via `Arc<Mutex<TraderState>>` between trading loop and HTTP handler. Dashboard fetches via Railway private networking (`http://rtp-trader.railway.internal:8080/state`). Dockerfile: `rtp/swarm/Dockerfile.trader`. Env var `RTP_TRADER_HTTP_PORT` (default 8080). **Watchdog:** cycle wrapped in `tokio::time::timeout(120s)` — kills hung cycles (e.g., stalled HTTP). Tracks `consecutive_errors` + `last_healthy` in TraderState. Exponential backoff on repeated failures, 5-min sleep after 10 consecutive. All HTTP clients have 30s timeouts (Flash Trade API, Solana RPC).
 
 ### Cron Schedule Configuration
 

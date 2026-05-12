@@ -2,8 +2,8 @@
 
 > **How to use this file:** Paste the relevant sections at the top of every fresh agent session. Do not paste the full papers or full repo. This file is the compressed institutional memory of the project. Update it after each significant session.
 
-**Last updated:** 2026-05-06 — Robustness testing module + strategy plugin architecture + LLM strategy selector. 325 unit + 5 integration tests pass. Live trader running 9x Calmar-optimized config (Calmar=44.89, +554% return, 12.3% DD).
-**Current state:** Live autonomous trader (rtp-trader) running 24/7 on Railway with 9x leverage config: thresh=0.25, tp=5.0, sl=2.7, trail=0.14, align=3. Robustness testing pipeline built: Monte Carlo DD simulation (10K paths) + CPCV with PBO calculation. 5 strategy plugins (S02, S04, S06, S10, S13) enable exploration of alternative strategies during night shift. LLM strategy selector reads strategy library + dead ends to pick most promising strategies for testing. 325 unit + 5 integration Rust tests pass. All 7 Railway services green.
+**Last updated:** 2026-05-12 — Trader watchdog + HTTP timeouts, dashboard mobile fixes, BSL-1.1 rebrand, night-shift Dockerfile fix. 331 unit + 5 integration tests pass.
+**Current state:** Live autonomous trader (rtp-trader) running 24/7 on Railway with 9x leverage config: thresh=0.25, tp=5.0, sl=2.7, trail=0.14, align=3. **Trader watchdog:** 120s cycle timeout, 30s HTTP timeouts on all API calls, consecutive error tracking with exponential backoff. `RTP_TRADER_LEVERAGE=9.0` on Railway (was accidentally 1.0 — fixed). Dashboard mobile-responsive (intel panels stack, code block wraps). All 7 Railway services green. License: BSL-1.1.
 
 ---
 
@@ -54,8 +54,7 @@ The execution path is **fully implemented** (M0–M5 complete). Treasury PDA inv
 - **Verifiability gap**: Trade authorisation happened off-chain (EIP-712), not auditable on Solana
 - **Custody mismatch**: Treasury funds had to leave the Solana PDA to reach Hyperliquid
 - Flash Trade eliminates all three: PDA signs, execution is on Solana, funds never leave Solana
-- **Phantom Connect SDK** — for the dashboard's browser extension wallet connection.
-  - Portal App ID: `2fbef7dc-7975-4378-ba2b-ff8018ad2325` (registered at https://phantom.app/portal)
+- **Solana Wallet Adapter** — `@solana/wallet-adapter-react` for browser wallet connection. Supports Phantom, Solflare, Backpack, and any Solana wallet.
   - Dashboard uses `@solana/wallet-adapter-react` + Phantom adapter — works today
 - CASH stablecoin (sponsored) — not currently used. Treasury uses USDC for settlement.
 - **Phantom MCP (archived)**: gated behind `#[cfg(feature = "hyperliquid")]`, not compiled by default. Historical details in session logs (§8, sessions 2026-04-18/22).
@@ -970,7 +969,7 @@ State as of Apr 11:
 | Flash Trade SKILL.md | `flash-trade/SKILL.md` (in repo) |
 | Flash Trade Program (mainnet) | `FLASH6Lo6h3iasJKWDs2F8TkW2UKf3s15C8PMGuVfgBn` |
 | Flash Trade Program (devnet) | `FTPP4jEWW1n8s2FEccwVfS9KCPjpndaswg7Nkkuz4ER4` |
-| Phantom Connect docs | https://docs.phantom.com/phantom-connect |
+| Solana Wallet Adapter | https://github.com/solana-labs/wallet-adapter |
 | Squads Multisig | https://docs.squads.so |
 | Anchor docs | https://www.anchor-lang.com/docs |
 | Solana devnet RPC | https://api.devnet.solana.com |
