@@ -2424,11 +2424,16 @@ def run_night_shift(
     try:
         from research.validation.discrepancy_detector import detect_discrepancies, update_flag_history, generate_recommendation
         # Build fast sim results from all_results
+        # LeverageCandidate lacks survivor_score/oos_pnl — use calmar_ratio/total_return_pct
         fast_results = {}
         for sym, results in all_results.items():
+            def _sort_key(r):
+                return getattr(r, 'survivor_score', None) or getattr(r, 'calmar_ratio', 0)
+            top = sorted(results, key=_sort_key, reverse=True)[:5]
             fast_results[sym] = [
-                {"oos_sharpe": r.oos_sharpe, "total_pnl": r.oos_pnl}
-                for r in sorted(results, key=lambda r: r.survivor_score, reverse=True)[:5]
+                {"oos_sharpe": r.oos_sharpe,
+                 "total_pnl": getattr(r, 'oos_pnl', getattr(r, 'total_return_pct', 0))}
+                for r in top
             ]
         # Check for full sim validation
         val_dir = os.path.join(RESULTS_DIR, datetime.now(timezone.utc).strftime("%Y-%m-%d"))
