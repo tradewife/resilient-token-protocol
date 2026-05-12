@@ -261,6 +261,43 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
         }
     }
 
+    // Reconcile with Flash Trade: if a position is open on-chain but missing
+    // from internal state (e.g. after redeploy), restore it so the trader
+    // can manage exits and won't open duplicates.
+    {
+        let mut s = state.lock().await;
+        if s.open_position.is_none() {
+            match executor::get_positions(&wallet).await {
+                Ok(positions) => {
+                    if let Some(pos) = positions.iter().find(|p| {
+                        p.market_symbol == "SOL" && p.side_ui == "Long"
+                    }) {
+                        let entry_price: f64 = pos.entry_price_ui.parse().unwrap_or(0.0);
+                        let size_usd: f64 = pos.size_usd_ui.parse().unwrap_or(0.0);
+                        tracing::warn!(
+                            "[RECONCILE] Found orphaned SOL LONG position on Flash Trade: \
+                             entry=${:.2} size=${:.2} key={}...restoring to internal state.",
+                            entry_price, size_usd, &pos.key[..8]
+                        );
+                        s.open_position = Some(OpenPosition {
+                            entry_price,
+                            entry_time: 0, // unknown — will use current candle for exit logic
+                            peak_price: entry_price,
+                            entry_rsi: 50.0, // neutral default
+                            entry_atr: 0.0,
+                            entry_score: 0.0,
+                            position_key: pos.key.clone(),
+                            size_usd,
+                        });
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!("[RECONCILE] Failed to check Flash Trade positions: {}. Continuing without reconciliation.", e);
+                }
+            }
+        }
+    }
+
     // Main loop with watchdog — each cycle is wrapped in a timeout.
     // If a cycle hangs (e.g., HTTP request stalls), the watchdog kills it,
     // increments consecutive_errors, and retries after a backoff.
