@@ -281,7 +281,7 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
                         );
                         s.open_position = Some(OpenPosition {
                             entry_price,
-                            entry_time: 0, // unknown — will use current candle for exit logic
+                            entry_time: Utc::now().timestamp() - 3600, // assume 1h ago to avoid max_hold firing immediately
                             peak_price: entry_price,
                             entry_rsi: 50.0, // neutral default
                             entry_atr: 0.0,
@@ -433,6 +433,7 @@ async fn run_cycle(
     if let Some((Some(reason), pos_info, _)) = exit_info {
         tracing::info!("[EXIT] {:?} triggered!", reason);
 
+        let mut close_succeeded = config.dry_run;
         if !config.dry_run {
             match executor::get_positions(wallet).await {
                 Ok(positions) => {
@@ -465,6 +466,7 @@ async fn run_cycle(
                                 let mut s = state.lock().await;
                                 s.trade_history.push(trade);
                                 s.total_trades += 1;
+                                close_succeeded = true;
                             }
                             Err(e) => {
                                 tracing::error!("[EXIT] Close failed: {}", e);
@@ -472,6 +474,8 @@ async fn run_cycle(
                         }
                     } else {
                         tracing::warn!("[EXIT] No SOL Long position found on Flash Trade");
+                        // Position already closed externally — clear stale state
+                        close_succeeded = true;
                     }
                 }
                 Err(e) => {
@@ -482,7 +486,9 @@ async fn run_cycle(
             tracing::info!("[DRY RUN] Would close position: {:?}", reason);
         }
 
-        state.lock().await.open_position = None;
+        if close_succeeded {
+            state.lock().await.open_position = None;
+        }
     } else if let Some((None, pos_info, _)) = exit_info {
         // No exit triggered — update peak price for trailing stop
         let current_price = closes.last().copied().unwrap_or(0.0);
