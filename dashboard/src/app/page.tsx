@@ -546,6 +546,38 @@ export default function Home() {
         </div>
       </section>
 
+      {/* ════════ PHILOSOPHICAL ANCHOR ════════ */}
+      <section style={{ padding: "var(--space-2xl) var(--page-pad)", maxWidth: "var(--page-max)", margin: "0 auto" }}>
+        <blockquote style={{
+          borderLeft: "3px solid var(--coral)",
+          margin: 0,
+          padding: "var(--space-lg) var(--space-xl)",
+          position: "relative",
+        }}>
+          <span style={{
+            position: "absolute",
+            top: "var(--space-xs)",
+            left: "var(--space-lg)",
+            fontSize: "2.5rem",
+            lineHeight: 1,
+            color: "var(--coral-muted)",
+            fontFamily: "Georgia, serif",
+            pointerEvents: "none",
+            userSelect: "none",
+          }}>&ldquo;</span>
+          <p style={{
+            margin: 0,
+            color: "var(--text-primary)",
+            fontSize: "1.125rem",
+            fontWeight: 500,
+            lineHeight: 1.6,
+            letterSpacing: "-0.005em",
+          }}>
+            Even after a token dies, RTP keeps paying its holders. The treasury compounds in perpetuity.
+          </p>
+        </blockquote>
+      </section>
+
       {/* ════════ §2 TRUSTLESS BY DESIGN ════════ */}
       <section className="sys2-section" id="trust">
         <header className="sys2-sect-head">

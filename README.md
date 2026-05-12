@@ -4,6 +4,8 @@
 
 A Solana-native, self-funding treasury protocol. Any token project adopts RTP — their trading fees route to a program-owned treasury that autonomously generates yield via Flash Trade on-chain perpetuals (CPI via `invoke_signed`, mainnet-proven) and redistributes it back to the project and holders (70/20/10 on-chain split). Funded by its own yield, forever. No RTP token. RTP is infrastructure.
 
+> Even after a token dies, RTP keeps paying its holders. The treasury compounds in perpetuity.
+
 ```
                     ┌─────────────────────────────┐
                     │     RTP SWARM COORDINATOR    │
