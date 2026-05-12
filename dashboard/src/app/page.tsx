@@ -302,7 +302,7 @@ export default function Home() {
   }, [trader]);
 
   const daysRunning = useMemo(() => {
-    const deployedAt = new Date("2026-05-11T04:02:40Z").getTime();
+    const deployedAt = new Date("2026-05-12T04:20:00Z").getTime();
     return Math.max(0, Math.ceil((Date.now() - deployedAt) / 86400000));
   }, []);
 
@@ -378,7 +378,7 @@ export default function Home() {
           <div className="sys2-vital">
             <div className="sys2-vital-label">Days Active</div>
             <div className="sys2-vital-value">{daysRunning}</div>
-            <div className="sys2-vital-sub">Since May 11 · Railway</div>
+            <div className="sys2-vital-sub">Since May 12 · Railway</div>
           </div>
           <div className="sys2-vital">
             <div className="sys2-vital-label">Treasury SOL</div>
