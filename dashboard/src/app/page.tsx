@@ -546,13 +546,27 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ════════ PHILOSOPHICAL ANCHOR ════════ */}
-      <section style={{ padding: "var(--space-2xl) var(--page-pad)", maxWidth: "var(--page-max)", margin: "0 auto" }}>
+      {/* ════════ §2 TRUSTLESS BY DESIGN ════════ */}
+      <section className="sys2-section" id="trust">
+        <header className="sys2-sect-head">
+          <div>
+            <div className="sys2-sect-eyebrow">§2 · trustless by design</div>
+            <h2 className="sys2-sect-title">Agents propose. The program disposes.</h2>
+            <p className="sys2-sect-lede">
+              16 constitutional invariants are enforced in both the Rust runtime (<code className="inline-code">soulguard.rs</code>)
+              and the on-chain Anchor program. No human can sign for the treasury. No human can override
+              the rules, not even the authority. The program is the only authority.
+            </p>
+          </div>
+        </header>
+
+        {/* Philosophical anchor — after the constitutional invariants paragraph */}
         <blockquote style={{
           borderLeft: "3px solid var(--coral)",
-          margin: 0,
+          margin: "var(--space-lg) 0",
           padding: "var(--space-lg) var(--space-xl)",
           position: "relative",
+          maxWidth: "var(--page-max)",
         }}>
           <span style={{
             position: "absolute",
@@ -576,21 +590,6 @@ export default function Home() {
             Even after a token dies, RTP keeps paying its holders. The treasury compounds in perpetuity.
           </p>
         </blockquote>
-      </section>
-
-      {/* ════════ §2 TRUSTLESS BY DESIGN ════════ */}
-      <section className="sys2-section" id="trust">
-        <header className="sys2-sect-head">
-          <div>
-            <div className="sys2-sect-eyebrow">§2 · trustless by design</div>
-            <h2 className="sys2-sect-title">Agents propose. The program disposes.</h2>
-            <p className="sys2-sect-lede">
-              16 constitutional invariants are enforced in both the Rust runtime (<code className="inline-code">soulguard.rs</code>)
-              and the on-chain Anchor program. No human can sign for the treasury. No human can override
-              the rules, not even the authority. The program is the only authority.
-            </p>
-          </div>
-        </header>
 
         <div className="arch2-layer-cells">
           {INVARIANTS.map((inv) => (
