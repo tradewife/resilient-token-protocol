@@ -1701,7 +1701,8 @@ body {
   display: flex;
   gap: var(--space-md);
   margin-top: var(--space-2xl);
-  padding-top: var(--space-lg);
+  padding-top: var(--space-xl);
+  padding-bottom: var(--space-xl);
   border-top: 1px solid var(--border);
 }
 

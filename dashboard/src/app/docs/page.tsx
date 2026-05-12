@@ -854,6 +854,7 @@ export default function DocsPage() {
     setActiveSlug(slug);
     setSidebarOpen(false);
     window.location.hash = slug;
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   return (
