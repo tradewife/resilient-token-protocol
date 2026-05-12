@@ -412,8 +412,8 @@ export default function Home() {
             <div className="sys2-sect-eyebrow">§1 · proven on mainnet</div>
             <h2 className="sys2-sect-title">The yield engine is running. With real capital.</h2>
             <p className="sys2-sect-lede">
-              Rather than an underfunded mainnet deploy, the most critical component (the yield
-              engine) is live with real capital. A Rust agent executes validated strategies on-chain
+              Beta testing with skin in the game — real capital on mainnet, proving it before we
+              open the doors. A Rust agent executes validated strategies on-chain
               via Flash Trade CPI, signed by the Treasury PDA. No human keypair exists. Every
               position is an on-chain transaction verifiable on Solana Explorer.
             </p>
