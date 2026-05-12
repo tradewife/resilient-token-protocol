@@ -1,9 +1,21 @@
 {
   "wallet": "Driyi8Sw2622yCefU34zrjBsQynrDoGD31tBecXrEF6R",
   "open_position": null,
-  "trade_history": [],
+  "trade_history": [
+    {
+      "entry_price": 172.50,
+      "exit_price": 188.09,
+      "entry_time": 1777931976,
+      "exit_time": 1777931988,
+      "pnl_pct": 9.04,
+      "exit_reason": "TrailingStop",
+      "size_usd": 34.20
+    }
+  ],
   "candle_count": 200,
-  "last_poll": "2026-05-04T23:45:56.089454555+00:00",
+  "last_poll": "2026-05-05T00:00:00+00:00",
   "total_pnl_sol": 0.0,
-  "total_trades": 0
+  "total_trades": 1,
+  "consecutive_errors": 0,
+  "last_healthy": "2026-05-05T00:00:00+00:00"
 }
