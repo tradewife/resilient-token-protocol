@@ -352,7 +352,7 @@ export default function Home() {
               No one wants to hold anymore. RTP gives them a reason.
             </p>
             <p className="hero-subtitle">
-              Token projects route trading fees to RTP → the swarm generates returns via on-chain perps → SOL flows back to holders. 70/20/10 split, enforced on-chain. No RTP token. Pure infrastructure.
+              Token projects route trading fees to RTP → the swarm generates returns via on-chain perps → SOL flows back to holders. 70/20/10 split, enforced on-chain. No RTP token.<br />Pure infrastructure.
             </p>
           </div>
 
