@@ -1975,6 +1975,8 @@ body {
   font-size: 0.75rem;
   color: var(--text-tertiary);
   font-weight: 400;
+  line-height: 1.1;
+  align-self: flex-end;
 }
 
 .sys2-vital-sub {
