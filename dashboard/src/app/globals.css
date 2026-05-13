@@ -1976,8 +1976,7 @@ body {
   color: var(--text-tertiary);
   font-weight: 400;
   line-height: 1;
-  position: relative;
-  top: -0.1em;
+  vertical-align: baseline;
 }
 
 .sys2-vital-sub {
@@ -3119,6 +3118,7 @@ body {
   .page { padding: var(--space-md); }
   .sys2-section { padding: var(--space-2xl) 0; }
   .sys2-vitals { grid-template-columns: repeat(2, 1fr); }
+  .sys2-vital-sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .hero-tagline-break { display: block; }
   .hero-tagline { font-size: 1rem !important; }
   .sys2-sect-lede { max-width: 100%; }
