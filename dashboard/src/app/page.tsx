@@ -341,6 +341,16 @@ export default function Home() {
               <br />
               program-enforced treasury
             </h1>
+            <p className="hero-tagline" style={{
+              fontSize: "1.25rem",
+              fontWeight: 400,
+              color: "var(--text-primary)",
+              letterSpacing: "-0.01em",
+              margin: "0.5rem 0 0.75rem",
+              lineHeight: 1.4,
+            }}>
+              No one wants to hold anymore. RTP gives them a reason.
+            </p>
             <p className="hero-subtitle">
               Token projects route trading fees to RTP → the swarm generates returns via on-chain perps → SOL flows back to holders. 70/20/10 split, enforced on-chain. No RTP token. Pure infrastructure.
             </p>
