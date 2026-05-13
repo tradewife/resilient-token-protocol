@@ -410,7 +410,7 @@ export default function Home() {
           <div className="sys2-vital">
             <div className="sys2-vital-label">Calmar (validated)</div>
             <div className="sys2-vital-value">44.89</div>
-            <div className="sys2-vital-sub">SOL Survivor 2.69 · 9x lev</div>
+            <div className="sys2-vital-sub">{"SOL Survivor 2.69 · "}<span className="vital-sub-line">{"9x lev"}</span></div>
           </div>
         </div>
       </section>

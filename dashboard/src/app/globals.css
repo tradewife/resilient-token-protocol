@@ -3118,7 +3118,9 @@ body {
   .page { padding: var(--space-md); }
   .sys2-section { padding: var(--space-2xl) 0; }
   .sys2-vitals { grid-template-columns: repeat(2, 1fr); }
-  .sys2-vital-sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sys2-vital { gap: 6px; padding: var(--space-md) var(--space-sm); }
+  .sys2-vital-value { font-size: 1.375rem; }
+  .vital-sub-line { display: block; }
   .hero-tagline-break { display: block; }
   .hero-tagline { font-size: 1rem !important; }
   .sys2-sect-lede { max-width: 100%; }
