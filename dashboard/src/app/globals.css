@@ -3118,6 +3118,7 @@ body {
   .page { padding: var(--space-md); }
   .sys2-section { padding: var(--space-2xl) 0; }
   .sys2-vitals { grid-template-columns: repeat(2, 1fr); }
+  .hero-tagline-break { display: block; }
   .sys2-sect-lede { max-width: 100%; }
   .arch2-layer-cells { grid-template-columns: 1fr; }
   .pipe2-step { grid-template-columns: 1fr; padding-left: var(--space-md); margin-left: 24px; }
