@@ -2,8 +2,6 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { useWallet } from "@solana/wallet-adapter-react";
-import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 
 interface TopbarProps {
   activePage?: "dashboard" | "architecture" | "pipeline" | "launch" | "docs" | "research";
@@ -18,13 +16,7 @@ const NAV_ITEMS = [
 ] as const;
 
 export default function Topbar({ activePage }: TopbarProps) {
-  const { publicKey, connected, disconnect } = useWallet();
-  const { setVisible } = useWalletModal();
   const [menuOpen, setMenuOpen] = useState(false);
-
-  const addr = publicKey
-    ? `${publicKey.toBase58().slice(0, 4)}...${publicKey.toBase58().slice(-4)}`
-    : null;
 
   return (
     <header className="topbar">
@@ -35,12 +27,7 @@ export default function Topbar({ activePage }: TopbarProps) {
         </Link>
       </div>
       <div className="topbar-actions">
-        <span className="network-badge" title="Treasury program deployed on devnet">Devnet</span>
-        <span style={{
-          fontSize: "0.5625rem", fontWeight: 600, letterSpacing: "0.08em",
-          color: "#fff", background: "var(--emerald)", padding: "2px 8px",
-          borderRadius: 3, textTransform: "uppercase", lineHeight: 1.6,
-        }} title="Flash Trade CPI and autonomous trading confirmed on mainnet">Mainnet Verified</span>
+        <span className="network-badge" title="Resilient Token Protocol is currently in closed beta">Closed Beta</span>
         {NAV_ITEMS.map((item) => (
           <Link
             key={item.key}
@@ -58,15 +45,6 @@ export default function Topbar({ activePage }: TopbarProps) {
             {item.label}
           </Link>
         ))}
-        {connected && publicKey ? (
-          <div className="wallet-pill">
-            <span className="wallet-indicator" />
-            <span className="wallet-addr">{addr}</span>
-            <button className="btn-disconnect" onClick={disconnect} title="Disconnect">&times;</button>
-          </div>
-        ) : (
-          <button className="btn-connect" onClick={() => setVisible(true)}>Connect Wallet</button>
-        )}
         <button
           className={`hamburger${menuOpen ? " open" : ""}`}
           onClick={() => setMenuOpen(!menuOpen)}
@@ -82,12 +60,7 @@ export default function Topbar({ activePage }: TopbarProps) {
               {item.label}
             </Link>
           ))}
-          <span className="menu-badge">Devnet</span>
-          <span style={{
-            fontSize: "0.5625rem", fontWeight: 600, letterSpacing: "0.08em",
-            color: "#fff", background: "var(--emerald)", padding: "2px 8px",
-            borderRadius: 3, textTransform: "uppercase", lineHeight: 1.6,
-          }} title="Flash Trade CPI and autonomous trading confirmed on mainnet">Mainnet Verified</span>
+          <span className="menu-badge">Closed Beta</span>
         </nav>
       )}
     </header>

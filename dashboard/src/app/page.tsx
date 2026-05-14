@@ -521,8 +521,8 @@ export default function Home() {
           </div>
         )}
 
-        {/* Mainnet proof */}
-        <div style={{ marginTop: "var(--space-2xl)" }}>
+        {/* Mainnet proof — hidden on mobile (cards too heavy) */}
+        <div className="hide-mobile" style={{ marginTop: "var(--space-2xl)" }}>
           <header className="sys2-sect-head" style={{ marginBottom: "var(--space-lg)" }}>
             <div>
               <div className="sys2-sect-eyebrow">ON-CHAIN PROOF</div>
@@ -569,37 +569,6 @@ export default function Home() {
             </p>
           </div>
         </header>
-
-        {/* Philosophical anchor — after the constitutional invariants paragraph */}
-        <blockquote style={{
-          borderLeft: "3px solid var(--coral)",
-          margin: "var(--space-lg) 0",
-          padding: "var(--space-lg) var(--space-xl)",
-          position: "relative",
-          maxWidth: "var(--page-max)",
-        }}>
-          <span style={{
-            position: "absolute",
-            top: "var(--space-xs)",
-            left: "var(--space-lg)",
-            fontSize: "2.5rem",
-            lineHeight: 1,
-            color: "var(--coral-muted)",
-            fontFamily: "Georgia, serif",
-            pointerEvents: "none",
-            userSelect: "none",
-          }}>&ldquo;</span>
-          <p style={{
-            margin: 0,
-            color: "var(--text-primary)",
-            fontSize: "1.125rem",
-            fontWeight: 500,
-            lineHeight: 1.6,
-            letterSpacing: "-0.005em",
-          }}>
-            Even after a token dies, RTP keeps paying its holders. The treasury compounds in perpetuity.
-          </p>
-        </blockquote>
 
         <div className="arch2-layer-cells">
           {INVARIANTS.map((inv) => (

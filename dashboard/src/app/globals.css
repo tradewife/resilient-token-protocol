@@ -3145,4 +3145,5 @@ body {
   .intel-panel { min-width: 0; overflow: hidden; }
   .intel-chips { gap: 3px; }
   .intel-chip { font-size: 0.625rem; padding: 2px 6px; }
+  .hide-mobile { display: none; }
 }
