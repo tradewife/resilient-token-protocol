@@ -212,20 +212,6 @@ cd rtp/programs/rtp-treasury && anchor build
 anchor test --provider.cluster devnet
 ```
 
-## What This Is Not
-
-- **Not a token** — there is no RTP token. RTP is pure infrastructure.
-- **Not a vault** — no custody of user funds.
-- **Not dependent on LLMs** — core loop is deterministic Python; LLMs optional for hypothesis generation.
-- **Not liquidating community SOL** — SOL committed to Flash Trade via on-chain CPI, never sold.
-
-## Demo Flow (3 minutes)
-
-1. **"Token projects route trading fees to RTP."** — Per-mint treasury PDA, isolated from every other token.
-2. **"This is our research engine."** — 30,000 configs/night, 9-fold WFA. Best: +554% at 9x, 100% consistency.
-3. **"The Treasury PDA signs a Flash Trade CPI call — no human key."** — [Solana Explorer: TX `2bLg1Fu...`] Position opened via `invoke_signed`, 99,214 CU.
-4. **"The soulguard catches violations."** — [Program rejects below-threshold redistribution] Constitutional governance enforced in Rust AND on-chain.
-5. **"Yield flows back — 70% holders, 20% dev, 10% ecosystem."** — On-chain, deterministic, auditable. Self-funding, forever.
 
 ## License
 
