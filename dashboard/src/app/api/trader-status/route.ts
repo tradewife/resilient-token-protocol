@@ -5,13 +5,14 @@ const TRADER_INTERNAL_URL =
   process.env.TRADER_STATUS_URL ||
   null;
 
-// Railway private networking routes to the container's EXPOSEd port via the
-// private domain on port 80. The RAILWAY_SERVICE_*_URL env var already
-// includes the scheme and hostname — do NOT append the container port.
+const TRADER_PORT = process.env.RTP_TRADER_HTTP_PORT || "8080";
+
+// Railway private networking: http://<service>.railway.internal:<container-port>
+// RAILWAY_SERVICE_*_URL provides scheme + hostname, container port must be appended.
 function getTraderUrl(): string | null {
   if (TRADER_INTERNAL_URL) {
     const base = TRADER_INTERNAL_URL.replace(/\/+$/, "");
-    return `${base}/state`;
+    return `${base}:${TRADER_PORT}/state`;
   }
   return null;
 }
@@ -35,7 +36,7 @@ export async function GET() {
   if (traderUrl) {
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 3000);
+      const timeout = setTimeout(() => controller.abort(), 5000);
       const res = await fetch(traderUrl, {
         signal: controller.signal,
         headers: { Accept: "application/json" },
@@ -51,8 +52,32 @@ export async function GET() {
           },
         });
       }
-    } catch {
-      // Trader unreachable — fall through to static
+      // Non-OK response from trader — include diagnostic info in fallback headers
+      const staticData = await getStaticFallback();
+      return NextResponse.json(staticData || { error: "Trader returned non-OK" }, {
+        status: 200,
+        headers: {
+          "Cache-Control": "public, s-maxage=30",
+          "Access-Control-Allow-Origin": "*",
+          "X-Data-Source": "static-fallback",
+          "X-Trader-Url": traderUrl,
+          "X-Trader-Status": res.status.toString(),
+        },
+      });
+    } catch (err) {
+      // Trader unreachable — include diagnostic info in fallback headers
+      const errMsg = err instanceof Error ? err.message : String(err);
+      const staticData = await getStaticFallback();
+      return NextResponse.json(staticData || { error: "Trader unreachable" }, {
+        status: 200,
+        headers: {
+          "Cache-Control": "public, s-maxage=30",
+          "Access-Control-Allow-Origin": "*",
+          "X-Data-Source": "static-fallback",
+          "X-Trader-Url": traderUrl,
+          "X-Trader-Error": errMsg.slice(0, 200),
+        },
+      });
     }
   }
 
@@ -64,6 +89,7 @@ export async function GET() {
         "Cache-Control": "public, s-maxage=30",
         "Access-Control-Allow-Origin": "*",
         "X-Data-Source": "static-fallback",
+        "X-Trader-Url": "not-configured",
       },
     });
   }
