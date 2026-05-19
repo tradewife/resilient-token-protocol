@@ -500,7 +500,7 @@ async fn run_cycle(
     } else {
         // 3. Check entry signal (only if flat)
         if let Some(signal) = strategy::compute_signal(&closes, &volumes) {
-            tracing::debug!(
+            tracing::info!(
                 "[SIGNAL] score={:.3} rsi={:.1} bull={} atr={:.2} reasons={:?}",
                 signal.score, signal.rsi, signal.bullish_count, signal.atr, signal.reasons
             );

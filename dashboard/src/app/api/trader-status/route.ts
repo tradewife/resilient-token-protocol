@@ -5,14 +5,13 @@ const TRADER_INTERNAL_URL =
   process.env.TRADER_STATUS_URL ||
   null;
 
-const TRADER_PORT = process.env.RTP_TRADER_HTTP_PORT || "8080";
-
-// Railway provides RAILWAY_PRIVATE_DOMAIN for each service.
-// The trader's internal hostname is available via the service reference variable.
+// Railway private networking routes to the container's EXPOSEd port via the
+// private domain on port 80. The RAILWAY_SERVICE_*_URL env var already
+// includes the scheme and hostname — do NOT append the container port.
 function getTraderUrl(): string | null {
   if (TRADER_INTERNAL_URL) {
     const base = TRADER_INTERNAL_URL.replace(/\/+$/, "");
-    return `${base}:${TRADER_PORT}/state`;
+    return `${base}/state`;
   }
   return null;
 }
