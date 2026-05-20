@@ -13,7 +13,7 @@
   },
   "leverage": 1.0,
   "position_pct": 0.2,
-  "elapsed_seconds": 75.8,
+  "elapsed_seconds": 78.6,
   "monte_carlo": {
     "n_simulations": 10000,
     "n_trades": 361,
