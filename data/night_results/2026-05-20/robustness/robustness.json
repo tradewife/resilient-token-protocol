@@ -1,0 +1,1506 @@
+{
+  "symbol": "BNB/USDT",
+  "params": {
+    "signal_threshold": 0.35,
+    "take_profit_atr": 3.0,
+    "stop_loss_atr": 1.0,
+    "max_hold_hours": 36,
+    "time_decay_hours": 24,
+    "trailing_stop_atr": 1.0,
+    "score_flip_delay_hrs": 0,
+    "min_alignment": 3,
+    "leverage": 1.0
+  },
+  "leverage": 1.0,
+  "position_pct": 0.2,
+  "elapsed_seconds": 75.8,
+  "monte_carlo": {
+    "n_simulations": 10000,
+    "n_trades": 361,
+    "observed_dd": 5.64,
+    "dd_p50": 4.51,
+    "dd_p75": 5.2,
+    "dd_p90": 5.9,
+    "dd_p95": 6.28,
+    "dd_p99": 7.14,
+    "dd_worst": 8.45,
+    "prob_dd_gt_10": 0.0,
+    "prob_dd_gt_20": 0.0,
+    "prob_dd_gt_30": 0.0,
+    "prob_dd_gt_50": 0.0,
+    "prob_dd_liquidation": 0.0,
+    "return_p50": -2.24,
+    "return_p90": -2.24,
+    "return_p10": -2.24
+  },
+  "cpcv": {
+    "n_folds": 9,
+    "n_test_folds": 3,
+    "n_paths": 84,
+    "pbo": 0.6667,
+    "logit_mean": -0.468,
+    "logit_median": -0.3866,
+    "path_results": [
+      {
+        "path": 0,
+        "test_folds": [
+          0,
+          1,
+          2
+        ],
+        "train_folds": [
+          3,
+          4,
+          5,
+          6,
+          7,
+          8
+        ],
+        "best_is_sharpe": 2.9567,
+        "best_is_params": {
+          "signal_threshold": 0.35,
+          "take_profit_atr": 3.0,
+          "stop_loss_atr": 1.0,
+          "trailing_stop_atr": 1.2168,
+          "min_alignment": 3,
+          "leverage": 1.0
+        },
+        "oos_sharpe": 2.446,
+        "rank": 12,
+        "n_params": 20,
+        "logit": 0.2877
+      },
+      {
+        "path": 1,
+        "test_folds": [
+          0,
+          1,
+          3
+        ],
+        "train_folds": [
+          2,
+          4,
+          5,
+          6,
+          7,
+          8
+        ],
+        "best_is_sharpe": 2.7776,
+        "best_is_params": {
+          "signal_threshold": 0.35,
+          "take_profit_atr": 3.0,
+          "stop_loss_atr": 1.0,
+          "trailing_stop_atr": 0.7715,
+          "min_alignment": 3,
+          "leverage": 1.0
+        },
+        "oos_sharpe": 2.6353,
+        "rank": 5,
+        "n_params": 20,
+        "logit": -1.1632
+      },
+      {
+        "path": 2,
+        "test_folds": [
+          0,
+          1,
+          4
+        ],
+        "train_folds": [
+          2,
+          3,
+          5,
+          6,
+          7,
+          8
+        ],
+        "best_is_sharpe": 3.2983,
+        "best_is_params": {
+          "signal_threshold": 0.35,
+          "take_profit_atr": 3.0,
+          "stop_loss_atr": 1.0,
+          "trailing_stop_atr": 1.1141,
+          "min_alignment": 3,
+          "leverage": 1.0
+        },
+        "oos_sharpe": 2.0119,
+        "rank": 7,
+        "n_params": 20,
+        "logit": -0.6931
+      },
+      {
+        "path": 3,
+        "test_folds": [
+          0,
+          1,
+          5
+        ],
+        "train_folds": [
+          2,
+          3,
+          4,
+          6,
+          7,
+          8
+        ],
+        "best_is_sharpe": 3.2983,
+        "best_is_params": {
+          "signal_threshold": 0.35,
+          "take_profit_atr": 3.0,
+          "stop_loss_atr": 1.0,
+          "trailing_stop_atr": 1.1141,
+          "min_alignment": 3,
+          "leverage": 1.0
+        },
+        "oos_sharpe": -4.295,
+        "rank": 4,
+        "n_params": 20,
+        "logit": -1.4469
+      },
+      {
+        "path": 4,
+        "test_folds": [
+          0,
+          1,
+          6
+        ],
+        "train_folds": [
+          2,
+          3,
+          4,
+          5,
+          7,
+          8
+        ],
+        "best_is_sharpe": 2.6807,
+        "best_is_params": {
+          "signal_threshold": 0.35,
+          "take_profit_atr": 3.0,
+          "stop_loss_atr": 1.0,
+          "trailing_stop_atr": 0.7715,
+          "min_alignment": 3,
+          "leverage": 1.0
+        },
+        "oos_sharpe": 4.0507,
+        "rank": 14,
+        "n_params": 20,
+        "logit": 0.6931
+      },
+      {
+        "path": 5,
+        "test_folds": [
+          0,
+          1,
+          7
+        ],
+        "train_folds": [
+          2,
+          3,
+          4,
+          5,
+          6,
+          8
+        ],
+        "best_is_sharpe": 3.2983,
+        "best_is_params": {
+          "signal_threshold": 0.35,
+          "take_profit_atr": 3.0,
+          "stop_loss_atr": 1.0,
+          "trailing_stop_atr": 1.1141,
+          "min_alignment": 3,
+          "leverage": 1.0
+        },
+        "oos_sharpe": -1.7521,
+        "rank": 9,
+        "n_params": 20,
+        "logit": -0.2877
+      },
+      {
+        "path": 6,
+        "test_folds": [
+          0,
+          1,
+          8
+        ],
+        "train_folds": [
+          2,
+          3,
+          4,
+          5,
+          6,
+          7
+        ],
+        "best_is_sharpe": 2.6807,
+        "best_is_params": {
+          "signal_threshold": 0.35,
+          "take_profit_atr": 3.0,
+          "stop_loss_atr": 1.0,
+          "trailing_stop_atr": 0.7715,
+          "min_alignment": 3,
+          "leverage": 1.0
+        },
+        "oos_sharpe": 5.7912,
+        "rank": 13,
+        "n_params": 20,
+        "logit": 0.4855
+      },
+      {
+        "path": 7,
+        "test_folds": [
+          0,
+          2,
+          3
+        ],
+        "train_folds": [
+          1,
+          4,
+          5,
+          6,
+          7,
+          8
+        ],
+        "best_is_sharpe": 1.8583,
+        "best_is_params": {
+          "signal_threshold": 0.3134,
+          "take_profit_atr": 3.0,
+          "stop_loss_atr": 1.0,
+          "trailing_stop_atr": 1.0,
+          "min_alignment": 3,
+          "leverage": 1.0
+        },
+        "oos_sharpe": 3.3868,
+        "rank": 6,
+        "n_params": 20,
+        "logit": -0.9163
+      },
+      {
+        "path": 8,
+        "test_folds": [
+          0,
+          2,
+          4
+        ],
+        "train_folds": [
+          1,
+          3,
+          5,
+          6,
+          7,
+          8
+        ],
+        "best_is_sharpe": 1.9421,
+        "best_is_params": {
+          "signal_threshold": 0.3134,
+          "take_profit_atr": 3.0,
+          "stop_loss_atr": 1.0,
+          "trailing_stop_atr": 1.0,
+          "min_alignment": 3,
+          "leverage": 1.0
+        },
+        "oos_sharpe": 2.5371,
+        "rank": 11,
+        "n_params": 20,
+        "logit": 0.0953
+      },
+      {
+        "path": 9,
+        "test_folds": [
+          0,
+          2,
+          5
+        ],
+        "train_folds": [
+          1,
+          3,
+          4,
+          6,
+          7,
+          8
+        ],
+        "best_is_sharpe": 2.9567,
+        "best_is_params": {
+          "signal_threshold": 0.35,
+          "take_profit_atr": 3.0,
+          "stop_loss_atr": 1.0,
+          "trailing_stop_atr": 1.2168,
+          "min_alignment": 3,
+          "leverage": 1.0
+        },
+        "oos_sharpe": 2.446,
+        "rank": 12,
+        "n_params": 20,
+        "logit": 0.2877
+      },
+      {
+        "path": 10,
+        "test_folds": [
+          0,
+          2,
+          6
+        ],
+        "train_folds": [
+          1,
+          3,
+          4,
+          5,
+          7,
+          8
+        ],
+        "best_is_sharpe": 1.8583,
+        "best_is_params": {
+          "signal_threshold": 0.3134,
+          "take_profit_atr": 3.0,
+          "stop_loss_atr": 1.0,
+          "trailing_stop_atr": 1.0,
+          "min_alignment": 3,
+          "leverage": 1.0
+        },
+        "oos_sharpe": 2.7049,
+        "rank": 10,
+        "n_params": 20,
+        "logit": -0.0953
+      },
+      {
+        "path": 11,
+        "test_folds": [
+          0,
+          2,
+          7
+        ],
+        "train_folds": [
+          1,
+          3,
+          4,
+          5,
+          6,
+          8
+        ],
+        "best_is_sharpe": 2.9567,
+        "best_is_params": {
+          "signal_threshold": 0.35,
+          "take_profit_atr": 3.0,
+          "stop_loss_atr": 1.0,
+          "trailing_stop_atr": 1.2168,
+          "min_alignment": 3,
+          "leverage": 1.0
+        },
+        "oos_sharpe": 2.446,
+        "rank": 12,
+        "n_params": 20,
+        "logit": 0.2877
+      },
+      {
+        "path": 12,
+        "test_folds": [
+          0,
+          2,
+          8
+        ],
+        "train_folds": [
+          1,
+          3,
+          4,
+          5,
+          6,
+          7
+        ],
+        "best_is_sharpe": 1.8583,
+        "best_is_params": {
+          "signal_threshold": 0.3134,
+          "take_profit_atr": 3.0,
+          "stop_loss_atr": 1.0,
+          "trailing_stop_atr": 1.0,
+          "min_alignment": 3,
+          "leverage": 1.0
+        },
+        "oos_sharpe": 2.7501,
+        "rank": 2,
+        "n_params": 20,
+        "logit": -2.2513
+      },
+      {
+        "path": 13,
+        "test_folds": [
+          0,
+          3,
+          4
+        ],
+        "train_folds": [
+          1,
+          2,
+          5,
+          6,
+          7,
+          8
+        ],
+        "best_is_sharpe": 1.2943,
+        "best_is_params": {
+          "signal_threshold": 0.3134,
+          "take_profit_atr": 3.0,
+          "stop_loss_atr": 1.0,
+          "trailing_stop_atr": 1.0,
+          "min_alignment": 3,
+          "leverage": 1.0
+        },
+        "oos_sharpe": 3.3868,
+        "rank": 6,
+        "n_params": 20,
+        "logit": -0.9163
+      },
+      {
+        "path": 14,
+        "test_folds": [
+          0,
+          3,
+          5
+        ],
+        "train_folds": [
+          1,
+          2,
+          4,
+          6,
+          7,
+          8
+        ],
+        "best_is_sharpe": 2.7776,
+        "best_is_params": {
+          "signal_threshold": 0.35,
+          "take_profit_atr": 3.0,
+          "stop_loss_atr": 1.0,
+          "trailing_stop_atr": 0.7715,
+          "min_alignment": 3,
+          "leverage": 1.0
+        },
+        "oos_sharpe": 2.6353,
+        "rank": 5,
+        "n_params": 20,
+        "logit": -1.1632
+      },
+      {
+        "path": 15,
+        "test_folds": [
+          0,
+          3,
+          6
+        ],
+        "train_folds": [
+          1,
+          2,
+          4,
+          5,
+          7,
+          8
+        ],
+        "best_is_sharpe": 1.2943,
+        "best_is_params": {
+          "signal_threshold": 0.3134,
+          "take_profit_atr": 3.0,
+          "stop_loss_atr": 1.0,
+          "trailing_stop_atr": 1.0,
+          "min_alignment": 3,
+          "leverage": 1.0
+        },
+        "oos_sharpe": 3.3868,
+        "rank": 4,
+        "n_params": 20,
+        "logit": -1.4469
+      },
+      {
+        "path": 16,
+        "test_folds": [
+          0,
+          3,
+          7
+        ],
+        "train_folds": [
+          1,
+          2,
+          4,
+          5,
+          6,
+          8
+        ],
+        "best_is_sharpe": 2.7776,
+        "best_is_params": {
+          "signal_threshold": 0.35,
+          "take_profit_atr": 3.0,
+          "stop_loss_atr": 1.0,
+          "trailing_stop_atr": 0.7715,
+          "min_alignment": 3,
+          "leverage": 1.0
+        },
+        "oos_sharpe": 2.6353,
+        "rank": 5,
+        "n_params": 20,
+        "logit": -1.1632
+      },
+      {
+        "path": 17,
+        "test_folds": [
+          0,
+          3,
+          8
+        ],
+        "train_folds": [
+          1,
+          2,
+          4,
+          5,
+          6,
+          7
+        ],
+        "best_is_sharpe": 1.2943,
+        "best_is_params": {
+          "signal_threshold": 0.3134,
+          "take_profit_atr": 3.0,
+          "stop_loss_atr": 1.0,
+          "trailing_stop_atr": 1.0,
+          "min_alignment": 3,
+          "leverage": 1.0
+        },
+        "oos_sharpe": 3.3868,
+        "rank": 4,
+        "n_params": 20,
+        "logit": -1.4469
+      },
+      {
+        "path": 18,
+        "test_folds": [
+          0,
+          4,
+          5
+        ],
+        "train_folds": [
+          1,
+          2,
+          3,
+          6,
+          7,
+          8
+        ],
+        "best_is_sharpe": 3.2983,
+        "best_is_params": {
+          "signal_threshold": 0.35,
+          "take_profit_atr": 3.0,
+          "stop_loss_atr": 1.0,
+          "trailing_stop_atr": 1.1141,
+          "min_alignment": 3,
+          "leverage": 1.0
+        },
+        "oos_sharpe": 2.0119,
+        "rank": 7,
+        "n_params": 20,
+        "logit": -0.6931
+      },
+      {
+        "path": 19,
+        "test_folds": [
+          0,
+          4,
+          6
+        ],
+        "train_folds": [
+          1,
+          2,
+          3,
+          5,
+          7,
+          8
+        ],
+        "best_is_sharpe": 1.2943,
+        "best_is_params": {
+          "signal_threshold": 0.3134,
+          "take_profit_atr": 3.0,
+          "stop_loss_atr": 1.0,
+          "trailing_stop_atr": 1.0,
+          "min_alignment": 3,
+          "leverage": 1.0
+        },
+        "oos_sharpe": 2.7049,
+        "rank": 10,
+        "n_params": 20,
+        "logit": -0.0953
+      },
+      {
+        "path": 20,
+        "test_folds": [
+          0,
+          4,
+          7
+        ],
+        "train_folds": [
+          1,
+          2,
+          3,
+          5,
+          6,
+          8
+        ],
+        "best_is_sharpe": 3.2983,
+        "best_is_params": {
+          "signal_threshold": 0.35,
+          "take_profit_atr": 3.0,
+          "stop_loss_atr": 1.0,
+          "trailing_stop_atr": 1.1141,
+          "min_alignment": 3,
+          "leverage": 1.0
+        },
+        "oos_sharpe": 2.0119,
+        "rank": 7,
+        "n_params": 20,
+        "logit": -0.6931
+      },
+      {
+        "path": 21,
+        "test_folds": [
+          0,
+          4,
+          8
+        ],
+        "train_folds": [
+          1,
+          2,
+          3,
+          5,
+          6,
+          7
+        ],
+        "best_is_sharpe": 1.2943,
+        "best_is_params": {
+          "signal_threshold": 0.3134,
+          "take_profit_atr": 3.0,
+          "stop_loss_atr": 1.0,
+          "trailing_stop_atr": 1.0,
+          "min_alignment": 3,
+          "leverage": 1.0
+        },
+        "oos_sharpe": 2.7501,
+        "rank": 2,
+        "n_params": 20,
+        "logit": -2.2513
+      },
+      {
+        "path": 22,
+        "test_folds": [
+          0,
+          5,
+          6
+        ],
+        "train_folds": [
+          1,
+          2,
+          3,
+          4,
+          7,
+          8
+        ],
+        "best_is_sharpe": 2.6807,
+        "best_is_params": {
+          "signal_threshold": 0.35,
+          "take_profit_atr": 3.0,
+          "stop_loss_atr": 1.0,
+          "trailing_stop_atr": 0.7715,
+          "min_alignment": 3,
+          "leverage": 1.0
+        },
+        "oos_sharpe": 4.0507,
+        "rank": 14,
+        "n_params": 20,
+        "logit": 0.6931
+      },
+      {
+        "path": 23,
+        "test_folds": [
+          0,
+          5,
+          7
+        ],
+        "train_folds": [
+          1,
+          2,
+          3,
+          4,
+          6,
+          8
+        ],
+        "best_is_sharpe": 3.2983,
+        "best_is_params": {
+          "signal_threshold": 0.35,
+          "take_profit_atr": 3.0,
+          "stop_loss_atr": 1.0,
+          "trailing_stop_atr": 1.1141,
+          "min_alignment": 3,
+          "leverage": 1.0
+        },
+        "oos_sharpe": -1.7521,
+        "rank": 8,
+        "n_params": 20,
+        "logit": -0.4855
+      },
+      {
+        "path": 24,
+        "test_folds": [
+          0,
+          5,
+          8
+        ],
+        "train_folds": [
+          1,
+          2,
+          3,
+          4,
+          6,
+          7
+        ],
+        "best_is_sharpe": 2.6807,
+        "best_is_params": {
+          "signal_threshold": 0.35,
+          "take_profit_atr": 3.0,
+          "stop_loss_atr": 1.0,
+          "trailing_stop_atr": 0.7715,
+          "min_alignment": 3,
+          "leverage": 1.0
+        },
+        "oos_sharpe": 5.7912,
+        "rank": 13,
+        "n_params": 20,
+        "logit": 0.4855
+      },
+      {
+        "path": 25,
+        "test_folds": [
+          0,
+          6,
+          7
+        ],
+        "train_folds": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          8
+        ],
+        "best_is_sharpe": 2.6807,
+        "best_is_params": {
+          "signal_threshold": 0.35,
+          "take_profit_atr": 3.0,
+          "stop_loss_atr": 1.0,
+          "trailing_stop_atr": 0.7715,
+          "min_alignment": 3,
+          "leverage": 1.0
+        },
+        "oos_sharpe": 4.0507,
+        "rank": 14,
+        "n_params": 20,
+        "logit": 0.6931
+      },
+      {
+        "path": 26,
+        "test_folds": [
+          0,
+          6,
+          8
+        ],
+        "train_folds": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          7
+        ],
+        "best_is_sharpe": 1.2943,
+        "best_is_params": {
+          "signal_threshold": 0.3134,
+          "take_profit_atr": 3.0,
+          "stop_loss_atr": 1.0,
+          "trailing_stop_atr": 1.0,
+          "min_alignment": 3,
+          "leverage": 1.0
+        },
+        "oos_sharpe": 2.7501,
+        "rank": 2,
+        "n_params": 20,
+        "logit": -2.2513
+      },
+      {
+        "path": 27,
+        "test_folds": [
+          0,
+          7,
+          8
+        ],
+        "train_folds": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ],
+        "best_is_sharpe": 2.6807,
+        "best_is_params": {
+          "signal_threshold": 0.35,
+          "take_profit_atr": 3.0,
+          "stop_loss_atr": 1.0,
+          "trailing_stop_atr": 0.7715,
+          "min_alignment": 3,
+          "leverage": 1.0
+        },
+        "oos_sharpe": 5.7912,
+        "rank": 13,
+        "n_params": 20,
+        "logit": 0.4855
+      },
+      {
+        "path": 28,
+        "test_folds": [
+          1,
+          2,
+          3
+        ],
+        "train_folds": [
+          0,
+          4,
+          5,
+          6,
+          7,
+          8
+        ],
+        "best_is_sharpe": 3.44,
+        "best_is_params": {
+          "signal_threshold": 0.35,
+          "take_profit_atr": 3.0,
+          "stop_loss_atr": 1.0,
+          "trailing_stop_atr": 0.7715,
+          "min_alignment": 3,
+          "leverage": 1.0
+        },
+        "oos_sharpe": 2.6353,
+        "rank": 17,
+        "n_params": 20,
+        "logit": 1.4469
+      },
+      {
+        "path": 29,
+        "test_folds": [
+          1,
+          2,
+          4
+        ],
+        "train_folds": [
+          0,
+          3,
+          5,
+          6,
+          7,
+          8
+        ],
+        "best_is_sharpe": 4.3429,
+        "best_is_params": {
+          "signal_threshold": 0.35,
+          "take_profit_atr": 3.0,
+          "stop_loss_atr": 1.2084,
+          "trailing_stop_atr": 1.0,
+          "min_alignment": 3,
+          "leverage": 1.0
+        },
+        "oos_sharpe": 1.7601,
+        "rank": 8,
+        "n_params": 20,
+        "logit": -0.4855
+      },
+      {
+        "path": 30,
+        "test_folds": [
+          1,
+          2,
+          5
+        ],
+        "train_folds": [
+          0,
+          3,
+          4,
+          6,
+          7,
+          8
+        ],
+        "best_is_sharpe": 4.3429,
+        "best_is_params": {
+          "signal_threshold": 0.35,
+          "take_profit_atr": 3.0,
+          "stop_loss_atr": 1.2084,
+          "trailing_stop_atr": 1.0,
+          "min_alignment": 3,
+          "leverage": 1.0
+        },
+        "oos_sharpe": -4.9731,
+        "rank": 2,
+        "n_params": 20,
+        "logit": -2.2513
+      },
+      {
+        "path": 31,
+        "test_folds": [
+          1,
+          2,
+          6
+        ],
+        "train_folds": [
+          0,
+          3,
+          4,
+          5,
+          7,
+          8
+        ],
+        "best_is_sharpe": 3.8246,
+        "best_is_params": {
+          "signal_threshold": 0.35,
+          "take_profit_atr": 3.6747,
+          "stop_loss_atr": 1.1656,
+          "trailing_stop_atr": 1.0,
+          "min_alignment": 3,
+          "leverage": 1.0
+        },
+        "oos_sharpe": 2.3739,
+        "rank": 10,
+        "n_params": 20,
+        "logit": -0.0953
+      },
+      {
+        "path": 32,
+        "test_folds": [
+          1,
+          2,
+          7
+        ],
+        "train_folds": [
+          0,
+          3,
+          4,
+          5,
+          6,
+          8
+        ],
+        "best_is_sharpe": 4.3429,
+        "best_is_params": {
+          "signal_threshold": 0.35,
+          "take_profit_atr": 3.0,
+          "stop_loss_atr": 1.2084,
+          "trailing_stop_atr": 1.0,
+          "min_alignment": 3,
+          "leverage": 1.0
+        },
+        "oos_sharpe": -1.4806,
+        "rank": 10,
+        "n_params": 20,
+        "logit": -0.0953
+      },
+      {
+        "path": 33,
+        "test_folds": [
+          1,
+          2,
+          8
+        ],
+        "train_folds": [
+          0,
+          3,
+          4,
+          5,
+          6,
+          7
+        ],
+        "best_is_sharpe": 2.9567,
+        "best_is_params": {
+          "signal_threshold": 0.35,
+          "take_profit_atr": 3.0,
+          "stop_loss_atr": 1.0,
+          "trailing_stop_atr": 1.2168,
+          "min_alignment": 3,
+          "leverage": 1.0
+        },
+        "oos_sharpe": 2.446,
+        "rank": 12,
+        "n_params": 20,
+        "logit": 0.2877
+      },
+      {
+        "path": 34,
+        "test_folds": [
+          1,
+          3,
+          4
+        ],
+        "train_folds": [
+          0,
+          2,
+          5,
+          6,
+          7,
+          8
+        ],
+        "best_is_sharpe": 3.6424,
+        "best_is_params": {
+          "signal_threshold": 0.35,
+          "take_profit_atr": 2.3867,
+          "stop_loss_atr": 1.0,
+          "trailing_stop_atr": 1.1228,
+          "min_alignment": 3,
+          "leverage": 1.0
+        },
+        "oos_sharpe": 0.6775,
+        "rank": 1,
+        "n_params": 20,
+        "logit": -2.9957
+      },
+      {
+        "path": 35,
+        "test_folds": [
+          1,
+          3,
+          5
+        ],
+        "train_folds": [
+          0,
+          2,
+          4,
+          6,
+          7,
+          8
+        ],
+        "best_is_sharpe": 3.6424,
+        "best_is_params": {
+          "signal_threshold": 0.35,
+          "take_profit_atr": 2.3867,
+          "stop_loss_atr": 1.0,
+          "trailing_stop_atr": 1.1228,
+          "min_alignment": 3,
+          "leverage": 1.0
+        },
+        "oos_sharpe": -3.6946,
+        "rank": 14,
+        "n_params": 20,
+        "logit": 0.6931
+      },
+      {
+        "path": 36,
+        "test_folds": [
+          1,
+          3,
+          6
+        ],
+        "train_folds": [
+          0,
+          2,
+          4,
+          5,
+          7,
+          8
+        ],
+        "best_is_sharpe": 2.7776,
+        "best_is_params": {
+          "signal_threshold": 0.35,
+          "take_profit_atr": 3.0,
+          "stop_loss_atr": 1.0,
+          "trailing_stop_atr": 0.7715,
+          "min_alignment": 3,
+          "leverage": 1.0
+        },
+        "oos_sharpe": 2.6353,
+        "rank": 12,
+        "n_params": 20,
+        "logit": 0.2877
+      },
+      {
+        "path": 37,
+        "test_folds": [
+          1,
+          3,
+          7
+        ],
+        "train_folds": [
+          0,
+          2,
+          4,
+          5,
+          6,
+          8
+        ],
+        "best_is_sharpe": 3.6424,
+        "best_is_params": {
+          "signal_threshold": 0.35,
+          "take_profit_atr": 2.3867,
+          "stop_loss_atr": 1.0,
+          "trailing_stop_atr": 1.1228,
+          "min_alignment": 3,
+          "leverage": 1.0
+        },
+        "oos_sharpe": -1.9336,
+        "rank": 6,
+        "n_params": 20,
+        "logit": -0.9163
+      },
+      {
+        "path": 38,
+        "test_folds": [
+          1,
+          3,
+          8
+        ],
+        "train_folds": [
+          0,
+          2,
+          4,
+          5,
+          6,
+          7
+        ],
+        "best_is_sharpe": 2.7776,
+        "best_is_params": {
+          "signal_threshold": 0.35,
+          "take_profit_atr": 3.0,
+          "stop_loss_atr": 1.0,
+          "trailing_stop_atr": 0.7715,
+          "min_alignment": 3,
+          "leverage": 1.0
+        },
+        "oos_sharpe": 2.6353,
+        "rank": 5,
+        "n_params": 20,
+        "logit": -1.1632
+      },
+      {
+        "path": 39,
+        "test_folds": [
+          1,
+          4,
+          5
+        ],
+        "train_folds": [
+          0,
+          2,
+          3,
+          6,
+          7,
+          8
+        ],
+        "best_is_sharpe": 4.3429,
+        "best_is_params": {
+          "signal_threshold": 0.35,
+          "take_profit_atr": 3.0,
+          "stop_loss_atr": 1.2084,
+          "trailing_stop_atr": 1.0,
+          "min_alignment": 3,
+          "leverage": 1.0
+        },
+        "oos_sharpe": -4.9731,
+        "rank": 2,
+        "n_params": 20,
+        "logit": -2.2513
+      },
+      {
+        "path": 40,
+        "test_folds": [
+          1,
+          4,
+          6
+        ],
+        "train_folds": [
+          0,
+          2,
+          3,
+          5,
+          7,
+          8
+        ],
+        "best_is_sharpe": 4.0785,
+        "best_is_params": {
+          "signal_threshold": 0.35,
+          "take_profit_atr": 3.6747,
+          "stop_loss_atr": 1.1656,
+          "trailing_stop_atr": 1.0,
+          "min_alignment": 3,
+          "leverage": 1.0
+        },
+        "oos_sharpe": 1.8659,
+        "rank": 6,
+        "n_params": 20,
+        "logit": -0.9163
+      },
+      {
+        "path": 41,
+        "test_folds": [
+          1,
+          4,
+          7
+        ],
+        "train_folds": [
+          0,
+          2,
+          3,
+          5,
+          6,
+          8
+        ],
+        "best_is_sharpe": 4.3429,
+        "best_is_params": {
+          "signal_threshold": 0.35,
+          "take_profit_atr": 3.0,
+          "stop_loss_atr": 1.2084,
+          "trailing_stop_atr": 1.0,
+          "min_alignment": 3,
+          "leverage": 1.0
+        },
+        "oos_sharpe": -1.4806,
+        "rank": 10,
+        "n_params": 20,
+        "logit": -0.0953
+      },
+      {
+        "path": 42,
+        "test_folds": [
+          1,
+          4,
+          8
+        ],
+        "train_folds": [
+          0,
+          2,
+          3,
+          5,
+          6,
+          7
+        ],
+        "best_is_sharpe": 3.2983,
+        "best_is_params": {
+          "signal_threshold": 0.35,
+          "take_profit_atr": 3.0,
+          "stop_loss_atr": 1.0,
+          "trailing_stop_atr": 1.1141,
+          "min_alignment": 3,
+          "leverage": 1.0
+        },
+        "oos_sharpe": 2.0119,
+        "rank": 8,
+        "n_params": 20,
+        "logit": -0.4855
+      },
+      {
+        "path": 43,
+        "test_folds": [
+          1,
+          5,
+          6
+        ],
+        "train_folds": [
+          0,
+          2,
+          3,
+          4,
+          7,
+          8
+        ],
+        "best_is_sharpe": 4.0785,
+        "best_is_params": {
+          "signal_threshold": 0.35,
+          "take_profit_atr": 3.6747,
+          "stop_loss_atr": 1.1656,
+          "trailing_stop_atr": 1.0,
+          "min_alignment": 3,
+          "leverage": 1.0
+        },
+        "oos_sharpe": -4.9731,
+        "rank": 2,
+        "n_params": 20,
+        "logit": -2.2513
+      },
+      {
+        "path": 44,
+        "test_folds": [
+          1,
+          5,
+          7
+        ],
+        "train_folds": [
+          0,
+          2,
+          3,
+          4,
+          6,
+          8
+        ],
+        "best_is_sharpe": 4.3429,
+        "best_is_params": {
+          "signal_threshold": 0.35,
+          "take_profit_atr": 3.0,
+          "stop_loss_atr": 1.2084,
+          "trailing_stop_atr": 1.0,
+          "min_alignment": 3,
+          "leverage": 1.0
+        },
+        "oos_sharpe": -4.9731,
+        "rank": 2,
+        "n_params": 20,
+        "logit": -2.2513
+      },
+      {
+        "path": 45,
+        "test_folds": [
+          1,
+          5,
+          8
+        ],
+        "train_folds": [
+          0,
+          2,
+          3,
+          4,
+          6,
+          7
+        ],
+        "best_is_sharpe": 3.2983,
+        "best_is_params": {
+          "signal_threshold": 0.35,
+          "take_profit_atr": 3.0,
+          "stop_loss_atr": 1.0,
+          "trailing_stop_atr": 1.1141,
+          "min_alignment": 3,
+          "leverage": 1.0
+        },
+        "oos_sharpe": -4.295,
+        "rank": 4,
+        "n_params": 20,
+        "logit": -1.4469
+      },
+      {
+        "path": 46,
+        "test_folds": [
+          1,
+          6,
+          7
+        ],
+        "train_folds": [
+          0,
+          2,
+          3,
+          4,
+          5,
+          8
+        ],
+        "best_is_sharpe": 4.0785,
+        "best_is_params": {
+          "signal_threshold": 0.35,
+          "take_profit_atr": 3.6747,
+          "stop_loss_atr": 1.1656,
+          "trailing_stop_atr": 1.0,
+          "min_alignment": 3,
+          "leverage": 1.0
+        },
+        "oos_sharpe": -1.4183,
+        "rank": 13,
+        "n_params": 20,
+        "logit": 0.4855
+      },
+      {
+        "path": 47,
+        "test_folds": [
+          1,
+          6,
+          8
+        ],
+        "train_folds": [
+          0,
+          2,
+          3,
+          4,
+          5,
+          7
+        ],
+        "best_is_sharpe": 2.6807,
+        "best_is_params": {
+          "signal_threshold": 0.35,
+          "take_profit_atr": 3.0,
+          "stop_loss_atr": 1.0,
+          "trailing_stop_atr": 0.7715,
+          "min_alignment": 3,
+          "leverage": 1.0
+        },
+        "oos_sharpe": 4.0507,
+        "rank": 16,
+        "n_params": 20,
+        "logit": 1.1632
+      },
+      {
+        "path": 48,
+        "test_folds": [
+          1,
+          7,
+          8
+        ],
+        "train_folds": [
+          0,
+          2,
+          3,
+          4,
+          5,
+          6
+        ],
+        "best_is_sharpe": 3.2983,
+        "best_is_params": {
+          "signal_threshold": 0.35,
+          "take_profit_atr": 3.0,
+          "stop_loss_atr": 1.0,
+          "trailing_stop_atr": 1.1141,
+          "min_alignment": 3,
+          "leverage": 1.0
+        },
+        "oos_sharpe": -1.7521,
+        "rank": 9,
+        "n_params": 20,
+        "logit": -0.2877
+      },
+      {
+        "path": 49,
+        "test_folds": [
+          2,
+          3,
+          4
+        ],
+        "train_folds": [
+          0,
+          1,
+          5,
+          6,
+          7,
+          8
+        ],
+        "best_is_sharpe": 1.9421,
+        "best_is_params": {
+          "signal_threshold": 0.3134,
+          "take_profit_atr": 3.0,
+          "stop_loss_atr": 1.0,
+          "trailing_stop_atr": 1.0,
+          "min_alignment": 3,
+          "leverage": 1.0
+        },
+        "oos_sharpe": 2.5371,
+        "rank": 14,
+        "n_params": 20,
+        "logit": 0.6931
+      }
+    ]
+  },
+  "verdict": {
+    "overall": "FAIL \u2014 Multiple robustness concerns",
+    "flags": [
+      "PBO=67% indicates likely overfitting",
+      "PBO=67% is elevated (>15%)"
+    ],
+    "mc_95th_dd": 6.28,
+    "mc_liquidation_prob": 0.0,
+    "pbo": 0.6667
+  }
+}
