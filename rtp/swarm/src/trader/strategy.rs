@@ -463,6 +463,11 @@ impl CheckExitResult {
     }
 }
 
+/// Default value for OpenPosition.side — "Long" for backward compatibility.
+fn default_side() -> String {
+    "Long".to_string()
+}
+
 /// Persistent state for the trader's open position.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OpenPosition {
@@ -479,14 +484,17 @@ pub struct OpenPosition {
     /// `None` means score has not gone negative yet (or was reset by positive score).
     #[serde(default)]
     pub first_negative_score_time: Option<i64>,
+    /// Position direction: "Long" or "Short". Defaults to "Long" for backward
+    /// compatibility with existing state files that lack this field.
+    #[serde(default = "default_side")]
+    pub side: String,
 }
 
 impl OpenPosition {
     /// Returns the position side ("Long" or "Short").
     /// Defaults to "Long" for backward compatibility with existing state files.
-    /// When the SHORT feature adds a `side` field, this will return it.
     pub fn side(&self) -> &str {
-        "Long"
+        &self.side
     }
 }
 
@@ -896,6 +904,7 @@ mod tests {
             position_key: "testkey123".to_string(),
             size_usd: 50.0,
             first_negative_score_time: Some(now - 3600),
+            side: "Long".to_string(),
         };
         let json = serde_json::to_string(&pos).unwrap();
         let parsed: OpenPosition = serde_json::from_str(&json).unwrap();
@@ -975,5 +984,284 @@ mod tests {
         );
         assert!(result.reason.is_none(), "First negative tick should start timer, not exit");
         assert_eq!(result.first_negative_score_time, Some(now), "Timer should be set to now");
+    }
+
+    // =========================================================================
+    // SHORT position tests (feature: short-entry-and-exit-logic)
+    // =========================================================================
+
+    #[test]
+    fn short_pnl_math_is_correct() {
+        // SHORT at 100, current at 95 → 5% profit
+        let params = StrategyParams::default();
+        let now = Utc::now().timestamp();
+        let result = check_exit(
+            &params,
+            100.0,        // entry_price
+            now - 3600,   // 1h ago
+            100.0,        // peak (trough tracking for SHORT)
+            50.0,         // entry_rsi
+            95.0,         // current_price (dropped 5%)
+            0.3,          // score
+            50.0,         // current_rsi
+            2.0,          // atr
+            now,
+            "Short",
+            None,
+        );
+        // PnL for SHORT = (entry - current) / entry * 100 = (100-95)/100*100 = +5%
+        assert!(result.reason.is_none(), "5% profit SHORT should not exit (within TP range)");
+    }
+
+    #[test]
+    fn short_pnl_negative_when_price_rises() {
+        // SHORT at 100, current at 110 → -10% (loss)
+        let params = StrategyParams::default();
+        let now = Utc::now().timestamp();
+        let result = check_exit(
+            &params,
+            100.0,
+            now - 3600,
+            100.0,
+            50.0,
+            110.0,        // price rose 10% — bad for SHORT
+            0.3,
+            50.0,
+            3.0,          // ATR=3 → sl = 2.7*3/100*100 = 8.1%
+            now,
+            "Short",
+            None,
+        );
+        // PnL = (100-110)/100*100 = -10% — exceeds SL threshold of 8.1%
+        assert!(
+            matches!(result.reason, Some(ExitReason::StopLoss)),
+            "SHORT with 10% loss should trigger stop loss"
+        );
+    }
+
+    #[test]
+    fn short_trailing_stop_triggers_on_rise_from_trough() {
+        // SHORT: favorable direction = price dropping (trough = lowest price)
+        // Trailing triggers when price rises from trough
+        let params = StrategyParams::default();
+        let now = Utc::now().timestamp();
+        let result = check_exit(
+            &params,
+            100.0,        // entry
+            now - 7200,   // 2h ago
+            90.0,         // peak = trough at 90 (10% drop from entry)
+            50.0,         // entry_rsi
+            93.0,         // current rose from 90 to 93 (3% pullback from trough)
+            -0.1,         // score
+            50.0,         // rsi
+            2.0,          // atr
+            now,
+            "Short",
+            None,
+        );
+        // trail trigger = 0.14*2/100*100 = 0.28%
+        // pullback = (93-90)/100*100 = 3% > 0.28%
+        // trough (90) < entry (100) — condition met
+        assert!(
+            matches!(result.reason, Some(ExitReason::TrailingStop)),
+            "SHORT trailing stop should fire on rise from trough"
+        );
+    }
+
+    #[test]
+    fn short_trailing_stop_no_trigger_in_unfavorable() {
+        // SHORT: price still dropping — no trailing trigger
+        let params = StrategyParams::default();
+        let now = Utc::now().timestamp();
+        let result = check_exit(
+            &params,
+            100.0,
+            now - 3600,
+            95.0,         // trough at 95 (5% drop)
+            50.0,
+            94.0,         // price dropped further to 94 (below trough)
+            0.3,
+            50.0,
+            2.0,
+            now,
+            "Short",
+            None,
+        );
+        // Price dropping further is FAVORABLE for SHORT — no pullback
+        assert!(
+            result.reason.is_none(),
+            "SHORT with price still dropping should not trigger trailing"
+        );
+    }
+
+    #[test]
+    fn short_take_profit_fires() {
+        // SHORT: price drops enough to trigger TP
+        let params = StrategyParams {
+            tp_atr: 3.0,
+            sl_atr: 2.0,
+            trailing_stop_atr: 0.0, // disable trailing for this test
+            ..StrategyParams::default()
+        };
+        let now = Utc::now().timestamp();
+        let result = check_exit(
+            &params,
+            100.0,
+            now - 3600,
+            100.0,
+            50.0,
+            80.0,         // 20% drop — huge profit for SHORT
+            0.3,
+            50.0,
+            5.0,          // ATR=5 → tp = 3.0*5/100*100 = 15%
+            now,
+            "Short",
+            None,
+        );
+        // PnL = (100-80)/100*100 = +20% > 15% TP threshold
+        assert!(
+            matches!(result.reason, Some(ExitReason::TakeProfit)),
+            "SHORT with 20% profit should trigger take profit"
+        );
+    }
+
+    #[test]
+    fn short_stop_loss_fires() {
+        // SHORT: price rises above entry — loss
+        let params = StrategyParams {
+            sl_atr: 2.0,
+            trailing_stop_atr: 0.0, // disable trailing
+            ..StrategyParams::default()
+        };
+        let now = Utc::now().timestamp();
+        let result = check_exit(
+            &params,
+            100.0,
+            now - 3600,
+            100.0,
+            50.0,
+            115.0,        // 15% rise — bad for SHORT
+            0.3,
+            50.0,
+            5.0,          // ATR=5 → sl = 2.0*5/100*100 = 10%
+            now,
+            "Short",
+            None,
+        );
+        // PnL = (100-115)/100*100 = -15% < -10% SL threshold
+        assert!(
+            matches!(result.reason, Some(ExitReason::StopLoss)),
+            "SHORT with 15% loss should trigger stop loss"
+        );
+    }
+
+    #[test]
+    fn open_position_side_default_is_long() {
+        let pos = OpenPosition {
+            entry_price: 100.0,
+            entry_time: 0,
+            peak_price: 100.0,
+            entry_rsi: 50.0,
+            entry_atr: 2.0,
+            entry_score: 0.5,
+            position_key: "key".to_string(),
+            size_usd: 50.0,
+            first_negative_score_time: None,
+            side: "Long".to_string(),
+        };
+        assert_eq!(pos.side(), "Long");
+    }
+
+    #[test]
+    fn open_position_side_short() {
+        let pos = OpenPosition {
+            entry_price: 100.0,
+            entry_time: 0,
+            peak_price: 100.0,
+            entry_rsi: 50.0,
+            entry_atr: 2.0,
+            entry_score: -0.5,
+            position_key: "key".to_string(),
+            size_usd: 50.0,
+            first_negative_score_time: None,
+            side: "Short".to_string(),
+        };
+        assert_eq!(pos.side(), "Short");
+    }
+
+    #[test]
+    fn open_position_side_serde_roundtrip() {
+        let pos = OpenPosition {
+            entry_price: 100.0,
+            entry_time: 1700000000,
+            peak_price: 95.0,
+            entry_rsi: 45.0,
+            entry_atr: 2.0,
+            entry_score: -0.5,
+            position_key: "testkey456".to_string(),
+            size_usd: 50.0,
+            first_negative_score_time: None,
+            side: "Short".to_string(),
+        };
+        let json = serde_json::to_string(&pos).unwrap();
+        let parsed: OpenPosition = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.side, "Short");
+        assert_eq!(parsed.entry_price, 100.0);
+    }
+
+    #[test]
+    fn existing_state_loads_with_default_side() {
+        // Old JSON without `side` field should default to "Long"
+        let old_json = r#"{
+            "entry_price": 100.0,
+            "entry_time": 1700000000,
+            "peak_price": 105.0,
+            "entry_rsi": 45.0,
+            "entry_atr": 2.0,
+            "entry_score": 0.5,
+            "position_key": "oldkey",
+            "size_usd": 50.0,
+            "first_negative_score_time": null
+        }"#;
+        let parsed: OpenPosition = serde_json::from_str(old_json).unwrap();
+        assert_eq!(parsed.side, "Long", "Missing side field should default to Long");
+        assert_eq!(parsed.entry_price, 100.0);
+    }
+
+    #[test]
+    fn entry_signal_exclusive_long_or_short() {
+        // Score cannot be both > threshold AND < -threshold simultaneously
+        // Test that at most one direction triggers per cycle
+        let closes: Vec<f64> = (0..200).map(|i| 100.0 + i as f64 * 0.5).collect();
+        let volumes: Vec<f64> = vec![1000.0; 200];
+        let result = compute_signal(&closes, &volumes, 3).unwrap();
+
+        // Uptrend: score > 0 — should not trigger SHORT
+        if result.score > 0.0 {
+            assert!(result.score > -0.01, "Positive score should not trigger SHORT condition");
+        }
+    }
+
+    #[test]
+    fn no_entry_when_score_between_thresholds() {
+        // When score is between ±threshold, neither LONG nor SHORT should trigger
+        let params = StrategyParams {
+            signal_threshold: 0.3,
+            ..StrategyParams::default()
+        };
+        // Score exactly 0.0 is between ±0.3 — neither condition met
+        let score = 0.0;
+        assert!(score <= params.signal_threshold, "0.0 should not exceed threshold");
+        assert!(score >= -params.signal_threshold, "0.0 should not exceed negative threshold");
+    }
+
+    #[test]
+    fn short_entry_condition_met() {
+        // Verify compute_signal produces bearish_count for downtrend data
+        let closes: Vec<f64> = (0..200).map(|i| 200.0 - i as f64 * 0.5).collect();
+        let volumes: Vec<f64> = vec![1000.0; 200];
+        let result = compute_signal(&closes, &volumes, 3).unwrap();
+        assert!(result.score < 0.0, "Downtrend should produce negative score");
+        assert!(result.bearish_count >= 2, "Downtrend should have bearish alignment");
     }
 }

@@ -99,11 +99,13 @@ pub async fn get_positions(wallet: &str) -> Result<Vec<PositionInfo>, String> {
 }
 
 /// Build, sign, and submit an open-position transaction.
+/// `trade_type` is "LONG" or "SHORT" — passed to Flash Trade API as `tradeType`.
 /// Returns (signature, position_size_usd, entry_price).
 pub async fn open_position(
     keypair: &solana_sdk::signature::Keypair,
     amount_sol: f64,
     leverage: f64,
+    trade_type: &str,
 ) -> Result<(String, f64, f64), String> {
     let wallet = keypair.pubkey().to_string();
 
@@ -112,7 +114,7 @@ pub async fn open_position(
         "outputTokenSymbol": "SOL",
         "inputAmountUi": amount_sol.to_string(),
         "leverage": leverage,
-        "tradeType": "LONG",
+        "tradeType": trade_type,
         "owner": wallet,
         "slippagePercentage": "1.0"
     });

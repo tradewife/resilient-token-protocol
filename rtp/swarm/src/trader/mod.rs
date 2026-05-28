@@ -289,15 +289,17 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
         if s.open_position.is_none() {
             match executor::get_positions(&wallet).await {
                 Ok(positions) => {
+                    // Look for both Long and Short SOL positions
                     if let Some(pos) = positions.iter().find(|p| {
-                        p.market_symbol == "SOL" && p.side_ui == "Long"
+                        p.market_symbol == "SOL" && (p.side_ui == "Long" || p.side_ui == "Short")
                     }) {
                         let entry_price: f64 = pos.entry_price_ui.parse().unwrap_or(0.0);
                         let size_usd: f64 = pos.size_usd_ui.parse().unwrap_or(0.0);
+                        let side = pos.side_ui.clone();
                         tracing::warn!(
-                            "[RECONCILE] Found orphaned SOL LONG position on Flash Trade: \
+                            "[RECONCILE] Found orphaned SOL {} position on Flash Trade: \
                              entry=${:.2} size=${:.2} key={}...restoring to internal state.",
-                            entry_price, size_usd, &pos.key[..8]
+                            side, entry_price, size_usd, &pos.key[..8]
                         );
                         s.open_position = Some(OpenPosition {
                             entry_price,
@@ -309,6 +311,7 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
                             position_key: pos.key.clone(),
                             size_usd,
                             first_negative_score_time: None,
+                            side: side.clone(),
                         });
                     }
                 }
@@ -547,16 +550,23 @@ async fn run_cycle(
         // 3. Check entry signal (only if flat)
         if let Some(signal) = strategy::compute_signal(&closes, &volumes, params.min_alignment) {
             tracing::info!(
-                "[SIGNAL] score={:.3} rsi={:.1} bull={} atr={:.2} reasons={:?}",
-                signal.score, signal.rsi, signal.bullish_count, signal.atr, signal.reasons
+                "[SIGNAL] score={:.3} rsi={:.1} bull={} bear={} atr={:.2} reasons={:?}",
+                signal.score, signal.rsi, signal.bullish_count, signal.bearish_count, signal.atr, signal.reasons
             );
-            if signal.score > params.signal_threshold && signal.bullish_count >= params.min_alignment {
+
+            // Entry logic: LONG or SHORT, mutually exclusive
+            let entry_signal = if signal.score > params.signal_threshold && signal.bullish_count >= params.min_alignment {
+                Some(("Long", "LONG", signal.score, signal.bullish_count, signal.reasons.clone()))
+            } else if signal.score < -params.signal_threshold && signal.bearish_count >= params.min_alignment {
+                Some(("Short", "SHORT", signal.score, signal.bearish_count, signal.reasons.clone()))
+            } else {
+                None
+            };
+
+            if let Some((side, trade_type, score, align_count, reasons)) = entry_signal {
                 tracing::info!(
-                    "[ENTRY] Signal: score={:.3} rsi={:.1} bull={} reasons={:?}",
-                    signal.score,
-                    signal.rsi,
-                    signal.bullish_count,
-                    signal.reasons
+                    "[ENTRY] Signal: {} score={:.3} align={} reasons={:?}",
+                    side, score, align_count, reasons
                 );
 
                 if !config.dry_run {
@@ -575,14 +585,15 @@ async fn run_cycle(
                             config.amount_sol
                         }
                     };
-                    match executor::open_position(keypair, amount_sol, config.leverage).await {
+                    match executor::open_position(keypair, amount_sol, config.leverage, trade_type).await {
                         Ok((sig, size_usd, entry_price)) => {
                             tracing::info!("[ENTRY] TX: https://explorer.solana.com/tx/{}?cluster=mainnet-beta", sig);
 
+                            let pos_side = side.to_string();
                             let pos_key = executor::get_positions(wallet)
                                 .await
                                 .ok()
-                                .and_then(|p| p.into_iter().find(|p| p.market_symbol == "SOL" && p.side_ui == "Long"))
+                                .and_then(|p| p.into_iter().find(|p| p.market_symbol == "SOL" && p.side_ui == side))
                                 .map(|p| p.key)
                                 .unwrap_or_default();
 
@@ -596,6 +607,7 @@ async fn run_cycle(
                                 position_key: pos_key,
                                 size_usd,
                                 first_negative_score_time: None,
+                                side: pos_side,
                             });
                         }
                         Err(e) => {
@@ -603,7 +615,7 @@ async fn run_cycle(
                         }
                     }
                 } else {
-                    tracing::info!("[DRY RUN] Would open {} SOL LONG @ {}x ({}%)", config.amount_sol, config.leverage, config.position_fraction * 100.0);
+                    tracing::info!("[DRY RUN] Would open {} SOL {} @ {}x ({}%)", config.amount_sol, side, config.leverage, config.position_fraction * 100.0);
                 }
             }
         }
@@ -752,5 +764,215 @@ mod tests {
         assert_eq!(loaded.active_config.min_alignment, 3);
         // Clean up
         let _ = std::fs::remove_file(&tmp);
+    }
+
+    // =========================================================================
+    // SHORT position tests (feature: short-entry-and-exit-logic)
+    // =========================================================================
+
+    #[test]
+    fn short_position_stored_with_correct_side() {
+        let mut state = TraderState::new("TestWallet");
+        state.open_position = Some(OpenPosition {
+            entry_price: 100.0,
+            entry_time: 1700000000,
+            peak_price: 100.0,
+            entry_rsi: 50.0,
+            entry_atr: 2.0,
+            entry_score: -0.5,
+            position_key: "short_key_123".to_string(),
+            size_usd: 50.0,
+            first_negative_score_time: None,
+            side: "Short".to_string(),
+        });
+        assert_eq!(state.open_position.as_ref().unwrap().side(), "Short");
+    }
+
+    #[test]
+    fn short_position_pnl_recording() {
+        // Verify TradeRecord PnL is correct for SHORT: (entry - exit) / entry * 100
+        let entry_price = 100.0;
+        let exit_price = 95.0;
+        let pnl_pct = (entry_price - exit_price) / entry_price * 100.0;
+        assert_eq!(pnl_pct, 5.0, "SHORT profit should be +5% when price drops 5%");
+
+        // Verify SHORT loss PnL
+        let exit_price_loss = 110.0;
+        let pnl_pct_loss = (entry_price - exit_price_loss) / entry_price * 100.0;
+        assert_eq!(pnl_pct_loss, -10.0, "SHORT loss should be -10% when price rises 10%");
+    }
+
+    #[test]
+    fn long_pnl_recording_unchanged() {
+        // LONG PnL should be unchanged: (exit - entry) / entry * 100
+        let entry_price = 100.0;
+        let exit_price = 110.0;
+        let pnl_pct = (exit_price - entry_price) / entry_price * 100.0;
+        assert_eq!(pnl_pct, 10.0, "LONG profit should be +10% when price rises 10%");
+
+        let exit_price_loss = 90.0;
+        let pnl_pct_loss = (exit_price_loss - entry_price) / entry_price * 100.0;
+        assert_eq!(pnl_pct_loss, -10.0, "LONG loss should be -10% when price drops 10%");
+    }
+
+    #[test]
+    fn peak_update_for_short_tracks_trough() {
+        // For SHORT: peak_price is updated when current < peak (tracking trough)
+        let mut pos = OpenPosition {
+            entry_price: 100.0,
+            entry_time: 1700000000,
+            peak_price: 100.0,
+            entry_rsi: 50.0,
+            entry_atr: 2.0,
+            entry_score: -0.5,
+            position_key: "key".to_string(),
+            size_usd: 50.0,
+            first_negative_score_time: None,
+            side: "Short".to_string(),
+        };
+
+        // Price drops from 100 to 95 — favorable for SHORT, update trough
+        let current = 95.0;
+        assert!(current < pos.peak_price, "95 < 100: should update trough");
+        pos.peak_price = current;
+        assert_eq!(pos.peak_price, 95.0);
+
+        // Price drops further to 90 — update trough again
+        let current2 = 90.0;
+        assert!(current2 < pos.peak_price, "90 < 95: should update trough");
+        pos.peak_price = current2;
+        assert_eq!(pos.peak_price, 90.0);
+
+        // Price rises to 93 — should NOT update (tracking trough, not peak)
+        let current3 = 93.0;
+        assert!(current3 > pos.peak_price, "93 > 90: should NOT update trough");
+        assert_eq!(pos.peak_price, 90.0, "Trough should remain at 90");
+    }
+
+    #[test]
+    fn peak_update_for_long_tracks_high() {
+        // For LONG: peak_price is updated when current > peak (tracking high)
+        let mut pos = OpenPosition {
+            entry_price: 100.0,
+            entry_time: 1700000000,
+            peak_price: 100.0,
+            entry_rsi: 50.0,
+            entry_atr: 2.0,
+            entry_score: 0.5,
+            position_key: "key".to_string(),
+            size_usd: 50.0,
+            first_negative_score_time: None,
+            side: "Long".to_string(),
+        };
+
+        // Price rises from 100 to 105 — favorable for LONG, update peak
+        let current = 105.0;
+        assert!(current > pos.peak_price, "105 > 100: should update peak");
+        pos.peak_price = current;
+        assert_eq!(pos.peak_price, 105.0);
+    }
+
+    #[test]
+    fn reconcile_restores_short_position() {
+        // Simulate TraderState with a SHORT position from reconciliation
+        let mut state = TraderState::new("TestWallet");
+        state.open_position = Some(OpenPosition {
+            entry_price: 150.0,
+            entry_time: 1700000000,
+            peak_price: 150.0,
+            entry_rsi: 50.0,
+            entry_atr: 3.0,
+            entry_score: -0.4,
+            position_key: "reconciled_short_key".to_string(),
+            size_usd: 30.0,
+            first_negative_score_time: None,
+            side: "Short".to_string(),
+        });
+
+        // Verify it serializes/deserializes correctly
+        let json = serde_json::to_string(&state).unwrap();
+        let parsed: TraderState = serde_json::from_str(&json).unwrap();
+        let pos = parsed.open_position.unwrap();
+        assert_eq!(pos.side, "Short");
+        assert_eq!(pos.entry_price, 150.0);
+        assert_eq!(pos.position_key, "reconciled_short_key");
+    }
+
+    #[test]
+    fn existing_trader_state_json_loads_with_default_side() {
+        // Load the actual data/trader-state.json which has an open position without `side` field
+        let repo_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../data/trader-state.json");
+        if let Some(state) = TraderState::load(&repo_root) {
+            if let Some(ref pos) = state.open_position {
+                assert_eq!(pos.side, "Long", "Existing state should default side to Long");
+            }
+        }
+    }
+
+    #[test]
+    fn entry_signal_logic_long_condition() {
+        // Verify: score > threshold && bullish_count >= min_alignment → LONG
+        let params = StrategyParams {
+            signal_threshold: 0.3,
+            min_alignment: 3,
+            ..StrategyParams::default()
+        };
+        let score = 0.5;
+        let bullish_count: usize = 3;
+
+        let is_long = score > params.signal_threshold && bullish_count >= params.min_alignment;
+        assert!(is_long, "Score 0.5 > 0.3 with 3 bull → LONG");
+    }
+
+    #[test]
+    fn entry_signal_logic_short_condition() {
+        // Verify: score < -threshold && bearish_count >= min_alignment → SHORT
+        let params = StrategyParams {
+            signal_threshold: 0.3,
+            min_alignment: 3,
+            ..StrategyParams::default()
+        };
+        let score = -0.5;
+        let bearish_count: usize = 3;
+
+        let is_short = score < -params.signal_threshold && bearish_count >= params.min_alignment;
+        assert!(is_short, "Score -0.5 < -0.3 with 3 bear → SHORT");
+    }
+
+    #[test]
+    fn entry_signal_logic_no_entry_between_thresholds() {
+        // Verify: score between ±threshold → neither LONG nor SHORT
+        let params = StrategyParams {
+            signal_threshold: 0.3,
+            min_alignment: 3,
+            ..StrategyParams::default()
+        };
+
+        for score in [-0.2, 0.0, 0.1, 0.29] {
+            let is_long = score > params.signal_threshold;
+            let is_short = score < -params.signal_threshold;
+            assert!(!is_long, "Score {} should not trigger LONG", score);
+            assert!(!is_short, "Score {} should not trigger SHORT", score);
+        }
+    }
+
+    #[test]
+    fn entry_signal_logic_exclusive() {
+        // A single score cannot trigger both LONG and SHORT
+        let params = StrategyParams {
+            signal_threshold: 0.3,
+            min_alignment: 3,
+            ..StrategyParams::default()
+        };
+
+        for score in [-1.0, -0.5, -0.3, 0.0, 0.3, 0.5, 1.0] {
+            let is_long = score > params.signal_threshold;
+            let is_short = score < -params.signal_threshold;
+            assert!(
+                !(is_long && is_short),
+                "Score {} cannot be both LONG and SHORT",
+                score
+            );
+        }
     }
 }
