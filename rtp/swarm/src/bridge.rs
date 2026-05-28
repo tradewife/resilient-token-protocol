@@ -220,10 +220,9 @@ impl NightShiftCandidate {
 /// 2. Fall back to subprocess call to `cycle_report.bin` (legacy)
 pub fn call_bridge(request: &BridgeRequest) -> Result<BridgeResponse, BridgeError> {
     // Try file-based Night Shift results first (no subprocess needed).
-    match read_night_shift_for_symbol(&request.symbol) {
-        Ok(response) => return Ok(response),
-        Err(_) => {} // Fall through to subprocess path
-    }
+    if let Ok(response) = read_night_shift_for_symbol(&request.symbol) {
+        return Ok(response);
+    } // Fall through to subprocess path
 
     // Legacy subprocess path (cycle_report.bin).
     call_bridge_with_bin(CYCLE_BIN, request)

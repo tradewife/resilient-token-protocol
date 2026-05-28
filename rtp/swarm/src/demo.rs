@@ -822,14 +822,14 @@ pub async fn prove_constraint_rejection() -> Result<String, String> {
     );
 
     // Check simulation result for program error.
-    if let Some(result) = json.get("result") {
-        if let Some(err) = result.get("err") {
-            let err_str = serde_json::to_string_pretty(err).unwrap_or_default();
-            return Ok(format!(
-                "On-chain constraint proven: {} — {}",
-                err_str, explorer
-            ));
-        }
+    if let Some(result) = json.get("result")
+        && let Some(err) = result.get("err")
+    {
+        let err_str = serde_json::to_string_pretty(err).unwrap_or_default();
+        return Ok(format!(
+            "On-chain constraint proven: {} — {}",
+            err_str, explorer
+        ));
     }
 
     // Simulation succeeded or returned unexpected format.

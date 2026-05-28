@@ -163,17 +163,17 @@ impl FlashTradeClient {
             }
             Err(api_err) => {
                 // API failed — try cached price
-                if let Ok(cache) = self.price_cache.lock() {
-                    if let Some((cached_price, ts)) = cache.get(symbol) {
-                        tracing::warn!(
-                            "[FlashTradeClient] API failed for {}, using cached price (${:.2} from {}s ago): {}",
-                            symbol,
-                            cached_price,
-                            chrono::Utc::now().timestamp() - ts,
-                            api_err
-                        );
-                        return Ok(*cached_price);
-                    }
+                if let Ok(cache) = self.price_cache.lock()
+                    && let Some((cached_price, ts)) = cache.get(symbol)
+                {
+                    tracing::warn!(
+                        "[FlashTradeClient] API failed for {}, using cached price (${:.2} from {}s ago): {}",
+                        symbol,
+                        cached_price,
+                        chrono::Utc::now().timestamp() - ts,
+                        api_err
+                    );
+                    return Ok(*cached_price);
                 }
                 Err(format!("Price unavailable for {} (API: {}, no cache)", symbol, api_err))
             }

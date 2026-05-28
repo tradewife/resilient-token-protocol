@@ -119,10 +119,10 @@ pub async fn open_position(
 
     let val = flash_post("/transaction-builder/open-position", &body).await?;
 
-    if let Some(err) = val.get("err").and_then(|v| v.as_str()) {
-        if !err.is_empty() {
-            return Err(format!("Open position API error: {}", err));
-        }
+    if let Some(err) = val.get("err").and_then(|v| v.as_str())
+        && !err.is_empty()
+    {
+        return Err(format!("Open position API error: {}", err));
     }
 
     let tx_b64 = val
@@ -162,10 +162,10 @@ pub async fn close_position(
 
     let val = flash_post("/transaction-builder/close-position", &body).await?;
 
-    if let Some(err) = val.get("err").and_then(|v| v.as_str()) {
-        if !err.is_empty() {
-            return Err(format!("Close position API error: {}", err));
-        }
+    if let Some(err) = val.get("err").and_then(|v| v.as_str())
+        && !err.is_empty()
+    {
+        return Err(format!("Close position API error: {}", err));
     }
 
     let tx_b64 = val

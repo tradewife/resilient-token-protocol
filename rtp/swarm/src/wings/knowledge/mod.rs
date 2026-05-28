@@ -58,17 +58,15 @@ impl KnowledgeWing {
     /// Loads existing data from disk on construction.
     pub fn new_with_persistence(path: PathBuf) -> Self {
         let mut store = HashMap::new();
-        if path.exists() {
-            if let Ok(data) = std::fs::read_to_string(&path) {
-                if let Ok(loaded) = serde_json::from_str::<HashMap<String, KnowledgeEntry>>(&data) {
-                    store = loaded;
-                    tracing::info!(
-                        "[KnowledgeWing] loaded {} entries from {}",
-                        store.len(),
-                        path.display()
-                    );
-                }
-            }
+        if let Ok(data) = std::fs::read_to_string(&path)
+            && let Ok(loaded) = serde_json::from_str::<HashMap<String, KnowledgeEntry>>(&data)
+        {
+            store = loaded;
+            tracing::info!(
+                "[KnowledgeWing] loaded {} entries from {}",
+                store.len(),
+                path.display()
+            );
         }
         Self {
             store: Mutex::new(store),
@@ -79,16 +77,16 @@ impl KnowledgeWing {
 
     /// Serialize the store to disk (if persistence is enabled).
     fn persist(&self) {
-        if let Some(path) = &self.persist_path {
-            if let Ok(store) = self.store.lock() {
-                if let Some(parent) = path.parent() {
-                    let _ = std::fs::create_dir_all(parent);
-                }
-                if let Ok(json) = serde_json::to_string_pretty(&*store) {
-                    if let Err(e) = std::fs::write(path, &json) {
-                        tracing::warn!("[KnowledgeWing] persist failed: {}", e);
-                    }
-                }
+        if let Some(path) = &self.persist_path
+            && let Ok(store) = self.store.lock()
+        {
+            if let Some(parent) = path.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
+            if let Ok(json) = serde_json::to_string_pretty(&*store)
+                && let Err(e) = std::fs::write(path, &json)
+            {
+                tracing::warn!("[KnowledgeWing] persist failed: {}", e);
             }
         }
     }

@@ -177,10 +177,7 @@ pub fn compute_signal(closes: &[f64], volumes: &[f64], min_alignment: usize) -> 
     let tf_1d = timeframe_signal(closes, 200);
 
     // If we don't have enough for daily, degrade gracefully
-    let tf_1h = match tf_1h {
-        Some(t) => t,
-        None => return None,
-    };
+    let tf_1h = tf_1h?;
     let tf_4h = match tf_4h {
         Some(t) => t,
         None => {

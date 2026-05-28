@@ -674,20 +674,20 @@ let knowledge_wing: Option<rtp_swarm::wings::knowledge::KnowledgeWing> =
 
     // Read previous cycle output for mutation feedback.
     let prev_cycle_path = repo_root().join("data/devnet-cycles/latest/cycle.json");
-    if let Ok(content) = std::fs::read_to_string(&prev_cycle_path) {
-        if let Ok(prev) = serde_json::from_str::<serde_json::Value>(&content) {
-            ctx.prev_mutations_applied = prev.get("mutations_accepted")
-                .and_then(|v| serde_json::from_value(v.clone()).ok());
-            // Compute PnL delta: current PnL vs. the pnl that existed when
-            // the previous mutations were applied. If this is the first cycle
-            // with live data, we can't compute a delta.
-            if ctx.total_pnl_sol.is_some() {
-                // The delta is just the total — we don't have the previous
-                // total stored separately. A more robust approach would store
-                // pnl_at_mutation in the cycle output. For now, use the total
-                // as a signal direction (positive = good, negative = bad).
-                ctx.prev_pnl_delta = ctx.total_pnl_sol;
-            }
+    if let Ok(content) = std::fs::read_to_string(&prev_cycle_path)
+        && let Ok(prev) = serde_json::from_str::<serde_json::Value>(&content)
+    {
+        ctx.prev_mutations_applied = prev.get("mutations_accepted")
+            .and_then(|v| serde_json::from_value(v.clone()).ok());
+        // Compute PnL delta: current PnL vs. the pnl that existed when
+        // the previous mutations were applied. If this is the first cycle
+        // with live data, we can't compute a delta.
+        if ctx.total_pnl_sol.is_some() {
+            // The delta is just the total — we don't have the previous
+            // total stored separately. A more robust approach would store
+            // pnl_at_mutation in the cycle output. For now, use the total
+            // as a signal direction (positive = good, negative = bad).
+            ctx.prev_pnl_delta = ctx.total_pnl_sol;
         }
     }
 
