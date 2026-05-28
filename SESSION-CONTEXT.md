@@ -2,8 +2,8 @@
 
 > **How to use this file:** Paste the relevant sections at the top of every fresh agent session. Do not paste the full papers or full repo. This file is the compressed institutional memory of the project. Update it after each significant session.
 
-**Last updated:** 2026-05-12 — Trader watchdog + HTTP timeouts, dashboard mobile fixes, BSL-1.1 rebrand, night-shift Dockerfile fix. 331 unit + 5 integration tests pass.
-**Current state:** Live autonomous trader (rtp-trader) running 24/7 on Railway with 9x leverage config: thresh=0.25, tp=5.0, sl=2.7, trail=0.14, align=3. **Trader watchdog:** 120s cycle timeout, 30s HTTP timeouts on all API calls, consecutive error tracking with exponential backoff. `RTP_TRADER_LEVERAGE=9.0` on Railway (was accidentally 1.0 — fixed). Dashboard mobile-responsive (intel panels stack, code block wraps). All 7 Railway services green. License: BSL-1.1.
+**Last updated:** 2026-05-29 — Trader optimization: config loading fix, SHORT entry, score flip delay, health monitoring. 362 unit + 5 integration tests pass.
+**Current state:** Live autonomous trader (rtp-trader) running 24/7 on Railway with validated config loaded from `data/trader-strategy-config.json`: thresh=0.3, tp=6.0, sl=2.5, trail=1.0, hold=96h, decay=48h, flip_delay=2h, align=3. Supports both LONG and SHORT positions. Score flip delay provides 2h grace period before exit. Health endpoint returns 503 when stale/erroring. **Trader watchdog:** 120s cycle timeout, 30s HTTP timeouts, consecutive error tracking with exponential backoff. `RTP_TRADER_LEVERAGE=9.0` on Railway. All 7 Railway services green. License: BSL-1.1.
 
 ---
 
@@ -780,7 +780,7 @@ State as of Apr 13:
 - Average Sharpe range across parameters: **0.30** (target: <1.0 for "flat")
 - 5/7 parameters are completely flat (max_hold_hours, time_decay_hours, stop_loss_atr, take_profit_atr, trailing_stop_atr)
 - signal_threshold is "peaked" but still 2.98 Sharpe / 7/9 folds at +20% deviation
-- `score_flip_delay_hrs` confirmed zero-impact — can be removed from parameter space going forward
+- `score_flip_delay_hrs` implemented as grace period (2h in validated config) — prevents premature exits on transient score dips
 - This is demo evidence: "not a lucky backtest, a robust system"
 
 **Strategy library composition (priority-ranked):**

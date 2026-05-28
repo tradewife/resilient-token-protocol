@@ -17,7 +17,7 @@ The Flash Trade on-chain CPI execution path is fully implemented (M0–M5). PDA-
 
 ```
 Night Shift (Python, DONE)
-  └── validated strategy: SOL/USDT Survivor 2.69, signal_threshold=0.3, tp_atr=3.0, sl_atr=1.5
+  └── validated strategy: SOL/USDT Survivor 2.69, signal_threshold=0.3, tp_atr=6.0, sl_atr=2.5, trailing_stop_atr=1.0, max_hold_hours=96, score_flip_delay_hrs=2
         │
         ▼ bridge.rs (DONE)
 Trading Wing (Rust, DONE)
@@ -98,6 +98,11 @@ Fee-Payer Wallet (gas only, DONE)
 - **Frozen state must use SDK decoder**: Never read on-chain frozen field via hardcoded byte offsets — the Anchor account layout can change. Use `fetchTreasuryState()` from the SDK which uses Borsh decoding.
 - **FlashTradeClient is async**: The REST client uses async `reqwest` with retry (3 attempts, exponential backoff). Synchronous callers use `_blocking()` wrappers that create a tokio current-thread runtime.
 - **No `.unwrap()` in production paths**: All msgpack encoding, ATA derivation, daemon serialization, and evolve proposals use proper error handling (`map_err`, `unwrap_or_else`, `ok_or`). Never re-introduce `.unwrap()` on code that handles external input.
+- **Trader config loads from validated file** — `Dockerfile.trader` copies `data/trader-strategy-config.json` into container and sets `RTP_STRATEGY_CONFIG`. If config file is missing or invalid, falls back to hardcoded defaults with a warning log. The validated config (trail=1.0, tp=6.0, sl=2.5, hold=96h, decay=48h, flip_delay=2h) must NOT be silently replaced with defaults — check Railway logs for the startup param line.
+- **Trader supports both LONG and SHORT positions** — entry conditions: LONG when score > threshold AND bullish_count >= min_alignment; SHORT when score < -threshold AND bearish_count >= min_alignment. Exit math (PnL, trailing, SL/TP) is inverted for SHORT positions. OpenPosition has a `side` field ("Long"/"Short").
+- **Score flip delay** — `score_flip_delay_hrs` (default 0.0, set to 2.0 in validated config) provides a grace period before ScoreFlip exit. Timer starts from `first_negative_score_time` (tracked in OpenPosition), resets when score goes positive.
+- **/health endpoint returns 503 when unhealthy** — consecutive_errors >= 5 OR last_healthy > 30 minutes ago. Not a static "ok" anymore.
+- **/state returns active_config** — TraderState now includes the loaded StrategyParams so config drift is visible from the dashboard.
 
 ---
 
@@ -105,7 +110,7 @@ Fee-Payer Wallet (gas only, DONE)
 
 This repo has three layers:
 1. **Proven Python fractal-swarm** (shipping) — backtesting, optimization, paper trading
-2. **Rust swarm + Solana treasury** (built, 325 unit + 5 integration tests) — 6-wing architecture, Coordinator, soulcontract, Flash Trade CPI execution, emergency freeze, zero-address guard
+2. **Rust swarm + Solana treasury** (built, 362 unit + 5 integration tests) — 6-wing architecture, Coordinator, soulcontract, Flash Trade CPI execution, emergency freeze, zero-address guard
 3. **Flash Trade CPI execution** (done — mainnet verified) — Trading Wing → Treasury PDA invoke_signed → Flash Trade Perpetuals CPI → on-chain positions → SOL yield → treasury PDA
 
 ---
@@ -297,7 +302,7 @@ All commands support `--json` (machine-readable), `--quiet` (errors only), `--cl
 | `rtp/swarm/src/wings/trading/phantom_mcp.rs` | **[ARCHIVED]** Phantom MCP client — gated behind `#[cfg(feature = "hyperliquid")]`, not compiled by default |
 | `rtp/swarm/src/bin/rtp-daemon.rs` | **Devnet loop daemon — real chain execution via chain_client, stale position close, single-cycle (Railway cron) or watchdog mode (RTP_WATCHDOG=1)** |
 | `rtp/swarm/src/chain_client.rs` | **On-chain client — ChainConfig from env, ExecutionMode simulate/devnet/mainnet, PDA derivation, open/close instruction builders, submit/simulate with retry** |
-| `rtp/swarm/src/trader/mod.rs` | **Live autonomous trader — REST API trading via Flash Trade, Arc<Mutex<TraderState>> shared state, HTTP status server on configurable port, watchdog (120s cycle timeout, consecutive error tracking, exponential backoff)** |
+| `rtp/swarm/src/trader/mod.rs` | **Live autonomous trader — REST API trading via Flash Trade, LONG + SHORT positions, score flip delay, health monitoring (503 on stale/error), Arc<Mutex<TraderState>> with active_config, HTTP status server on configurable port, watchdog (120s cycle timeout, consecutive error tracking, exponential backoff)** |
 | `rtp/swarm/src/wings/security/mod.rs` | Threat detection, rate-limiting, suspicious-proposal detection |
 | `rtp/swarm/src/wings/evolve/` | Assessor, proposer, rollback (complete, tested) |
 | `rtp/swarm/src/wings/knowledge/mod.rs` | Persistent knowledge store (JSON file-backed), cross-wing queries |
@@ -478,7 +483,7 @@ If you change anything in `_compute_score()` or `simulate_trades()`, run `evalua
 Active symbols: BTC/USDT, ETH/USDT, SOL/USDT, BNB/USDT. XRP dropped (net negative).
 
 **Top live candidate (Apr 9 Night Shift):**
-SOL/USDT Survivor 2.69 — signal_threshold=0.3, tp_atr=3.0, sl_atr=1.5, max_hold=36h, trailing_stop_atr=0.5
+SOL/USDT Survivor 2.69 — signal_threshold=0.3, tp_atr=6.0, sl_atr=2.5, max_hold=96h, trailing_stop_atr=1.0, time_decay_hours=48, score_flip_delay_hrs=2
 This is the config the Trading Wing targets on Flash Trade (via on-chain CPI).
 
 ---
@@ -497,7 +502,7 @@ All CI/CD runs on **Railway** (migrated from GitHub Actions to conserve Actions 
 | **rtp-swarm-ci** | Manual trigger | `rtp/Dockerfile.ci` | Manual redeploy only | https://rtp-swarm-ci-production.up.railway.app |
 | **rtp-fee-crank** | Cron (one-shot) | `scripts/Dockerfile.crank` | `0 * * * *` (hourly) | — |
 | **rtp-promote-strategy** | Cron (one-shot) | `scripts/Dockerfile.promote` | `30 14 * * *` | — |
-| **rtp-trader** | Always-on | `rtp/swarm/Dockerfile.trader` | — | HTTP status server on port 8080 (Railway private networking) |
+| **rtp-trader** | Always-on | `rtp/swarm/Dockerfile.trader` | — | HTTP status server on port 8080 (Railway private networking). Config loaded from `data/trader-strategy-config.json` via `RTP_STRATEGY_CONFIG` env var. |
 
 **Railway account:** katejcooper.atelier@gmail.com
 **Project dashboard:** https://railway.com/project/11004852-2ba7-46d9-aeb5-ab9558e965a0
@@ -510,7 +515,7 @@ All CI/CD runs on **Railway** (migrated from GitHub Actions to conserve Actions 
 - **rtp-devnet-loop**: Rust `rtp-daemon` binary. Dockerfile uses `rust:1.88-slim` builder + `debian:bookworm-slim` runner. Connected to GitHub repo (`tradewife/resilient-token-protocol`), auto-deploys on push. Build context is repo root — COPY paths in Dockerfile use `rtp/swarm/` prefix. Needs env vars: `LLM_API_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`.
 - **rtp-night-shift**: Python 3.12, installs from `requirements-ci.txt`, runs `night_shift --skip-fetch`. One-shot: runs to completion and exits. OHLCV data in `data/ohlcv/` included via `.railwayignore` exclusion.
 - **rtp-swarm-ci**: Rust builder with Solana CLI + Anchor. Runs `cargo build`, `cargo test`, `cargo clippy`, `cargo fmt --check`, `anchor build`. One-shot CI validation.
-- **rtp-trader**: Always-on Rust binary (`rtp-trader`). Runs Survivor 2.69 strategy autonomously, polls Flash Trade every 5 minutes, executes SOL LONG positions when signal conditions met. HTTP status server on port 8080 serves `GET /state` (live TraderState JSON) and `GET /health`. State shared via `Arc<Mutex<TraderState>>` between trading loop and HTTP handler. Dashboard fetches via Railway private networking (`http://rtp-trader.railway.internal:8080/state`). Dockerfile: `rtp/swarm/Dockerfile.trader`. Env var `RTP_TRADER_HTTP_PORT` (default 8080). **Watchdog:** cycle wrapped in `tokio::time::timeout(120s)` — kills hung cycles (e.g., stalled HTTP). Tracks `consecutive_errors` + `last_healthy` in TraderState. Exponential backoff on repeated failures, 5-min sleep after 10 consecutive. All HTTP clients have 30s timeouts (Flash Trade API, Solana RPC).
+- **rtp-trader**: Always-on Rust binary (`rtp-trader`). Runs Survivor 2.69 strategy autonomously, polls Flash Trade every 5 minutes, executes SOL LONG and SHORT positions when signal conditions met. HTTP status server on port 8080 serves `GET /state` (live TraderState JSON) and `GET /health` (returns 503 when consecutive_errors >= 5 or last_healthy stale > 30min). State shared via `Arc<Mutex<TraderState>>` between trading loop and HTTP handler. Dashboard fetches via Railway private networking (`http://rtp-trader.railway.internal:8080/state`). Dockerfile: `rtp/swarm/Dockerfile.trader`. Env var `RTP_TRADER_HTTP_PORT` (default 8080). **Watchdog:** cycle wrapped in `tokio::time::timeout(120s)` — kills hung cycles (e.g., stalled HTTP). Tracks `consecutive_errors` + `last_healthy` in TraderState. Exponential backoff on repeated failures, 5-min sleep after 10 consecutive. All HTTP clients have 30s timeouts (Flash Trade API, Solana RPC).
 
 ### Cron Schedule Configuration
 
