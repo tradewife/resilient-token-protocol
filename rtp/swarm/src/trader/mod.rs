@@ -181,6 +181,46 @@ pub fn start_status_server(
     })
 }
 
+/// Health-check thresholds.
+const HEALTH_MAX_ERRORS: u32 = 5;
+const HEALTH_STALE_THRESHOLD_SECS: i64 = 30 * 60; // 30 minutes
+
+/// Determine trader health from current state.
+/// Returns `(status_code, status_reason, body_text)`.
+pub fn check_trader_health(state: &TraderState) -> (u16, &'static str, String) {
+    // 1. Too many consecutive errors → 503
+    if state.consecutive_errors >= HEALTH_MAX_ERRORS {
+        return (503, "Service Unavailable",
+            format!("unhealthy: {} consecutive errors", state.consecutive_errors));
+    }
+
+    // 2. Empty last_healthy (initial state) → 503
+    if state.last_healthy.is_empty() {
+        return (503, "Service Unavailable",
+            "unhealthy: no healthy timestamp".to_string());
+    }
+
+    // 3. Unparseable last_healthy → 503
+    let last_healthy = match chrono::DateTime::parse_from_rfc3339(&state.last_healthy) {
+        Ok(dt) => dt,
+        Err(_) => {
+            return (503, "Service Unavailable",
+                "unhealthy: invalid last_healthy timestamp".to_string());
+        }
+    };
+
+    // 4. Stale last_healthy (> 30 min ago) → 503
+    let now = chrono::Utc::now();
+    let elapsed_secs = now.signed_duration_since(last_healthy).num_seconds();
+    if elapsed_secs > HEALTH_STALE_THRESHOLD_SECS {
+        return (503, "Service Unavailable",
+            format!("unhealthy: last_healthy is stale ({}s ago)", elapsed_secs));
+    }
+
+    // All checks passed → healthy
+    (200, "OK", "ok".to_string())
+}
+
 async fn handle_status_request(
     mut stream: tokio::net::TcpStream,
     state: Arc<Mutex<TraderState>>,
@@ -200,11 +240,13 @@ async fn handle_status_request(
     let (status, body, content_type) = if path == "/state" || path == "/" {
         let snapshot = state.lock().await;
         let json = serde_json::to_string(&*snapshot).unwrap_or_else(|_| "{}".to_string());
-        ("200 OK", json, "application/json")
+        ("200 OK".to_string(), json, "application/json")
     } else if path == "/health" {
-        ("200 OK", "ok".to_string(), "text/plain")
+        let snapshot = state.lock().await;
+        let (code, reason, body) = check_trader_health(&snapshot);
+        (format!("{} {}", code, reason), body, "text/plain")
     } else {
-        ("404 Not Found", "not found".to_string(), "text/plain")
+        ("404 Not Found".to_string(), "not found".to_string(), "text/plain")
     };
 
     let response = format!(
@@ -974,5 +1016,132 @@ mod tests {
                 score
             );
         }
+    }
+
+    // =========================================================================
+    // Health monitoring tests (feature: health-monitoring)
+    // =========================================================================
+
+    /// Helper: create a healthy TraderState for test setup.
+    fn healthy_state() -> TraderState {
+        let mut state = TraderState::new("TestWallet");
+        state.consecutive_errors = 0;
+        state.last_healthy = chrono::Utc::now().to_rfc3339();
+        state
+    }
+
+    #[test]
+    fn health_returns_200_when_healthy() {
+        // VAL-HEALTH-001: consecutive_errors < 5 and recent last_healthy → 200
+        let state = healthy_state();
+        let (code, _reason, body) = check_trader_health(&state);
+        assert_eq!(code, 200, "Should return 200 for healthy state");
+        assert_eq!(body, "ok", "Body should be 'ok' for healthy state");
+    }
+
+    #[test]
+    fn health_returns_503_when_consecutive_errors_exceeds_threshold() {
+        // VAL-HEALTH-002: consecutive_errors >= 5 → 503
+        let mut state = healthy_state();
+        state.consecutive_errors = 5;
+        let (code, _reason, body) = check_trader_health(&state);
+        assert_eq!(code, 503, "Should return 503 when consecutive_errors >= 5");
+        assert!(body.contains("consecutive errors"), "Body should mention errors: {}", body);
+
+        // Also test with > 5
+        state.consecutive_errors = 10;
+        let (code, _reason, body) = check_trader_health(&state);
+        assert_eq!(code, 503, "Should return 503 when consecutive_errors = 10");
+        assert!(body.contains("consecutive errors"), "Body should mention errors: {}", body);
+    }
+
+    #[test]
+    fn health_returns_503_when_last_healthy_stale() {
+        // VAL-HEALTH-003: last_healthy > 30 minutes ago → 503
+        let mut state = healthy_state();
+        // Set last_healthy to 35 minutes ago
+        let stale_time = chrono::Utc::now() - chrono::Duration::minutes(35);
+        state.last_healthy = stale_time.to_rfc3339();
+        state.consecutive_errors = 0;
+        let (code, _reason, body) = check_trader_health(&state);
+        assert_eq!(code, 503, "Should return 503 when last_healthy is stale");
+        assert!(body.contains("stale"), "Body should mention stale: {}", body);
+    }
+
+    #[test]
+    fn health_returns_503_when_last_healthy_empty() {
+        // VAL-HEALTH-006: empty last_healthy → 503 (initial state)
+        let mut state = TraderState::new("TestWallet");
+        state.consecutive_errors = 0;
+        state.last_healthy = String::new(); // empty — initial state
+        let (code, _reason, body) = check_trader_health(&state);
+        assert_eq!(code, 503, "Should return 503 when last_healthy is empty");
+        assert!(body.contains("no healthy timestamp"), "Body should mention missing timestamp: {}", body);
+    }
+
+    #[test]
+    fn health_returns_503_when_last_healthy_unparseable() {
+        // VAL-HEALTH-006: unparseable last_healthy → 503
+        let mut state = TraderState::new("TestWallet");
+        state.consecutive_errors = 0;
+        state.last_healthy = "garbage-not-a-timestamp".to_string();
+        let (code, _reason, body) = check_trader_health(&state);
+        assert_eq!(code, 503, "Should return 503 when last_healthy cannot be parsed");
+        assert!(body.contains("invalid"), "Body should mention invalid timestamp: {}", body);
+    }
+
+    #[test]
+    fn health_returns_200_when_just_under_stale_threshold() {
+        // Verify: last_healthy = 29 minutes ago → still 200
+        let mut state = healthy_state();
+        let recent_time = chrono::Utc::now() - chrono::Duration::minutes(29);
+        state.last_healthy = recent_time.to_rfc3339();
+        state.consecutive_errors = 0;
+        let (code, _reason, _body) = check_trader_health(&state);
+        assert_eq!(code, 200, "Should return 200 when last_healthy is 29 minutes ago");
+    }
+
+    #[test]
+    fn health_error_takes_priority_over_stale() {
+        // Both consecutive_errors >= 5 AND stale last_healthy → should still
+        // return 503 (error check runs first)
+        let mut state = TraderState::new("TestWallet");
+        state.consecutive_errors = 5;
+        state.last_healthy = String::new();
+        let (code, _reason, body) = check_trader_health(&state);
+        assert_eq!(code, 503);
+        assert!(body.contains("consecutive errors"), "Error check should fire first: {}", body);
+    }
+
+    #[test]
+    fn state_endpoint_returns_valid_json() {
+        // VAL-HEALTH-004: /state still returns full TraderState JSON
+        let state = healthy_state();
+        let json = serde_json::to_string(&state).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+        // Verify key fields exist
+        assert!(parsed.get("wallet").is_some(), "/state JSON must include wallet");
+        assert!(parsed.get("open_position").is_some(), "/state JSON must include open_position");
+        assert!(parsed.get("consecutive_errors").is_some(), "/state JSON must include consecutive_errors");
+        assert!(parsed.get("last_healthy").is_some(), "/state JSON must include last_healthy");
+        assert!(parsed.get("active_config").is_some(), "/state JSON must include active_config");
+        assert!(parsed.get("trade_history").is_some(), "/state JSON must include trade_history");
+    }
+
+    #[test]
+    fn health_handler_reads_trader_state() {
+        // VAL-HEALTH-005: Verify check_trader_health function reads from TraderState
+        // (not a static response). Different state should produce different results.
+        let healthy = healthy_state();
+        let (code1, _, _) = check_trader_health(&healthy);
+        assert_eq!(code1, 200, "Healthy state should return 200");
+
+        let mut unhealthy = healthy_state();
+        unhealthy.consecutive_errors = 5;
+        let (code2, _, _) = check_trader_health(&unhealthy);
+        assert_eq!(code2, 503, "Unhealthy state should return 503");
+
+        // Different input → different output, confirming dynamic behavior
+        assert_ne!(code1, code2, "Health check must be dynamic, not static");
     }
 }
