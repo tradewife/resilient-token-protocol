@@ -1,0 +1,10 @@
+{
+  "signal_threshold": 0.3,
+  "tp_atr": 6.0,
+  "sl_atr": 2.5,
+  "max_hold_hours": 96.0,
+  "trailing_stop_atr": 1.0,
+  "time_decay_hours": 48.0,
+  "min_alignment": 3,
+  "score_flip_delay_hrs": 2.0
+}
