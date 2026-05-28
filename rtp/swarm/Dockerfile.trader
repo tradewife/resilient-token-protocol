@@ -17,11 +17,14 @@ RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/
 COPY --from=builder /build/target/release/rtp-trader /usr/local/bin/
 
 # Keypair written from env var at startup (same pattern as daemon)
-RUN mkdir -p /app/keys /data
+RUN mkdir -p /app/keys /app/config /data
+
+COPY data/trader-strategy-config.json /app/config/strategy.json
 
 ENV RTP_TRADER_KEYPAIR=/app/keys/trader.json
 ENV RTP_TRADER_STATE_PATH=/data/trader-state.json
 ENV RTP_TRADER_HTTP_PORT=8080
+ENV RTP_STRATEGY_CONFIG=/app/config/strategy.json
 
 EXPOSE 8080
 

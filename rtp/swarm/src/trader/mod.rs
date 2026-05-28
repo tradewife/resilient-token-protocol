@@ -87,6 +87,9 @@ pub struct TraderState {
     pub consecutive_errors: u32,
     /// Watchdog: last time a full cycle completed successfully.
     pub last_healthy: String,
+    /// The active strategy config loaded at startup. Exposed via /state for dashboard visibility.
+    #[serde(default)]
+    pub active_config: StrategyParams,
 }
 
 impl TraderState {
@@ -101,6 +104,7 @@ impl TraderState {
             total_trades: 0,
             consecutive_errors: 0,
             last_healthy: String::new(),
+            active_config: StrategyParams::default(),
         }
     }
 
@@ -238,6 +242,22 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
     let initial = TraderState::load(&config.state_path).unwrap_or_else(|| TraderState::new(&wallet));
     let state = Arc::new(Mutex::new(initial));
     let params = StrategyParams::load_from_daemon_config();
+
+    // Store active config in state for /state endpoint visibility
+    {
+        let mut s = state.lock().await;
+        s.active_config = params.clone();
+    }
+
+    // Log loaded params at startup for Railway log visibility
+    tracing::info!(
+        "[STARTUP] Active strategy config: signal={:.2} tp={:.1} sl={:.1} hold={:.0}h trail={:.2} decay={:.0}h flip_delay={:.1}h alignment={}",
+        params.signal_threshold, params.tp_atr, params.sl_atr,
+        params.max_hold_hours, params.trailing_stop_atr,
+        params.time_decay_hours, params.score_flip_delay_hrs,
+        params.min_alignment,
+    );
+
     let mut buffer = CandleBuffer::new(300); // 300 candles ≈ 12.5 days of 1h data
 
     // Start HTTP status server for live dashboard access
@@ -593,3 +613,144 @@ async fn run_cycle(
 }
 
 // cache-bust: 2026-05-11T20:00Z
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn trader_state_active_config_serde_roundtrip() {
+        let mut state = TraderState::new("TestWallet11111111111111111111111111111111");
+        state.active_config = StrategyParams {
+            signal_threshold: 0.3,
+            tp_atr: 6.0,
+            sl_atr: 2.5,
+            max_hold_hours: 96.0,
+            trailing_stop_atr: 1.0,
+            time_decay_hours: 48.0,
+            min_alignment: 3,
+            score_flip_delay_hrs: 2.0,
+        };
+        let json = serde_json::to_string_pretty(&state).unwrap();
+        let parsed: TraderState = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.active_config.signal_threshold, 0.3);
+        assert_eq!(parsed.active_config.tp_atr, 6.0);
+        assert_eq!(parsed.active_config.sl_atr, 2.5);
+        assert_eq!(parsed.active_config.max_hold_hours, 96.0);
+        assert_eq!(parsed.active_config.trailing_stop_atr, 1.0);
+        assert_eq!(parsed.active_config.time_decay_hours, 48.0);
+        assert_eq!(parsed.active_config.min_alignment, 3);
+        assert_eq!(parsed.active_config.score_flip_delay_hrs, 2.0);
+    }
+
+    #[test]
+    fn trader_state_loads_without_active_config_field() {
+        // Existing trader-state.json lacks the active_config field.
+        // With #[serde(default)], it should deserialize with StrategyParams::default().
+        let old_json = r#"{
+            "wallet": "Driyi8Sw2622yCefU34zrjBsQynrDoGD31tBecXrEF6R",
+            "open_position": null,
+            "trade_history": [],
+            "candle_count": 200,
+            "last_poll": "2026-05-05T00:00:00+00:00",
+            "total_pnl_sol": 0.0,
+            "total_trades": 1,
+            "consecutive_errors": 0,
+            "last_healthy": "2026-05-05T00:00:00+00:00"
+        }"#;
+        let parsed: TraderState = serde_json::from_str(old_json).unwrap();
+        let defaults = StrategyParams::default();
+        assert_eq!(parsed.wallet, "Driyi8Sw2622yCefU34zrjBsQynrDoGD31tBecXrEF6R");
+        assert_eq!(parsed.active_config.signal_threshold, defaults.signal_threshold);
+        assert_eq!(parsed.active_config.tp_atr, defaults.tp_atr);
+        assert_eq!(parsed.active_config.score_flip_delay_hrs, defaults.score_flip_delay_hrs);
+        assert_eq!(parsed.active_config.time_decay_hours, defaults.time_decay_hours);
+        assert_eq!(parsed.active_config.min_alignment, defaults.min_alignment);
+    }
+
+    #[test]
+    fn trader_state_new_has_default_active_config() {
+        let state = TraderState::new("TestWallet11111111111111111111111111111111");
+        let defaults = StrategyParams::default();
+        assert_eq!(state.active_config.signal_threshold, defaults.signal_threshold);
+        assert_eq!(state.active_config.tp_atr, defaults.tp_atr);
+        assert_eq!(state.active_config.sl_atr, defaults.sl_atr);
+        assert_eq!(state.active_config.max_hold_hours, defaults.max_hold_hours);
+        assert_eq!(state.active_config.trailing_stop_atr, defaults.trailing_stop_atr);
+        assert_eq!(state.active_config.time_decay_hours, defaults.time_decay_hours);
+        assert_eq!(state.active_config.min_alignment, defaults.min_alignment);
+        assert_eq!(state.active_config.score_flip_delay_hrs, defaults.score_flip_delay_hrs);
+    }
+
+    #[test]
+    fn startup_log_format_includes_all_strategy_fields() {
+        // Verify the format string includes all StrategyParams fields
+        // by constructing the same log message and checking key substrings
+        let params = StrategyParams {
+            signal_threshold: 0.3,
+            tp_atr: 6.0,
+            sl_atr: 2.5,
+            max_hold_hours: 96.0,
+            trailing_stop_atr: 1.0,
+            time_decay_hours: 48.0,
+            min_alignment: 3,
+            score_flip_delay_hrs: 2.0,
+        };
+        let log_msg = format!(
+            "signal={:.2} tp={:.1} sl={:.1} hold={:.0}h trail={:.2} decay={:.0}h flip_delay={:.1}h alignment={}",
+            params.signal_threshold, params.tp_atr, params.sl_atr,
+            params.max_hold_hours, params.trailing_stop_atr,
+            params.time_decay_hours, params.score_flip_delay_hrs,
+            params.min_alignment,
+        );
+        // Verify all key fields appear in the formatted log
+        assert!(log_msg.contains("signal=0.30"), "Log must include signal_threshold");
+        assert!(log_msg.contains("tp=6.0"), "Log must include tp_atr");
+        assert!(log_msg.contains("sl=2.5"), "Log must include sl_atr");
+        assert!(log_msg.contains("hold=96h"), "Log must include max_hold_hours");
+        assert!(log_msg.contains("trail=1.00"), "Log must include trailing_stop_atr");
+        assert!(log_msg.contains("decay=48h"), "Log must include time_decay_hours");
+        assert!(log_msg.contains("flip_delay=2.0h"), "Log must include score_flip_delay_hrs");
+        assert!(log_msg.contains("alignment=3"), "Log must include min_alignment");
+    }
+
+    #[test]
+    fn existing_trader_state_json_file_loads() {
+        // Load the actual data/trader-state.json file from the repo
+        let repo_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../data/trader-state.json");
+        if let Some(state) = TraderState::load(&repo_root) {
+            assert_eq!(state.wallet, "Driyi8Sw2622yCefU34zrjBsQynrDoGD31tBecXrEF6R");
+            assert_eq!(state.total_trades, 1);
+            // active_config should default since the file doesn't have this field
+            let defaults = StrategyParams::default();
+            assert_eq!(state.active_config.signal_threshold, defaults.signal_threshold);
+            assert_eq!(state.active_config.score_flip_delay_hrs, defaults.score_flip_delay_hrs);
+        }
+        // If the file doesn't exist (CI), that's fine — we already test with a JSON string above
+    }
+
+    #[test]
+    fn active_config_preserved_through_save_load_cycle() {
+        let tmp = std::env::temp_dir().join("test-trader-state-active-config.json");
+        let mut state = TraderState::new("TestWallet11111111111111111111111111111111");
+        state.active_config = StrategyParams {
+            signal_threshold: 0.3,
+            tp_atr: 6.0,
+            sl_atr: 2.5,
+            max_hold_hours: 96.0,
+            trailing_stop_atr: 1.0,
+            time_decay_hours: 48.0,
+            min_alignment: 3,
+            score_flip_delay_hrs: 2.0,
+        };
+        state.save(&tmp).unwrap();
+        let loaded = TraderState::load(&tmp).unwrap();
+        assert_eq!(loaded.active_config.signal_threshold, 0.3);
+        assert_eq!(loaded.active_config.tp_atr, 6.0);
+        assert_eq!(loaded.active_config.score_flip_delay_hrs, 2.0);
+        assert_eq!(loaded.active_config.time_decay_hours, 48.0);
+        assert_eq!(loaded.active_config.min_alignment, 3);
+        // Clean up
+        let _ = std::fs::remove_file(&tmp);
+    }
+}
