@@ -406,7 +406,7 @@ async fn run_cycle(
     let exit_info = {
         let s = state.lock().await;
         if let Some(ref pos) = s.open_position {
-            if let Some(signal) = strategy::compute_signal(&closes, &volumes) {
+            if let Some(signal) = strategy::compute_signal(&closes, &volumes, params.min_alignment) {
                 let now_secs = Utc::now().timestamp();
                 let current_price = closes.last().copied().unwrap_or(0.0);
                 let exit = strategy::check_exit(
@@ -499,7 +499,7 @@ async fn run_cycle(
         }
     } else {
         // 3. Check entry signal (only if flat)
-        if let Some(signal) = strategy::compute_signal(&closes, &volumes) {
+        if let Some(signal) = strategy::compute_signal(&closes, &volumes, params.min_alignment) {
             tracing::info!(
                 "[SIGNAL] score={:.3} rsi={:.1} bull={} atr={:.2} reasons={:?}",
                 signal.score, signal.rsi, signal.bullish_count, signal.atr, signal.reasons

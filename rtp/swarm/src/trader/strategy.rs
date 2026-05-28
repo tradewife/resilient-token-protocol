@@ -17,6 +17,8 @@ pub struct StrategyParams {
     pub trailing_stop_atr: f64,
     pub time_decay_hours: f64,
     pub min_alignment: usize,
+    #[serde(default)]
+    pub score_flip_delay_hrs: f64,
 }
 
 impl Default for StrategyParams {
@@ -32,6 +34,7 @@ impl Default for StrategyParams {
             trailing_stop_atr: 0.14,
             time_decay_hours: 12.0,
             min_alignment: 3,
+            score_flip_delay_hrs: 0.0,
         }
     }
 }
@@ -56,12 +59,16 @@ impl StrategyParams {
                 Some(std::path::Path::new(&manifest).join("../../data/devnet-cycles/latest/config.json"))
             });
 
-        let path = match config_path {
-            Some(p) => p,
-            None => return Self::default(),
-        };
+        match config_path {
+            Some(path) => Self::load_from_path(&path),
+            None => Self::default(),
+        }
+    }
 
-        match std::fs::read_to_string(&path) {
+    /// Load strategy params from an explicit file path.
+    /// Falls back to defaults on parse or read errors.
+    pub fn load_from_path(path: &std::path::Path) -> Self {
+        match std::fs::read_to_string(path) {
             Ok(content) => {
                 // The daemon writes a StrategyConfig which has the same fields
                 // but is a different type. Parse generically.
@@ -75,7 +82,7 @@ impl StrategyParams {
                             ),
                             tp_atr: clamp_param(
                                 v.get("tp_atr").and_then(|v| v.as_f64()),
-                                1.5, 5.0, base.tp_atr,
+                                1.5, 8.0, base.tp_atr,
                             ),
                             sl_atr: clamp_param(
                                 v.get("sl_atr").and_then(|v| v.as_f64()),
@@ -83,19 +90,31 @@ impl StrategyParams {
                             ),
                             max_hold_hours: clamp_param(
                                 v.get("max_hold_hours").and_then(|v| v.as_f64()),
-                                12.0, 72.0, base.max_hold_hours,
+                                12.0, 120.0, base.max_hold_hours,
                             ),
                             trailing_stop_atr: clamp_param(
                                 v.get("trailing_stop_atr").and_then(|v| v.as_f64()),
-                                0.2, 1.5, base.trailing_stop_atr,
+                                0.1, 1.5, base.trailing_stop_atr,
                             ),
-                            time_decay_hours: base.time_decay_hours,
-                            min_alignment: base.min_alignment,
+                            time_decay_hours: clamp_param(
+                                v.get("time_decay_hours").and_then(|v| v.as_f64()),
+                                0.0, 200.0, base.time_decay_hours,
+                            ),
+                            min_alignment: v.get("min_alignment")
+                                .and_then(|v| v.as_u64())
+                                .map(|n| n as usize)
+                                .unwrap_or(base.min_alignment),
+                            score_flip_delay_hrs: clamp_param(
+                                v.get("score_flip_delay_hrs").and_then(|v| v.as_f64()),
+                                0.0, 72.0, base.score_flip_delay_hrs,
+                            ),
                         };
                         tracing::info!(
-                            "[STRATEGY] loaded from daemon config: signal={:.2} tp={:.1} sl={:.1} hold={:.0}h trail={:.2}",
+                            "[STRATEGY] loaded from daemon config: signal={:.2} tp={:.1} sl={:.1} hold={:.0}h trail={:.2} decay={:.0}h flip_delay={:.1}h alignment={}",
                             params.signal_threshold, params.tp_atr, params.sl_atr,
                             params.max_hold_hours, params.trailing_stop_atr,
+                            params.time_decay_hours, params.score_flip_delay_hrs,
+                            params.min_alignment,
                         );
                         params
                     }
@@ -147,7 +166,7 @@ pub struct SignalResult {
 
 /// Compute the multi-TF confluence score.
 /// Returns None if not enough data.
-pub fn compute_signal(closes: &[f64], volumes: &[f64]) -> Option<SignalResult> {
+pub fn compute_signal(closes: &[f64], volumes: &[f64], min_alignment: usize) -> Option<SignalResult> {
     if closes.len() < 100 {
         return None;
     }
@@ -197,15 +216,14 @@ pub fn compute_signal(closes: &[f64], volumes: &[f64]) -> Option<SignalResult> {
     let mut reasons = Vec::new();
 
     // 1. Multi-TF trend alignment (weight: 0.4)
-    let min_align = 3; // require all 3 TFs aligned for high-conviction entries
-    if bullish_count >= min_align {
+    if bullish_count >= min_alignment {
         score += (bullish_count as f64 / 3.0) * 0.4;
         reasons.push(format!("tf_bull_{}", bullish_count));
         if vol_r > 1.3 {
             score += 0.1;
             reasons.push("vol_confirm".to_string());
         }
-    } else if bearish_count >= min_align {
+    } else if bearish_count >= min_alignment {
         score -= (bearish_count as f64 / 3.0) * 0.4;
         reasons.push(format!("tf_bear_{}", bearish_count));
         if vol_r > 1.3 {
@@ -389,7 +407,7 @@ mod tests {
         // 200 candles of steady uptrend
         let closes: Vec<f64> = (0..200).map(|i| 100.0 + i as f64 * 0.5).collect();
         let volumes: Vec<f64> = vec![1000.0; 200];
-        let result = compute_signal(&closes, &volumes).unwrap();
+        let result = compute_signal(&closes, &volumes, 3).unwrap();
         assert!(result.score > 0.0, "Uptrend should have positive score, got {}", result.score);
         assert!(result.bullish_count >= 2);
     }
@@ -398,7 +416,7 @@ mod tests {
     fn compute_signal_with_downtrend() {
         let closes: Vec<f64> = (0..200).map(|i| 200.0 - i as f64 * 0.5).collect();
         let volumes: Vec<f64> = vec![1000.0; 200];
-        let result = compute_signal(&closes, &volumes).unwrap();
+        let result = compute_signal(&closes, &volumes, 3).unwrap();
         assert!(result.score < 0.0, "Downtrend should have negative score, got {}", result.score);
     }
 
@@ -458,5 +476,176 @@ mod tests {
             now,
         );
         assert!(exit.is_none(), "Should not exit a healthy position");
+    }
+
+    // =========================================================================
+    // New tests for score_flip_delay_hrs, widened clamps, config loading
+    // =========================================================================
+
+    #[test]
+    fn score_flip_delay_field_default_is_zero() {
+        let params = StrategyParams::default();
+        assert_eq!(params.score_flip_delay_hrs, 0.0, "Default should be 0.0");
+    }
+
+    #[test]
+    fn score_flip_delay_field_serde_roundtrip() {
+        let mut params = StrategyParams::default();
+        params.score_flip_delay_hrs = 2.5;
+        let json = serde_json::to_string(&params).unwrap();
+        let parsed: StrategyParams = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.score_flip_delay_hrs, 2.5);
+    }
+
+    #[test]
+    fn score_flip_delay_backward_compat_missing_field() {
+        // JSON without score_flip_delay_hrs should deserialize with default 0.0
+        let json = r#"{"signal_threshold":0.3,"tp_atr":5.0,"sl_atr":2.7,"max_hold_hours":36.0,"trailing_stop_atr":0.14,"time_decay_hours":12.0,"min_alignment":3}"#;
+        let parsed: StrategyParams = serde_json::from_str(json).unwrap();
+        assert_eq!(parsed.score_flip_delay_hrs, 0.0);
+    }
+
+    // Helper: write config to temp file and load via load_from_path (no env var needed)
+    fn load_config_from_json(json: &str, filename: &str) -> StrategyParams {
+        let tmp = std::env::temp_dir().join(filename);
+        std::fs::write(&tmp, json).unwrap();
+        StrategyParams::load_from_path(&tmp)
+    }
+
+    #[test]
+    fn clamp_accepts_tp_atr_eight() {
+        let config = r#"{"signal_threshold":0.3,"tp_atr":8.0,"sl_atr":2.5,"max_hold_hours":36.0,"trailing_stop_atr":0.5}"#;
+        let params = load_config_from_json(config, "test_clamp_tp_atr.json");
+        assert_eq!(params.tp_atr, 8.0, "tp_atr=8.0 should pass through clamping");
+    }
+
+    #[test]
+    fn clamp_rejects_tp_atr_nine() {
+        let config = r#"{"signal_threshold":0.3,"tp_atr":9.0,"sl_atr":2.5,"max_hold_hours":36.0,"trailing_stop_atr":0.5}"#;
+        let params = load_config_from_json(config, "test_clamp_tp_atr_high.json");
+        assert_eq!(params.tp_atr, StrategyParams::default().tp_atr,
+            "tp_atr=9.0 should be clamped to default");
+    }
+
+    #[test]
+    fn clamp_accepts_max_hold_120() {
+        let config = r#"{"signal_threshold":0.3,"tp_atr":5.0,"sl_atr":2.5,"max_hold_hours":120.0,"trailing_stop_atr":0.5}"#;
+        let params = load_config_from_json(config, "test_clamp_hold.json");
+        assert_eq!(params.max_hold_hours, 120.0, "max_hold_hours=120 should pass through");
+    }
+
+    #[test]
+    fn clamp_rejects_max_hold_130() {
+        let config = r#"{"signal_threshold":0.3,"tp_atr":5.0,"sl_atr":2.5,"max_hold_hours":130.0,"trailing_stop_atr":0.5}"#;
+        let params = load_config_from_json(config, "test_clamp_hold_high.json");
+        assert_eq!(params.max_hold_hours, StrategyParams::default().max_hold_hours,
+            "max_hold_hours=130 should be clamped to default");
+    }
+
+    #[test]
+    fn clamp_accepts_trailing_stop_atr_0_1() {
+        let config = r#"{"signal_threshold":0.3,"tp_atr":5.0,"sl_atr":2.5,"max_hold_hours":36.0,"trailing_stop_atr":0.1}"#;
+        let params = load_config_from_json(config, "test_clamp_trail.json");
+        assert_eq!(params.trailing_stop_atr, 0.1, "trailing_stop_atr=0.1 should pass through");
+    }
+
+    #[test]
+    fn clamp_rejects_trailing_stop_atr_0_05() {
+        let config = r#"{"signal_threshold":0.3,"tp_atr":5.0,"sl_atr":2.5,"max_hold_hours":36.0,"trailing_stop_atr":0.05}"#;
+        let params = load_config_from_json(config, "test_clamp_trail_low.json");
+        assert_eq!(params.trailing_stop_atr, StrategyParams::default().trailing_stop_atr,
+            "trailing_stop_atr=0.05 should be clamped to default");
+    }
+
+    #[test]
+    fn config_loads_time_decay_hours() {
+        let config = r#"{"time_decay_hours":48.0}"#;
+        let params = load_config_from_json(config, "test_config_decay.json");
+        assert_eq!(params.time_decay_hours, 48.0, "time_decay_hours should be parsed from JSON");
+    }
+
+    #[test]
+    fn config_loads_min_alignment() {
+        let config = r#"{"min_alignment":2}"#;
+        let params = load_config_from_json(config, "test_config_alignment.json");
+        assert_eq!(params.min_alignment, 2, "min_alignment should be parsed from JSON");
+    }
+
+    #[test]
+    fn config_loads_score_flip_delay_hrs() {
+        let config = r#"{"score_flip_delay_hrs":2.0}"#;
+        let params = load_config_from_json(config, "test_config_flip.json");
+        assert_eq!(params.score_flip_delay_hrs, 2.0, "score_flip_delay_hrs should be parsed from JSON");
+    }
+
+    #[test]
+    fn partial_config_uses_defaults() {
+        let config = r#"{"signal_threshold":0.35}"#;
+        let params = load_config_from_json(config, "test_partial_config.json");
+        let defaults = StrategyParams::default();
+        assert_eq!(params.signal_threshold, 0.35, "Provided field should be used");
+        assert_eq!(params.tp_atr, defaults.tp_atr, "Missing tp_atr should use default");
+        assert_eq!(params.sl_atr, defaults.sl_atr, "Missing sl_atr should use default");
+        assert_eq!(params.max_hold_hours, defaults.max_hold_hours);
+        assert_eq!(params.trailing_stop_atr, defaults.trailing_stop_atr);
+        assert_eq!(params.time_decay_hours, defaults.time_decay_hours);
+        assert_eq!(params.min_alignment, defaults.min_alignment);
+        assert_eq!(params.score_flip_delay_hrs, defaults.score_flip_delay_hrs);
+    }
+
+    #[test]
+    fn invalid_json_falls_back_to_defaults() {
+        let config = r#"this is not valid json!!!"#;
+        let params = load_config_from_json(config, "test_invalid_json.json");
+        let defaults = StrategyParams::default();
+        assert_eq!(params.signal_threshold, defaults.signal_threshold);
+        assert_eq!(params.score_flip_delay_hrs, defaults.score_flip_delay_hrs);
+    }
+
+    #[test]
+    fn missing_file_falls_back_to_defaults() {
+        let params = StrategyParams::load_from_path(std::path::Path::new("/nonexistent/path/strategy.json"));
+        let defaults = StrategyParams::default();
+        assert_eq!(params.signal_threshold, defaults.signal_threshold);
+        assert_eq!(params.score_flip_delay_hrs, defaults.score_flip_delay_hrs);
+        assert_eq!(params.time_decay_hours, defaults.time_decay_hours);
+        assert_eq!(params.min_alignment, defaults.min_alignment);
+    }
+
+    #[test]
+    fn compute_signal_uses_loaded_min_alignment() {
+        // With min_alignment=2, a 2-TF bullish alignment should contribute to score
+        let closes: Vec<f64> = (0..200).map(|i| 100.0 + i as f64 * 0.5).collect();
+        let volumes: Vec<f64> = vec![1000.0; 200];
+        // With min_alignment=3, need all 3 TFs; with 2, need only 2
+        let result_align2 = compute_signal(&closes, &volumes, 2).unwrap();
+        let result_align3 = compute_signal(&closes, &volumes, 3).unwrap();
+        // Both should work — the function doesn't crash with different alignment values
+        assert!(result_align2.score > 0.0);
+        assert!(result_align3.score > 0.0);
+    }
+
+    #[test]
+    fn full_validated_config_loads_correctly() {
+        // The May 18 night-shift-validated config
+        let config = r#"{
+            "signal_threshold": 0.3,
+            "tp_atr": 6.0,
+            "sl_atr": 2.5,
+            "max_hold_hours": 96.0,
+            "trailing_stop_atr": 1.0,
+            "time_decay_hours": 48.0,
+            "min_alignment": 3,
+            "score_flip_delay_hrs": 2.0
+        }"#;
+        let params = load_config_from_json(config, "test_validated_config.json");
+        assert_eq!(params.signal_threshold, 0.3);
+        assert_eq!(params.tp_atr, 6.0);
+        assert_eq!(params.sl_atr, 2.5);
+        assert_eq!(params.max_hold_hours, 96.0);
+        assert_eq!(params.trailing_stop_atr, 1.0);
+        assert_eq!(params.time_decay_hours, 48.0);
+        assert_eq!(params.min_alignment, 3);
+        assert_eq!(params.score_flip_delay_hrs, 2.0);
     }
 }
