@@ -288,6 +288,7 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
                             entry_score: 0.0,
                             position_key: pos.key.clone(),
                             size_usd,
+                            first_negative_score_time: None,
                         });
                     }
                 }
@@ -409,7 +410,9 @@ async fn run_cycle(
             if let Some(signal) = strategy::compute_signal(&closes, &volumes, params.min_alignment) {
                 let now_secs = Utc::now().timestamp();
                 let current_price = closes.last().copied().unwrap_or(0.0);
-                let exit = strategy::check_exit(
+                // Determine position side from stored state (default "Long" for backward compat)
+                let side = pos.side();
+                let result = strategy::check_exit(
                     params,
                     pos.entry_price,
                     pos.entry_time,
@@ -420,8 +423,10 @@ async fn run_cycle(
                     signal.rsi,
                     signal.atr,
                     now_secs,
+                    side,
+                    pos.first_negative_score_time,
                 );
-                Some((exit, pos.clone(), signal.score))
+                Some((result, pos.clone(), signal.score))
             } else {
                 None
             }
@@ -430,70 +435,91 @@ async fn run_cycle(
         }
     };
 
-    if let Some((Some(reason), pos_info, _)) = exit_info {
-        tracing::info!("[EXIT] {:?} triggered!", reason);
+    // Always update first_negative_score_time from check_exit result
+    if let Some((ref result, ref pos_info, _)) = exit_info {
+        // Update first_negative_score_time in state regardless of exit
+        {
+            let mut s = state.lock().await;
+            if let Some(ref mut pos) = s.open_position {
+                pos.first_negative_score_time = result.first_negative_score_time;
+            }
+        }
 
-        let mut close_succeeded = config.dry_run;
-        if !config.dry_run {
-            match executor::get_positions(wallet).await {
-                Ok(positions) => {
-                    if let Some(pos_api) = positions.iter().find(|p| {
-                        p.market_symbol == "SOL" && p.side_ui == "Long"
-                    }) {
-                        match executor::close_position(
-                            keypair,
-                            &pos_api.key,
-                            &pos_api.size_usd_ui,
-                        )
-                        .await
-                        {
-                            Ok((sig, pnl)) => {
-                                tracing::info!("[EXIT] TX: https://explorer.solana.com/tx/{}?cluster=mainnet-beta", sig);
-                                tracing::info!("[EXIT] PnL: ${:.4}", pnl);
+        if let Some(ref reason) = result.reason {
+            tracing::info!("[EXIT] {:?} triggered!", reason);
 
-                                let exit_price = closes.last().copied().unwrap_or(0.0);
-                                let trade = TradeRecord {
-                                    entry_price: pos_info.entry_price,
-                                    exit_price,
-                                    entry_time: pos_info.entry_time,
-                                    exit_time: Utc::now().timestamp(),
-                                    pnl_pct: if pos_info.entry_price > 0.0 {
-                                        (exit_price - pos_info.entry_price) / pos_info.entry_price * 100.0
-                                    } else { 0.0 },
-                                    exit_reason: format!("{:?}", reason),
-                                    size_usd: pos_info.size_usd,
-                                };
-                                let mut s = state.lock().await;
-                                s.trade_history.push(trade);
-                                s.total_trades += 1;
-                                close_succeeded = true;
+            let mut close_succeeded = config.dry_run;
+            if !config.dry_run {
+                match executor::get_positions(wallet).await {
+                    Ok(positions) => {
+                        let pos_side = pos_info.side();
+                        if let Some(pos_api) = positions.iter().find(|p| {
+                            p.market_symbol == "SOL" && p.side_ui == pos_side
+                        }) {
+                            match executor::close_position(
+                                keypair,
+                                &pos_api.key,
+                                &pos_api.size_usd_ui,
+                            )
+                            .await
+                            {
+                                Ok((sig, pnl)) => {
+                                    tracing::info!("[EXIT] TX: https://explorer.solana.com/tx/{}?cluster=mainnet-beta", sig);
+                                    tracing::info!("[EXIT] PnL: ${:.4}", pnl);
+
+                                    let exit_price = closes.last().copied().unwrap_or(0.0);
+                                    let side = pos_info.side();
+                                    let trade = TradeRecord {
+                                        entry_price: pos_info.entry_price,
+                                        exit_price,
+                                        entry_time: pos_info.entry_time,
+                                        exit_time: Utc::now().timestamp(),
+                                        pnl_pct: if pos_info.entry_price > 0.0 {
+                                            match side {
+                                                "Short" => (pos_info.entry_price - exit_price) / pos_info.entry_price * 100.0,
+                                                _ => (exit_price - pos_info.entry_price) / pos_info.entry_price * 100.0,
+                                            }
+                                        } else { 0.0 },
+                                        exit_reason: format!("{:?}", reason),
+                                        size_usd: pos_info.size_usd,
+                                    };
+                                    let mut s = state.lock().await;
+                                    s.trade_history.push(trade);
+                                    s.total_trades += 1;
+                                    close_succeeded = true;
+                                }
+                                Err(e) => {
+                                    tracing::error!("[EXIT] Close failed: {}", e);
+                                }
                             }
-                            Err(e) => {
-                                tracing::error!("[EXIT] Close failed: {}", e);
-                            }
+                        } else {
+                            tracing::warn!("[EXIT] No SOL {} position found on Flash Trade", pos_side);
+                            // Position already closed externally — clear stale state
+                            close_succeeded = true;
                         }
-                    } else {
-                        tracing::warn!("[EXIT] No SOL Long position found on Flash Trade");
-                        // Position already closed externally — clear stale state
-                        close_succeeded = true;
+                    }
+                    Err(e) => {
+                        tracing::error!("[EXIT] Positions fetch failed: {}", e);
                     }
                 }
-                Err(e) => {
-                    tracing::error!("[EXIT] Positions fetch failed: {}", e);
-                }
+            } else {
+                tracing::info!("[DRY RUN] Would close position: {:?}", reason);
+            }
+
+            if close_succeeded {
+                state.lock().await.open_position = None;
             }
         } else {
-            tracing::info!("[DRY RUN] Would close position: {:?}", reason);
-        }
-
-        if close_succeeded {
-            state.lock().await.open_position = None;
-        }
-    } else if let Some((None, pos_info, _)) = exit_info {
-        // No exit triggered — update peak price for trailing stop
-        let current_price = closes.last().copied().unwrap_or(0.0);
-        if current_price > pos_info.peak_price {
-            if let Some(ref mut pos) = state.lock().await.open_position {
+            // No exit triggered — update peak price for trailing stop
+            let current_price = closes.last().copied().unwrap_or(0.0);
+            let side = pos_info.side();
+            let should_update_peak = match side {
+                "Short" => current_price < pos_info.peak_price, // track trough for SHORT
+                _ => current_price > pos_info.peak_price,       // track peak for LONG
+            };
+            if should_update_peak
+                && let Some(ref mut pos) = state.lock().await.open_position
+            {
                 pos.peak_price = current_price;
             }
         }
@@ -549,6 +575,7 @@ async fn run_cycle(
                                 entry_score: signal.score,
                                 position_key: pos_key,
                                 size_usd,
+                                first_negative_score_time: None,
                             });
                         }
                         Err(e) => {
