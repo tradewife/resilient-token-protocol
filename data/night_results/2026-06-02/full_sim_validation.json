@@ -1,0 +1,270 @@
+{
+  "run_at": "2026-06-02T00:15:13.028531+00:00",
+  "simulator": "FutureBlindSimulator (fees + slippage)",
+  "results": [
+    {
+      "symbol": "BTC/USDT",
+      "label": "candidate_1",
+      "params": {
+        "signal_threshold": 0.4,
+        "take_profit_atr": 6.0,
+        "stop_loss_atr": 2.5,
+        "max_hold_hours": 36,
+        "time_decay_hours": 12,
+        "trailing_stop_atr": 1.0,
+        "score_flip_delay_hrs": 0
+      },
+      "total_pnl_pct": 29.51,
+      "median_sharpe": 15.68,
+      "consistency": 1.0,
+      "avg_win_rate": 0.566,
+      "avg_pf": 2.5,
+      "avg_max_dd": 2.51,
+      "total_trades": 144,
+      "folds": 9,
+      "verdict": "STRONG"
+    },
+    {
+      "symbol": "BTC/USDT",
+      "label": "candidate_2",
+      "params": {
+        "signal_threshold": 0.4,
+        "take_profit_atr": 6.0,
+        "stop_loss_atr": 2.5,
+        "max_hold_hours": 36,
+        "time_decay_hours": 12,
+        "trailing_stop_atr": 1.0,
+        "score_flip_delay_hrs": 2
+      },
+      "total_pnl_pct": 29.51,
+      "median_sharpe": 15.68,
+      "consistency": 1.0,
+      "avg_win_rate": 0.566,
+      "avg_pf": 2.5,
+      "avg_max_dd": 2.51,
+      "total_trades": 144,
+      "folds": 9,
+      "verdict": "STRONG"
+    },
+    {
+      "symbol": "BTC/USDT",
+      "label": "candidate_3",
+      "params": {
+        "signal_threshold": 0.4,
+        "take_profit_atr": 6.0,
+        "stop_loss_atr": 2.5,
+        "max_hold_hours": 36,
+        "time_decay_hours": 24,
+        "trailing_stop_atr": 1.0,
+        "score_flip_delay_hrs": 0
+      },
+      "total_pnl_pct": 29.51,
+      "median_sharpe": 15.68,
+      "consistency": 1.0,
+      "avg_win_rate": 0.566,
+      "avg_pf": 2.5,
+      "avg_max_dd": 2.51,
+      "total_trades": 144,
+      "folds": 9,
+      "verdict": "STRONG"
+    },
+    {
+      "symbol": "ETH/USDT",
+      "label": "candidate_1",
+      "params": {
+        "signal_threshold": 0.3,
+        "take_profit_atr": 3.5,
+        "stop_loss_atr": 3.0,
+        "max_hold_hours": 36,
+        "time_decay_hours": 12,
+        "trailing_stop_atr": 1.0,
+        "score_flip_delay_hrs": 0
+      },
+      "total_pnl_pct": 54.44,
+      "median_sharpe": 3.16,
+      "consistency": 0.778,
+      "avg_win_rate": 0.486,
+      "avg_pf": 1.21,
+      "avg_max_dd": 8.63,
+      "total_trades": 402,
+      "folds": 9,
+      "verdict": "STRONG"
+    },
+    {
+      "symbol": "ETH/USDT",
+      "label": "candidate_2",
+      "params": {
+        "signal_threshold": 0.3,
+        "take_profit_atr": 3.5,
+        "stop_loss_atr": 3.0,
+        "max_hold_hours": 36,
+        "time_decay_hours": 12,
+        "trailing_stop_atr": 1.0,
+        "score_flip_delay_hrs": 2
+      },
+      "total_pnl_pct": 54.62,
+      "median_sharpe": 1.93,
+      "consistency": 0.778,
+      "avg_win_rate": 0.492,
+      "avg_pf": 1.2,
+      "avg_max_dd": 8.72,
+      "total_trades": 400,
+      "folds": 9,
+      "verdict": "STRONG"
+    },
+    {
+      "symbol": "ETH/USDT",
+      "label": "candidate_3",
+      "params": {
+        "signal_threshold": 0.3,
+        "take_profit_atr": 3.5,
+        "stop_loss_atr": 3.0,
+        "max_hold_hours": 36,
+        "time_decay_hours": 24,
+        "trailing_stop_atr": 1.0,
+        "score_flip_delay_hrs": 0
+      },
+      "total_pnl_pct": 57.55,
+      "median_sharpe": 3.75,
+      "consistency": 0.778,
+      "avg_win_rate": 0.506,
+      "avg_pf": 1.17,
+      "avg_max_dd": 8.17,
+      "total_trades": 392,
+      "folds": 9,
+      "verdict": "STRONG"
+    },
+    {
+      "symbol": "SOL/USDT",
+      "label": "candidate_1",
+      "params": {
+        "signal_threshold": 0.3,
+        "take_profit_atr": 3.0,
+        "stop_loss_atr": 1.0,
+        "max_hold_hours": 36,
+        "time_decay_hours": 12,
+        "trailing_stop_atr": 1.0,
+        "score_flip_delay_hrs": 0
+      },
+      "total_pnl_pct": 117.92,
+      "median_sharpe": 18.17,
+      "consistency": 0.889,
+      "avg_win_rate": 0.448,
+      "avg_pf": 2.09,
+      "avg_max_dd": 5.63,
+      "total_trades": 478,
+      "folds": 9,
+      "verdict": "STRONG"
+    },
+    {
+      "symbol": "SOL/USDT",
+      "label": "candidate_2",
+      "params": {
+        "signal_threshold": 0.3,
+        "take_profit_atr": 3.0,
+        "stop_loss_atr": 1.0,
+        "max_hold_hours": 36,
+        "time_decay_hours": 12,
+        "trailing_stop_atr": 1.0,
+        "score_flip_delay_hrs": 2
+      },
+      "total_pnl_pct": 119.36,
+      "median_sharpe": 18.17,
+      "consistency": 0.889,
+      "avg_win_rate": 0.453,
+      "avg_pf": 2.05,
+      "avg_max_dd": 5.57,
+      "total_trades": 475,
+      "folds": 9,
+      "verdict": "STRONG"
+    },
+    {
+      "symbol": "SOL/USDT",
+      "label": "candidate_3",
+      "params": {
+        "signal_threshold": 0.3,
+        "take_profit_atr": 3.0,
+        "stop_loss_atr": 1.0,
+        "max_hold_hours": 36,
+        "time_decay_hours": 24,
+        "trailing_stop_atr": 1.0,
+        "score_flip_delay_hrs": 0
+      },
+      "total_pnl_pct": 117.92,
+      "median_sharpe": 18.17,
+      "consistency": 0.889,
+      "avg_win_rate": 0.448,
+      "avg_pf": 2.09,
+      "avg_max_dd": 5.63,
+      "total_trades": 478,
+      "folds": 9,
+      "verdict": "STRONG"
+    },
+    {
+      "symbol": "BNB/USDT",
+      "label": "candidate_1",
+      "params": {
+        "signal_threshold": 0.35,
+        "take_profit_atr": 3.0,
+        "stop_loss_atr": 1.0,
+        "max_hold_hours": 36,
+        "time_decay_hours": 12,
+        "trailing_stop_atr": 1.0,
+        "score_flip_delay_hrs": 0
+      },
+      "total_pnl_pct": 44.12,
+      "median_sharpe": 2.87,
+      "consistency": 0.556,
+      "avg_win_rate": 0.433,
+      "avg_pf": 1.57,
+      "avg_max_dd": 5.12,
+      "total_trades": 465,
+      "folds": 9,
+      "verdict": "MODERATE"
+    },
+    {
+      "symbol": "BNB/USDT",
+      "label": "candidate_2",
+      "params": {
+        "signal_threshold": 0.35,
+        "take_profit_atr": 3.0,
+        "stop_loss_atr": 1.0,
+        "max_hold_hours": 36,
+        "time_decay_hours": 12,
+        "trailing_stop_atr": 1.0,
+        "score_flip_delay_hrs": 2
+      },
+      "total_pnl_pct": 44.12,
+      "median_sharpe": 2.87,
+      "consistency": 0.556,
+      "avg_win_rate": 0.433,
+      "avg_pf": 1.57,
+      "avg_max_dd": 5.12,
+      "total_trades": 465,
+      "folds": 9,
+      "verdict": "MODERATE"
+    },
+    {
+      "symbol": "BNB/USDT",
+      "label": "candidate_3",
+      "params": {
+        "signal_threshold": 0.35,
+        "take_profit_atr": 3.0,
+        "stop_loss_atr": 1.0,
+        "max_hold_hours": 36,
+        "time_decay_hours": 24,
+        "trailing_stop_atr": 1.0,
+        "score_flip_delay_hrs": 0
+      },
+      "total_pnl_pct": 44.12,
+      "median_sharpe": 2.87,
+      "consistency": 0.556,
+      "avg_win_rate": 0.433,
+      "avg_pf": 1.57,
+      "avg_max_dd": 5.12,
+      "total_trades": 465,
+      "folds": 9,
+      "verdict": "MODERATE"
+    }
+  ]
+}
