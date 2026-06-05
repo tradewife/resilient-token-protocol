@@ -53,8 +53,8 @@ The Survivor 2.69 strategy runs autonomously 24/7 on Railway. A Rust binary (`rt
 | Strategy | SOL/USDT Survivor 2.69 (9x Calmar-optimized) — Calmar 44.89, 100% consistency |
 | Execution | Flash Trade REST API → sign → submit to Solana mainnet |
 | Position sizing | 20% of capital per trade, 9x leverage |
-| Stops | TP: 5.0× ATR, SL: 2.7× ATR, Trailing: 0.14× ATR |
-| Signal | threshold=0.25 with 3+ bullish timeframes, max hold 36h |
+| Stops | TP: 6.0× ATR, SL: 2.5× ATR, Trailing: 1.0× ATR |
+| Signal | threshold=0.3 with 3+ aligned timeframes, max hold 96h |
 
 **Confirmed mainnet transactions:**
 
@@ -89,7 +89,7 @@ The Survivor 2.69 strategy runs autonomously 24/7 on Railway. A Rust binary (`rt
 │  Treasury PDA: fees → yield → redistribute (70/20/10)          │
 │  19 instructions · PDA-owned · CPI-only transfers               │
 ├─────────────────────────────────────────────────────────────────┤
-│                    SWARM RUNTIME (Rust · 331 tests)              │
+│                    SWARM RUNTIME (Rust · 362 tests)              │
 │  Coordinator → message bus → 6 wings                            │
 │  Trading → Flash Trade CPI → on-chain perps → SOL               │
 │  Security · Evolve · Knowledge · Audit · Futureproof             │
@@ -173,7 +173,7 @@ npx tsx cli/bin/rtp.ts status --all   # Protocol health
 | Component | Status |
 |-----------|--------|
 | Anchor treasury program (19 instructions, redistribution, Flash Trade CPI) | Built — devnet deployed, audit remediated |
-| Rust swarm runtime (6 wings, Coordinator, soulguard) | 331 tests passing |
+| Rust swarm runtime (6 wings, Coordinator, soulguard) | 362 tests passing |
 | Flash Trade CPI execution (mainnet-proven invoke_signed) | M0–M5 complete |
 | Live autonomous trader (rtp-trader, 24/7 on Railway) | Running — Survivor 2.69 at 9x |
 | Research engine (Night Shift, 30K configs/night, 9-fold WFA) | Shipping |

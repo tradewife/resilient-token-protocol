@@ -166,7 +166,7 @@ Do not re-read the papers. Use only these extracted design consequences.
 
 ### Night Shift Research Output (live — May 5 leverage optimization)
 - SOL/USDT 9x Calmar-optimized: Calmar ratio 44.89, +554% compounded return, 12.3% max DD
-- Config: signal_threshold=0.25, tp_atr=5.0, sl_atr=2.7, max_hold=36h, trailing_stop_atr=0.14, min_alignment=3, leverage=9.0
+- Config: signal_threshold=0.3, tp_atr=6.0, sl_atr=2.5, max_hold=96h, trailing_stop_atr=1.0, min_alignment=3, score_flip_delay_hrs=2, leverage=9.0
 - 100% consistency (all WFA folds profitable), 0 liquidations across all 16,228 candidates
 - Flash Trade fee model: 0.06% open + 0.06% close + 0.0042%/hr borrow, 20% position sizing
 - **Deployed to Railway rtp-trader** — live autonomous trading at 9x leverage

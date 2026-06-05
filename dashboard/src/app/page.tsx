@@ -40,7 +40,7 @@ interface TraderState {
   wallet: string;
   open_position: {
     entry_price: number; entry_time: number; peak_price: number;
-    entry_score: number; size_usd: number;
+    entry_score: number; size_usd: number; side: string;
   } | null;
   trade_history: Array<{
     entry_price: number; exit_price: number; entry_time: number;
@@ -404,7 +404,7 @@ export default function Home() {
           </div>
           <div className="sys2-vital">
             <div className="sys2-vital-label">Test coverage</div>
-            <div className="sys2-vital-value">325<span className="sys2-vital-unit">+5</span></div>
+            <div className="sys2-vital-value">362<span className="sys2-vital-unit">+5</span></div>
             <div className="sys2-vital-sub">Rust unit + integration</div>
           </div>
           <div className="sys2-vital">
@@ -443,7 +443,7 @@ export default function Home() {
             {trader?.open_position ? (
               <>
                 <div className="console-big">
-                  SOL/USDT · LONG · 9×
+                  SOL/USDT · {trader.open_position.side?.toUpperCase() ?? "LONG"} · 9×
                 </div>
                 <div className="console-row">
                   <span>Entry</span><span className="mono">${trader.open_position.entry_price.toFixed(4)}</span>
@@ -462,8 +462,7 @@ export default function Home() {
               <>
                 <div className="console-big console-muted">Flat</div>
                 <div className="console-empty-text">
-                  Survivor 2.69 enters when score &gt; 0.25 with 3+ bullish timeframes. The next valid signal
-                  triggers a 9× SOL LONG of 20% capital. Stop-loss 2.7× ATR, take-profit 5.0× ATR, trailing 0.14× ATR.
+                  Survivor 2.69 enters LONG when score &gt; 0.3 or SHORT when score &lt; -0.3, with 3+ aligned timeframes. 20% capital, 9× leverage. Stop-loss 2.5× ATR, take-profit 6.0× ATR, trailing 1.0× ATR.
                 </div>
               </>
             )}
@@ -583,7 +582,7 @@ export default function Home() {
           <span className="arch2-coord-tag">ENFORCEMENT</span>
           Every message between wings is validated against the constitutional governance layer by soulguard.rs.
           The on-chain program adds a second enforcement layer: PDA seed constraints, authority gates,
-          strategy lifecycle gates, and overflow-safe math. 325 unit + 5 integration tests verify both layers.
+          strategy lifecycle gates, and overflow-safe math. 362 unit + 5 integration tests verify both layers.
         </div>
       </section>
 
@@ -654,7 +653,7 @@ export default function Home() {
             <div className="intel-active-name">SOL/USDT · Survivor 2.69</div>
             <div className="intel-active-type">Multi-timeframe trend following · 9× leverage</div>
             <div className="intel-chips">
-              {[["signal_threshold","0.25"],["tp_atr","5.0"],["sl_atr","2.7"],["trail_atr","0.14"],["min_alignment","3"],["max_hold","36h"]].map(([k, v]) => (
+              {[["signal_threshold","0.3"],["tp_atr","6.0"],["sl_atr","2.5"],["trail_atr","1.0"],["min_alignment","3"],["max_hold","96h"]].map(([k, v]) => (
                 <span key={k} className="intel-chip"><span className="dim">{k}</span>={v}</span>
               ))}
             </div>
