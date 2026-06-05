@@ -17,7 +17,7 @@
       "exit_price": 96.44,
       "entry_time": 1778556443,
       "exit_time": 1778568007,
-      "pnl_pct": 0.06225357958082826,
+      "pnl_pct": -0.071238,
       "exit_reason": "TrailingStop",
       "size_usd": 616.78,
       "side": "Long"
@@ -27,7 +27,7 @@
       "exit_price": 95.2885,
       "entry_time": 1778640127,
       "exit_time": 1778652129,
-      "pnl_pct": 0.11399453666735895,
+      "pnl_pct": -0.020008,
       "exit_reason": "TrailingStop",
       "size_usd": 337.5,
       "side": "Long"
@@ -37,7 +37,7 @@
       "exit_price": 95.69,
       "entry_time": 1778652430,
       "exit_time": 1778666055,
-      "pnl_pct": 0.3565810173046706,
+      "pnl_pct": 0.220685,
       "exit_reason": "TrailingStop",
       "size_usd": 337.46,
       "side": "Long"
@@ -47,7 +47,7 @@
       "exit_price": 94.80874454,
       "entry_time": 1778667048,
       "exit_time": 1778670349,
-      "pnl_pct": -0.619764633123689,
+      "pnl_pct": -0.743616,
       "exit_reason": "TrailingStop",
       "size_usd": 338.61,
       "side": "Long"
@@ -57,7 +57,7 @@
       "exit_price": 86.90619839,
       "entry_time": 1779444274,
       "exit_time": 1779447877,
-      "pnl_pct": -0.13077638473913572,
+      "pnl_pct": -0.25498,
       "exit_reason": "TrailingStop",
       "size_usd": 303.47,
       "side": "Long"
@@ -67,7 +67,7 @@
       "exit_price": 87.29192255,
       "entry_time": 1779451482,
       "exit_time": 1779458689,
-      "pnl_pct": 0.03658325693329157,
+      "pnl_pct": -0.091825,
       "exit_reason": "TrailingStop",
       "size_usd": 303.24,
       "side": "Long"
@@ -77,7 +77,7 @@
       "exit_price": 86.52480246,
       "entry_time": 1779461395,
       "exit_time": 1779462296,
-      "pnl_pct": -0.040662592421440207,
+      "pnl_pct": -0.161714,
       "exit_reason": "TrailingStop",
       "size_usd": 298.67,
       "side": "Long"
@@ -87,7 +87,7 @@
       "exit_price": 85.72790881,
       "entry_time": 1779590408,
       "exit_time": 1779595813,
-      "pnl_pct": -0.0024392744663496732,
+      "pnl_pct": -0.128745,
       "exit_reason": "TrailingStop",
       "size_usd": 296.13,
       "side": "Long"
@@ -97,7 +97,7 @@
       "exit_price": 85.94133168,
       "entry_time": 1779598813,
       "exit_time": 1779609617,
-      "pnl_pct": 0.14137925891401945,
+      "pnl_pct": 0.008775,
       "exit_reason": "TrailingStop",
       "size_usd": 295.81,
       "side": "Long"
@@ -107,7 +107,7 @@
       "exit_price": 86.30528852,
       "entry_time": 1779609917,
       "exit_time": 1779620422,
-      "pnl_pct": 0.42505063998139064,
+      "pnl_pct": 0.292795,
       "exit_reason": "TrailingStop",
       "size_usd": 296.55,
       "side": "Long"
@@ -117,7 +117,7 @@
       "exit_price": 85.16430506,
       "entry_time": 1779620722,
       "exit_time": 1779634829,
-      "pnl_pct": -1.578290696868135,
+      "pnl_pct": -1.714749,
       "exit_reason": "ScoreFlip",
       "size_usd": 300.62,
       "side": "Long"
@@ -127,7 +127,7 @@
       "exit_price": 85.78579852,
       "entry_time": 1779685359,
       "exit_time": 1779696163,
-      "pnl_pct": 0.13516811019026315,
+      "pnl_pct": 0.002563,
       "exit_reason": "TrailingStop",
       "size_usd": 289.46,
       "side": "Long"
@@ -137,7 +137,7 @@
       "exit_price": 85.66372616,
       "entry_time": 1779696463,
       "exit_time": 1779711477,
-      "pnl_pct": -0.1239056080214528,
+      "pnl_pct": -0.261422,
       "exit_reason": "TrailingStop",
       "size_usd": 289.87,
       "side": "Long"
@@ -147,7 +147,7 @@
       "exit_price": 86.04853244,
       "entry_time": 1779711777,
       "exit_time": 1779735494,
-      "pnl_pct": 0.3247434301037734,
+      "pnl_pct": 0.177074,
       "exit_reason": "TrailingStop",
       "size_usd": 289.25,
       "side": "Long"
@@ -157,7 +157,7 @@
       "exit_price": 85.56534156000001,
       "entry_time": 1779735794,
       "exit_time": 1779739395,
-      "pnl_pct": -0.2037070678796216,
+      "pnl_pct": -0.327908,
       "exit_reason": "TrailingStop",
       "size_usd": 288.95,
       "side": "Long"
@@ -167,7 +167,7 @@
       "exit_price": 85.23794902,
       "entry_time": 1779793564,
       "exit_time": 1779809473,
-      "pnl_pct": -0.3181510700502901,
+      "pnl_pct": -0.456712,
       "exit_reason": "TrailingStop",
       "size_usd": 287.35,
       "side": "Long"
@@ -177,7 +177,7 @@
       "exit_price": 81.93587353,
       "entry_time": 1780028655,
       "exit_time": 1780034956,
-      "pnl_pct": -0.5101490799803716,
+      "pnl_pct": -0.6375,
       "exit_reason": "TrailingStop",
       "size_usd": 269.07,
       "side": "Short"
@@ -187,7 +187,7 @@
       "exit_price": 81.40314411,
       "entry_time": 1780052662,
       "exit_time": 1780060165,
-      "pnl_pct": 0.739977917327162,
+      "pnl_pct": 0.611224,
       "exit_reason": "ScoreFlip",
       "size_usd": 266.77,
       "side": "Short"
@@ -197,7 +197,7 @@
       "exit_price": 81.91794014,
       "entry_time": 1780081473,
       "exit_time": 1780099476,
-      "pnl_pct": 0.16095046922607953,
+      "pnl_pct": 0.019947,
       "exit_reason": "ScoreFlip",
       "size_usd": 271.3,
       "side": "Short"
@@ -207,7 +207,7 @@
       "exit_price": 82.76564523,
       "entry_time": 1780099778,
       "exit_time": 1780160867,
-      "pnl_pct": -0.8722062522852004,
+      "pnl_pct": -1.063477,
       "exit_reason": "StopLoss",
       "size_usd": 271.94,
       "side": "Short"
@@ -217,7 +217,7 @@
       "exit_price": 82.9,
       "entry_time": 1780264647,
       "exit_time": 1780274542,
-      "pnl_pct": -0.8761255779995117,
+      "pnl_pct": -1.00767,
       "exit_reason": "StopLoss",
       "size_usd": 267.25,
       "side": "Short"
@@ -227,7 +227,7 @@
       "exit_price": 82.63634792,
       "entry_time": 1780279343,
       "exit_time": 1780283547,
-      "pnl_pct": -1.2204163645271988,
+      "pnl_pct": -1.345321,
       "exit_reason": "StopLoss",
       "size_usd": 261.12,
       "side": "Short"
@@ -237,7 +237,7 @@
       "exit_price": 81.2949364,
       "entry_time": 1780290448,
       "exit_time": 1780297953,
-      "pnl_pct": 0.7387833943834043,
+      "pnl_pct": 0.610028,
       "exit_reason": "ScoreFlip",
       "size_usd": 254.76,
       "side": "Short"
@@ -247,7 +247,7 @@
       "exit_price": 80.78065185,
       "entry_time": 1780311754,
       "exit_time": 1780319258,
-      "pnl_pct": 0.24616960978019983,
+      "pnl_pct": 0.117415,
       "exit_reason": "ScoreFlip",
       "size_usd": 254.73,
       "side": "Short"
@@ -257,7 +257,7 @@
       "exit_price": 80.25863612,
       "entry_time": 1780319558,
       "exit_time": 1780333667,
-      "pnl_pct": 0.0016993271866428351,
+      "pnl_pct": -0.134761,
       "exit_reason": "TrailingStop",
       "size_usd": 254.65,
       "side": "Long"
@@ -267,7 +267,7 @@
       "exit_price": 80.93841623,
       "entry_time": 1780334266,
       "exit_time": 1780336967,
-      "pnl_pct": -0.6196124191944352,
+      "pnl_pct": -0.742764,
       "exit_reason": "TrailingStop",
       "size_usd": 253.7,
       "side": "Short"
@@ -277,7 +277,7 @@
       "exit_price": 81.28374086,
       "entry_time": 1780337269,
       "exit_time": 1780354972,
-      "pnl_pct": -0.7732963798661022,
+      "pnl_pct": -0.91395,
       "exit_reason": "TrailingStop",
       "size_usd": 251.32,
       "side": "Short"
@@ -287,7 +287,7 @@
       "exit_price": 79.44921768,
       "entry_time": 1780365827,
       "exit_time": 1780383833,
-      "pnl_pct": 0.6636438109527384,
+      "pnl_pct": 0.522637,
       "exit_reason": "ScoreFlip",
       "size_usd": 245.66,
       "side": "Short"
@@ -297,7 +297,7 @@
       "exit_price": 76.23073473,
       "entry_time": 1780388035,
       "exit_time": 1780416252,
-      "pnl_pct": 4.112283358490573,
+      "pnl_pct": 3.959364,
       "exit_reason": "TakeProfit",
       "size_usd": 249.11,
       "side": "Short"
@@ -307,7 +307,7 @@
       "exit_price": 72.63293692,
       "entry_time": 1780446794,
       "exit_time": 1780461799,
-      "pnl_pct": 2.83219141137123,
+      "pnl_pct": 2.694686,
       "exit_reason": "ScoreFlip",
       "size_usd": 253.31,
       "side": "Short"
@@ -317,7 +317,7 @@
       "exit_price": 74.79593227000001,
       "entry_time": 1780464202,
       "exit_time": 1780471704,
-      "pnl_pct": -0.3702794820182671,
+      "pnl_pct": -0.499032,
       "exit_reason": "ScoreFlip",
       "size_usd": 259.64,
       "side": "Short"
@@ -327,7 +327,7 @@
       "exit_price": 74.91481107,
       "entry_time": 1780472004,
       "exit_time": 1780479508,
-      "pnl_pct": 0.2200172216302602,
+      "pnl_pct": 0.091263,
       "exit_reason": "ScoreFlip",
       "size_usd": 257.27,
       "side": "Short"
@@ -337,7 +337,7 @@
       "exit_price": 71.90199553000001,
       "entry_time": 1780495415,
       "exit_time": 1780517928,
-      "pnl_pct": 3.1753359412873645,
+      "pnl_pct": 3.029071,
       "exit_reason": "ScoreFlip",
       "size_usd": 255.48,
       "side": "Short"
@@ -347,7 +347,7 @@
       "exit_price": 71.54552726,
       "entry_time": 1780524228,
       "exit_time": 1780531730,
-      "pnl_pct": 1.628588945414552,
+      "pnl_pct": 1.499837,
       "exit_reason": "ScoreFlip",
       "size_usd": 266.84,
       "side": "Short"
@@ -357,7 +357,7 @@
       "exit_price": 68.47840788,
       "entry_time": 1780533119,
       "exit_time": 1780540620,
-      "pnl_pct": 3.646534571549159,
+      "pnl_pct": 3.517783,
       "exit_reason": "ScoreFlip",
       "size_usd": 267.14,
       "side": "Short"
@@ -367,7 +367,7 @@
       "exit_price": 70.27350878,
       "entry_time": 1780547826,
       "exit_time": 1780555328,
-      "pnl_pct": 0.9534759971811172,
+      "pnl_pct": 0.824724,
       "exit_reason": "ScoreFlip",
       "size_usd": 277.79,
       "side": "Short"
@@ -377,7 +377,7 @@
       "exit_price": 69.88166267,
       "entry_time": 1780555629,
       "exit_time": 1780578137,
-      "pnl_pct": 1.2133691405145572,
+      "pnl_pct": 1.06711,
       "exit_reason": "TrailingStop",
       "size_usd": 276.87,
       "side": "Short"
@@ -387,7 +387,7 @@
       "exit_price": 69.62381131000001,
       "entry_time": 1780578437,
       "exit_time": 1780600949,
-      "pnl_pct": 0.39511972818311575,
+      "pnl_pct": 0.248856,
       "exit_reason": "ScoreFlip",
       "size_usd": 278.9,
       "side": "Short"
@@ -397,7 +397,7 @@
       "exit_price": 68.44060983,
       "entry_time": 1780601249,
       "exit_time": 1780616258,
-      "pnl_pct": 1.467593103944708,
+      "pnl_pct": 1.330083,
       "exit_reason": "TrailingStop",
       "size_usd": 280.84,
       "side": "Short"

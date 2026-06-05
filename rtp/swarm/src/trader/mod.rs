@@ -534,16 +534,19 @@ async fn run_cycle(
 
                                     let exit_price = closes.last().copied().unwrap_or(0.0);
                                     let side = pos_info.side();
+                                    let hold_hours = (Utc::now().timestamp() - pos_info.entry_time) as f64 / 3600.0;
+                                    let fee_drag_pct = 0.12 + 0.0042 * hold_hours;
                                     let trade = TradeRecord {
                                         entry_price: pos_info.entry_price,
                                         exit_price,
                                         entry_time: pos_info.entry_time,
                                         exit_time: Utc::now().timestamp(),
                                         pnl_pct: if pos_info.entry_price > 0.0 {
-                                            match side {
+                                            let raw = match side {
                                                 "Short" => (pos_info.entry_price - exit_price) / pos_info.entry_price * 100.0,
                                                 _ => (exit_price - pos_info.entry_price) / pos_info.entry_price * 100.0,
-                                            }
+                                            };
+                                            raw - fee_drag_pct
                                         } else { 0.0 },
                                         exit_reason: format!("{:?}", reason),
                                         size_usd: pos_info.size_usd,

@@ -379,7 +379,7 @@ export default function Home() {
         {/* Vitals strip — full width */}
         <div className="sys2-vitals" style={{ gridColumn: "1 / -1" }}>
           <div className="sys2-vital">
-            <div className="sys2-vital-label">Cumulative PnL</div>
+            <div className="sys2-vital-label">Cumulative PnL <span style={{ fontSize: "0.7em", opacity: 0.6 }}>(net of fees)</span></div>
             <div className={`sys2-vital-value ${totalPnlPct >= 0 ? "pos" : "neg"}`}>
               {totalPnlPct >= 0 ? "+" : ""}{totalPnlPct.toFixed(2)}%
             </div>
@@ -472,7 +472,7 @@ export default function Home() {
           </div>
 
           <div className="console-card chart-card">
-            <div className="console-card-eyebrow">CUMULATIVE PNL · ALL CLOSED TRADES</div>
+            <div className="console-card-eyebrow">CUMULATIVE PNL · NET OF FEES · ALL CLOSED TRADES</div>
             <PnlSparkline trades={trader?.trade_history ?? []} />
             <div className="chart-stats">
               <div className="chart-stat">
