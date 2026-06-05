@@ -77,7 +77,12 @@ function PnlSparkline({ trades }: { trades: TraderState["trade_history"] }) {
     if (!trades || trades.length === 0) return [] as number[];
     const out: number[] = [0];
     let acc = 0;
-    for (const t of trades) { acc += t.pnl_pct; out.push(acc); }
+    for (const t of trades) {
+      const holdHours = Math.max(0, (t.exit_time - t.entry_time)) / 3600;
+      const feeDrag = 0.12 + 0.0042 * holdHours;
+      acc += t.pnl_pct - feeDrag;
+      out.push(acc);
+    }
     return out;
   }, [trades]);
 
@@ -293,13 +298,21 @@ export default function Home() {
 
   /* ── Derived ── */
 
-  const totalPnlPct = useMemo(
-    () => trader?.trade_history?.reduce((a, t) => a + t.pnl_pct, 0) ?? 0, [trader]
-  );
-  const winRate = useMemo(() => {
-    if (!trader || trader.trade_history.length === 0) return null;
-    return (trader.trade_history.filter((t) => t.pnl_pct > 0).length / trader.trade_history.length) * 100;
+  const netPnl = useMemo(() => {
+    if (!trader?.trade_history) return { total: 0, trades: [] as number[] };
+    const trades = trader.trade_history.map((t) => {
+      const holdHours = Math.max(0, (t.exit_time - t.entry_time)) / 3600;
+      const feeDrag = 0.12 + 0.0042 * holdHours;
+      return t.pnl_pct - feeDrag;
+    });
+    return { total: trades.reduce((a, b) => a + b, 0), trades };
   }, [trader]);
+
+  const totalPnlPct = netPnl.total;
+  const winRate = useMemo(() => {
+    if (!netPnl.trades.length) return null;
+    return (netPnl.trades.filter((p) => p > 0).length / netPnl.trades.length) * 100;
+  }, [netPnl]);
 
   const daysRunning = useMemo(() => {
     const deployedAt = new Date("2026-05-12T04:20:00Z").getTime();
@@ -505,17 +518,22 @@ export default function Home() {
               <span className="mono trade-tape-sub">last {Math.min(8, trader?.trade_history?.length ?? 0)} trades</span>
             </div>
             <div className="trade-tape-rows">
-              {[...(trader?.trade_history ?? [])].slice(-8).reverse().map((t, i) => (
-                <div key={i} className={`trade-row ${t.pnl_pct >= 0 ? "pos" : "neg"}`}>
+              {[...(trader?.trade_history ?? [])].slice(-8).reverse().map((t, i) => {
+                const holdHours = Math.max(0, (t.exit_time - t.entry_time)) / 3600;
+                const feeDrag = 0.12 + 0.0042 * holdHours;
+                const net = t.pnl_pct - feeDrag;
+                return (
+                <div key={i} className={`trade-row ${net >= 0 ? "pos" : "neg"}`}>
                   <span className="mono">SOL/USDT</span>
                   <span className="mono dim">${t.entry_price.toFixed(2)} → ${t.exit_price.toFixed(2)}</span>
                   <span className="trade-reason">{t.exit_reason}</span>
                   <span className={`trade-side ${(t.side ?? "Long") === "Short" ? "short" : "long"}`}>{(t.side ?? "Long").toUpperCase()}</span>
-                  <span className={`mono trade-pnl ${t.pnl_pct >= 0 ? "pos" : "neg"}`}>
-                    {t.pnl_pct >= 0 ? "+" : ""}{t.pnl_pct.toFixed(2)}%
+                  <span className={`mono trade-pnl ${net >= 0 ? "pos" : "neg"}`}>
+                    {net >= 0 ? "+" : ""}{net.toFixed(2)}%
                   </span>
                 </div>
-              ))}
+              );
+              })}
             </div>
           </div>
         )}
