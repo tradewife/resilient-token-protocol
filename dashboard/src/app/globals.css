@@ -2261,6 +2261,23 @@ body {
   letter-spacing: 0.06em;
 }
 
+.trade-side {
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 1px 5px;
+  border-radius: 3px;
+  text-transform: uppercase;
+}
+.trade-side.long {
+  color: var(--emerald);
+  background: rgba(16, 185, 129, 0.10);
+}
+.trade-side.short {
+  color: var(--coral);
+  background: rgba(239, 68, 68, 0.10);
+}
+
 .trade-pnl { text-align: right; font-weight: 600; }
 .trade-pnl.pos { color: var(--emerald); }
 .trade-pnl.neg { color: var(--coral); }

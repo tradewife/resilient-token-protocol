@@ -547,6 +547,7 @@ async fn run_cycle(
                                         } else { 0.0 },
                                         exit_reason: format!("{:?}", reason),
                                         size_usd: pos_info.size_usd,
+                                        side: side.to_string(),
                                     };
                                     let mut s = state.lock().await;
                                     s.trade_history.push(trade);

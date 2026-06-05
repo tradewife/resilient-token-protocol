@@ -508,6 +508,9 @@ pub struct TradeRecord {
     pub pnl_pct: f64,
     pub exit_reason: String,
     pub size_usd: f64,
+    /// Position side: "Long" or "Short". Defaults to "Long" for backward compat with existing state files.
+    #[serde(default = "default_side")]
+    pub side: String,
 }
 
 #[cfg(test)]
