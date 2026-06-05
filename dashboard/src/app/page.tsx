@@ -508,10 +508,9 @@ export default function Home() {
               {[...(trader?.trade_history ?? [])].slice(-8).reverse().map((t, i) => (
                 <div key={i} className={`trade-row ${t.pnl_pct >= 0 ? "pos" : "neg"}`}>
                   <span className="mono">SOL/USDT</span>
-                  <span className={`trade-side ${(t.side ?? "Long") === "Short" ? "short" : "long"}`}>{(t.side ?? "Long").toUpperCase()}</span>
                   <span className="mono dim">${t.entry_price.toFixed(2)} → ${t.exit_price.toFixed(2)}</span>
                   <span className="trade-reason">{t.exit_reason}</span>
-                  <span className="mono">${t.size_usd.toFixed(0)}</span>
+                  <span className={`trade-side ${(t.side ?? "Long") === "Short" ? "short" : "long"}`}>{(t.side ?? "Long").toUpperCase()}</span>
                   <span className={`mono trade-pnl ${t.pnl_pct >= 0 ? "pos" : "neg"}`}>
                     {t.pnl_pct >= 0 ? "+" : ""}{t.pnl_pct.toFixed(2)}%
                   </span>

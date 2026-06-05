@@ -2244,7 +2244,7 @@ body {
 
 .trade-row {
   display: grid;
-  grid-template-columns: 110px 1fr 1fr 80px 90px;
+  grid-template-columns: 100px 1fr 1fr 60px 90px;
   align-items: center;
   gap: var(--space-md);
   padding: 10px var(--space-lg);
@@ -3148,7 +3148,7 @@ body {
   .validated-grid { grid-template-columns: repeat(2, 1fr); }
   .validated-cell { border-left: none; padding-left: 0; }
   .proof2-grid { grid-template-columns: 1fr; }
-  .trade-row { grid-template-columns: 1fr 1fr; gap: 4px; padding: 8px 12px; font-size: 0.75rem; }
+  .trade-row { grid-template-columns: 80px 1fr 56px 80px; gap: 4px; padding: 8px 12px; font-size: 0.75rem; }
   .trade-row .trade-reason { display: none; }
   .chart-stats { grid-template-columns: repeat(2, 1fr); }
   .loop-legend { grid-template-columns: 1fr; }
