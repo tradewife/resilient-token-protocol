@@ -6,6 +6,7 @@ import { PublicKey, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import Link from "next/link";
 import Topbar from "./Topbar";
 import { fetchTreasuryState } from "../lib/sdk";
+import { inferTradeSide, tradeSideCssClass } from "../lib/tradeSide";
 
 /* ── Constants ── */
 
@@ -522,15 +523,13 @@ export default function Home() {
                 const holdHours = Math.max(0, (t.exit_time - t.entry_time)) / 3600;
                 const feeDrag = 0.12 + 0.0042 * holdHours;
                 const net = t.pnl_pct - feeDrag;
-                const priceChange = (t.exit_price - t.entry_price) / t.entry_price * 100;
-                const rawPnl = t.pnl_pct;
-                const side = t.side ?? (Math.sign(rawPnl) === Math.sign(priceChange) ? "Long" : "Short");
+                const side = inferTradeSide(t);
                 return (
                 <div key={i} className={`trade-row ${net >= 0 ? "pos" : "neg"}`}>
                   <span className="mono">SOL/USDT</span>
                   <span className="mono dim">${t.entry_price.toFixed(2)} → ${t.exit_price.toFixed(2)}</span>
                   <span className="trade-reason">{t.exit_reason}</span>
-                  <span className={`trade-side ${side === "Short" ? "short" : "long"}`}>{side.toUpperCase()}</span>
+                  <span className={`trade-side ${tradeSideCssClass(side)}`}>{side.toUpperCase()}</span>
                   <span className={`mono trade-pnl ${net >= 0 ? "pos" : "neg"}`}>
                     {net >= 0 ? "+" : ""}{net.toFixed(2)}%
                   </span>

@@ -513,6 +513,34 @@ pub struct TradeRecord {
     pub side: String,
 }
 
+impl TradeRecord {
+    /// Infer side from which PnL formula best matches stored `pnl_pct`.
+    pub fn infer_side_from_pnl(&self) -> &'static str {
+        if self.entry_price <= 0.0 {
+            return "Long";
+        }
+        let long_pnl = (self.exit_price - self.entry_price) / self.entry_price * 100.0;
+        let short_pnl = (self.entry_price - self.exit_price) / self.entry_price * 100.0;
+        let long_err = (long_pnl - self.pnl_pct).abs();
+        let short_err = (short_pnl - self.pnl_pct).abs();
+        if short_err < long_err {
+            "Short"
+        } else {
+            "Long"
+        }
+    }
+
+    /// Fix legacy rows where `side` defaulted to Long but `pnl_pct` used short math.
+    pub fn repair_side_from_pnl(&mut self) -> bool {
+        let inferred = self.infer_side_from_pnl();
+        if self.side == inferred {
+            return false;
+        }
+        self.side = inferred.to_string();
+        true
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1210,6 +1238,39 @@ mod tests {
         let parsed: OpenPosition = serde_json::from_str(&json).unwrap();
         assert_eq!(parsed.side, "Short");
         assert_eq!(parsed.entry_price, 100.0);
+    }
+
+    #[test]
+    fn trade_record_infer_side_short_win() {
+        let mut t = TradeRecord {
+            entry_price: 82.01,
+            exit_price: 81.40314411,
+            entry_time: 0,
+            exit_time: 0,
+            pnl_pct: 0.739977917327162,
+            exit_reason: "ScoreFlip".to_string(),
+            size_usd: 266.77,
+            side: "Long".to_string(),
+        };
+        assert_eq!(t.infer_side_from_pnl(), "Short");
+        assert!(t.repair_side_from_pnl());
+        assert_eq!(t.side, "Short");
+    }
+
+    #[test]
+    fn trade_record_infer_side_long_unchanged() {
+        let mut t = TradeRecord {
+            entry_price: 95.35,
+            exit_price: 95.69,
+            entry_time: 0,
+            exit_time: 0,
+            pnl_pct: 0.3565810173046706,
+            exit_reason: "TrailingStop".to_string(),
+            size_usd: 337.46,
+            side: "Long".to_string(),
+        };
+        assert_eq!(t.infer_side_from_pnl(), "Long");
+        assert!(!t.repair_side_from_pnl());
     }
 
     #[test]

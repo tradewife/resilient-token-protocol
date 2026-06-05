@@ -114,6 +114,17 @@ impl TraderState {
         serde_json::from_str(&content).ok()
     }
 
+    /// Correct mis-labeled `trade_history[].side` from entry/exit/`pnl_pct`. Returns repair count.
+    pub fn repair_trade_history_sides(&mut self) -> usize {
+        let mut repaired = 0usize;
+        for t in &mut self.trade_history {
+            if t.repair_side_from_pnl() {
+                repaired += 1;
+            }
+        }
+        repaired
+    }
+
     /// Save state to JSON file.
     pub fn save(&self, path: &std::path::Path) -> Result<(), String> {
         if let Some(parent) = path.parent() {
@@ -281,7 +292,18 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
     tracing::info!("");
 
     // Load or create state — shared with HTTP status server via Arc<Mutex>
-    let initial = TraderState::load(&config.state_path).unwrap_or_else(|| TraderState::new(&wallet));
+    let mut initial =
+        TraderState::load(&config.state_path).unwrap_or_else(|| TraderState::new(&wallet));
+    let repaired = initial.repair_trade_history_sides();
+    if repaired > 0 {
+        tracing::warn!(
+            "[STATE] Repaired {} trade_history side label(s) from pnl_pct (legacy default Long)",
+            repaired
+        );
+        if let Err(e) = initial.save(&config.state_path) {
+            tracing::warn!("[STATE] Could not persist side repairs (trading continues): {}", e);
+        }
+    }
     let state = Arc::new(Mutex::new(initial));
     let params = StrategyParams::load_from_daemon_config();
 
@@ -812,6 +834,34 @@ mod tests {
     // =========================================================================
     // SHORT position tests (feature: short-entry-and-exit-logic)
     // =========================================================================
+
+    #[test]
+    fn repair_trade_history_sides_fixes_legacy_long_labels() {
+        let mut state = TraderState::new("TestWallet");
+        state.trade_history.push(TradeRecord {
+            entry_price: 82.01,
+            exit_price: 81.40314411,
+            entry_time: 0,
+            exit_time: 0,
+            pnl_pct: 0.739977917327162,
+            exit_reason: "ScoreFlip".to_string(),
+            size_usd: 266.77,
+            side: "Long".to_string(),
+        });
+        state.trade_history.push(TradeRecord {
+            entry_price: 95.35,
+            exit_price: 95.69,
+            entry_time: 0,
+            exit_time: 0,
+            pnl_pct: 0.3565810173046706,
+            exit_reason: "TrailingStop".to_string(),
+            size_usd: 337.46,
+            side: "Long".to_string(),
+        });
+        assert_eq!(state.repair_trade_history_sides(), 1);
+        assert_eq!(state.trade_history[0].side, "Short");
+        assert_eq!(state.trade_history[1].side, "Long");
+    }
 
     #[test]
     fn short_position_stored_with_correct_side() {
