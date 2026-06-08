@@ -1,0 +1,13 @@
+{
+  "mission_id": "000-wfa-extraction",
+  "phase": "INIT",
+  "orchestrator": "Hermes",
+  "worker": "Grok-Build-Composer-2.5",
+  "current_task_id": null,
+  "blockers": [],
+  "last_updated": "2026-06-09T01:20:00Z",
+  "lineage": {
+    "source_file": "research/orchestration/night_shift.py",
+    "target_module": "research/engine/validation.py"
+  }
+}
