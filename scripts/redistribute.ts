@@ -35,6 +35,50 @@ const DEMO_AUTHORITY = new PublicKey("Driyi8Sw2622yCefU34zrjBsQynrDoGD31tBecXrEF
 const RPC_URL = process.env.RPC_URL || "https://api.devnet.solana.com";
 const JITTER_MAX_MS = parseInt(process.env.JITTER_MAX_MS || "1800000", 10); // 30 min
 const AUTHORITY = process.env.AUTHORITY || DEMO_AUTHORITY.toBase58();
+const RPC_RETRY_ATTEMPTS = parseInt(process.env.RPC_RETRY_ATTEMPTS || "4", 10);
+
+/** True for devnet/public-RPC blips — cron should exit 0, not CRASHED. */
+function isTransientRpcError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  const logs = (err as { logs?: string[] })?.logs?.join(" ") || "";
+  const fullStr = JSON.stringify(err, Object.getOwnPropertyNames(err as object));
+  const combined = `${msg} ${logs} ${fullStr}`.toLowerCase();
+  return (
+    combined.includes("fetch failed") ||
+    combined.includes("econnrefused") ||
+    combined.includes("econnreset") ||
+    combined.includes("etimedout") ||
+    combined.includes("socket hang up") ||
+    combined.includes("429") ||
+    combined.includes("too many requests") ||
+    combined.includes("503") ||
+    combined.includes("502") ||
+    combined.includes("504") ||
+    combined.includes("gateway timeout") ||
+    combined.includes("rate limit")
+  );
+}
+
+async function withRpcRetry<T>(label: string, fn: () => Promise<T>): Promise<T> {
+  let last: unknown;
+  for (let attempt = 1; attempt <= RPC_RETRY_ATTEMPTS; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      last = err;
+      if (!isTransientRpcError(err) || attempt === RPC_RETRY_ATTEMPTS) {
+        throw err;
+      }
+      const waitMs = 2000 * Math.pow(2, attempt - 1);
+      const detail = err instanceof Error ? err.message : String(err);
+      console.log(
+        `[REDISTRIBUTE] RPC ${label} attempt ${attempt}/${RPC_RETRY_ATTEMPTS} failed (${detail.slice(0, 120)}), retry in ${waitMs}ms`,
+      );
+      await new Promise((resolve) => setTimeout(resolve, waitMs));
+    }
+  }
+  throw last;
+}
 
 // ─── Exported API (for CLI import) ─────────────────────────────────────
 
@@ -61,7 +105,9 @@ export async function exportRedistribute(
     await new Promise((resolve) => setTimeout(resolve, jitter));
   }
 
-  const solBalance = await connection.getBalance(payer.publicKey);
+  const solBalance = await withRpcRetry("getBalance", () =>
+    connection.getBalance(payer.publicKey),
+  );
   if (solBalance < 5000) {
     throw new Error(`Insufficient SOL for gas: ${(solBalance / 1e9).toFixed(4)} SOL`);
   }
@@ -91,7 +137,9 @@ export async function exportRedistribute(
   );
 
   const coder = new BorshCoder(idl);
-  const accountInfo = await connection.getAccountInfo(treasuryPDA);
+  const accountInfo = await withRpcRetry("getAccountInfo(treasury)", () =>
+    connection.getAccountInfo(treasuryPDA),
+  );
   if (!accountInfo) {
     console.log("[REDISTRIBUTE] Treasury account not found on-chain.");
     return { redistributeSig: undefined };
@@ -124,14 +172,20 @@ export async function exportRedistribute(
       .transaction();
 
     const { Transaction: Tx, sendAndConfirmTransaction: sendConfirm } = await import("@solana/web3.js");
-    const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
+    const { blockhash, lastValidBlockHeight } = await withRpcRetry("getLatestBlockhash", () =>
+      connection.getLatestBlockhash(),
+    );
     tx.recentBlockhash = blockhash;
     tx.lastValidBlockHeight = lastValidBlockHeight;
     tx.feePayer = payer.publicKey;
     tx.partialSign(payer);
     const rawTx = tx.serialize();
-    const sig = await connection.sendRawTransaction(rawTx);
-    await connection.confirmTransaction({ signature: sig, blockhash, lastValidBlockHeight }, "confirmed");
+    const sig = await withRpcRetry("sendRawTransaction", () =>
+      connection.sendRawTransaction(rawTx),
+    );
+    await withRpcRetry("confirmTransaction", () =>
+      connection.confirmTransaction({ signature: sig, blockhash, lastValidBlockHeight }, "confirmed"),
+    );
 
     return { redistributeSig: sig };
   } catch (err: unknown) {
@@ -150,6 +204,10 @@ export async function exportRedistribute(
     // Catch gracefully so Railway doesn't mark the service as Crashed.
     if (combined.includes("AccountNotInitialized") || combined.includes("AccountOwnedByWrongProgram") || combined.includes("account: mint") || combined.includes("custom program error: 0xbc4")) {
       console.log("[REDISTRIBUTE] On-chain program binary stale (devnet BPF cache). Skipping. Error:", msg.substring(0, 200));
+      return { redistributeSig: undefined };
+    }
+    if (isTransientRpcError(err)) {
+      console.log("[REDISTRIBUTE] Transient RPC failure after retries — skipping this cycle.");
       return { redistributeSig: undefined };
     }
     throw err;
@@ -217,6 +275,10 @@ if (typeof require !== "undefined" && require.main === module) {
     const combined = `${msg} ${fullStr}`;
     if (combined.includes("AccountNotInitialized") || combined.includes("custom program error: 0xbc4")) {
       console.log("[REDISTRIBUTE] On-chain program binary stale (devnet BPF cache). Graceful exit.");
+      process.exit(0);
+    }
+    if (isTransientRpcError(err)) {
+      console.log("[REDISTRIBUTE] Transient RPC failure — graceful exit (will retry next cron).");
       process.exit(0);
     }
     console.error("[REDISTRIBUTE] Fatal:", msg);
