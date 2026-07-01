@@ -547,6 +547,7 @@ async fn run_cycle(
                                 keypair,
                                 &pos_api.key,
                                 &pos_api.size_usd_ui,
+                                &pos_api.collateral_symbol,
                             )
                             .await
                             {

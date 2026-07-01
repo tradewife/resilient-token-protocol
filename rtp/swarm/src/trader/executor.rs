@@ -17,6 +17,7 @@ pub struct PositionInfo {
     pub key: String,
     pub side_ui: String,
     pub market_symbol: String,
+    pub collateral_symbol: String,
     pub size_usd_ui: String,
     pub entry_price_ui: String,
     pub pnl_with_fee_usd_ui: String,
@@ -165,11 +166,12 @@ pub async fn close_position(
     keypair: &solana_sdk::signature::Keypair,
     position_key: &str,
     size_usd: &str,
+    withdraw_token_symbol: &str,
 ) -> Result<(String, f64), String> {
     let body = serde_json::json!({
         "positionKey": position_key,
         "inputUsdUi": size_usd,
-        "withdrawTokenSymbol": "SOL",
+        "withdrawTokenSymbol": withdraw_token_symbol,
         "slippagePercentage": "1.0"
     });
 
