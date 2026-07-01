@@ -5,7 +5,9 @@
 //! No solana-client dependency — uses the same raw HTTP pattern as chain_client.rs.
 
 use base64::Engine;
+use solana_sdk::hash::Hash;
 use solana_sdk::signer::Signer;
+use std::str::FromStr;
 
 const FLASH_API: &str = "https://flashapi.trade";
 const MAINNET_RPC: &str = "https://api.mainnet-beta.solana.com";
@@ -76,10 +78,7 @@ async fn flash_get(path: &str) -> Result<serde_json::Value, String> {
 /// Get current SOL price from Flash Trade.
 pub async fn get_sol_price() -> Result<f64, String> {
     let val = flash_get("/prices/SOL").await?;
-    let price = val
-        .get("priceUi")
-        .and_then(|v| v.as_f64())
-        .unwrap_or(0.0);
+    let price = val.get("priceUi").and_then(|v| v.as_f64()).unwrap_or(0.0);
     if price <= 0.0 {
         return Err(format!("Invalid SOL price: {:?}", val.get("priceUi")));
     }
@@ -94,8 +93,7 @@ pub async fn get_positions(wallet: &str) -> Result<Vec<PositionInfo>, String> {
     ))
     .await?;
 
-    serde_json::from_value(val)
-        .map_err(|e| format!("Failed to parse positions: {}", e))
+    serde_json::from_value(val).map_err(|e| format!("Failed to parse positions: {}", e))
 }
 
 /// Build, sign, and submit an open-position transaction.
@@ -191,6 +189,7 @@ async fn sign_and_submit(
     keypair: &solana_sdk::signature::Keypair,
     tx_b64: &str,
 ) -> Result<String, String> {
+    use solana_sdk::message::VersionedMessage;
     use solana_sdk::transaction::VersionedTransaction;
 
     // Decode the unsigned transaction
@@ -201,82 +200,50 @@ async fn sign_and_submit(
     let tx: VersionedTransaction = bincode::deserialize(&tx_bytes)
         .map_err(|e| format!("Transaction deserialize error: {}", e))?;
 
-    // Sign the message
-    let message_bytes = bincode::serialize(&tx.message)
-        .map_err(|e| format!("Message serialize error: {}", e))?;
-    let sig = keypair.sign_message(&message_bytes);
-
-    // Replace first signature (fee payer)
-    let mut signatures = tx.signatures;
-    if !signatures.is_empty() {
-        signatures[0] = sig;
-    } else {
-        signatures.push(sig);
-    }
-
-    let signed_tx = VersionedTransaction {
-        signatures,
-        message: tx.message,
-    };
-
-    let serialized = bincode::serialize(&signed_tx)
-        .map_err(|e| format!("Transaction serialize error: {}", e))?;
-    let signed_b64 = base64::engine::general_purpose::STANDARD.encode(&serialized);
-
-    // Submit via raw RPC
-    rpc_send_transaction(MAINNET_RPC, &signed_b64).await
-}
-
-/// Send a base64-encoded transaction via Solana JSON-RPC.
-async fn rpc_send_transaction(rpc_url: &str, b64_tx: &str) -> Result<String, String> {
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(30))
         .build()
         .map_err(|e| format!("RPC client build failed: {}", e))?;
 
-    // Up to 3 attempts with backoff
     let mut last_err = String::new();
     for attempt in 0..3u32 {
-        let resp = client
-            .post(rpc_url)
-            .json(&serde_json::json!({
-                "jsonrpc": "2.0",
-                "id": 1,
-                "method": "sendTransaction",
-                "params": [
-                    b64_tx,
-                    {
-                        "encoding": "base64",
-                        "skipPreflight": false,
-                        "maxRetries": 3usize
-                    }
-                ]
-            }))
-            .send()
-            .await
-            .map_err(|e| format!("RPC request failed: {}", e))?;
-
-        let json: serde_json::Value = resp
-            .json()
-            .await
-            .map_err(|e| format!("RPC parse error: {}", e))?;
-
-        if let Some(sig) = json.get("result").and_then(|r| r.as_str()) {
-            // Confirm
-            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-            return Ok(sig.to_string());
+        let blockhash = get_latest_blockhash(&client, MAINNET_RPC).await?;
+        let mut message = tx.message.clone();
+        match &mut message {
+            VersionedMessage::Legacy(m) => m.recent_blockhash = blockhash,
+            VersionedMessage::V0(m) => m.recent_blockhash = blockhash,
         }
 
-        if let Some(err) = json.get("error") {
-            last_err = err
-                .get("message")
-                .and_then(|m| m.as_str())
-                .unwrap_or("unknown error")
-                .to_string();
+        let message_bytes =
+            bincode::serialize(&message).map_err(|e| format!("Message serialize error: {}", e))?;
+        let sig = keypair.sign_message(&message_bytes);
 
-            // Don't retry on permanent errors
-            if last_err.contains("already been processed") || last_err.contains("blockhash") {
-                return Err(format!("RPC error: {}", last_err));
+        let mut signatures = tx.signatures.clone();
+        if !signatures.is_empty() {
+            signatures[0] = sig;
+        } else {
+            signatures.push(sig);
+        }
+
+        let signed_tx = VersionedTransaction {
+            signatures,
+            message,
+        };
+
+        let serialized = bincode::serialize(&signed_tx)
+            .map_err(|e| format!("Transaction serialize error: {}", e))?;
+        let signed_b64 = base64::engine::general_purpose::STANDARD.encode(&serialized);
+
+        match rpc_send_transaction(&client, MAINNET_RPC, &signed_b64).await {
+            Ok(sig) => return Ok(sig),
+            Err(e) => {
+                last_err = e;
+                if !last_err.contains("Blockhash not found")
+                    && !last_err.contains("blockhash")
+                    && !last_err.contains("expired")
+                {
+                    return Err(last_err);
+                }
             }
         }
 
@@ -287,4 +254,84 @@ async fn rpc_send_transaction(rpc_url: &str, b64_tx: &str) -> Result<String, Str
     }
 
     Err(format!("Transaction failed after 3 attempts: {}", last_err))
+}
+
+async fn get_latest_blockhash(client: &reqwest::Client, rpc_url: &str) -> Result<Hash, String> {
+    let resp = client
+        .post(rpc_url)
+        .json(&serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "getLatestBlockhash",
+            "params": [{ "commitment": "confirmed" }]
+        }))
+        .send()
+        .await
+        .map_err(|e| format!("getLatestBlockhash request failed: {}", e))?;
+
+    let json: serde_json::Value = resp
+        .json()
+        .await
+        .map_err(|e| format!("getLatestBlockhash parse error: {}", e))?;
+
+    if let Some(err) = json.get("error") {
+        return Err(format!("getLatestBlockhash RPC error: {}", err));
+    }
+
+    let blockhash = json
+        .get("result")
+        .and_then(|r| r.get("value"))
+        .and_then(|v| v.get("blockhash"))
+        .and_then(|b| b.as_str())
+        .ok_or_else(|| format!("getLatestBlockhash missing blockhash: {}", json))?;
+
+    Hash::from_str(blockhash).map_err(|e| format!("Invalid blockhash {}: {}", blockhash, e))
+}
+
+/// Send a base64-encoded transaction via Solana JSON-RPC.
+async fn rpc_send_transaction(
+    client: &reqwest::Client,
+    rpc_url: &str,
+    b64_tx: &str,
+) -> Result<String, String> {
+    let resp = client
+        .post(rpc_url)
+        .json(&serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "sendTransaction",
+            "params": [
+                b64_tx,
+                {
+                    "encoding": "base64",
+                    "skipPreflight": false,
+                    "maxRetries": 3usize
+                }
+            ]
+        }))
+        .send()
+        .await
+        .map_err(|e| format!("RPC request failed: {}", e))?;
+
+    let json: serde_json::Value = resp
+        .json()
+        .await
+        .map_err(|e| format!("RPC parse error: {}", e))?;
+
+    if let Some(sig) = json.get("result").and_then(|r| r.as_str()) {
+        // Confirm
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+        return Ok(sig.to_string());
+    }
+
+    if let Some(err) = json.get("error") {
+        let message = err
+            .get("message")
+            .and_then(|m| m.as_str())
+            .unwrap_or("unknown error")
+            .to_string();
+        return Err(format!("RPC error: {}", message));
+    }
+
+    Err(format!("RPC response missing result/error: {}", json))
 }
