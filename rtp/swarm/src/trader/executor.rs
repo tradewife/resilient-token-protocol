@@ -5,9 +5,7 @@
 //! No solana-client dependency — uses the same raw HTTP pattern as chain_client.rs.
 
 use base64::Engine;
-use solana_sdk::hash::Hash;
 use solana_sdk::signer::Signer;
-use std::str::FromStr;
 
 const FLASH_API: &str = "https://flashapi.trade";
 const MAINNET_RPC: &str = "https://api.mainnet-beta.solana.com";
@@ -117,33 +115,48 @@ pub async fn open_position(
         "slippagePercentage": "1.0"
     });
 
-    let val = flash_post("/transaction-builder/open-position", &body).await?;
+    let mut last_err = String::new();
+    for attempt in 0..3u32 {
+        let val = flash_post("/transaction-builder/open-position", &body).await?;
 
-    if let Some(err) = val.get("err").and_then(|v| v.as_str())
-        && !err.is_empty()
-    {
-        return Err(format!("Open position API error: {}", err));
+        if let Some(err) = val.get("err").and_then(|v| v.as_str())
+            && !err.is_empty()
+        {
+            return Err(format!("Open position API error: {}", err));
+        }
+
+        let tx_b64 = val
+            .get("transactionBase64")
+            .and_then(|v| v.as_str())
+            .ok_or("No transaction in open-position response")?;
+
+        let entry_price = val
+            .get("newEntryPrice")
+            .and_then(|v| v.as_str())
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(0.0);
+
+        let size_usd = val
+            .get("youRecieveUsdUi")
+            .and_then(|v| v.as_str())
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(0.0);
+
+        match sign_and_submit(keypair, tx_b64).await {
+            Ok(sig) => return Ok((sig, size_usd, entry_price)),
+            Err(e) if is_blockhash_error(&e) && attempt < 2 => {
+                last_err = e;
+                tokio::time::sleep(std::time::Duration::from_millis(500 * (attempt + 1) as u64))
+                    .await;
+            }
+            Err(e) => return Err(e),
+        }
     }
 
-    let tx_b64 = val
-        .get("transactionBase64")
-        .and_then(|v| v.as_str())
-        .ok_or("No transaction in open-position response")?;
-
-    let entry_price = val
-        .get("newEntryPrice")
-        .and_then(|v| v.as_str())
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(0.0);
-
-    let size_usd = val
-        .get("youRecieveUsdUi")
-        .and_then(|v| v.as_str())
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(0.0);
-
-    let sig = sign_and_submit(keypair, tx_b64).await?;
-    Ok((sig, size_usd, entry_price))
+    Err(format!(
+        "Open position failed after rebuild retries: {}",
+        last_err
+    ))
 }
 
 /// Build, sign, and submit a close-position transaction.
@@ -160,27 +173,42 @@ pub async fn close_position(
         "slippagePercentage": "1.0"
     });
 
-    let val = flash_post("/transaction-builder/close-position", &body).await?;
+    let mut last_err = String::new();
+    for attempt in 0..3u32 {
+        let val = flash_post("/transaction-builder/close-position", &body).await?;
 
-    if let Some(err) = val.get("err").and_then(|v| v.as_str())
-        && !err.is_empty()
-    {
-        return Err(format!("Close position API error: {}", err));
+        if let Some(err) = val.get("err").and_then(|v| v.as_str())
+            && !err.is_empty()
+        {
+            return Err(format!("Close position API error: {}", err));
+        }
+
+        let tx_b64 = val
+            .get("transactionBase64")
+            .and_then(|v| v.as_str())
+            .ok_or("No transaction in close-position response")?;
+
+        let settled_pnl = val
+            .get("settledPnl")
+            .and_then(|v| v.as_str())
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(0.0);
+
+        match sign_and_submit(keypair, tx_b64).await {
+            Ok(sig) => return Ok((sig, settled_pnl)),
+            Err(e) if is_blockhash_error(&e) && attempt < 2 => {
+                last_err = e;
+                tokio::time::sleep(std::time::Duration::from_millis(500 * (attempt + 1) as u64))
+                    .await;
+            }
+            Err(e) => return Err(e),
+        }
     }
 
-    let tx_b64 = val
-        .get("transactionBase64")
-        .and_then(|v| v.as_str())
-        .ok_or("No transaction in close-position response")?;
-
-    let settled_pnl = val
-        .get("settledPnl")
-        .and_then(|v| v.as_str())
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(0.0);
-
-    let sig = sign_and_submit(keypair, tx_b64).await?;
-    Ok((sig, settled_pnl))
+    Err(format!(
+        "Close position failed after rebuild retries: {}",
+        last_err
+    ))
 }
 
 /// Sign a VersionedTransaction (base64) and submit to Solana mainnet via raw RPC.
@@ -189,7 +217,6 @@ async fn sign_and_submit(
     keypair: &solana_sdk::signature::Keypair,
     tx_b64: &str,
 ) -> Result<String, String> {
-    use solana_sdk::message::VersionedMessage;
     use solana_sdk::transaction::VersionedTransaction;
 
     // Decode the unsigned transaction
@@ -205,87 +232,34 @@ async fn sign_and_submit(
         .build()
         .map_err(|e| format!("RPC client build failed: {}", e))?;
 
-    let mut last_err = String::new();
-    for attempt in 0..3u32 {
-        let blockhash = get_latest_blockhash(&client, MAINNET_RPC).await?;
-        let mut message = tx.message.clone();
-        match &mut message {
-            VersionedMessage::Legacy(m) => m.recent_blockhash = blockhash,
-            VersionedMessage::V0(m) => m.recent_blockhash = blockhash,
-        }
+    let message_bytes =
+        bincode::serialize(&tx.message).map_err(|e| format!("Message serialize error: {}", e))?;
+    let sig = keypair.sign_message(&message_bytes);
 
-        let message_bytes =
-            bincode::serialize(&message).map_err(|e| format!("Message serialize error: {}", e))?;
-        let sig = keypair.sign_message(&message_bytes);
-
-        let mut signatures = tx.signatures.clone();
-        if !signatures.is_empty() {
-            signatures[0] = sig;
-        } else {
-            signatures.push(sig);
-        }
-
-        let signed_tx = VersionedTransaction {
-            signatures,
-            message,
-        };
-
-        let serialized = bincode::serialize(&signed_tx)
-            .map_err(|e| format!("Transaction serialize error: {}", e))?;
-        let signed_b64 = base64::engine::general_purpose::STANDARD.encode(&serialized);
-
-        match rpc_send_transaction(&client, MAINNET_RPC, &signed_b64).await {
-            Ok(sig) => return Ok(sig),
-            Err(e) => {
-                last_err = e;
-                if !last_err.contains("Blockhash not found")
-                    && !last_err.contains("blockhash")
-                    && !last_err.contains("expired")
-                {
-                    return Err(last_err);
-                }
-            }
-        }
-
-        if attempt < 2 {
-            let delay = 500 * (attempt + 1) as u64;
-            tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
-        }
+    let mut signatures = tx.signatures;
+    if !signatures.is_empty() {
+        signatures[0] = sig;
+    } else {
+        signatures.push(sig);
     }
 
-    Err(format!("Transaction failed after 3 attempts: {}", last_err))
+    let signed_tx = VersionedTransaction {
+        signatures,
+        message: tx.message,
+    };
+
+    let serialized = bincode::serialize(&signed_tx)
+        .map_err(|e| format!("Transaction serialize error: {}", e))?;
+    let signed_b64 = base64::engine::general_purpose::STANDARD.encode(&serialized);
+
+    rpc_send_transaction(&client, MAINNET_RPC, &signed_b64).await
 }
 
-async fn get_latest_blockhash(client: &reqwest::Client, rpc_url: &str) -> Result<Hash, String> {
-    let resp = client
-        .post(rpc_url)
-        .json(&serde_json::json!({
-            "jsonrpc": "2.0",
-            "id": 1,
-            "method": "getLatestBlockhash",
-            "params": [{ "commitment": "confirmed" }]
-        }))
-        .send()
-        .await
-        .map_err(|e| format!("getLatestBlockhash request failed: {}", e))?;
-
-    let json: serde_json::Value = resp
-        .json()
-        .await
-        .map_err(|e| format!("getLatestBlockhash parse error: {}", e))?;
-
-    if let Some(err) = json.get("error") {
-        return Err(format!("getLatestBlockhash RPC error: {}", err));
-    }
-
-    let blockhash = json
-        .get("result")
-        .and_then(|r| r.get("value"))
-        .and_then(|v| v.get("blockhash"))
-        .and_then(|b| b.as_str())
-        .ok_or_else(|| format!("getLatestBlockhash missing blockhash: {}", json))?;
-
-    Hash::from_str(blockhash).map_err(|e| format!("Invalid blockhash {}: {}", blockhash, e))
+fn is_blockhash_error(err: &str) -> bool {
+    err.contains("Blockhash not found")
+        || err.contains("blockhash")
+        || err.contains("expired")
+        || err.contains("Block height exceeded")
 }
 
 /// Send a base64-encoded transaction via Solana JSON-RPC.
