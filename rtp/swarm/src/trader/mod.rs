@@ -545,7 +545,8 @@ async fn run_cycle(
                         }) {
                             match executor::close_position(
                                 keypair,
-                                &pos_api.key,
+                                &pos_api.market_symbol,
+                                &pos_api.side_ui,
                                 &pos_api.size_usd_ui,
                                 &pos_api.collateral_symbol,
                             )

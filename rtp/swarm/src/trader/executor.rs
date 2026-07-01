@@ -118,7 +118,7 @@ pub async fn open_position(
 
     let mut last_err = String::new();
     for attempt in 0..3u32 {
-        let val = flash_post("/transaction-builder/open-position", &body).await?;
+        let val = flash_post("/v2/transaction-builder/open-position", &body).await?;
 
         if let Some(err) = val.get("err").and_then(|v| v.as_str())
             && !err.is_empty()
@@ -164,20 +164,30 @@ pub async fn open_position(
 /// Returns (signature, settled_pnl).
 pub async fn close_position(
     keypair: &solana_sdk::signature::Keypair,
-    position_key: &str,
+    market_symbol: &str,
+    side: &str,
     size_usd: &str,
     withdraw_token_symbol: &str,
 ) -> Result<(String, f64), String> {
+    let wallet = keypair.pubkey().to_string();
+    let side = match side {
+        "Long" | "LONG" => "LONG",
+        "Short" | "SHORT" => "SHORT",
+        other => return Err(format!("Unsupported close side: {}", other)),
+    };
+
     let body = serde_json::json!({
-        "positionKey": position_key,
+        "marketSymbol": market_symbol,
+        "side": side,
         "inputUsdUi": size_usd,
         "withdrawTokenSymbol": withdraw_token_symbol,
+        "owner": wallet,
         "slippagePercentage": "1.0"
     });
 
     let mut last_err = String::new();
     for attempt in 0..3u32 {
-        let val = flash_post("/transaction-builder/close-position", &body).await?;
+        let val = flash_post("/v2/transaction-builder/close-position", &body).await?;
 
         if let Some(err) = val.get("err").and_then(|v| v.as_str())
             && !err.is_empty()
