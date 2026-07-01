@@ -5,9 +5,7 @@
 //! No solana-client dependency — uses the same raw HTTP pattern as chain_client.rs.
 
 use base64::Engine;
-use solana_sdk::hash::Hash;
 use solana_sdk::signer::Signer;
-use std::str::FromStr;
 
 const FLASH_API: &str = "https://flashapi.trade";
 const MAINNET_RPC: &str = "https://api.mainnet-beta.solana.com";
@@ -219,7 +217,6 @@ async fn sign_and_submit(
     keypair: &solana_sdk::signature::Keypair,
     tx_b64: &str,
 ) -> Result<String, String> {
-    use solana_sdk::message::VersionedMessage;
     use solana_sdk::transaction::VersionedTransaction;
 
     // Decode the unsigned transaction
@@ -235,48 +232,25 @@ async fn sign_and_submit(
         .build()
         .map_err(|e| format!("RPC client build failed: {}", e))?;
 
-    let mut last_err = String::new();
-    for attempt in 0..3u32 {
-        let blockhash = get_latest_blockhash(&client, MAINNET_RPC).await?;
-        let mut message = tx.message.clone();
-        match &mut message {
-            VersionedMessage::Legacy(m) => m.recent_blockhash = blockhash,
-            VersionedMessage::V0(m) => m.recent_blockhash = blockhash,
-        }
+    let sig = keypair.sign_message(&tx.message.serialize());
 
-        let sig = keypair.sign_message(&message.serialize());
-
-        let mut signatures = tx.signatures.clone();
-        if !signatures.is_empty() {
-            signatures[0] = sig;
-        } else {
-            signatures.push(sig);
-        }
-
-        let signed_tx = VersionedTransaction {
-            signatures,
-            message,
-        };
-
-        let serialized = bincode::serialize(&signed_tx)
-            .map_err(|e| format!("Transaction serialize error: {}", e))?;
-        let signed_b64 = base64::engine::general_purpose::STANDARD.encode(&serialized);
-
-        match rpc_send_transaction(&client, MAINNET_RPC, &signed_b64).await {
-            Ok(sig) => return Ok(sig),
-            Err(e) if is_blockhash_error(&e) && attempt < 2 => {
-                last_err = e;
-                tokio::time::sleep(std::time::Duration::from_millis(500 * (attempt + 1) as u64))
-                    .await;
-            }
-            Err(e) => return Err(e),
-        }
+    let mut signatures = tx.signatures;
+    if !signatures.is_empty() {
+        signatures[0] = sig;
+    } else {
+        signatures.push(sig);
     }
 
-    Err(format!(
-        "Transaction failed after blockhash retries: {}",
-        last_err
-    ))
+    let signed_tx = VersionedTransaction {
+        signatures,
+        message: tx.message,
+    };
+
+    let serialized = bincode::serialize(&signed_tx)
+        .map_err(|e| format!("Transaction serialize error: {}", e))?;
+    let signed_b64 = base64::engine::general_purpose::STANDARD.encode(&serialized);
+
+    rpc_send_transaction(&client, MAINNET_RPC, &signed_b64).await
 }
 
 fn is_blockhash_error(err: &str) -> bool {
@@ -284,38 +258,6 @@ fn is_blockhash_error(err: &str) -> bool {
         || err.contains("blockhash")
         || err.contains("expired")
         || err.contains("Block height exceeded")
-}
-
-async fn get_latest_blockhash(client: &reqwest::Client, rpc_url: &str) -> Result<Hash, String> {
-    let resp = client
-        .post(rpc_url)
-        .json(&serde_json::json!({
-            "jsonrpc": "2.0",
-            "id": 1,
-            "method": "getLatestBlockhash",
-            "params": [{ "commitment": "confirmed" }]
-        }))
-        .send()
-        .await
-        .map_err(|e| format!("getLatestBlockhash request failed: {}", e))?;
-
-    let json: serde_json::Value = resp
-        .json()
-        .await
-        .map_err(|e| format!("getLatestBlockhash parse error: {}", e))?;
-
-    if let Some(err) = json.get("error") {
-        return Err(format!("getLatestBlockhash RPC error: {}", err));
-    }
-
-    let blockhash = json
-        .get("result")
-        .and_then(|r| r.get("value"))
-        .and_then(|v| v.get("blockhash"))
-        .and_then(|b| b.as_str())
-        .ok_or_else(|| format!("getLatestBlockhash missing blockhash: {}", json))?;
-
-    Hash::from_str(blockhash).map_err(|e| format!("Invalid blockhash {}: {}", blockhash, e))
 }
 
 /// Send a base64-encoded transaction via Solana JSON-RPC.
@@ -335,6 +277,7 @@ async fn rpc_send_transaction(
                 {
                     "encoding": "base64",
                     "skipPreflight": false,
+                    "preflightCommitment": "processed",
                     "maxRetries": 3usize
                 }
             ]
