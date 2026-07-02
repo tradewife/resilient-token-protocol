@@ -256,6 +256,10 @@ async fn handle_status_request(
         let snapshot = state.lock().await;
         let (code, reason, body) = check_trader_health(&snapshot);
         (format!("{} {}", code, reason), body, "text/plain")
+    } else if path == "/clear-position" || path == "/clear" {
+        state.lock().await.open_position = None;
+        tracing::warn!("[HTTP] open_position cleared via /clear-position endpoint");
+        ("200 OK".to_string(), "ok".to_string(), "text/plain")
     } else {
         ("404 Not Found".to_string(), "not found".to_string(), "text/plain")
     };
