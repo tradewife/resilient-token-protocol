@@ -386,6 +386,46 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
         }
     }
 
+    // ✅ Stale-state cleanup: if internal state thinks a position is open
+    // but Flash Trade says there is no such position on-chain, clear it.
+    let stale_state = {
+        let s = state.lock().await;
+        s.open_position.is_some()
+    };
+    if stale_state {
+        match executor::get_positions(&wallet).await {
+            Ok(positions) => {
+                let side_upper = state.lock().await
+                    .open_position.as_ref()
+                    .map(|p| match p.side.as_str() {
+                        "Long" | "SHORT" => p.side.to_uppercase(),
+                        _ => p.side.clone(),
+                    })
+                    .unwrap_or_default();
+                let side_lookup = match side_upper.as_str() {
+                    "SHORT" => "Short",
+                    _ => "Long",
+                };
+                let on_chain = positions.iter().any(|p| {
+                    p.market_symbol == "SOL" && p.side_ui == side_lookup
+                });
+                if !on_chain {
+                    tracing::warn!(
+                        "[CLEANUP] Stale SOL {} position in state — not found on Flash Trade. Clearing.",
+                        side_lookup
+                    );
+                    state.lock().await.open_position = None;
+                    if let Err(e) = state.lock().await.save(&config.state_path) {
+                        tracing::warn!("[CLEANUP] Save failed: {}", e);
+                    }
+                }
+            }
+            Err(e) => {
+                tracing::warn!("[CLEANUP] Could not check Flash Trade positions: {}", e);
+            }
+        }
+    }
+
     // Main loop with watchdog — each cycle is wrapped in a timeout.
     // If a cycle hangs (e.g., HTTP request stalls), the watchdog kills it,
     // increments consecutive_errors, and retries after a backoff.
