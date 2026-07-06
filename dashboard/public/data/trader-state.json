@@ -1,17 +1,6 @@
 {
   "wallet": "Driyi8Sw2622yCefU34zrjBsQynrDoGD31tBecXrEF6R",
-  "open_position": {
-    "entry_price": 64.4,
-    "entry_time": 1780672420,
-    "peak_price": 64.24971004,
-    "entry_rsi": 33.59613236688098,
-    "entry_atr": 0.7340138416107208,
-    "entry_score": -0.4,
-    "position_key": "iSMyNMBao8AZMUDy4grwWHTkM9ZqSUogXodihbF9cBJ",
-    "size_usd": 292.7,
-    "first_negative_score_time": 1780672718,
-    "side": "Short"
-  },
+  "open_position": null,
   "trade_history": [
     {
       "entry_price": 96.38,

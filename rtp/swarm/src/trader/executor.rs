@@ -92,6 +92,19 @@ pub async fn get_positions(wallet: &str) -> Result<Vec<PositionInfo>, String> {
     ))
     .await?;
 
+    parse_positions_response(val)
+}
+
+fn parse_positions_response(val: serde_json::Value) -> Result<Vec<PositionInfo>, String> {
+    if val.as_object().is_some_and(|obj| obj.is_empty()) {
+        return Ok(Vec::new());
+    }
+
+    if let Some(positions) = val.get("positions") {
+        return serde_json::from_value(positions.clone())
+            .map_err(|e| format!("Failed to parse positions: {}", e));
+    }
+
     serde_json::from_value(val).map_err(|e| format!("Failed to parse positions: {}", e))
 }
 
@@ -319,4 +332,58 @@ async fn rpc_send_transaction(
     }
 
     Err(format!("RPC response missing result/error: {}", json))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_empty_positions_map_as_empty_vec() {
+        let positions = parse_positions_response(serde_json::json!({})).unwrap();
+        assert!(positions.is_empty());
+    }
+
+    #[test]
+    fn parse_positions_array() {
+        let positions = parse_positions_response(serde_json::json!([
+            {
+                "key": "pos",
+                "sideUi": "Long",
+                "marketSymbol": "SOL",
+                "collateralSymbol": "SOL",
+                "sizeUsdUi": "100.0",
+                "entryPriceUi": "80.0",
+                "pnlWithFeeUsdUi": "1.0",
+                "leverageUi": "9"
+            }
+        ]))
+        .unwrap();
+
+        assert_eq!(positions.len(), 1);
+        assert_eq!(positions[0].market_symbol, "SOL");
+        assert_eq!(positions[0].side_ui, "Long");
+    }
+
+    #[test]
+    fn parse_wrapped_positions_array() {
+        let positions = parse_positions_response(serde_json::json!({
+            "positions": [
+                {
+                    "key": "pos",
+                    "sideUi": "Short",
+                    "marketSymbol": "SOL",
+                    "collateralSymbol": "SOL",
+                    "sizeUsdUi": "100.0",
+                    "entryPriceUi": "80.0",
+                    "pnlWithFeeUsdUi": "1.0",
+                    "leverageUi": "9"
+                }
+            ]
+        }))
+        .unwrap();
+
+        assert_eq!(positions.len(), 1);
+        assert_eq!(positions[0].side_ui, "Short");
+    }
 }

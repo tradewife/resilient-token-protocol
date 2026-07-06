@@ -402,7 +402,8 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
                 let side_upper = state.lock().await
                     .open_position.as_ref()
                     .map(|p| match p.side.as_str() {
-                        "Long" | "SHORT" => p.side.to_uppercase(),
+                        "Long" | "LONG" => "LONG".to_string(),
+                        "Short" | "SHORT" => "SHORT".to_string(),
                         _ => p.side.clone(),
                     })
                     .unwrap_or_default();
