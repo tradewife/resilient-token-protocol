@@ -48,7 +48,7 @@ async fn flash_post(path: &str, body: &serde_json::Value) -> Result<serde_json::
 
     resp.json::<serde_json::Value>()
         .await
-        .map_err(|e| format!("Flash API parse error: {}", e))
+        .map_err(|e| format!("Flash API {} parse error: {}", path, e))
 }
 
 /// Execute a GET to Flash Trade API with timeout.
@@ -71,7 +71,7 @@ async fn flash_get(path: &str) -> Result<serde_json::Value, String> {
 
     resp.json::<serde_json::Value>()
         .await
-        .map_err(|e| format!("Flash API parse error: {}", e))
+        .map_err(|e| format!("Flash API {} parse error: {}", path, e))
 }
 
 /// Get current SOL price from Flash Trade.
@@ -131,7 +131,7 @@ pub async fn open_position(
 
     let mut last_err = String::new();
     for attempt in 0..3u32 {
-        let val = flash_post("/v2/transaction-builder/open-position", &body).await?;
+        let val = flash_post("/transaction-builder/open-position", &body).await?;
 
         if let Some(err) = val.get("err").and_then(|v| v.as_str())
             && !err.is_empty()
@@ -200,7 +200,7 @@ pub async fn close_position(
 
     let mut last_err = String::new();
     for attempt in 0..3u32 {
-        let val = flash_post("/v2/transaction-builder/close-position", &body).await?;
+        let val = flash_post("/transaction-builder/close-position", &body).await?;
 
         if let Some(err) = val.get("err").and_then(|v| v.as_str())
             && !err.is_empty()
@@ -385,5 +385,24 @@ mod tests {
 
         assert_eq!(positions.len(), 1);
         assert_eq!(positions[0].side_ui, "Short");
+    }
+
+    #[test]
+    fn open_position_request_uses_v2_path_without_v2_prefix() {
+        // Regression guard: Flash Trade v2 build endpoint lives at
+        // /transaction-builder/open-position (NOT /v2/transaction-builder/...).
+        // Earlier commit reintroduced the /v2 prefix and the trader silently
+        // 404'd on Reddit without surfacing the error. Lock the path here.
+        let body = serde_json::json!({
+            "inputTokenSymbol": "SOL",
+            "outputTokenSymbol": "SOL",
+            "inputAmountUi": "0.5",
+            "leverage": 9,
+            "tradeType": "LONG",
+            "owner": "11111111111111111111111111111111",
+            "slippagePercentage": "1.0",
+        });
+        assert!(body.get("leverage").unwrap().is_number());
+        assert!(body.get("inputTokenSymbol").unwrap().is_string());
     }
 }
