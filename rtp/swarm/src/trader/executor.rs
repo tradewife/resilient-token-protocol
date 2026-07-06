@@ -317,9 +317,9 @@ async fn rpc_send_transaction(
                 b64_tx,
                 {
                     "encoding": "base64",
-                    "skipPreflight": false,
-                    "preflightCommitment": "processed",
-                    "maxRetries": 3usize
+                    "skipPreflight": true,
+                    "preflightCommitment": "confirmed",
+                    "maxRetries": 5usize
                 }
             ]
         }))
@@ -333,8 +333,9 @@ async fn rpc_send_transaction(
         .map_err(|e| format!("RPC parse error: {}", e))?;
 
     if let Some(sig) = json.get("result").and_then(|r| r.as_str()) {
-        // Confirm
-        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+        // No confirm sleep — skipPreflight already returns the signature
+        // for a broadcast tx; downstream polling reconciles position
+        // state on the next cycle.
         return Ok(sig.to_string());
     }
 
