@@ -129,8 +129,14 @@ pub async fn open_position(
         "slippagePercentage": "1.0"
     });
 
+    // Flash v2 builder embeds a blockhash that expires ~45s after the build.
+    // Per docs: errors return as { "error": "..." }; the only client-side
+    // defense when "Blockhash not found" or any submit error hits us is to
+    // rebuild the transaction against a freshly-rotated blockhash. The v2
+    // endpoints proactively refresh between calls, so we loop many short
+    // attempts to ride out the cache window instead of failing once.
     let mut last_err = String::new();
-    for attempt in 0..3u32 {
+    for attempt in 0..6u32 {
         let val = flash_post("/transaction-builder/open-position", &body).await?;
 
         if let Some(err) = val.get("err").and_then(|v| v.as_str())
@@ -158,10 +164,12 @@ pub async fn open_position(
 
         match sign_and_submit(keypair, tx_b64).await {
             Ok(sig) => return Ok((sig, size_usd, entry_price)),
-            Err(e) if is_blockhash_error(&e) && attempt < 2 => {
+            Err(e) if is_rebuild_error(&e) && attempt < 5 => {
                 last_err = e;
-                tokio::time::sleep(std::time::Duration::from_millis(500 * (attempt + 1) as u64))
-                    .await;
+                // Short sleep keeps the next builder call inside the
+                // blockhash validity window (~45s). 750ms keeps us well
+                // under that on the public mainnet RPC.
+                tokio::time::sleep(std::time::Duration::from_millis(750)).await;
             }
             Err(e) => return Err(e),
         }
@@ -199,7 +207,7 @@ pub async fn close_position(
     });
 
     let mut last_err = String::new();
-    for attempt in 0..3u32 {
+    for attempt in 0..6u32 {
         let val = flash_post("/transaction-builder/close-position", &body).await?;
 
         if let Some(err) = val.get("err").and_then(|v| v.as_str())
@@ -221,10 +229,9 @@ pub async fn close_position(
 
         match sign_and_submit(keypair, tx_b64).await {
             Ok(sig) => return Ok((sig, settled_pnl)),
-            Err(e) if is_blockhash_error(&e) && attempt < 2 => {
+            Err(e) if is_rebuild_error(&e) && attempt < 5 => {
                 last_err = e;
-                tokio::time::sleep(std::time::Duration::from_millis(500 * (attempt + 1) as u64))
-                    .await;
+                tokio::time::sleep(std::time::Duration::from_millis(750)).await;
             }
             Err(e) => return Err(e),
         }
@@ -283,6 +290,15 @@ fn is_blockhash_error(err: &str) -> bool {
         || err.contains("blockhash")
         || err.contains("expired")
         || err.contains("Block height exceeded")
+}
+
+/// Errors that should trigger a fresh builder call (Flash rotates blockhashes
+/// between calls; the only durable fix is to rebuild). Includes blockhash
+/// expiries, transaction simulation failures, and signature issues.
+fn is_rebuild_error(err: &str) -> bool {
+    is_blockhash_error(err)
+        || err.contains("Transaction simulation failed")
+        || err.contains("signature")
 }
 
 /// Send a base64-encoded transaction via Solana JSON-RPC.
