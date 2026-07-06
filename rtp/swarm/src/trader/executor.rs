@@ -245,24 +245,34 @@ pub async fn close_position(
 
 /// Sign a VersionedTransaction (base64) and submit to Solana mainnet via raw RPC.
 /// Uses the same raw HTTP pattern as chain_client.rs — no solana-client dependency.
+///
+/// Flash v2 builder embeds a recent blockhash; with the public mainnet-beta RPC
+/// the embedded hash is often stale by the time we sign+submit, so we refresh
+/// the blockhash locally via `getLatestBlockhash` and substitute it into the
+/// transaction message before signing.
 async fn sign_and_submit(
     keypair: &solana_sdk::signature::Keypair,
     tx_b64: &str,
 ) -> Result<String, String> {
     use solana_sdk::transaction::VersionedTransaction;
 
-    // Decode the unsigned transaction
     let tx_bytes = base64::engine::general_purpose::STANDARD
         .decode(tx_b64)
         .map_err(|e| format!("Base64 decode error: {}", e))?;
 
-    let tx: VersionedTransaction = bincode::deserialize(&tx_bytes)
+    let mut tx: VersionedTransaction = bincode::deserialize(&tx_bytes)
         .map_err(|e| format!("Transaction deserialize error: {}", e))?;
 
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(30))
         .build()
         .map_err(|e| format!("RPC client build failed: {}", e))?;
+
+    let fresh_hash = fetch_latest_blockhash(&client, MAINNET_RPC).await?;
+    match &mut tx.message {
+        solana_sdk::message::VersionedMessage::Legacy(m) => m.recent_blockhash = fresh_hash,
+        solana_sdk::message::VersionedMessage::V0(m) => m.recent_blockhash = fresh_hash,
+    }
 
     let sig = keypair.sign_message(&tx.message.serialize());
 
@@ -283,6 +293,36 @@ async fn sign_and_submit(
     let signed_b64 = base64::engine::general_purpose::STANDARD.encode(&serialized);
 
     rpc_send_transaction(&client, MAINNET_RPC, &signed_b64).await
+}
+
+/// Fetch a recent blockhash from Solana RPC (`getLatestBlockhash`).
+async fn fetch_latest_blockhash(
+    client: &reqwest::Client,
+    rpc_url: &str,
+) -> Result<solana_sdk::hash::Hash, String> {
+    let resp = client
+        .post(rpc_url)
+        .json(&serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "getLatestBlockhash",
+            "params": [{ "commitment": "confirmed" }]
+        }))
+        .send()
+        .await
+        .map_err(|e| format!("getLatestBlockhash request failed: {}", e))?;
+    let json: serde_json::Value = resp
+        .json()
+        .await
+        .map_err(|e| format!("getLatestBlockhash parse error: {}", e))?;
+    let bs = json
+        .get("result")
+        .and_then(|r| r.get("value"))
+        .and_then(|v| v.get("blockhash"))
+        .and_then(|b| b.as_str())
+        .ok_or_else(|| format!("getLatestBlockhash missing blockhash: {}", json))?;
+    bs.parse::<solana_sdk::hash::Hash>()
+        .map_err(|e| format!("blockhash decode error: {}", e))
 }
 
 fn is_blockhash_error(err: &str) -> bool {
