@@ -246,16 +246,15 @@ pub async fn close_position(
 /// Flash v2 one-time account setup. Returns a list of submitted tx signatures.
 /// Safe to re-run: each step is idempotent on the Flash side.
 ///
-/// Order matters: deposit-ledger and basket init must land before deposit-direct
-/// and delegate-basket, since deposit-direct writes to the basket/deposit-ledger
-/// PDAs. We sleep 2s between steps so the prior account is visible to the next.
+/// Order matters (per Flash SDK v2): deposit-ledger → basket → trade-vault → deposit → delegate.
+/// We sleep 2s between steps so the prior account is visible to the next.
 pub async fn v2_one_time_setup(
     keypair: &solana_sdk::signature::Keypair,
-    deposit_amount_ui: &str,
-    token_mint: &str,
 ) -> Result<Vec<String>, String> {
     let wallet = keypair.pubkey().to_string();
     let mut submitted: Vec<String> = Vec::new();
+    const SOL_MINT: &str = "So11111111111111111111111111111111111111112";
+    const SOL_DEPOSIT_UI: &str = "1.0"; // 1 SOL deposit for collateral
 
     // Step 0a — init deposit ledger
     match v2_call_and_submit(keypair, "/transaction-builder/init-deposit-ledger",
@@ -285,19 +284,31 @@ pub async fn v2_one_time_setup(
 
     tokio::time::sleep(std::time::Duration::from_secs(2)).await;
 
-    // Step 1 — deposit collateral (tokenMint is a mint pubkey, amount is UI)
+    // Step 0c — init trade vault for SOL (globally idempotent)
+    match v2_call_and_submit(keypair, "/transaction-builder/init-token-stake",
+        serde_json::json!({ "owner": wallet.clone(), "tokenMint": SOL_MINT }))
+        .await
+    {
+        Ok(sig) => submitted.push(format!("init-token-stake(SOL): {sig}")),
+        Err(e) if e.contains("already") || e.contains("initialized") => {
+            tracing::info!("[V2_SETUP] trade vault for SOL already initialized; skipping");
+        }
+        Err(e) => return Err(format!("init-token-stake failed: {e}")),
+    }
+
+    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+
+    // Step 1 — deposit SOL collateral
     match v2_call_and_submit(keypair, "/transaction-builder/deposit-direct",
         serde_json::json!({
             "owner": wallet.clone(),
-            "tokenMint": token_mint,
-            "amount": deposit_amount_ui,
+            "tokenMint": SOL_MINT,
+            "amount": SOL_DEPOSIT_UI,
         }))
         .await
     {
-        Ok(sig) => submitted.push(format!("deposit-direct: {sig}")),
+        Ok(sig) => submitted.push(format!("deposit-direct(SOL): {sig}")),
         Err(e) => {
-            // Deposit can be a no-op if the basket is already funded. Don't
-            // hard-fail the whole sequence on it.
             tracing::warn!("[V2_SETUP] deposit-direct non-fatal: {}", e);
         }
     }

@@ -346,16 +346,8 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
         .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
         .unwrap_or(false)
     {
-        let deposit_amount_ui = std::env::var("RTP_TRADER_V2_DEPOSIT_AMOUNT_UI")
-            .unwrap_or_else(|_| "1.0".to_string());
-        let token_mint = std::env::var("RTP_TRADER_V2_DEPOSIT_MINT")
-            .unwrap_or_else(|_| "So11111111111111111111111111111111111111112".to_string());
-        tracing::info!(
-            "[V2_SETUP] Starting Flash v2 one-time setup (deposit={} ui of mint {})",
-            deposit_amount_ui,
-            token_mint
-        );
-        match executor::v2_one_time_setup(&keypair, &deposit_amount_ui, &token_mint).await {
+        tracing::info!("[V2_SETUP] Starting Flash v2 one-time setup (USDC deposit)");
+        match executor::v2_one_time_setup(&keypair).await {
             Ok(sigs) => {
                 tracing::info!("[V2_SETUP] OK: {}", sigs.join(", "));
             }
