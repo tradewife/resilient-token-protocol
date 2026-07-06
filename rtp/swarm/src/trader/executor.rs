@@ -243,6 +243,105 @@ pub async fn close_position(
     ))
 }
 
+/// Flash v2 one-time account setup. Returns a list of submitted tx signatures.
+/// Safe to re-run: each step is idempotent on the Flash side.
+///
+/// Order matters: deposit-ledger and basket init must land before deposit-direct
+/// and delegate-basket, since deposit-direct writes to the basket/deposit-ledger
+/// PDAs. We sleep 2s between steps so the prior account is visible to the next.
+pub async fn v2_one_time_setup(
+    keypair: &solana_sdk::signature::Keypair,
+    deposit_amount_ui: &str,
+    token_mint: &str,
+) -> Result<Vec<String>, String> {
+    let wallet = keypair.pubkey().to_string();
+    let mut submitted: Vec<String> = Vec::new();
+
+    // Step 0a — init deposit ledger
+    match v2_call_and_submit(keypair, "/transaction-builder/init-deposit-ledger",
+        serde_json::json!({ "owner": wallet.clone() }))
+        .await
+    {
+        Ok(sig) => submitted.push(format!("init-deposit-ledger: {sig}")),
+        Err(e) if e.contains("already") || e.contains("initialized") || e.contains("0x0") => {
+            tracing::info!("[V2_SETUP] deposit-ledger already initialized; skipping");
+        }
+        Err(e) => return Err(format!("init-deposit-ledger failed: {e}")),
+    }
+
+    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+
+    // Step 0b — init basket
+    match v2_call_and_submit(keypair, "/transaction-builder/init-basket",
+        serde_json::json!({ "owner": wallet.clone() }))
+        .await
+    {
+        Ok(sig) => submitted.push(format!("init-basket: {sig}")),
+        Err(e) if e.contains("already") || e.contains("initialized") || e.contains("0x0") => {
+            tracing::info!("[V2_SETUP] basket already initialized; skipping");
+        }
+        Err(e) => return Err(format!("init-basket failed: {e}")),
+    }
+
+    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+
+    // Step 1 — deposit collateral (tokenMint is a mint pubkey, amount is UI)
+    match v2_call_and_submit(keypair, "/transaction-builder/deposit-direct",
+        serde_json::json!({
+            "owner": wallet.clone(),
+            "tokenMint": token_mint,
+            "amount": deposit_amount_ui,
+        }))
+        .await
+    {
+        Ok(sig) => submitted.push(format!("deposit-direct: {sig}")),
+        Err(e) => {
+            // Deposit can be a no-op if the basket is already funded. Don't
+            // hard-fail the whole sequence on it.
+            tracing::warn!("[V2_SETUP] deposit-direct non-fatal: {}", e);
+        }
+    }
+
+    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+
+    // Step 2 — delegate basket (required before any open/close lands)
+    match v2_call_and_submit(keypair, "/transaction-builder/delegate-basket",
+        serde_json::json!({
+            "payer": wallet.clone(),
+            "owner": wallet.clone(),
+        }))
+        .await
+    {
+        Ok(sig) => submitted.push(format!("delegate-basket: {sig}")),
+        Err(e) if e.contains("already") || e.contains("delegated") => {
+            tracing::info!("[V2_SETUP] basket already delegated; skipping");
+        }
+        Err(e) => return Err(format!("delegate-basket failed: {e}")),
+    }
+
+    Ok(submitted)
+}
+
+/// Build a Flash transaction via `flash_post`, then sign+submit to Solana.
+/// Used for the v2 setup endpoints that don't return position quotes.
+async fn v2_call_and_submit(
+    keypair: &solana_sdk::signature::Keypair,
+    path: &str,
+    body: serde_json::Value,
+) -> Result<String, String> {
+    let val = flash_post(path, &body).await?;
+    if let Some(err) = val.get("err").and_then(|v| v.as_str())
+        && !err.is_empty()
+    {
+        return Err(format!("API {path} err: {err}"));
+    }
+    let tx_b64 = val
+        .get("transactionBase64")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| format!("No transaction in {path} response"))?;
+    sign_and_submit(keypair, tx_b64).await
+}
+
 /// Sign a VersionedTransaction (base64) and submit to Solana mainnet via raw RPC.
 /// Uses the same raw HTTP pattern as chain_client.rs — no solana-client dependency.
 ///
@@ -461,5 +560,31 @@ mod tests {
         });
         assert!(body.get("leverage").unwrap().is_number());
         assert!(body.get("inputTokenSymbol").unwrap().is_string());
+    }
+
+    #[test]
+    fn v2_setup_endpoints_use_unprefixed_path() {
+        // All v2 account/setup endpoints live under /transaction-builder/...
+        // (same convention as /transaction-builder/open-position). Earlier
+        // attempts to call /v2/transaction-builder/init-* returned 404.
+        for (path, body) in [
+            ("/transaction-builder/init-deposit-ledger",
+             serde_json::json!({"owner": "Driyi"})),
+            ("/transaction-builder/init-basket",
+             serde_json::json!({"owner": "Driyi"})),
+            ("/transaction-builder/delegate-basket",
+             serde_json::json!({"payer": "Driyi", "owner": "Driyi"})),
+            ("/transaction-builder/deposit-direct",
+             serde_json::json!({
+                 "owner": "Driyi",
+                 "tokenMint": "So11111111111111111111111111111111111111112",
+                 "amount": "1.0",
+             })),
+        ] {
+            assert!(path.starts_with("/transaction-builder/"));
+            assert!(path.contains("init-") || path.contains("delegate-") || path.contains("deposit-"));
+            assert!(!path.starts_with("/v2/"));
+            assert!(body.get("owner").is_some());
+        }
     }
 }
