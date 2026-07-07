@@ -2,7 +2,7 @@
 
 > **How to use this file:** Paste the relevant sections at the top of every fresh agent session. Do not paste the full papers or full repo. This file is the compressed institutional memory of the project. Update it after each significant session.
 
-**Last updated:** 2026-05-29 — Trader optimization: config loading fix, SHORT entry, score flip delay, health monitoring. 362 unit + 5 integration tests pass.
+**Last updated:** 2026-07-07 — Migrated execution path to `@flash_trade/flash-sdk-v2@1.0.36` via Node child process bridge (`cli/flash-sdk-wrapper.mjs`). REST `/transaction-builder/*` kept as fallback. Node 20 baked into `rtp/swarm/Dockerfile.trader` wrapper stage; `RTP_TRADER_WRAPPER_PATH=/app/wrapper/flash-sdk-wrapper.mjs`, `RTP_TRADER_ER_RPC=https://flash.magicblock.xyz`. Strategy rules (TP/SL/trail/time-decay/score-flip-delay/MR-target), risk priority ordering, side-correct PnL math, position sizing — all unchanged. 85 trader tests + 5 executor tests pass. Auto-deploy on push (Railway connected to `tradewife/resilient-token-protocol`).
 **Current state:** Live autonomous trader (rtp-trader) running 24/7 on Railway with validated config loaded from `data/trader-strategy-config.json`: thresh=0.3, tp=6.0, sl=2.5, trail=1.0, hold=96h, decay=48h, flip_delay=2h, align=3. Supports both LONG and SHORT positions. Score flip delay provides 2h grace period before exit. Health endpoint returns 503 when stale/erroring. **Trader watchdog:** 120s cycle timeout, 30s HTTP timeouts, consecutive error tracking with exponential backoff. `RTP_TRADER_LEVERAGE=9.0` on Railway. All 7 Railway services green. License: BSL-1.1.
 
 ---

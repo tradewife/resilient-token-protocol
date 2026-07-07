@@ -1,14 +1,55 @@
-//! Flash Trade REST API executor — open/close positions via transaction builder.
+//! Flash Trade SDK v2 executor — open/close positions via @flash_trade/flash-sdk-v2.
 //!
-//! Calls the Flash Trade REST API to build unsigned VersionedTransaction,
-//! signs with the local keypair, and submits to Solana mainnet via raw RPC.
-//! No solana-client dependency — uses the same raw HTTP pattern as chain_client.rs.
+//! Spawns a Node.js child process that loads the Flash TypeScript SDK,
+//! builds correct v2 transactions (including session_token account),
+//! signs with the wallet keypair, and submits to Solana mainnet.
+//! Falls back to legacy REST API if child process unavailable.
 
 use base64::Engine;
+use serde::{Deserialize, Serialize};
 use solana_sdk::signer::Signer;
+use std::process::Stdio;
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::process::Command;
 
 const FLASH_API: &str = "https://flashapi.trade";
 const MAINNET_RPC: &str = "https://api.mainnet-beta.solana.com";
+
+/// Respawn budget: at most this many child respawn attempts per minute before
+/// we hold off and surface a "node unavailable" error to the caller. Caller
+/// falls back to the legacy REST path on this error.
+const SDK_MAX_RESPAWNS_PER_MINUTE: u32 = 3;
+const SDK_RESPAWN_HOLD_MS: u64 = 5_000;
+
+/// Default path the wrapper lives at inside the trader Docker image.
+/// Overridable via `RTP_TRADER_WRAPPER_PATH` for dev runs.
+const DEFAULT_WRAPPER_PATH: &str = "/app/wrapper/flash-sdk-wrapper.mjs";
+
+/// JSON-RPC request to Node.js wrapper
+#[derive(Serialize, Deserialize, Debug)]
+struct SdkRequest {
+    jsonrpc: String,
+    method: String,
+    params: serde_json::Value,
+    id: u64,
+}
+
+/// JSON-RPC response from Node.js wrapper
+#[derive(Deserialize, Debug)]
+struct SdkResponse {
+    jsonrpc: String,
+    id: u64,
+    #[serde(default)]
+    result: Option<serde_json::Value>,
+    #[serde(default)]
+    error: Option<SdkError>,
+}
+
+#[derive(Deserialize, Debug)]
+struct SdkError {
+    code: i32,
+    message: String,
+}
 
 /// Position from GET /positions/owner/{owner}.
 #[derive(Debug, Clone, serde::Deserialize)]
@@ -25,8 +66,302 @@ pub struct PositionInfo {
 }
 
 const REQUEST_TIMEOUT_SECS: u64 = 30;
+const SDK_CHILD_TIMEOUT_SECS: u64 = 120;
 
-/// Execute a POST to Flash Trade API with timeout.
+/// Flash SDK v2 client — communicates with Node.js wrapper via stdio JSON-RPC.
+struct FlashSdkClient {
+    child: tokio::process::Child,
+    stdin: tokio::process::ChildStdin,
+    stdout: BufReader<tokio::process::ChildStdout>,
+    request_id: u64,
+}
+
+impl FlashSdkClient {
+    /// Spawn the Node.js wrapper (defaults to `/app/wrapper/flash-sdk-wrapper.mjs`
+    /// in the container; overridable via `RTP_TRADER_WRAPPER_PATH` for dev).
+    /// The wrapper reads RTP_TRADER_KEYPAIR_JSON from environment.
+    async fn spawn() -> Result<Self, String> {
+        let wrapper_path = std::env::var("RTP_TRADER_WRAPPER_PATH")
+            .unwrap_or_else(|_| DEFAULT_WRAPPER_PATH.to_string());
+
+        let mut child = Command::new("node")
+            .arg("--input-type=module")
+            .arg("--experimental-vm-modules")
+            .arg(&wrapper_path)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::inherit())
+            .env("RTP_TRADER_ER_RPC", "https://flash.magicblock.xyz")
+            .spawn()
+            .map_err(|e| format!("Failed to spawn flash-sdk wrapper: {}", e))?;
+
+        let stdin = child.stdin.take().ok_or("No stdin")?;
+        let stdout = BufReader::new(child.stdout.take().ok_or("No stdout")?);
+
+        let mut client = Self {
+            child,
+            stdin,
+            stdout,
+            request_id: 0,
+        };
+
+        // Wait for "Ready" signal
+        let mut line = String::new();
+        let timeout = tokio::time::Duration::from_secs(30);
+        tokio::time::timeout(timeout, async {
+            while client.stdout.read_line(&mut line).await.is_ok() {
+                if line.contains("Ready for JSON-RPC") {
+                    return Ok(());
+                }
+                line.clear();
+            }
+            Err("Wrapper did not signal ready")
+        }).await.map_err(|_| "Wrapper startup timeout".to_string())?;
+
+        tracing::info!("[FLASH_SDK] Child process spawned and ready");
+        Ok(client)
+    }
+
+    /// Send a JSON-RPC request and wait for response.
+    async fn call(&mut self, method: &str, params: serde_json::Value) -> Result<serde_json::Value, String> {
+        self.request_id += 1;
+        let req = SdkRequest {
+            jsonrpc: "2.0".to_string(),
+            method: method.to_string(),
+            params,
+            id: self.request_id,
+        };
+
+        let req_json = serde_json::to_string(&req).map_err(|e| format!("Serialize request: {}", e))?;
+        self.stdin.write_all(req_json.as_bytes()).await.map_err(|e| format!("Write stdin: {}", e))?;
+        self.stdin.write_all(b"\n").await.map_err(|e| format!("Write newline: {}", e))?;
+        self.stdin.flush().await.map_err(|e| format!("Flush stdin: {}", e))?;
+
+        // Read response with timeout
+        let mut line = String::new();
+        let read_fut = self.stdout.read_line(&mut line);
+        let resp_json = tokio::time::timeout(
+            tokio::time::Duration::from_secs(SDK_CHILD_TIMEOUT_SECS),
+            read_fut
+        ).await
+            .map_err(|_| "SDK call timeout".to_string())?
+            .map_err(|e| format!("Read stdout: {}", e))?;
+
+        if resp_json == 0 {
+            return Err("Child process closed stdout".to_string());
+        }
+
+        let resp: SdkResponse = serde_json::from_str(line.trim())
+            .map_err(|e| format!("Parse response: {} (raw: {})", e, line))?;
+
+        if let Some(err) = resp.error {
+            return Err(format!("SDK error {}: {}", err.code, err.message));
+        }
+
+        resp.result.ok_or("No result in response".to_string())
+    }
+
+    /// Run the 5-step v2 setup (idempotent).
+    pub async fn setup(&mut self) -> Result<Vec<(String, String)>, String> {
+        let result = self.call("setup", serde_json::json!({})).await?;
+        let sigs = result.get("signatures")
+            .and_then(|v| v.as_array())
+            .ok_or("No signatures in setup result")?;
+        sigs.iter().map(|s| {
+            let step = s.get("step").and_then(|v| v.as_str()).unwrap_or("unknown").to_string();
+            let sig = s.get("signature").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            Ok((step, sig))
+        }).collect()
+    }
+
+    /// Open a position via SDK (returns signature, size_usd, entry_price).
+    pub async fn open_position(&mut self, amount_sol: f64, leverage: f64, trade_type: &str) -> Result<(String, f64, f64), String> {
+        let side = if trade_type == "LONG" || trade_type == "Long" { "long" } else { "short" };
+        let params = serde_json::json!({
+            "collateralAmount": (amount_sol * 1e9) as u64, // lamports
+            "leverage": leverage,
+            "side": side,
+        });
+        let result = self.call("open_position", params).await?;
+        let sig = result.get("signature").and_then(|v| v.as_str()).ok_or("No signature")?;
+        let size_usd = result.get("size_usd").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let entry_price = result.get("entry_price").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        Ok((sig.to_string(), size_usd, entry_price))
+    }
+
+    /// Close a position via SDK.
+    pub async fn close_position(&mut self, size_usd: f64, withdraw_token: &str) -> Result<(String, f64), String> {
+        let params = serde_json::json!({
+            "sizeAmount": (size_usd * 1e6) as u64, // USDC 6dp
+            "collateralSymbol": withdraw_token,
+        });
+        let result = self.call("close_position", params).await?;
+        let sig = result.get("signature").and_then(|v| v.as_str()).ok_or("No signature")?;
+        let pnl = result.get("pnl").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        Ok((sig.to_string(), pnl))
+    }
+
+    /// Get current price via SDK.
+    pub async fn get_price(&mut self, symbol: &str, side: &str) -> Result<(u64, i32), String> {
+        let params = serde_json::json!({ "symbol": symbol, "side": side });
+        let result = self.call("get_price", params).await?;
+        let price: u64 = result
+            .get("price")
+            .and_then(|v| v.as_str())
+            .ok_or("No price")?
+            .parse()
+            .map_err(|e: std::num::ParseIntError| e.to_string())?;
+        let exponent: i32 = result
+            .get("exponent")
+            .and_then(|v| v.as_str())
+            .ok_or("No exponent")?
+            .parse()
+            .map_err(|e: std::num::ParseIntError| e.to_string())?;
+        Ok((price, exponent))
+    }
+}
+
+impl Drop for FlashSdkClient {
+    fn drop(&mut self) {
+        let _ = self.child.start_kill();
+    }
+}
+
+/// Module-level Flash SDK client — initialized on first use.
+/// Uses `tokio::sync::OnceCell` for lazy initialization.
+static FLASH_SDK_CLIENT: tokio::sync::OnceCell<tokio::sync::Mutex<FlashSdkState>> = tokio::sync::OnceCell::const_new();
+
+/// Per-process state for the SDK child: the (optional) live child + respawn
+/// bookkeeping. Respawn cap prevents thrashing when the wrapper keeps dying —
+/// once we cross `SDK_MAX_RESPAWNS_PER_MINUTE` in a rolling 60s window we hold
+/// off spawning for `SDK_RESPAWN_HOLD_MS` and surface a "node unavailable"
+/// error so the caller falls back to the legacy REST path instead.
+struct FlashSdkState {
+    inner: Option<FlashSdkClient>,
+    spawn_history: Vec<std::time::Instant>,
+}
+
+impl FlashSdkState {
+    fn new() -> Self {
+        Self { inner: None, spawn_history: Vec::new() }
+    }
+
+    fn record_spawn(&mut self, when: std::time::Instant) {
+        self.spawn_history.push(when);
+        self.spawn_history.retain(|t| when.duration_since(*t).as_secs() < 60);
+    }
+
+    fn is_held(&self, _now: std::time::Instant) -> bool {
+        self.spawn_history.len() as u32 > SDK_MAX_RESPAWNS_PER_MINUTE
+    }
+}
+
+/// Returns the live SDK client — spawning on first use — *or* an error if the
+/// wrapper is dead or the respawn budget is exhausted. Used internally by
+/// `open_position` / `close_position` to attempt the SDK path before falling
+/// through to the legacy REST path.
+async fn try_get_sdk_client() -> Result<tokio::sync::MutexGuard<'static, FlashSdkState>, String> {
+    let state_cell = FLASH_SDK_CLIENT
+        .get_or_init(|| async { tokio::sync::Mutex::new(FlashSdkState::new()) })
+        .await;
+    let mut guard = state_cell.lock().await;
+    let now = std::time::Instant::now();
+
+    if guard.is_held(now) {
+        return Err("node unavailable (respawn budget exceeded)".to_string());
+    }
+
+    if guard.inner.is_none() {
+        match FlashSdkClient::spawn().await {
+            Ok(c) => {
+                guard.record_spawn(now);
+                guard.inner = Some(c);
+            }
+            Err(e) => {
+                guard.record_spawn(now);
+                tracing::warn!("[FLASH_SDK] Spawn failed: {} — falling back to REST", e);
+                return Err(format!("node unavailable: {e}"));
+            }
+        }
+    }
+
+    Ok(guard)
+}
+
+/// Drop the dead client so the next caller respawns. Called from `open_position`
+/// / `close_position` when the SDK call returns an error indicating the child
+/// process is dead (timeout, EOF, parse failure).
+async fn sdk_mark_dead() {
+    let Some(state_cell) = FLASH_SDK_CLIENT.get() else { return };
+    let mut guard = state_cell.lock().await;
+    if let Some(c) = guard.inner.take() {
+        // c's Drop kills the child.
+        drop(c);
+        tracing::warn!("[FLASH_SDK] dropping dead client; next caller respawns");
+    }
+}
+
+/// Single-shot SDK open attempt. Returns `"node unavailable: <why>"` when the
+/// wrapper isn't running so callers can fall back to REST cleanly.
+async fn try_open_via_sdk(
+    amount_sol: f64,
+    leverage: f64,
+    trade_type: &str,
+) -> Result<(String, f64, f64), String> {
+    let mut guard = try_get_sdk_client().await?;
+    let result = guard
+        .inner
+        .as_mut()
+        .unwrap() // safe: try_get_sdk_client guarantees Some
+        .open_position(amount_sol, leverage, trade_type)
+        .await;
+    match result {
+        Ok(v) => Ok(v),
+        Err(e) if is_sdk_dead_error(&e) => {
+            // Take the client out so Drop kills it.
+            if let Some(c) = guard.inner.take() {
+                drop(c);
+            }
+            Err(format!("node unavailable: {e}"))
+        }
+        Err(other) => {
+            // RPC/on-chain error — leave the client alive; the next call can
+            // retry through the same wrapper.
+            Err(other)
+        }
+    }
+}
+
+/// Single-shot SDK close attempt.
+async fn try_close_via_sdk(size_usd: f64, withdraw_token: &str) -> Result<(String, f64), String> {
+    let mut guard = try_get_sdk_client().await?;
+    let result = guard
+        .inner
+        .as_mut()
+        .unwrap()
+        .close_position(size_usd, withdraw_token)
+        .await;
+    match result {
+        Ok(v) => Ok(v),
+        Err(e) if is_sdk_dead_error(&e) => {
+            if let Some(c) = guard.inner.take() {
+                drop(c);
+            }
+            Err(format!("node unavailable: {e}"))
+        }
+        Err(other) => Err(other),
+    }
+}
+
+fn is_sdk_dead_error(err: &str) -> bool {
+    err.contains("Child process closed stdout")
+        || err.contains("SDK call timeout")
+        || err.contains("Wrapper startup timeout")
+        || err.contains("Wrapper did not signal ready")
+        || err.contains("Parse response")
+}
+
+/// Execute a POST to Flash Trade API with timeout (legacy fallback).
 async fn flash_post(path: &str, body: &serde_json::Value) -> Result<serde_json::Value, String> {
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(REQUEST_TIMEOUT_SECS))
@@ -117,6 +452,17 @@ pub async fn open_position(
     leverage: f64,
     trade_type: &str,
 ) -> Result<(String, f64, f64), String> {
+    // SDK path first: returns Ok on success or an error tagged "node unavailable"
+    // when the wrapper child is missing / died. Other errors (RPC rejection,
+    // size/price issue) bubble up unchanged.
+    match try_open_via_sdk(amount_sol, leverage, trade_type).await {
+        Ok(sig_size_price) => return Ok(sig_size_price),
+        Err(e) if e.starts_with("node unavailable") => {
+            tracing::warn!("[OPEN] SDK unavailable ({}). Falling back to REST.", e);
+        }
+        Err(other) => return Err(other),
+    }
+
     let wallet = keypair.pubkey().to_string();
 
     let body = serde_json::json!({
@@ -190,6 +536,16 @@ pub async fn close_position(
     size_usd: &str,
     withdraw_token_symbol: &str,
 ) -> Result<(String, f64), String> {
+    // SDK path first.
+    let size_usd_f: f64 = size_usd.parse().unwrap_or(0.0);
+    match try_close_via_sdk(size_usd_f, withdraw_token_symbol).await {
+        Ok(sig_pnl) => return Ok(sig_pnl),
+        Err(e) if e.starts_with("node unavailable") => {
+            tracing::warn!("[CLOSE] SDK unavailable ({}). Falling back to REST.", e);
+        }
+        Err(other) => return Err(other),
+    }
+
     let wallet = keypair.pubkey().to_string();
     let side = match side {
         "Long" | "LONG" => "LONG",

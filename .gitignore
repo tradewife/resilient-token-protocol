@@ -52,6 +52,11 @@ Thumbs.db
 credentials.json
 *.pem
 *.key
+# Solana keypair dumps (trader wallet, demo wallets)
+*-wallet.json
+cli/rtp-v2-wallet.json
+cli/*-wallet.json
+scripts/rtp-v2-wallet.json
 
 # --- Anchor / Solana build artifacts ---
 target/

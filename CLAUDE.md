@@ -104,6 +104,16 @@ Fee-Payer Wallet (gas only, DONE)
 - **/health endpoint returns 503 when unhealthy** — consecutive_errors >= 5 OR last_healthy > 30 minutes ago. Not a static "ok" anymore.
 - **/state returns active_config** — TraderState now includes the loaded StrategyParams so config drift is visible from the dashboard.
 
+### Flash SDK v2 Migration (Jul 7, 2026)
+
+- **Migration scope**: `rtp/swarm/src/trader/executor.rs::open_position` / `close_position` now attempt the Flash SDK v2 wrapper first; on `node unavailable` they fall back to the legacy `/transaction-builder/*` REST path. Strategy rules (TP/SL/trail/time-decay/score-flip-delay/MR-target), risk management (priority ordering, side-correct PnL math), and position sizing (computed in `trader/mod.rs`, forwarded as `amount_sol`) are **unchanged**. All 85 trader tests + 5 executor tests still pass.
+- **Wrapper**: `cli/flash-sdk-wrapper.mjs` is a thin stdio JSON-RPC bridge loaded by `rtp/swarm/src/trader/executor.rs::FlashSdkClient`. It uses `@flash_trade/flash-sdk-v2@1.0.36` (pinned in `cli/package.json`), `Side`/`isVariant`/`PoolConfig.fromIdsByName("Crypto.1","mainnet-beta")` per the SDK's trader-interactions guide. Collateral resolved from the market PDA — never hardcoded — to avoid `Custom 2006` (ConstraintSeeds). `sizeAmount` derived from `getOpenPositionQuoteEr` to avoid `Custom 6021/6023`. The wrapper loads the keypair exclusively from `RTP_TRADER_KEYPAIR_JSON` (env), never argv.
+- **Idempotent setup**: The wrapper's `setup` skips `depositDirect` when `fetchUserDepositLedger` reports an already-funded SOL balance (user has 2.4 SOL pre-deposited; the operator has explicitly stated the deposit system must not change).
+- **Respawn lifecycle**: `FlashSdkState` tracks spawn attempts in a rolling 60s window. After 3 spawn failures, the cell returns `node unavailable (respawn budget exceeded)` so callers fall back to REST. Child process deaths detected by `is_sdk_dead_error` patterns on the response error strings.
+- **Docker**: `rtp/swarm/Dockerfile.trader` now has a `node:20-bookworm-slim` intermediate stage that runs `npm ci` against `cli/package.json` and bakes the wrapper + node_modules into `/app/wrapper/`. Runtime stage installs `nodejs` + sets `RTP_TRADER_WRAPPER_PATH=/app/wrapper/flash-sdk-wrapper.mjs`, `RTP_TRADER_ER_RPC=https://flash.magicblock.xyz`, `RTP_SOLANA_RPC_URL=https://api.mainnet-beta.solana.com` (the first three have defaults baked in but remain env-overridable for dev). Node is required: removing it from the image forces the trader to rely on REST.
+- **Env**: `RTP_TRADER_KEYPAIR_JSON` is read directly from the wrapper (env-only, never CLI args). It's already set on Railway's `rtp-trader` service. No change needed to existing Railway env vars.
+- **Memory**: This migration lives next to the existing "Operational Notes (Lessons Learned)" — keep the wrapper path in sync. Spec at `/home/kt/.factory/specs/2026-07-07-spec-corrected-replace-rest-api-calls-with-flash-sdk-v2-via-node-js-child-proces.md`.
+
 ---
 
 ## Repo Layout

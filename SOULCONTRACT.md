@@ -128,6 +128,8 @@ No strategy goes live or stays live without clearing codified gates. All thresho
 | Resource | URL |
 |----------|-----|
 | Flash Trade REST API | https://flashapi.trade |
+| Flash Trade SDK v2 | `@flash_trade/flash-sdk-v2@1.0.36` via `cli/flash-sdk-wrapper.mjs` (Node child process). REST `/transaction-builder/*` retained as fallback. |
+| Flash Trade ER RPC (mainnet) | `https://flash.magicblock.xyz` |
 | Flash Trade SKILL.md | `flash-trade/SKILL.md` (in repo) |
 | Flash Trade Program (mainnet) | `FLASH6Lo6h3iasJKWDs2F8TkW2UKf3s15C8PMGuVfgBn` |
 | Solana Wallet Adapter | https://github.com/solana-labs/wallet-adapter |

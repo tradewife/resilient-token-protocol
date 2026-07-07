@@ -12,19 +12,37 @@ COPY rtp/swarm/tests/ tests/
 
 RUN cargo build --release --bin rtp-trader
 
+# Stage 2: build a trimmed Node wrapper + its dependency tree so the runtime
+# image doesn't need npm at boot. The wrapper is a thin JSON-RPC bridge to
+# @flash_trade/flash-sdk-v2 (see cli/flash-sdk-wrapper.mjs).
+FROM node:20-bookworm-slim AS wrapper
+WORKDIR /wrapper
+COPY cli/package.json cli/package-lock.json ./
+COPY cli/flash-sdk-wrapper.mjs ./
+RUN npm ci --omit=dev --no-audit --no-fund
+
 FROM debian:bookworm-slim
-RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates nodejs npm \
+    && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /build/target/release/rtp-trader /usr/local/bin/
 
 # Keypair written from env var at startup (same pattern as daemon)
-RUN mkdir -p /app/keys /app/config /data
+RUN mkdir -p /app/keys /app/config /data /app/wrapper
 
 COPY data/trader-strategy-config.json /app/config/strategy.json
+
+# Copy the prepared wrapper + node_modules from the wrapper stage
+COPY --from=wrapper /wrapper /app/wrapper
 
 ENV RTP_TRADER_KEYPAIR=/app/keys/trader.json
 ENV RTP_TRADER_STATE_PATH=/data/trader-state.json
 ENV RTP_TRADER_HTTP_PORT=8080
 ENV RTP_STRATEGY_CONFIG=/app/config/strategy.json
+
+# Wrapper location + Flash Trade endpoints (overrideable via Railway env)
+ENV RTP_TRADER_WRAPPER_PATH=/app/wrapper/flash-sdk-wrapper.mjs
+ENV RTP_TRADER_ER_RPC=https://flash.magicblock.xyz
+ENV RTP_SOLANA_RPC_URL=https://api.mainnet-beta.solana.com
 
 EXPOSE 8080
 

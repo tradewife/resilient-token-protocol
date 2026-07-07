@@ -51,7 +51,7 @@ The Survivor 2.69 strategy runs autonomously 24/7 on Railway. A Rust binary (`rt
 | Component | Detail |
 |-----------|--------|
 | Strategy | SOL/USDT Survivor 2.69 (9x Calmar-optimized) — Calmar 44.89, 100% consistency |
-| Execution | Flash Trade REST API → sign → submit to Solana mainnet |
+| Execution | Flash SDK v2 (`@flash_trade/flash-sdk-v2@1.0.36`) via Node child process · REST `/transaction-builder/*` fallback retained |
 | Position sizing | 20% of capital per trade, 9x leverage |
 | Stops | TP: 6.0× ATR, SL: 2.5× ATR, Trailing: 1.0× ATR |
 | Signal | threshold=0.3 with 3+ aligned timeframes, max hold 96h |
