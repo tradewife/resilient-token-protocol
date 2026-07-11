@@ -159,7 +159,23 @@ export default function Home() {
   // The yield engine runs on mainnet. The devnet demo PDA only holds rent-exempt minimum.
   // Show the mainnet trader wallet balance as the real "Treasury SOL" figure.
   // Uses server-side API route to avoid CORS issues with public Solana RPC.
-  const TRADER_WALLET = "Driyi8Sw2622yCefU34zrjBsQynrDoGD31tBecXrEF6R";
+  //
+  // Wallet source priority (highest first):
+  //   1. `trader.wallet` from the live /api/trader-status response — the
+  //      actual pubkey the trader is signing with right now.
+  //   2. `process.env.NEXT_PUBLIC_RTP_TRADER_WALLET_PUBKEY` — pinned
+  //      override for builds where trader-state is unavailable.
+  //   3. Legacy default (kept so dev builds without env still render — the
+  //      value is the pubkey published in earlier shipping docs).
+  const LEGACY_TRADER_WALLET = "Driyi8Sw2622yCefU34zrjBsQynrDoGD31tBecXrEF6R";
+  const TRADER_WALLET =
+    (trader?.wallet && trader.wallet.length > 0 ? trader.wallet : null) ||
+    process.env.NEXT_PUBLIC_RTP_TRADER_WALLET_PUBKEY ||
+    LEGACY_TRADER_WALLET;
+  const TRADER_WALLET_SHORT =
+    TRADER_WALLET.length >= 8
+      ? `${TRADER_WALLET.slice(0, 4)}...${TRADER_WALLET.slice(-4)}`
+      : TRADER_WALLET;
   useEffect(() => {
     let alive = true;
     const poll = async () => {
@@ -409,7 +425,7 @@ export default function Home() {
             <div className="sys2-vital-value">
               {treasurySol !== null && treasurySol > 0 ? treasurySol.toFixed(4) : "—"}
             </div>
-            <div className="sys2-vital-sub">{treasurySol !== null && treasurySol > 0 ? "Mainnet · Driyi8...EF6R" : "Mainnet"}</div>
+            <div className="sys2-vital-sub">{treasurySol !== null && treasurySol > 0 ? `Mainnet · ${TRADER_WALLET_SHORT}` : "Mainnet"}</div>
           </div>
           <div className="sys2-vital">
             <div className="sys2-vital-label">Mainnet TXs</div>
@@ -752,7 +768,7 @@ const result = await registerWithRTP(connection, payer, {
           <span className="vital-label">Program ID (Devnet)</span>
         </div>
         <div className="vital">
-          <span className="vital-value">Driyi8...EF6R</span>
+          <span className="vital-value">{TRADER_WALLET_SHORT}</span>
           <span className="vital-label">Trader Wallet (Mainnet)</span>
         </div>
         <div className="vital">

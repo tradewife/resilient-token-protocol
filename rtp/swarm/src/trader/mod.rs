@@ -298,6 +298,33 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
     // Load or create state — shared with HTTP status server via Arc<Mutex>
     let mut initial =
         TraderState::load(&config.state_path).unwrap_or_else(|| TraderState::new(&wallet));
+
+    // Wallet rotation: if the loaded state was written under a previous
+    // keypair (e.g. RTP_TRADER_KEYPAIR_JSON was rotated after a deploy), the
+    // `wallet` string is stale and the dashboard would read the OLD pubkey.
+    // Rotate to the live wallet, **preserving trade history** so the dashboard
+    // tape continues across wallet rotations, but clear any orphaned open
+    // position (the reconciler on first poll will silently close it if Flash
+    // has no matching account, instead of failing loudly).
+    //
+    // Note on totals: prior-wallet `total_trades` and `total_pnl_sol` are
+    // preserved as-is — they're monotonic counters and accurately reflect the
+    // position lifecycle that the trader observed under either wallet.
+    if initial.wallet != wallet {
+        tracing::warn!(
+            "[WALLET_ROTATE] state wallet {} != live wallet {} — rotating to live wallet, \
+             preserving {} trades (cumulative totals retained) and clearing any stale open position",
+            initial.wallet,
+            wallet,
+            initial.trade_history.len()
+        );
+        initial.wallet = wallet.clone();
+        initial.open_position = None;
+        if let Err(e) = initial.save(&config.state_path) {
+            tracing::warn!("[WALLET_ROTATE] could not persist rotated state: {}", e);
+        }
+    }
+
     let repaired = initial.repair_trade_history_sides();
     if repaired > 0 {
         tracing::warn!(
