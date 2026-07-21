@@ -306,10 +306,12 @@ impl FlashSdkClient {
         &mut self,
         size_usd: f64,
         withdraw_token: &str,
+        side: &str,
     ) -> Result<(String, f64), String> {
         let params = serde_json::json!({
             "sizeAmount": (size_usd * 1e6) as u64, // USDC 6dp
             "collateralSymbol": withdraw_token,
+            "side": side,
         });
         let result = self.call("close_position", params).await?;
         let sig = result
@@ -459,13 +461,17 @@ async fn try_open_via_sdk(
 }
 
 /// Single-shot SDK close attempt.
-async fn try_close_via_sdk(size_usd: f64, withdraw_token: &str) -> Result<(String, f64), String> {
+async fn try_close_via_sdk(
+    size_usd: f64,
+    withdraw_token: &str,
+    side: &str,
+) -> Result<(String, f64), String> {
     let mut guard = try_get_sdk_client().await?;
     let result = guard
         .inner
         .as_mut()
         .unwrap()
-        .close_position(size_usd, withdraw_token)
+        .close_position(size_usd, withdraw_token, side)
         .await;
     match result {
         Ok(v) => Ok(v),
@@ -851,7 +857,7 @@ pub async fn close_position(
 ) -> Result<(String, f64), String> {
     // SDK path first.
     let size_usd_f: f64 = size_usd.parse().unwrap_or(0.0);
-    match try_close_via_sdk(size_usd_f, withdraw_token_symbol).await {
+    match try_close_via_sdk(size_usd_f, withdraw_token_symbol, side).await {
         Ok(sig_pnl) => return Ok(sig_pnl),
         Err(e) if e.starts_with("node unavailable") => {
             tracing::warn!("[CLOSE] SDK unavailable ({}). Falling back to REST.", e);

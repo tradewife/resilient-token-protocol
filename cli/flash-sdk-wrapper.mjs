@@ -100,9 +100,8 @@ async function handleRequest(req) {
   }
 }
 
-// Resolve the market for (targetSymbol, side) and return { marketPk, side, collateralSymbol }.
-// Mirrors the docs "Resolving the market" snippet: collateral is derived from the
-// market PDA — never hardcoded — to avoid ConstraintSeeds (Custom 2006).
+// Resolve the first configured market for (targetSymbol, side). This mirrors the
+// docs snippet and is used as a base before applying SDK open-only overrides.
 function getMarket(targetSymbol, side) {
   const targetToken = poolConfig.getTokenFromSymbol(targetSymbol);
   const targetCustody = poolConfig.custodies.find((c) =>
@@ -124,6 +123,42 @@ function getMarket(targetSymbol, side) {
   );
   if (!collateral) throw new Error("collateral custody not found for market");
   return { market: market.marketAccount, side, collateralSymbol: collateral.symbol };
+}
+
+function getCustodyBySymbol(symbol) {
+  const token = poolConfig.getTokenFromSymbol(symbol);
+  const custody = poolConfig.custodies.find((c) => c.mintKey.equals(token.mintKey));
+  if (!custody) throw new Error(`no custody for ${symbol}`);
+  return custody;
+}
+
+function getMarketForLock(targetSymbol, lockSymbol, side) {
+  const targetCustody = getCustodyBySymbol(targetSymbol);
+  const lockCustody = getCustodyBySymbol(lockSymbol);
+  const market =
+    typeof client?.findMarketConfig === "function"
+      ? client.findMarketConfig(poolConfig, targetSymbol, lockSymbol, side)
+      : poolConfig.getMarketConfig(targetCustody.custodyAccount, lockCustody.custodyAccount, side);
+  if (!market) {
+    throw new Error(
+      `no ${isVariant(side, "long") ? "long" : "short"} market for ${targetSymbol}/${lockSymbol}`,
+    );
+  }
+  return { market: market.marketAccount, side, collateralSymbol: lockSymbol };
+}
+
+function resolveOpenMarket(targetSymbol, side) {
+  const base = getMarket(targetSymbol, side);
+  const lockSymbol =
+    typeof client?.resolveCollateralSymbol === "function"
+      ? client.resolveCollateralSymbol(targetSymbol, base.collateralSymbol, side)
+      : base.collateralSymbol;
+  const resolved = getMarketForLock(targetSymbol, lockSymbol, side);
+  return {
+    market: resolved.market,
+    lockSymbol,
+    fundingSymbol: base.collateralSymbol,
+  };
 }
 
 /** Coerce Anchor account fields / numbers into BN for SDK math helpers. */
@@ -263,7 +298,10 @@ async function doOpenPosition(params) {
   }
   const side = sideStr === "short" || sideStr === "SHORT" ? sideShort() : sideLong();
 
-  const { market, collateralSymbol } = getMarket("SOL", side);
+  const { market, lockSymbol, fundingSymbol } = resolveOpenMarket("SOL", side);
+  const targetCustody = getCustodyBySymbol("SOL");
+  const lockCustody = getCustodyBySymbol(lockSymbol);
+  const receivingCustody = getCustodyBySymbol(fundingSymbol);
   // Leverage is fixed from config (e.g. RTP_TRADER_LEVERAGE=9). Do not change it.
   // On pool-capacity errors (6024) only shrink collateral size, not leverage.
   const lev = Number(leverage);
@@ -282,7 +320,7 @@ async function doOpenPosition(params) {
   let lastErr = null;
 
   console.error(
-    `[wrapper] open SOL ${isVariant(side, "long") ? "long" : "short"} market=${market.toBase58?.() ?? market} collateral=${collateralSymbol} amount=${amount.toString()} lev=${lev} minAmount=${minAmount.toString()} maxAttempts=${maxAttempts}`,
+    `[wrapper] open SOL ${isVariant(side, "long") ? "long" : "short"} market=${market.toBase58?.() ?? market} lockSymbol=${lockSymbol} fundingSymbol=${fundingSymbol} targetCustody=${targetCustody.custodyAccount.toBase58()} lockCustody=${lockCustody.custodyAccount.toBase58()} receivingCustody=${receivingCustody.custodyAccount.toBase58()} amount=${amount.toString()} lev=${lev} minAmount=${minAmount.toString()} maxAttempts=${maxAttempts}`,
   );
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
@@ -303,14 +341,15 @@ async function doOpenPosition(params) {
       const quote = await c.views.getOpenPositionQuoteEr(poolConfig, {
         market,
         targetSymbol: "SOL",
-        collateralSymbol,
-        receivingSymbol: collateralSymbol,
+        collateralSymbol: lockSymbol,
+        receivingSymbol: fundingSymbol,
         amountIn: amount,
         leverage: levBps,
+        owner: keypair.publicKey,
       });
       sizeAmount = quote.sizeAmount;
       console.error(
-        `[wrapper] quote attempt=${attempt} amount=${amount.toString()} lev=${lev} sizeAmount=${sizeAmount?.toString?.() ?? sizeAmount}`,
+        `[wrapper] quote attempt=${attempt} market=${market.toBase58?.() ?? market} lockSymbol=${lockSymbol} fundingSymbol=${fundingSymbol} amount=${amount.toString()} lev=${lev} sizeAmount=${sizeAmount?.toString?.() ?? sizeAmount}`,
       );
     } catch (e) {
       const msg = e?.message ?? String(e);
@@ -324,12 +363,12 @@ async function doOpenPosition(params) {
     }
 
     try {
-      // 2nd arg is lockSymbol — for SOL long the SDK overrides to JitoSOL.
-      // Pass collateralSymbol for both as per trader-interactions guide.
+      // 2nd arg is lockSymbol; SOL longs resolve to JitoSOL in SDK v2.
+      // 3rd arg is the user's funding/receiving custody, kept as SOL.
       const { instructions } = await c.openPosition(
         "SOL",
-        collateralSymbol,
-        collateralSymbol,
+        lockSymbol,
+        fundingSymbol,
         side,
         poolConfig,
         price,
@@ -342,7 +381,8 @@ async function doOpenPosition(params) {
         signature: sig,
         sizeAmount: sizeAmount.toString(),
         collateralAmount: amount.toString(),
-        collateralSymbol,
+        collateralSymbol: lockSymbol,
+        fundingSymbol,
         leverage: lev,
         side: isVariant(side, "long") ? "long" : "short",
         attempt,
@@ -372,11 +412,16 @@ async function doOpenPosition(params) {
 
 async function doClosePosition(params) {
   const c = await initClient();
-  const { side: sideStr } = params;
+  const { side: sideStr, collateralSymbol: collateralSymbolParam } = params;
   const side = sideStr === "short" || sideStr === "SHORT" ? sideShort() : sideLong();
 
-  const { market, collateralSymbol } = getMarket("SOL", side);
+  const collateralSymbol = collateralSymbolParam || getMarket("SOL", side).collateralSymbol;
+  const { market } = getMarketForLock("SOL", collateralSymbol, side);
   const price = await entryPrice("SOL", side, false);
+
+  console.error(
+    `[wrapper] close SOL ${isVariant(side, "long") ? "long" : "short"} market=${market.toBase58?.() ?? market} collateralSymbol=${collateralSymbol}`,
+  );
 
   const { instructions: closeIxs } = await c.closePosition(
     "SOL",
