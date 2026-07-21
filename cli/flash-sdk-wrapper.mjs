@@ -124,8 +124,20 @@ function getMarket(targetSymbol, side) {
   return { market: market.marketAccount, side, collateralSymbol: collateral.symbol };
 }
 
+/** Coerce Anchor account fields / numbers into BN for SDK math helpers. */
+function toBn(v) {
+  if (BN.isBN?.(v) || (v && typeof v.toNumber === "function" && typeof v.toString === "function" && v.constructor?.name === "BN")) {
+    return v;
+  }
+  if (typeof v === "number") return new BN(Math.trunc(v));
+  if (typeof v === "bigint") return new BN(v.toString());
+  if (v != null && typeof v.toString === "function") return new BN(v.toString());
+  throw new Error(`cannot convert to BN: ${typeof v} ${v}`);
+}
+
 // Fetch the oracle price for `targetSymbol` from the matching custody and return it
-// as a {price, exponent} pair — the shape `getPriceAfterSlippage` expects in v1.0.36.
+// as a {price: BN, exponent: BN} pair — getPriceAfterSlippage calls
+// targetPrice.exponent.toNumber() (SDK v1.0.36).
 async function readOraclePrice(targetSymbol) {
   const c = await initClient();
   const targetToken = poolConfig.getTokenFromSymbol(targetSymbol);
@@ -135,7 +147,10 @@ async function readOraclePrice(targetSymbol) {
   if (!custody) throw new Error(`no custody for ${targetSymbol}`);
   const program = c.erProgram ?? c.program;
   const oracle = await program.account.customOracle.fetch(custody.intOracleAccount);
-  return { price: oracle.price, exponent: oracle.expo };
+  // Anchor may decode price/expo as BN or as number depending on IDL/codegen.
+  const rawPrice = oracle.price ?? oracle.priceUi;
+  const rawExpo = oracle.expo ?? oracle.exponent;
+  return { price: toBn(rawPrice), exponent: toBn(rawExpo) };
 }
 
 // Build a slippage-bounded ContractOraclePrice.
