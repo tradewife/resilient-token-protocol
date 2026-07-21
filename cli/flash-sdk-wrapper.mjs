@@ -234,6 +234,14 @@ async function doSetup() {
   return { signatures: sigs };
 }
 
+function isCapacityError(msg) {
+  // Flash on-chain: 6024 CustodyAmountLimit, 6025 PositionAmountLimit,
+  // 6032 MaxUtilization, 6088 MaxPositionSize, 6089 MaxExposure, 6110 InsufficientCustodyLiquidity
+  return /Custom["']?:\s*60(24|25|32|88|89)|Custom["']?:\s*6110|CustodyAmountLimit|MaxUtilization|MaxPositionSize|MaxExposure|InsufficientCustodyLiquidity/i.test(
+    String(msg),
+  );
+}
+
 async function doOpenPosition(params) {
   const c = await initClient();
   const { collateralAmount, leverage, side: sideStr } = params;
@@ -243,37 +251,73 @@ async function doOpenPosition(params) {
   const side = sideStr === "short" || sideStr === "SHORT" ? sideShort() : sideLong();
 
   const { market, collateralSymbol } = getMarket("SOL", side);
-  const price = await entryPrice("SOL", side, true);
+  const levBps = new BN(Math.round(Number(leverage) * BTC_DECIMALS_BPS));
 
-  // sizeAmount is in SOL base units (target-token), derived from the quote to
-  // avoid Custom 6021/6023 (Min/MaxLeverage). leverage is in BPS (BPS_DECIMALS = 4).
-  const { sizeAmount } = await c.views.getOpenPositionQuoteEr(poolConfig, {
-    market,
-    targetSymbol: "SOL",
-    collateralSymbol,
-    receivingSymbol: collateralSymbol,
-    amountIn: new BN(collateralAmount),
-    leverage: new BN(Math.round(leverage * BTC_DECIMALS_BPS)),
-  });
+  // Start at requested collateral; on pool-capacity errors (6024 etc.) shrink
+  // and retry. Docs: "Pool capacity reached. Try smaller or wait."
+  let amount = new BN(String(collateralAmount));
+  const minAmount = new BN(20_000_000); // 0.02 SOL floor
+  let lastErr = null;
 
-  const { instructions } = await c.openPosition(
-    "SOL",
-    collateralSymbol,
-    collateralSymbol,
-    side,
-    poolConfig,
-    price,
-    new BN(collateralAmount),
-    sizeAmount,
-  );
+  for (let attempt = 0; attempt < 4; attempt++) {
+    if (amount.lt(minAmount)) {
+      throw new Error(
+        lastErr
+          ? `open failed after size backoff: ${lastErr}`
+          : "collateral amount below minimum after capacity backoff",
+      );
+    }
 
-  const sig = await c.sendAndConfirmErTransaction(instructions, [keypair]);
-  return {
-    signature: sig,
-    sizeAmount: sizeAmount.toString(),
-    collateralSymbol,
-    side: isVariant(side, "long") ? "long" : "short",
-  };
+    const price = await entryPrice("SOL", side, true);
+
+    // sizeAmount is in SOL base units (target-token), derived from the quote to
+    // avoid Custom 6021/6023 (Min/MaxLeverage). leverage is in BPS (BPS_DECIMALS = 4).
+    const { sizeAmount } = await c.views.getOpenPositionQuoteEr(poolConfig, {
+      market,
+      targetSymbol: "SOL",
+      collateralSymbol,
+      receivingSymbol: collateralSymbol,
+      amountIn: amount,
+      leverage: levBps,
+    });
+
+    try {
+      const { instructions } = await c.openPosition(
+        "SOL",
+        collateralSymbol,
+        collateralSymbol,
+        side,
+        poolConfig,
+        price,
+        amount,
+        sizeAmount,
+      );
+
+      const sig = await c.sendAndConfirmErTransaction(instructions, [keypair]);
+      return {
+        signature: sig,
+        sizeAmount: sizeAmount.toString(),
+        collateralAmount: amount.toString(),
+        collateralSymbol,
+        side: isVariant(side, "long") ? "long" : "short",
+        attempt,
+      };
+    } catch (e) {
+      const msg = e?.message ?? String(e);
+      lastErr = msg;
+      if (isCapacityError(msg) && attempt < 3) {
+        // Halve collateral and retry (custody/pool capacity).
+        amount = amount.div(new BN(2));
+        console.error(
+          `[wrapper] capacity error on open (attempt ${attempt + 1}): ${msg} — retry with ${amount.toString()} lamports`,
+        );
+        continue;
+      }
+      throw e;
+    }
+  }
+
+  throw new Error(lastErr || "open_position failed");
 }
 
 async function doClosePosition(params) {
