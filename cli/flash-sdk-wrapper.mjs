@@ -29,6 +29,8 @@ const RPC_URL = process.env.RTP_SOLANA_RPC_URL || "https://api.mainnet-beta.sola
 
 const BTC_DECIMALS_BPS = 10000; // BPS_DECIMALS = 4 — leverage stored as leverage * BTC_DECIMALS_BPS
 const DEPOSIT_SKIP_FUNDED_LAMPORTS = 50_000_000; // 0.05 SOL residual: don't top up an already-funded ledger below this
+const DEFAULT_OPEN_BACKOFF_ATTEMPTS = 8;
+const DEFAULT_MIN_OPEN_COLLATERAL_LAMPORTS = 5_000_000; // 0.005 SOL
 
 let client = null;
 let keypair = null;
@@ -242,6 +244,17 @@ function isCapacityError(msg) {
   );
 }
 
+function isMinCollateralError(msg) {
+  return /Custom["']?:\s*6034|MinCollateral/i.test(String(msg));
+}
+
+function readPositiveIntEnv(name, fallback) {
+  const raw = process.env[name];
+  if (!raw) return fallback;
+  const value = Number.parseInt(raw, 10);
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
 async function doOpenPosition(params) {
   const c = await initClient();
   const { collateralAmount, leverage, side: sideStr } = params;
@@ -256,18 +269,27 @@ async function doOpenPosition(params) {
   const lev = Number(leverage);
   const levBps = new BN(Math.round(lev * BTC_DECIMALS_BPS));
   let amount = new BN(String(collateralAmount));
-  const minAmount = new BN(20_000_000); // 0.02 SOL floor
+  const minAmount = new BN(
+    readPositiveIntEnv(
+      "RTP_TRADER_MIN_OPEN_COLLATERAL_LAMPORTS",
+      DEFAULT_MIN_OPEN_COLLATERAL_LAMPORTS,
+    ),
+  );
+  const maxAttempts = readPositiveIntEnv(
+    "RTP_TRADER_OPEN_BACKOFF_ATTEMPTS",
+    DEFAULT_OPEN_BACKOFF_ATTEMPTS,
+  );
   let lastErr = null;
 
   console.error(
-    `[wrapper] open SOL ${isVariant(side, "long") ? "long" : "short"} market=${market.toBase58?.() ?? market} collateral=${collateralSymbol} amount=${amount.toString()} lev=${lev}`,
+    `[wrapper] open SOL ${isVariant(side, "long") ? "long" : "short"} market=${market.toBase58?.() ?? market} collateral=${collateralSymbol} amount=${amount.toString()} lev=${lev} minAmount=${minAmount.toString()} maxAttempts=${maxAttempts}`,
   );
 
-  for (let attempt = 0; attempt < 4; attempt++) {
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
     if (amount.lt(minAmount)) {
       throw new Error(
         lastErr
-          ? `open failed after size backoff (lev fixed at ${lev}): ${lastErr}`
+          ? `open failed after capacity backoff below ${minAmount.toString()} lamports (lev fixed at ${lev}): ${lastErr}`
           : "collateral amount below minimum after capacity backoff",
       );
     }
@@ -294,7 +316,7 @@ async function doOpenPosition(params) {
       const msg = e?.message ?? String(e);
       lastErr = `quote failed: ${msg}`;
       console.error(`[wrapper] ${lastErr}`);
-      if (attempt < 3) {
+      if (isCapacityError(msg) && attempt < maxAttempts - 1) {
         amount = amount.div(new BN(2));
         continue;
       }
@@ -328,11 +350,16 @@ async function doOpenPosition(params) {
     } catch (e) {
       const msg = e?.message ?? String(e);
       lastErr = msg;
-      if (isCapacityError(msg) && attempt < 3) {
+      if (isMinCollateralError(msg)) {
+        throw new Error(
+          `open failed: Flash rejected ${amount.toString()} lamports as below MinCollateral after capacity backoff (lev fixed at ${lev}): ${msg}`,
+        );
+      }
+      if (isCapacityError(msg) && attempt < maxAttempts - 1) {
         // Halve collateral only — leverage stays at config value.
         amount = amount.div(new BN(2));
         console.error(
-          `[wrapper] capacity error on open (attempt ${attempt + 1}): ${msg} — retry amount=${amount.toString()} lev=${lev} (unchanged)`,
+          `[wrapper] capacity error on open (attempt ${attempt + 1}/${maxAttempts}): ${msg} — retry amount=${amount.toString()} lev=${lev} (unchanged)`,
         );
         continue;
       }
