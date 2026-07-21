@@ -251,28 +251,27 @@ async function doOpenPosition(params) {
   const side = sideStr === "short" || sideStr === "SHORT" ? sideShort() : sideLong();
 
   const { market, collateralSymbol } = getMarket("SOL", side);
-  // Start at requested collateral + leverage; on pool-capacity errors (6024 etc.)
-  // shrink notional (amount and/or leverage). Docs: "Pool capacity reached. Try smaller or wait."
+  // Leverage is fixed from config (e.g. RTP_TRADER_LEVERAGE=9). Do not change it.
+  // On pool-capacity errors (6024) only shrink collateral size, not leverage.
+  const lev = Number(leverage);
+  const levBps = new BN(Math.round(lev * BTC_DECIMALS_BPS));
   let amount = new BN(String(collateralAmount));
-  let lev = Number(leverage);
   const minAmount = new BN(20_000_000); // 0.02 SOL floor
-  const minLev = 2.0;
   let lastErr = null;
 
   console.error(
     `[wrapper] open SOL ${isVariant(side, "long") ? "long" : "short"} market=${market.toBase58?.() ?? market} collateral=${collateralSymbol} amount=${amount.toString()} lev=${lev}`,
   );
 
-  for (let attempt = 0; attempt < 5; attempt++) {
-    if (amount.lt(minAmount) && lev <= minLev) {
+  for (let attempt = 0; attempt < 4; attempt++) {
+    if (amount.lt(minAmount)) {
       throw new Error(
         lastErr
-          ? `open failed after size/leverage backoff: ${lastErr}`
-          : "size below minimum after capacity backoff",
+          ? `open failed after size backoff (lev fixed at ${lev}): ${lastErr}`
+          : "collateral amount below minimum after capacity backoff",
       );
     }
 
-    const levBps = new BN(Math.round(lev * BTC_DECIMALS_BPS));
     const price = await entryPrice("SOL", side, true);
 
     // sizeAmount is in SOL base units (target-token), derived from the quote to
@@ -295,9 +294,8 @@ async function doOpenPosition(params) {
       const msg = e?.message ?? String(e);
       lastErr = `quote failed: ${msg}`;
       console.error(`[wrapper] ${lastErr}`);
-      if (attempt < 4) {
+      if (attempt < 3) {
         amount = amount.div(new BN(2));
-        lev = Math.max(minLev, lev * 0.5);
         continue;
       }
       throw e;
@@ -330,12 +328,11 @@ async function doOpenPosition(params) {
     } catch (e) {
       const msg = e?.message ?? String(e);
       lastErr = msg;
-      if (isCapacityError(msg) && attempt < 4) {
-        // Shrink notional: half collateral, then also cut leverage toward 2x.
+      if (isCapacityError(msg) && attempt < 3) {
+        // Halve collateral only — leverage stays at config value.
         amount = amount.div(new BN(2));
-        if (attempt >= 1) lev = Math.max(minLev, lev * 0.5);
         console.error(
-          `[wrapper] capacity error on open (attempt ${attempt + 1}): ${msg} — retry amount=${amount.toString()} lev=${lev}`,
+          `[wrapper] capacity error on open (attempt ${attempt + 1}): ${msg} — retry amount=${amount.toString()} lev=${lev} (unchanged)`,
         );
         continue;
       }
