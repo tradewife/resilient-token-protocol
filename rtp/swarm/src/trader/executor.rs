@@ -429,6 +429,27 @@ fn is_sdk_dead_error(err: &str) -> bool {
         || err.contains("Parse response")
 }
 
+fn is_flash_capacity_error(err: &str) -> bool {
+    err.contains("Custom\":6024")
+        || err.contains("Custom: 6024")
+        || err.contains("CustodyAmountLimit")
+        || err.contains("Custom\":6025")
+        || err.contains("Custom: 6025")
+        || err.contains("PositionAmountLimit")
+        || err.contains("Custom\":6032")
+        || err.contains("Custom: 6032")
+        || err.contains("MaxUtilization")
+        || err.contains("Custom\":6088")
+        || err.contains("Custom: 6088")
+        || err.contains("MaxPositionSize")
+        || err.contains("Custom\":6089")
+        || err.contains("Custom: 6089")
+        || err.contains("MaxExposure")
+        || err.contains("Custom\":6110")
+        || err.contains("Custom: 6110")
+        || err.contains("InsufficientCustodyLiquidity")
+}
+
 /// Execute a POST to Flash Trade API with timeout (legacy fallback).
 async fn flash_post(path: &str, body: &serde_json::Value) -> Result<serde_json::Value, String> {
     let client = reqwest::Client::builder()
@@ -619,6 +640,12 @@ pub async fn open_position(
         }
         Err(e) if e.starts_with("node unavailable") => {
             tracing::warn!("[OPEN] SDK unavailable ({}). Falling back to REST.", e);
+        }
+        Err(e) if is_flash_capacity_error(&e) => {
+            tracing::warn!(
+                "[OPEN] SDK Flash capacity error ({}). Falling back to REST builder.",
+                e
+            );
         }
         Err(other) => return Err(other),
     }
@@ -1275,6 +1302,16 @@ mod tests {
         });
         assert!(body.get("leverage").unwrap().is_number());
         assert!(body.get("inputTokenSymbol").unwrap().is_string());
+    }
+
+    #[test]
+    fn flash_capacity_errors_trigger_rest_fallback() {
+        assert!(is_flash_capacity_error(
+            "SDK error -32000: ER transaction failed: {\"InstructionError\":[1,{\"Custom\":6024}]}"
+        ));
+        assert!(is_flash_capacity_error("CustodyAmountLimit"));
+        assert!(is_flash_capacity_error("MaxExposure"));
+        assert!(!is_flash_capacity_error("SDK error -32000: StaleOraclePrice"));
     }
 
     #[test]
