@@ -467,8 +467,21 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
                         "[CLEANUP] Stale SOL {} position in state — not found on Flash Trade. Clearing.",
                         side_lookup
                     );
-                    state.lock().await.open_position = None;
-                    if let Err(e) = state.lock().await.save(&config.state_path) {
+                    let mut s = state.lock().await;
+                    if let Some(pos) = s.open_position.take() {
+                        s.trade_history.push(TradeRecord {
+                            entry_price: pos.entry_price,
+                            exit_price: pos.entry_price,
+                            entry_time: pos.entry_time,
+                            exit_time: Utc::now().timestamp(),
+                            pnl_pct: 0.0,
+                            exit_reason: "PhantomClear(StartupReconcile)".to_string(),
+                            size_usd: pos.size_usd,
+                            side: pos.side().to_string(),
+                        });
+                        s.total_trades += 1;
+                    }
+                    if let Err(e) = s.save(&config.state_path) {
                         tracing::warn!("[CLEANUP] Save failed: {}", e);
                     }
                 }
@@ -651,17 +664,26 @@ async fn run_cycle(
 
                                     let exit_price = closes.last().copied().unwrap_or(0.0);
                                     let side = pos_info.side();
+                                    let pnl_pct = if pos_info.entry_price > 0.0 {
+                                        match side {
+                                            "Short" => (pos_info.entry_price - exit_price) / pos_info.entry_price * 100.0,
+                                            _ => (exit_price - pos_info.entry_price) / pos_info.entry_price * 100.0,
+                                        }
+                                    } else {
+                                        0.0
+                                    };
+                                    // Approximate SOL PnL from % move × notional / entry price
+                                    let pnl_sol = if exit_price > 0.0 {
+                                        (pnl_pct / 100.0) * (pos_info.size_usd / exit_price)
+                                    } else {
+                                        0.0
+                                    };
                                     let trade = TradeRecord {
                                         entry_price: pos_info.entry_price,
                                         exit_price,
                                         entry_time: pos_info.entry_time,
                                         exit_time: Utc::now().timestamp(),
-                                        pnl_pct: if pos_info.entry_price > 0.0 {
-                                            match side {
-                                                "Short" => (pos_info.entry_price - exit_price) / pos_info.entry_price * 100.0,
-                                                _ => (exit_price - pos_info.entry_price) / pos_info.entry_price * 100.0,
-                                            }
-                                        } else { 0.0 },
+                                        pnl_pct,
                                         exit_reason: format!("{:?}", reason),
                                         size_usd: pos_info.size_usd,
                                         side: side.to_string(),
@@ -669,6 +691,7 @@ async fn run_cycle(
                                     let mut s = state.lock().await;
                                     s.trade_history.push(trade);
                                     s.total_trades += 1;
+                                    s.total_pnl_sol += pnl_sol;
                                     close_succeeded = true;
                                 }
                                 Err(e) => {
@@ -676,8 +699,27 @@ async fn run_cycle(
                                 }
                             }
                         } else {
-                            tracing::warn!("[EXIT] No SOL {} position found on Flash Trade", pos_side);
-                            // Position already closed externally — clear stale state
+                            tracing::warn!(
+                                "[EXIT] No SOL {} position found on Flash Trade — clearing phantom local state",
+                                pos_side
+                            );
+                            // Never treat a missing on-chain position as a real close for PnL,
+                            // but record an audit row so the dashboard trade tape advances.
+                            let exit_price = closes.last().copied().unwrap_or(pos_info.entry_price);
+                            let side = pos_info.side().to_string();
+                            let trade = TradeRecord {
+                                entry_price: pos_info.entry_price,
+                                exit_price,
+                                entry_time: pos_info.entry_time,
+                                exit_time: Utc::now().timestamp(),
+                                pnl_pct: 0.0,
+                                exit_reason: format!("PhantomClear({:?})", reason),
+                                size_usd: pos_info.size_usd,
+                                side,
+                            };
+                            let mut s = state.lock().await;
+                            s.trade_history.push(trade);
+                            s.total_trades += 1;
                             close_succeeded = true;
                         }
                     }
@@ -749,26 +791,45 @@ async fn run_cycle(
                         Ok((sig, size_usd, entry_price)) => {
                             tracing::info!("[ENTRY] TX: https://explorer.solana.com/tx/{}?cluster=mainnet-beta", sig);
 
+                            // open_position already waits for the position to be readable.
+                            // Re-fetch key for state; refuse to set open if still missing.
                             let pos_side = side.to_string();
-                            let pos_key = executor::get_positions(wallet)
-                                .await
-                                .ok()
-                                .and_then(|p| p.into_iter().find(|p| p.market_symbol == "SOL" && p.side_ui == side))
-                                .map(|p| p.key)
-                                .unwrap_or_default();
-
-                            state.lock().await.open_position = Some(OpenPosition {
-                                entry_price,
-                                entry_time: Utc::now().timestamp(),
-                                peak_price: entry_price,
-                                entry_rsi: signal.rsi,
-                                entry_atr: signal.atr,
-                                entry_score: signal.score,
-                                position_key: pos_key,
-                                size_usd,
-                                first_negative_score_time: None,
-                                side: pos_side,
-                            });
+                            match executor::get_positions(wallet).await {
+                                Ok(positions) => {
+                                    if let Some(p) = positions
+                                        .into_iter()
+                                        .find(|p| p.market_symbol == "SOL" && p.side_ui == side)
+                                    {
+                                        let entry = p
+                                            .entry_price_ui
+                                            .parse()
+                                            .unwrap_or(entry_price);
+                                        let size = p.size_usd_ui.parse().unwrap_or(size_usd);
+                                        state.lock().await.open_position = Some(OpenPosition {
+                                            entry_price: entry,
+                                            entry_time: Utc::now().timestamp(),
+                                            peak_price: entry,
+                                            entry_rsi: signal.rsi,
+                                            entry_atr: signal.atr,
+                                            entry_score: signal.score,
+                                            position_key: p.key,
+                                            size_usd: size,
+                                            first_negative_score_time: None,
+                                            side: pos_side,
+                                        });
+                                    } else {
+                                        tracing::error!(
+                                            "[ENTRY] Open returned ok but no SOL {} on Flash — not setting local open_position",
+                                            side
+                                        );
+                                    }
+                                }
+                                Err(e) => {
+                                    tracing::error!(
+                                        "[ENTRY] Open ok but positions fetch failed ({e}) — not setting local open_position"
+                                    );
+                                }
+                            }
                         }
                         Err(e) => {
                             tracing::error!("[ENTRY] Open failed: {}", e);

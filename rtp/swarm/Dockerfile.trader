@@ -21,8 +21,11 @@ COPY cli/package.json cli/package-lock.json ./
 COPY cli/flash-sdk-wrapper.mjs ./
 RUN npm ci --omit=dev --no-audit --no-fund
 
+# Runtime: debian for the Rust binary + Node 20 binary from the official image.
+# Do NOT use Debian's `nodejs` package (v18) — the wrapper needs Node 20, and
+# `node --input-type=module file.mjs` is invalid on Node 18.
 FROM debian:bookworm-slim
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates nodejs npm \
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates libssl3 \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /build/target/release/rtp-trader /usr/local/bin/
 
@@ -33,6 +36,8 @@ COPY data/trader-strategy-config.json /app/config/strategy.json
 
 # Copy the prepared wrapper + node_modules from the wrapper stage
 COPY --from=wrapper /wrapper /app/wrapper
+# Node 20 binary from the same image that built the wrapper (matches bookworm libc)
+COPY --from=wrapper /usr/local/bin/node /usr/local/bin/node
 
 ENV RTP_TRADER_KEYPAIR=/app/keys/trader.json
 ENV RTP_TRADER_STATE_PATH=/data/trader-state.json
@@ -40,6 +45,8 @@ ENV RTP_TRADER_HTTP_PORT=8080
 ENV RTP_STRATEGY_CONFIG=/app/config/strategy.json
 
 # Wrapper location + Flash Trade endpoints (overrideable via Railway env)
+# Trading txs must submit to the v2/ER RPC; funds ops use Solana mainnet RPC.
+# See https://docs.flash.trade/flash-trade/flash-trade-protocol/build-on-flash/flash-trade-v2/signing-and-submitting.md
 ENV RTP_TRADER_WRAPPER_PATH=/app/wrapper/flash-sdk-wrapper.mjs
 ENV RTP_TRADER_ER_RPC=https://flash.magicblock.xyz
 ENV RTP_SOLANA_RPC_URL=https://api.mainnet-beta.solana.com

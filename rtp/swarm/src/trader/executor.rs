@@ -14,6 +14,10 @@ use tokio::process::Command;
 
 const FLASH_API: &str = "https://flashapi.trade";
 const MAINNET_RPC: &str = "https://api.mainnet-beta.solana.com";
+/// Flash v2 / MagicBlock ER RPC — trading txs (open/close/…) must land here
+/// after the basket is delegated. Funds ops (init-*, deposit, delegate) use
+/// Solana mainnet. Docs: signing-and-submitting.md
+const DEFAULT_V2_RPC: &str = "https://flash.magicblock.xyz";
 
 /// Respawn budget: at most this many child respawn attempts per minute before
 /// we hold off and surface a "node unavailable" error to the caller. Caller
@@ -24,6 +28,14 @@ const SDK_RESPAWN_HOLD_MS: u64 = 5_000;
 /// Default path the wrapper lives at inside the trader Docker image.
 /// Overridable via `RTP_TRADER_WRAPPER_PATH` for dev runs.
 const DEFAULT_WRAPPER_PATH: &str = "/app/wrapper/flash-sdk-wrapper.mjs";
+
+fn v2_rpc_url() -> String {
+    std::env::var("RTP_TRADER_ER_RPC").unwrap_or_else(|_| DEFAULT_V2_RPC.to_string())
+}
+
+fn solana_rpc_url() -> String {
+    std::env::var("RTP_SOLANA_RPC_URL").unwrap_or_else(|_| MAINNET_RPC.to_string())
+}
 
 /// JSON-RPC request to Node.js wrapper
 #[derive(Serialize, Deserialize, Debug)]
@@ -52,21 +64,36 @@ struct SdkError {
 }
 
 /// Position from GET /positions/owner/{owner}.
+/// Flash v2 returns either an array, `{positions: [...]}`, or a map of
+/// `marketPubkey → PositionMetricsDto` (key is the market pubkey).
 #[derive(Debug, Clone, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PositionInfo {
+    #[serde(default)]
     pub key: String,
     pub side_ui: String,
+    #[serde(default)]
     pub market_symbol: String,
+    #[serde(default = "default_collateral_sol")]
     pub collateral_symbol: String,
+    #[serde(default)]
     pub size_usd_ui: String,
+    #[serde(default)]
     pub entry_price_ui: String,
+    #[serde(default)]
     pub pnl_with_fee_usd_ui: String,
+    #[serde(default)]
     pub leverage_ui: String,
+}
+
+fn default_collateral_sol() -> String {
+    "SOL".to_string()
 }
 
 const REQUEST_TIMEOUT_SECS: u64 = 30;
 const SDK_CHILD_TIMEOUT_SECS: u64 = 120;
+const TX_CONFIRM_TIMEOUT_SECS: u64 = 60;
+const TX_CONFIRM_POLL_MS: u64 = 500;
 
 /// Flash SDK v2 client — communicates with Node.js wrapper via stdio JSON-RPC.
 struct FlashSdkClient {
@@ -80,18 +107,33 @@ impl FlashSdkClient {
     /// Spawn the Node.js wrapper (defaults to `/app/wrapper/flash-sdk-wrapper.mjs`
     /// in the container; overridable via `RTP_TRADER_WRAPPER_PATH` for dev).
     /// The wrapper reads RTP_TRADER_KEYPAIR_JSON from environment.
+    ///
+    /// Note: do **not** pass `--input-type=module` when giving a file path —
+    /// Node only allows that flag with `--eval` / STDIN. `.mjs` already loads
+    /// as ESM. Requires Node ≥ 18 (runtime image ships Node 20).
     async fn spawn() -> Result<Self, String> {
         let wrapper_path = std::env::var("RTP_TRADER_WRAPPER_PATH")
             .unwrap_or_else(|_| DEFAULT_WRAPPER_PATH.to_string());
 
+        if !std::path::Path::new(&wrapper_path).exists() {
+            return Err(format!(
+                "Wrapper not found at {wrapper_path} (set RTP_TRADER_WRAPPER_PATH)"
+            ));
+        }
+
+        let er_rpc = v2_rpc_url();
+        let sol_rpc = solana_rpc_url();
+
         let mut child = Command::new("node")
-            .arg("--input-type=module")
             .arg("--experimental-vm-modules")
             .arg(&wrapper_path)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::inherit())
-            .env("RTP_TRADER_ER_RPC", "https://flash.magicblock.xyz")
+            .env("RTP_TRADER_ER_RPC", &er_rpc)
+            .env("RTP_SOLANA_RPC_URL", &sol_rpc)
+            // Keypair must come from env (wrapper never reads argv).
+            // Inherit parent env for RTP_TRADER_KEYPAIR_JSON.
             .spawn()
             .map_err(|e| format!("Failed to spawn flash-sdk wrapper: {}", e))?;
 
@@ -108,17 +150,30 @@ impl FlashSdkClient {
         // Wait for "Ready" signal
         let mut line = String::new();
         let timeout = tokio::time::Duration::from_secs(30);
-        tokio::time::timeout(timeout, async {
+        let ready = tokio::time::timeout(timeout, async {
             while client.stdout.read_line(&mut line).await.is_ok() {
                 if line.contains("Ready for JSON-RPC") {
-                    return Ok(());
+                    return Ok::<(), String>(());
                 }
                 line.clear();
             }
-            Err("Wrapper did not signal ready")
-        }).await.map_err(|_| "Wrapper startup timeout".to_string())?;
+            Err("Wrapper did not signal ready (stdout closed)".to_string())
+        })
+        .await;
 
-        tracing::info!("[FLASH_SDK] Child process spawned and ready");
+        match ready {
+            Ok(Ok(())) => {}
+            Ok(Err(e)) => {
+                let _ = client.child.kill().await;
+                return Err(e);
+            }
+            Err(_) => {
+                let _ = client.child.kill().await;
+                return Err("Wrapper startup timeout".to_string());
+            }
+        }
+
+        tracing::info!("[FLASH_SDK] Child process spawned and ready (node wrapper)");
         Ok(client)
     }
 
@@ -435,12 +490,82 @@ fn parse_positions_response(val: serde_json::Value) -> Result<Vec<PositionInfo>,
         return Ok(Vec::new());
     }
 
+    // Wrapped array: { "positions": [ ... ] }
     if let Some(positions) = val.get("positions") {
-        return serde_json::from_value(positions.clone())
-            .map_err(|e| format!("Failed to parse positions: {}", e));
+        return parse_positions_array_or_map(positions.clone());
     }
 
-    serde_json::from_value(val).map_err(|e| format!("Failed to parse positions: {}", e))
+    parse_positions_array_or_map(val)
+}
+
+/// Flash v2 docs: positions is a map of `marketPubkey → PositionMetricsDto`.
+/// Older shapes used a flat array. Accept both.
+fn parse_positions_array_or_map(val: serde_json::Value) -> Result<Vec<PositionInfo>, String> {
+    if val.as_array().is_some() {
+        return serde_json::from_value(val)
+            .map_err(|e| format!("Failed to parse positions array: {}", e));
+    }
+
+    if let Some(obj) = val.as_object() {
+        let mut out = Vec::with_capacity(obj.len());
+        for (market_key, metrics) in obj {
+            // Skip non-position entries if the API ever nests extras
+            if !metrics.is_object() {
+                continue;
+            }
+            if metrics.get("sideUi").is_none() && metrics.get("side_ui").is_none() {
+                continue;
+            }
+            let mut info: PositionInfo = serde_json::from_value(metrics.clone())
+                .map_err(|e| format!("Failed to parse position metrics for {market_key}: {e}"))?;
+            if info.key.is_empty() {
+                info.key = market_key.clone();
+            }
+            // Normalize side casing used by exit matching ("Long" / "Short")
+            info.side_ui = match info.side_ui.as_str() {
+                "LONG" | "long" => "Long".to_string(),
+                "SHORT" | "short" => "Short".to_string(),
+                other => other.to_string(),
+            };
+            out.push(info);
+        }
+        return Ok(out);
+    }
+
+    Err(format!("Unexpected positions JSON shape: {}", val))
+}
+
+/// Poll Flash positions until a SOL position on `side` appears, or timeout.
+async fn wait_for_sol_position(
+    wallet: &str,
+    side: &str,
+    timeout_secs: u64,
+) -> Result<PositionInfo, String> {
+    let side_norm = match side {
+        "LONG" | "Long" | "long" => "Long",
+        "SHORT" | "Short" | "short" => "Short",
+        other => other,
+    };
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(timeout_secs);
+    let mut last_err = String::new();
+    while std::time::Instant::now() < deadline {
+        match get_positions(wallet).await {
+            Ok(positions) => {
+                if let Some(p) = positions
+                    .into_iter()
+                    .find(|p| p.market_symbol == "SOL" && p.side_ui == side_norm)
+                {
+                    return Ok(p);
+                }
+                last_err = format!("no SOL {side_norm} in positions yet");
+            }
+            Err(e) => last_err = e,
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(750)).await;
+    }
+    Err(format!(
+        "Position not visible on Flash after open ({last_err})"
+    ))
 }
 
 /// Build, sign, and submit an open-position transaction.
@@ -455,15 +580,35 @@ pub async fn open_position(
     // SDK path first: returns Ok on success or an error tagged "node unavailable"
     // when the wrapper child is missing / died. Other errors (RPC rejection,
     // size/price issue) bubble up unchanged.
+    let wallet = keypair.pubkey().to_string();
+    let side_for_wait = if trade_type.eq_ignore_ascii_case("long") {
+        "Long"
+    } else {
+        "Short"
+    };
+
     match try_open_via_sdk(amount_sol, leverage, trade_type).await {
-        Ok(sig_size_price) => return Ok(sig_size_price),
+        Ok((sig, size_usd, entry_price)) => {
+            // SDK path confirms internally; still require readable position so
+            // local state / dashboard never show a phantom open.
+            match wait_for_sol_position(&wallet, side_for_wait, 15).await {
+                Ok(pos) => {
+                    let size = pos.size_usd_ui.parse().unwrap_or(size_usd);
+                    let entry = pos.entry_price_ui.parse().unwrap_or(entry_price);
+                    return Ok((sig, size, entry));
+                }
+                Err(e) => {
+                    return Err(format!(
+                        "SDK open returned sig {sig} but position not visible: {e}"
+                    ));
+                }
+            }
+        }
         Err(e) if e.starts_with("node unavailable") => {
             tracing::warn!("[OPEN] SDK unavailable ({}). Falling back to REST.", e);
         }
         Err(other) => return Err(other),
     }
-
-    let wallet = keypair.pubkey().to_string();
 
     let body = serde_json::json!({
         "inputTokenSymbol": "SOL",
@@ -475,12 +620,9 @@ pub async fn open_position(
         "slippagePercentage": "1.0"
     });
 
-    // Flash v2 builder embeds a blockhash that expires ~45s after the build.
-    // Per docs: errors return as { "error": "..." }; the only client-side
-    // defense when "Blockhash not found" or any submit error hits us is to
-    // rebuild the transaction against a freshly-rotated blockhash. The v2
-    // endpoints proactively refresh between calls, so we loop many short
-    // attempts to ride out the cache window instead of failing once.
+    // Flash v2: trading txs must be submitted to the v2/ER RPC (not mainnet).
+    // Builder blockhash expires ~45s — rebuild on blockhash / simulation errors.
+    let trade_rpc = v2_rpc_url();
     let mut last_err = String::new();
     for attempt in 0..6u32 {
         let val = flash_post("/transaction-builder/open-position", &body).await?;
@@ -508,13 +650,36 @@ pub async fn open_position(
             .and_then(|s| s.parse().ok())
             .unwrap_or(0.0);
 
-        match sign_and_submit(keypair, tx_b64).await {
-            Ok(sig) => return Ok((sig, size_usd, entry_price)),
+        match sign_and_submit(keypair, tx_b64, &trade_rpc).await {
+            Ok(sig) => {
+                // Don't report success unless the position is readable.
+                // Prevents phantom opens from polluting dashboard state.
+                let side_for_wait = if trade_type.eq_ignore_ascii_case("long") {
+                    "Long"
+                } else {
+                    "Short"
+                };
+                match wait_for_sol_position(&wallet, side_for_wait, 12).await {
+                    Ok(pos) => {
+                        let size = pos
+                            .size_usd_ui
+                            .parse()
+                            .unwrap_or(size_usd);
+                        let entry = pos
+                            .entry_price_ui
+                            .parse()
+                            .unwrap_or(entry_price);
+                        return Ok((sig, size, entry));
+                    }
+                    Err(e) => {
+                        return Err(format!(
+                            "Open tx confirmed ({sig}) but position not visible: {e}"
+                        ));
+                    }
+                }
+            }
             Err(e) if is_rebuild_error(&e) && attempt < 5 => {
                 last_err = e;
-                // Short sleep keeps the next builder call inside the
-                // blockhash validity window (~45s). 750ms keeps us well
-                // under that on the public mainnet RPC.
                 tokio::time::sleep(std::time::Duration::from_millis(750)).await;
             }
             Err(e) => return Err(e),
@@ -562,6 +727,7 @@ pub async fn close_position(
         "slippagePercentage": "1.0"
     });
 
+    let trade_rpc = v2_rpc_url();
     let mut last_err = String::new();
     for attempt in 0..6u32 {
         let val = flash_post("/transaction-builder/close-position", &body).await?;
@@ -583,7 +749,7 @@ pub async fn close_position(
             .and_then(|s| s.parse().ok())
             .unwrap_or(0.0);
 
-        match sign_and_submit(keypair, tx_b64).await {
+        match sign_and_submit(keypair, tx_b64, &trade_rpc).await {
             Ok(sig) => return Ok((sig, settled_pnl)),
             Err(e) if is_rebuild_error(&e) && attempt < 5 => {
                 last_err = e;
@@ -689,8 +855,8 @@ pub async fn v2_one_time_setup(
     Ok(submitted)
 }
 
-/// Build a Flash transaction via `flash_post`, then sign+submit to Solana.
-/// Used for the v2 setup endpoints that don't return position quotes.
+/// Build a Flash transaction via `flash_post`, then sign+submit.
+/// Used for the v2 setup endpoints (funds path → Solana mainnet RPC).
 async fn v2_call_and_submit(
     keypair: &solana_sdk::signature::Keypair,
     path: &str,
@@ -706,19 +872,20 @@ async fn v2_call_and_submit(
         .get("transactionBase64")
         .and_then(|v| v.as_str())
         .ok_or_else(|| format!("No transaction in {path} response"))?;
-    sign_and_submit(keypair, tx_b64).await
+    // Account & funds ops → Solana RPC (not v2/ER).
+    sign_and_submit(keypair, tx_b64, &solana_rpc_url()).await
 }
 
-/// Sign a VersionedTransaction (base64) and submit to Solana mainnet via raw RPC.
-/// Uses the same raw HTTP pattern as chain_client.rs — no solana-client dependency.
+/// Sign a VersionedTransaction (base64) and submit via raw RPC to `rpc_url`.
 ///
-/// Flash v2 builder embeds a recent blockhash; with the public mainnet-beta RPC
-/// the embedded hash is often stale by the time we sign+submit, so we refresh
-/// the blockhash locally via `getLatestBlockhash` and substitute it into the
-/// transaction message before signing.
+/// Flash docs: funds ops → Solana RPC; trading → v2/ER RPC. Blockhash is
+/// refreshed from the **same** RPC we submit to. We wait for confirmed
+/// status and reject if `meta.err` is set so callers never treat a failed
+/// on-chain open as success.
 async fn sign_and_submit(
     keypair: &solana_sdk::signature::Keypair,
     tx_b64: &str,
+    rpc_url: &str,
 ) -> Result<String, String> {
     use solana_sdk::transaction::VersionedTransaction;
 
@@ -734,7 +901,7 @@ async fn sign_and_submit(
         .build()
         .map_err(|e| format!("RPC client build failed: {}", e))?;
 
-    let fresh_hash = fetch_latest_blockhash(&client, MAINNET_RPC).await?;
+    let fresh_hash = fetch_latest_blockhash(&client, rpc_url).await?;
     match &mut tx.message {
         solana_sdk::message::VersionedMessage::Legacy(m) => m.recent_blockhash = fresh_hash,
         solana_sdk::message::VersionedMessage::V0(m) => m.recent_blockhash = fresh_hash,
@@ -758,7 +925,136 @@ async fn sign_and_submit(
         .map_err(|e| format!("Transaction serialize error: {}", e))?;
     let signed_b64 = base64::engine::general_purpose::STANDARD.encode(&serialized);
 
-    rpc_send_transaction(&client, MAINNET_RPC, &signed_b64).await
+    let signature = rpc_send_transaction(&client, rpc_url, &signed_b64).await?;
+    confirm_signature(&client, rpc_url, &signature).await?;
+    Ok(signature)
+}
+
+/// Poll `getSignatureStatuses` until confirmed/finalized or timeout.
+/// Returns Err if the transaction lands with a non-null `err`.
+async fn confirm_signature(
+    client: &reqwest::Client,
+    rpc_url: &str,
+    signature: &str,
+) -> Result<(), String> {
+    let deadline =
+        std::time::Instant::now() + std::time::Duration::from_secs(TX_CONFIRM_TIMEOUT_SECS);
+    loop {
+        let resp = client
+            .post(rpc_url)
+            .json(&serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "getSignatureStatuses",
+                "params": [
+                    [signature],
+                    { "searchTransactionHistory": true }
+                ]
+            }))
+            .send()
+            .await
+            .map_err(|e| format!("getSignatureStatuses request failed: {e}"))?;
+
+        let json: serde_json::Value = resp
+            .json()
+            .await
+            .map_err(|e| format!("getSignatureStatuses parse error: {e}"))?;
+
+        if let Some(err) = json.get("error") {
+            let msg = err
+                .get("message")
+                .and_then(|m| m.as_str())
+                .unwrap_or("unknown");
+            // Some ER RPCs may not support this method — fall back to getTransaction.
+            if msg.contains("Method not found") || msg.contains("method not found") {
+                return confirm_signature_via_get_transaction(client, rpc_url, signature).await;
+            }
+        }
+
+        let status = json
+            .pointer("/result/value/0")
+            .cloned()
+            .unwrap_or(serde_json::Value::Null);
+
+        if !status.is_null() {
+            if let Some(err) = status.get("err") {
+                if !err.is_null() {
+                    return Err(format!(
+                        "Transaction failed on-chain ({signature}): {err}"
+                    ));
+                }
+            }
+            let conf = status
+                .get("confirmationStatus")
+                .and_then(|c| c.as_str())
+                .unwrap_or("");
+            if conf == "confirmed" || conf == "finalized" {
+                return Ok(());
+            }
+            // Landed with null err and a slot is enough (some RPCs omit confirmationStatus)
+            if status.get("err").map(|e| e.is_null()).unwrap_or(false)
+                && status.get("slot").and_then(|s| s.as_u64()).is_some()
+            {
+                return Ok(());
+            }
+        }
+
+        if std::time::Instant::now() >= deadline {
+            return Err(format!(
+                "Transaction confirmation timeout ({signature}) on {rpc_url}"
+            ));
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(TX_CONFIRM_POLL_MS)).await;
+    }
+}
+
+async fn confirm_signature_via_get_transaction(
+    client: &reqwest::Client,
+    rpc_url: &str,
+    signature: &str,
+) -> Result<(), String> {
+    let deadline =
+        std::time::Instant::now() + std::time::Duration::from_secs(TX_CONFIRM_TIMEOUT_SECS);
+    loop {
+        let resp = client
+            .post(rpc_url)
+            .json(&serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "getTransaction",
+                "params": [
+                    signature,
+                    { "encoding": "json", "commitment": "confirmed", "maxSupportedTransactionVersion": 0 }
+                ]
+            }))
+            .send()
+            .await
+            .map_err(|e| format!("getTransaction request failed: {e}"))?;
+        let json: serde_json::Value = resp
+            .json()
+            .await
+            .map_err(|e| format!("getTransaction parse error: {e}"))?;
+
+        if let Some(result) = json.get("result") {
+            if !result.is_null() {
+                let err = result.pointer("/meta/err");
+                if err.map(|e| !e.is_null()).unwrap_or(false) {
+                    return Err(format!(
+                        "Transaction failed on-chain ({signature}): {}",
+                        err.unwrap()
+                    ));
+                }
+                return Ok(());
+            }
+        }
+
+        if std::time::Instant::now() >= deadline {
+            return Err(format!(
+                "Transaction confirmation timeout via getTransaction ({signature})"
+            ));
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(TX_CONFIRM_POLL_MS)).await;
+    }
 }
 
 /// Fetch a recent blockhash from Solana RPC (`getLatestBlockhash`).
@@ -823,9 +1119,11 @@ async fn rpc_send_transaction(
                 b64_tx,
                 {
                     "encoding": "base64",
-                    "skipPreflight": true,
+                    // Simulate first so Custom 3007 / basket ownership errors
+                    // surface immediately instead of as "success" signatures.
+                    "skipPreflight": false,
                     "preflightCommitment": "confirmed",
-                    "maxRetries": 5usize
+                    "maxRetries": 3usize
                 }
             ]
         }))
@@ -839,9 +1137,7 @@ async fn rpc_send_transaction(
         .map_err(|e| format!("RPC parse error: {}", e))?;
 
     if let Some(sig) = json.get("result").and_then(|r| r.as_str()) {
-        // No confirm sleep — skipPreflight already returns the signature
-        // for a broadcast tx; downstream polling reconciles position
-        // state on the next cycle.
+        // Caller must still confirm (confirm_signature) — broadcast ≠ success.
         return Ok(sig.to_string());
     }
 
@@ -908,6 +1204,29 @@ mod tests {
 
         assert_eq!(positions.len(), 1);
         assert_eq!(positions[0].side_ui, "Short");
+    }
+
+    #[test]
+    fn parse_v2_positions_map_by_market_pubkey() {
+        // Flash v2: GET /positions/owner/{owner} returns
+        // { "<marketPubkey>": PositionMetricsDto, ... }
+        let positions = parse_positions_response(serde_json::json!({
+            "SoLMarketPubkey1111111111111111111111111": {
+                "sideUi": "LONG",
+                "marketSymbol": "SOL",
+                "sizeUsdUi": "331.46",
+                "entryPriceUi": "76.67",
+                "pnlWithFeeUsdUi": "2.1",
+                "leverageUi": "9.0"
+            }
+        }))
+        .unwrap();
+
+        assert_eq!(positions.len(), 1);
+        assert_eq!(positions[0].side_ui, "Long"); // normalized
+        assert_eq!(positions[0].market_symbol, "SOL");
+        assert_eq!(positions[0].key, "SoLMarketPubkey1111111111111111111111111");
+        assert_eq!(positions[0].collateral_symbol, "SOL"); // default
     }
 
     #[test]

@@ -221,7 +221,8 @@ export default function Home() {
     let alive = true;
     const poll = async () => {
       try {
-        const res = await fetch("/api/trader-status");
+        // trailingSlash: true in next.config — hit the canonical path to avoid a 308
+        const res = await fetch("/api/trader-status/");
         if (res.ok) { const data: TraderState = await res.json(); if (data.wallet && alive) setTrader(data); }
       } catch {}
     };
