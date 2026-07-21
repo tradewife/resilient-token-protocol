@@ -251,37 +251,61 @@ async function doOpenPosition(params) {
   const side = sideStr === "short" || sideStr === "SHORT" ? sideShort() : sideLong();
 
   const { market, collateralSymbol } = getMarket("SOL", side);
-  const levBps = new BN(Math.round(Number(leverage) * BTC_DECIMALS_BPS));
-
-  // Start at requested collateral; on pool-capacity errors (6024 etc.) shrink
-  // and retry. Docs: "Pool capacity reached. Try smaller or wait."
+  // Start at requested collateral + leverage; on pool-capacity errors (6024 etc.)
+  // shrink notional (amount and/or leverage). Docs: "Pool capacity reached. Try smaller or wait."
   let amount = new BN(String(collateralAmount));
+  let lev = Number(leverage);
   const minAmount = new BN(20_000_000); // 0.02 SOL floor
+  const minLev = 2.0;
   let lastErr = null;
 
-  for (let attempt = 0; attempt < 4; attempt++) {
-    if (amount.lt(minAmount)) {
+  console.error(
+    `[wrapper] open SOL ${isVariant(side, "long") ? "long" : "short"} market=${market.toBase58?.() ?? market} collateral=${collateralSymbol} amount=${amount.toString()} lev=${lev}`,
+  );
+
+  for (let attempt = 0; attempt < 5; attempt++) {
+    if (amount.lt(minAmount) && lev <= minLev) {
       throw new Error(
         lastErr
-          ? `open failed after size backoff: ${lastErr}`
-          : "collateral amount below minimum after capacity backoff",
+          ? `open failed after size/leverage backoff: ${lastErr}`
+          : "size below minimum after capacity backoff",
       );
     }
 
+    const levBps = new BN(Math.round(lev * BTC_DECIMALS_BPS));
     const price = await entryPrice("SOL", side, true);
 
     // sizeAmount is in SOL base units (target-token), derived from the quote to
     // avoid Custom 6021/6023 (Min/MaxLeverage). leverage is in BPS (BPS_DECIMALS = 4).
-    const { sizeAmount } = await c.views.getOpenPositionQuoteEr(poolConfig, {
-      market,
-      targetSymbol: "SOL",
-      collateralSymbol,
-      receivingSymbol: collateralSymbol,
-      amountIn: amount,
-      leverage: levBps,
-    });
+    let sizeAmount;
+    try {
+      const quote = await c.views.getOpenPositionQuoteEr(poolConfig, {
+        market,
+        targetSymbol: "SOL",
+        collateralSymbol,
+        receivingSymbol: collateralSymbol,
+        amountIn: amount,
+        leverage: levBps,
+      });
+      sizeAmount = quote.sizeAmount;
+      console.error(
+        `[wrapper] quote attempt=${attempt} amount=${amount.toString()} lev=${lev} sizeAmount=${sizeAmount?.toString?.() ?? sizeAmount}`,
+      );
+    } catch (e) {
+      const msg = e?.message ?? String(e);
+      lastErr = `quote failed: ${msg}`;
+      console.error(`[wrapper] ${lastErr}`);
+      if (attempt < 4) {
+        amount = amount.div(new BN(2));
+        lev = Math.max(minLev, lev * 0.5);
+        continue;
+      }
+      throw e;
+    }
 
     try {
+      // 2nd arg is lockSymbol — for SOL long the SDK overrides to JitoSOL.
+      // Pass collateralSymbol for both as per trader-interactions guide.
       const { instructions } = await c.openPosition(
         "SOL",
         collateralSymbol,
@@ -299,17 +323,19 @@ async function doOpenPosition(params) {
         sizeAmount: sizeAmount.toString(),
         collateralAmount: amount.toString(),
         collateralSymbol,
+        leverage: lev,
         side: isVariant(side, "long") ? "long" : "short",
         attempt,
       };
     } catch (e) {
       const msg = e?.message ?? String(e);
       lastErr = msg;
-      if (isCapacityError(msg) && attempt < 3) {
-        // Halve collateral and retry (custody/pool capacity).
+      if (isCapacityError(msg) && attempt < 4) {
+        // Shrink notional: half collateral, then also cut leverage toward 2x.
         amount = amount.div(new BN(2));
+        if (attempt >= 1) lev = Math.max(minLev, lev * 0.5);
         console.error(
-          `[wrapper] capacity error on open (attempt ${attempt + 1}): ${msg} — retry with ${amount.toString()} lamports`,
+          `[wrapper] capacity error on open (attempt ${attempt + 1}): ${msg} — retry amount=${amount.toString()} lev=${lev}`,
         );
         continue;
       }
