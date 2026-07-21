@@ -94,6 +94,8 @@ const REQUEST_TIMEOUT_SECS: u64 = 30;
 const SDK_CHILD_TIMEOUT_SECS: u64 = 120;
 const TX_CONFIRM_TIMEOUT_SECS: u64 = 60;
 const TX_CONFIRM_POLL_MS: u64 = 500;
+const DEFAULT_OPEN_BACKOFF_ATTEMPTS: u32 = 8;
+const DEFAULT_MIN_OPEN_COLLATERAL_LAMPORTS: u64 = 5_000_000;
 
 /// Flash SDK v2 client — communicates with Node.js wrapper via stdio JSON-RPC.
 struct FlashSdkClient {
@@ -161,9 +163,7 @@ impl FlashSdkClient {
                     .await
                     .map_err(|e| format!("Read wrapper stdout: {e}"))?;
                 if n == 0 {
-                    return Err(
-                        "Wrapper did not signal ready (stdout closed)".to_string(),
-                    );
+                    return Err("Wrapper did not signal ready (stdout closed)".to_string());
                 }
                 if line.contains("Ready for JSON-RPC") {
                     return Ok::<(), String>(());
@@ -191,7 +191,11 @@ impl FlashSdkClient {
     }
 
     /// Send a JSON-RPC request and wait for response.
-    async fn call(&mut self, method: &str, params: serde_json::Value) -> Result<serde_json::Value, String> {
+    async fn call(
+        &mut self,
+        method: &str,
+        params: serde_json::Value,
+    ) -> Result<serde_json::Value, String> {
         self.request_id += 1;
         let req = SdkRequest {
             jsonrpc: "2.0".to_string(),
@@ -200,20 +204,31 @@ impl FlashSdkClient {
             id: self.request_id,
         };
 
-        let req_json = serde_json::to_string(&req).map_err(|e| format!("Serialize request: {}", e))?;
-        self.stdin.write_all(req_json.as_bytes()).await.map_err(|e| format!("Write stdin: {}", e))?;
-        self.stdin.write_all(b"\n").await.map_err(|e| format!("Write newline: {}", e))?;
-        self.stdin.flush().await.map_err(|e| format!("Flush stdin: {}", e))?;
+        let req_json =
+            serde_json::to_string(&req).map_err(|e| format!("Serialize request: {}", e))?;
+        self.stdin
+            .write_all(req_json.as_bytes())
+            .await
+            .map_err(|e| format!("Write stdin: {}", e))?;
+        self.stdin
+            .write_all(b"\n")
+            .await
+            .map_err(|e| format!("Write newline: {}", e))?;
+        self.stdin
+            .flush()
+            .await
+            .map_err(|e| format!("Flush stdin: {}", e))?;
 
         // Read response with timeout
         let mut line = String::new();
         let read_fut = self.stdout.read_line(&mut line);
         let resp_json = tokio::time::timeout(
             tokio::time::Duration::from_secs(SDK_CHILD_TIMEOUT_SECS),
-            read_fut
-        ).await
-            .map_err(|_| "SDK call timeout".to_string())?
-            .map_err(|e| format!("Read stdout: {}", e))?;
+            read_fut,
+        )
+        .await
+        .map_err(|_| "SDK call timeout".to_string())?
+        .map_err(|e| format!("Read stdout: {}", e))?;
 
         if resp_json == 0 {
             return Err("Child process closed stdout".to_string());
@@ -232,39 +247,75 @@ impl FlashSdkClient {
     /// Run the 5-step v2 setup (idempotent).
     pub async fn setup(&mut self) -> Result<Vec<(String, String)>, String> {
         let result = self.call("setup", serde_json::json!({})).await?;
-        let sigs = result.get("signatures")
+        let sigs = result
+            .get("signatures")
             .and_then(|v| v.as_array())
             .ok_or("No signatures in setup result")?;
-        sigs.iter().map(|s| {
-            let step = s.get("step").and_then(|v| v.as_str()).unwrap_or("unknown").to_string();
-            let sig = s.get("signature").and_then(|v| v.as_str()).unwrap_or("").to_string();
-            Ok((step, sig))
-        }).collect()
+        sigs.iter()
+            .map(|s| {
+                let step = s
+                    .get("step")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("unknown")
+                    .to_string();
+                let sig = s
+                    .get("signature")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                Ok((step, sig))
+            })
+            .collect()
     }
 
     /// Open a position via SDK (returns signature, size_usd, entry_price).
-    pub async fn open_position(&mut self, amount_sol: f64, leverage: f64, trade_type: &str) -> Result<(String, f64, f64), String> {
-        let side = if trade_type == "LONG" || trade_type == "Long" { "long" } else { "short" };
+    pub async fn open_position(
+        &mut self,
+        amount_sol: f64,
+        leverage: f64,
+        trade_type: &str,
+    ) -> Result<(String, f64, f64), String> {
+        let side = if trade_type == "LONG" || trade_type == "Long" {
+            "long"
+        } else {
+            "short"
+        };
         let params = serde_json::json!({
             "collateralAmount": (amount_sol * 1e9) as u64, // lamports
             "leverage": leverage,
             "side": side,
         });
         let result = self.call("open_position", params).await?;
-        let sig = result.get("signature").and_then(|v| v.as_str()).ok_or("No signature")?;
-        let size_usd = result.get("size_usd").and_then(|v| v.as_f64()).unwrap_or(0.0);
-        let entry_price = result.get("entry_price").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let sig = result
+            .get("signature")
+            .and_then(|v| v.as_str())
+            .ok_or("No signature")?;
+        let size_usd = result
+            .get("size_usd")
+            .and_then(|v| v.as_f64())
+            .unwrap_or(0.0);
+        let entry_price = result
+            .get("entry_price")
+            .and_then(|v| v.as_f64())
+            .unwrap_or(0.0);
         Ok((sig.to_string(), size_usd, entry_price))
     }
 
     /// Close a position via SDK.
-    pub async fn close_position(&mut self, size_usd: f64, withdraw_token: &str) -> Result<(String, f64), String> {
+    pub async fn close_position(
+        &mut self,
+        size_usd: f64,
+        withdraw_token: &str,
+    ) -> Result<(String, f64), String> {
         let params = serde_json::json!({
             "sizeAmount": (size_usd * 1e6) as u64, // USDC 6dp
             "collateralSymbol": withdraw_token,
         });
         let result = self.call("close_position", params).await?;
-        let sig = result.get("signature").and_then(|v| v.as_str()).ok_or("No signature")?;
+        let sig = result
+            .get("signature")
+            .and_then(|v| v.as_str())
+            .ok_or("No signature")?;
         let pnl = result.get("pnl").and_then(|v| v.as_f64()).unwrap_or(0.0);
         Ok((sig.to_string(), pnl))
     }
@@ -297,7 +348,8 @@ impl Drop for FlashSdkClient {
 
 /// Module-level Flash SDK client — initialized on first use.
 /// Uses `tokio::sync::OnceCell` for lazy initialization.
-static FLASH_SDK_CLIENT: tokio::sync::OnceCell<tokio::sync::Mutex<FlashSdkState>> = tokio::sync::OnceCell::const_new();
+static FLASH_SDK_CLIENT: tokio::sync::OnceCell<tokio::sync::Mutex<FlashSdkState>> =
+    tokio::sync::OnceCell::const_new();
 
 /// Per-process state for the SDK child: the (optional) live child + respawn
 /// bookkeeping. Respawn cap prevents thrashing when the wrapper keeps dying —
@@ -311,12 +363,16 @@ struct FlashSdkState {
 
 impl FlashSdkState {
     fn new() -> Self {
-        Self { inner: None, spawn_history: Vec::new() }
+        Self {
+            inner: None,
+            spawn_history: Vec::new(),
+        }
     }
 
     fn record_spawn(&mut self, when: std::time::Instant) {
         self.spawn_history.push(when);
-        self.spawn_history.retain(|t| when.duration_since(*t).as_secs() < 60);
+        self.spawn_history
+            .retain(|t| when.duration_since(*t).as_secs() < 60);
     }
 
     fn is_held(&self, _now: std::time::Instant) -> bool {
@@ -360,7 +416,9 @@ async fn try_get_sdk_client() -> Result<tokio::sync::MutexGuard<'static, FlashSd
 /// / `close_position` when the SDK call returns an error indicating the child
 /// process is dead (timeout, EOF, parse failure).
 async fn sdk_mark_dead() {
-    let Some(state_cell) = FLASH_SDK_CLIENT.get() else { return };
+    let Some(state_cell) = FLASH_SDK_CLIENT.get() else {
+        return;
+    };
     let mut guard = state_cell.lock().await;
     if let Some(c) = guard.inner.take() {
         // c's Drop kills the child.
@@ -432,22 +490,44 @@ fn is_sdk_dead_error(err: &str) -> bool {
 fn is_flash_capacity_error(err: &str) -> bool {
     err.contains("Custom\":6024")
         || err.contains("Custom: 6024")
+        || err.contains("0x1788")
         || err.contains("CustodyAmountLimit")
         || err.contains("Custom\":6025")
         || err.contains("Custom: 6025")
+        || err.contains("0x1789")
         || err.contains("PositionAmountLimit")
         || err.contains("Custom\":6032")
         || err.contains("Custom: 6032")
+        || err.contains("0x1790")
         || err.contains("MaxUtilization")
         || err.contains("Custom\":6088")
         || err.contains("Custom: 6088")
+        || err.contains("0x17c8")
         || err.contains("MaxPositionSize")
         || err.contains("Custom\":6089")
         || err.contains("Custom: 6089")
+        || err.contains("0x17c9")
         || err.contains("MaxExposure")
         || err.contains("Custom\":6110")
         || err.contains("Custom: 6110")
+        || err.contains("0x17de")
         || err.contains("InsufficientCustodyLiquidity")
+}
+
+fn open_backoff_attempts() -> u32 {
+    std::env::var("RTP_TRADER_OPEN_BACKOFF_ATTEMPTS")
+        .ok()
+        .and_then(|v| v.parse::<u32>().ok())
+        .filter(|v| *v > 0)
+        .unwrap_or(DEFAULT_OPEN_BACKOFF_ATTEMPTS)
+}
+
+fn min_open_collateral_lamports() -> u64 {
+    std::env::var("RTP_TRADER_MIN_OPEN_COLLATERAL_LAMPORTS")
+        .ok()
+        .and_then(|v| v.parse::<u64>().ok())
+        .filter(|v| *v > 0)
+        .unwrap_or(DEFAULT_MIN_OPEN_COLLATERAL_LAMPORTS)
 }
 
 /// Execute a POST to Flash Trade API with timeout (legacy fallback).
@@ -650,84 +730,112 @@ pub async fn open_position(
         Err(other) => return Err(other),
     }
 
-    let body = serde_json::json!({
-        "inputTokenSymbol": "SOL",
-        "outputTokenSymbol": "SOL",
-        "inputAmountUi": amount_sol.to_string(),
-        "leverage": leverage,
-        "tradeType": trade_type,
-        "owner": wallet,
-        "slippagePercentage": "1.0"
-    });
-
     // Flash v2: trading txs must be submitted to the v2/ER RPC (not mainnet).
     // Builder blockhash expires ~45s — rebuild on blockhash / simulation errors.
     let trade_rpc = v2_rpc_url();
     let mut last_err = String::new();
-    for attempt in 0..6u32 {
-        let val = flash_post("/transaction-builder/open-position", &body).await?;
-
-        if let Some(err) = val.get("err").and_then(|v| v.as_str())
-            && !err.is_empty()
-        {
-            return Err(format!("Open position API error: {}", err));
+    let mut rest_amount_sol = amount_sol;
+    let min_rest_amount_sol = min_open_collateral_lamports() as f64 / 1e9;
+    for size_attempt in 0..open_backoff_attempts() {
+        if rest_amount_sol < min_rest_amount_sol {
+            return Err(format!(
+                "Open position failed after REST capacity backoff below {:.9} SOL: {}",
+                min_rest_amount_sol, last_err
+            ));
         }
 
-        let tx_b64 = val
-            .get("transactionBase64")
-            .and_then(|v| v.as_str())
-            .ok_or("No transaction in open-position response")?;
+        let body = serde_json::json!({
+            "inputTokenSymbol": "SOL",
+            "outputTokenSymbol": "SOL",
+            "inputAmountUi": rest_amount_sol.to_string(),
+            "leverage": leverage,
+            "tradeType": trade_type,
+            "owner": wallet,
+            "slippagePercentage": "1.0"
+        });
 
-        let entry_price = val
-            .get("newEntryPrice")
-            .and_then(|v| v.as_str())
-            .and_then(|s| s.parse().ok())
-            .unwrap_or(0.0);
+        tracing::info!(
+            "[OPEN] REST builder attempt {}/{} amount={:.9} SOL leverage={}x",
+            size_attempt + 1,
+            open_backoff_attempts(),
+            rest_amount_sol,
+            leverage
+        );
 
-        let size_usd = val
-            .get("youRecieveUsdUi")
-            .and_then(|v| v.as_str())
-            .and_then(|s| s.parse().ok())
-            .unwrap_or(0.0);
+        for attempt in 0..6u32 {
+            let val = flash_post("/transaction-builder/open-position", &body).await?;
 
-        match sign_and_submit(keypair, tx_b64, &trade_rpc).await {
-            Ok(sig) => {
-                // Don't report success unless the position is readable.
-                // Prevents phantom opens from polluting dashboard state.
-                let side_for_wait = if trade_type.eq_ignore_ascii_case("long") {
-                    "Long"
-                } else {
-                    "Short"
-                };
-                match wait_for_sol_position(&wallet, side_for_wait, 12).await {
-                    Ok(pos) => {
-                        let size = pos
-                            .size_usd_ui
-                            .parse()
-                            .unwrap_or(size_usd);
-                        let entry = pos
-                            .entry_price_ui
-                            .parse()
-                            .unwrap_or(entry_price);
-                        return Ok((sig, size, entry));
-                    }
-                    Err(e) => {
-                        return Err(format!(
-                            "Open tx confirmed ({sig}) but position not visible: {e}"
-                        ));
+            if let Some(err) = val.get("err").and_then(|v| v.as_str())
+                && !err.is_empty()
+            {
+                last_err = format!("Open position API error: {}", err);
+                if is_flash_capacity_error(&last_err) {
+                    break;
+                }
+                return Err(last_err);
+            }
+
+            let tx_b64 = val
+                .get("transactionBase64")
+                .and_then(|v| v.as_str())
+                .ok_or("No transaction in open-position response")?;
+
+            let entry_price = val
+                .get("newEntryPrice")
+                .and_then(|v| v.as_str())
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(0.0);
+
+            let size_usd = val
+                .get("youRecieveUsdUi")
+                .and_then(|v| v.as_str())
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(0.0);
+
+            match sign_and_submit(keypair, tx_b64, &trade_rpc).await {
+                Ok(sig) => {
+                    // Don't report success unless the position is readable.
+                    // Prevents phantom opens from polluting dashboard state.
+                    let side_for_wait = if trade_type.eq_ignore_ascii_case("long") {
+                        "Long"
+                    } else {
+                        "Short"
+                    };
+                    match wait_for_sol_position(&wallet, side_for_wait, 12).await {
+                        Ok(pos) => {
+                            let size = pos.size_usd_ui.parse().unwrap_or(size_usd);
+                            let entry = pos.entry_price_ui.parse().unwrap_or(entry_price);
+                            return Ok((sig, size, entry));
+                        }
+                        Err(e) => {
+                            return Err(format!(
+                                "Open tx confirmed ({sig}) but position not visible: {e}"
+                            ));
+                        }
                     }
                 }
+                Err(e) if is_flash_capacity_error(&e) => {
+                    last_err = e;
+                    break;
+                }
+                Err(e) if is_rebuild_error(&e) && attempt < 5 => {
+                    last_err = e;
+                    tokio::time::sleep(std::time::Duration::from_millis(750)).await;
+                }
+                Err(e) => return Err(e),
             }
-            Err(e) if is_rebuild_error(&e) && attempt < 5 => {
-                last_err = e;
-                tokio::time::sleep(std::time::Duration::from_millis(750)).await;
-            }
-            Err(e) => return Err(e),
         }
+
+        rest_amount_sol /= 2.0;
+        tracing::warn!(
+            "[OPEN] REST Flash capacity error; retrying smaller collateral amount={:.9} SOL leverage={}x",
+            rest_amount_sol,
+            leverage
+        );
     }
 
     Err(format!(
-        "Open position failed after rebuild retries: {}",
+        "Open position failed after REST capacity/rebuild retries: {}",
         last_err
     ))
 }
@@ -819,9 +927,12 @@ pub async fn v2_one_time_setup(
     const SOL_DEPOSIT_UI: &str = "1.0"; // 1 SOL deposit for collateral
 
     // Step 0a — init deposit ledger
-    match v2_call_and_submit(keypair, "/transaction-builder/init-deposit-ledger",
-        serde_json::json!({ "owner": wallet.clone() }))
-        .await
+    match v2_call_and_submit(
+        keypair,
+        "/transaction-builder/init-deposit-ledger",
+        serde_json::json!({ "owner": wallet.clone() }),
+    )
+    .await
     {
         Ok(sig) => submitted.push(format!("init-deposit-ledger: {sig}")),
         Err(e) if is_setup_already_done(&e) => {
@@ -835,9 +946,12 @@ pub async fn v2_one_time_setup(
     tokio::time::sleep(std::time::Duration::from_secs(2)).await;
 
     // Step 0b — init basket
-    match v2_call_and_submit(keypair, "/transaction-builder/init-basket",
-        serde_json::json!({ "owner": wallet.clone() }))
-        .await
+    match v2_call_and_submit(
+        keypair,
+        "/transaction-builder/init-basket",
+        serde_json::json!({ "owner": wallet.clone() }),
+    )
+    .await
     {
         Ok(sig) => submitted.push(format!("init-basket: {sig}")),
         Err(e) if is_setup_already_done(&e) => {
@@ -853,9 +967,12 @@ pub async fn v2_one_time_setup(
     tokio::time::sleep(std::time::Duration::from_secs(2)).await;
 
     // Step 0c — init trade vault for SOL (globally idempotent)
-    match v2_call_and_submit(keypair, "/transaction-builder/init-token-stake",
-        serde_json::json!({ "owner": wallet.clone(), "tokenMint": SOL_MINT }))
-        .await
+    match v2_call_and_submit(
+        keypair,
+        "/transaction-builder/init-token-stake",
+        serde_json::json!({ "owner": wallet.clone(), "tokenMint": SOL_MINT }),
+    )
+    .await
     {
         Ok(sig) => submitted.push(format!("init-token-stake(SOL): {sig}")),
         Err(e) if e.contains("already") || e.contains("initialized") => {
@@ -867,13 +984,16 @@ pub async fn v2_one_time_setup(
     tokio::time::sleep(std::time::Duration::from_secs(2)).await;
 
     // Step 1 — deposit SOL collateral
-    match v2_call_and_submit(keypair, "/transaction-builder/deposit-direct",
+    match v2_call_and_submit(
+        keypair,
+        "/transaction-builder/deposit-direct",
         serde_json::json!({
             "owner": wallet.clone(),
             "tokenMint": SOL_MINT,
             "amount": SOL_DEPOSIT_UI,
-        }))
-        .await
+        }),
+    )
+    .await
     {
         Ok(sig) => submitted.push(format!("deposit-direct(SOL): {sig}")),
         Err(e) => {
@@ -884,12 +1004,15 @@ pub async fn v2_one_time_setup(
     tokio::time::sleep(std::time::Duration::from_secs(2)).await;
 
     // Step 2 — delegate basket (required before any open/close lands)
-    match v2_call_and_submit(keypair, "/transaction-builder/delegate-basket",
+    match v2_call_and_submit(
+        keypair,
+        "/transaction-builder/delegate-basket",
         serde_json::json!({
             "payer": wallet.clone(),
             "owner": wallet.clone(),
-        }))
-        .await
+        }),
+    )
+    .await
     {
         Ok(sig) => submitted.push(format!("delegate-basket: {sig}")),
         Err(e) if e.contains("already") || e.contains("delegated") => {
@@ -1025,9 +1148,7 @@ async fn confirm_signature(
         if !status.is_null() {
             if let Some(err) = status.get("err") {
                 if !err.is_null() {
-                    return Err(format!(
-                        "Transaction failed on-chain ({signature}): {err}"
-                    ));
+                    return Err(format!("Transaction failed on-chain ({signature}): {err}"));
                 }
             }
             let conf = status
@@ -1309,9 +1430,14 @@ mod tests {
         assert!(is_flash_capacity_error(
             "SDK error -32000: ER transaction failed: {\"InstructionError\":[1,{\"Custom\":6024}]}"
         ));
+        assert!(is_flash_capacity_error(
+            "RPC error: transaction verification error: Error processing Instruction 1: custom program error: 0x1788"
+        ));
         assert!(is_flash_capacity_error("CustodyAmountLimit"));
         assert!(is_flash_capacity_error("MaxExposure"));
-        assert!(!is_flash_capacity_error("SDK error -32000: StaleOraclePrice"));
+        assert!(!is_flash_capacity_error(
+            "SDK error -32000: StaleOraclePrice"
+        ));
     }
 
     #[test]
@@ -1320,21 +1446,31 @@ mod tests {
         // (same convention as /transaction-builder/open-position). Earlier
         // attempts to call /v2/transaction-builder/init-* returned 404.
         for (path, body) in [
-            ("/transaction-builder/init-deposit-ledger",
-             serde_json::json!({"owner": "Driyi"})),
-            ("/transaction-builder/init-basket",
-             serde_json::json!({"owner": "Driyi"})),
-            ("/transaction-builder/delegate-basket",
-             serde_json::json!({"payer": "Driyi", "owner": "Driyi"})),
-            ("/transaction-builder/deposit-direct",
-             serde_json::json!({
-                 "owner": "Driyi",
-                 "tokenMint": "So11111111111111111111111111111111111111112",
-                 "amount": "1.0",
-             })),
+            (
+                "/transaction-builder/init-deposit-ledger",
+                serde_json::json!({"owner": "Driyi"}),
+            ),
+            (
+                "/transaction-builder/init-basket",
+                serde_json::json!({"owner": "Driyi"}),
+            ),
+            (
+                "/transaction-builder/delegate-basket",
+                serde_json::json!({"payer": "Driyi", "owner": "Driyi"}),
+            ),
+            (
+                "/transaction-builder/deposit-direct",
+                serde_json::json!({
+                    "owner": "Driyi",
+                    "tokenMint": "So11111111111111111111111111111111111111112",
+                    "amount": "1.0",
+                }),
+            ),
         ] {
             assert!(path.starts_with("/transaction-builder/"));
-            assert!(path.contains("init-") || path.contains("delegate-") || path.contains("deposit-"));
+            assert!(
+                path.contains("init-") || path.contains("delegate-") || path.contains("deposit-")
+            );
             assert!(!path.starts_with("/v2/"));
             assert!(body.get("owner").is_some());
         }
