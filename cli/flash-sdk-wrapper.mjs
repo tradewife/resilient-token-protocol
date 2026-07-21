@@ -341,4 +341,8 @@ process.stdin.on("end", () => {
   }
 });
 
-console.error("[wrapper] Ready for JSON-RPC requests");
+// Ready MUST go to stdout — the Rust parent only pipes stdout for the
+// ready handshake (stderr is inherited for logs). If this is on stderr,
+// the parent times out and kills a healthy wrapper.
+process.stdout.write("[wrapper] Ready for JSON-RPC requests\n");
+console.error("[wrapper] Ready signal sent on stdout");

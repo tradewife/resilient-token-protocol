@@ -129,6 +129,7 @@ impl FlashSdkClient {
             .arg(&wrapper_path)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
+            // Keep stderr visible in Railway logs (bigint warnings, init logs).
             .stderr(Stdio::inherit())
             .env("RTP_TRADER_ER_RPC", &er_rpc)
             .env("RTP_SOLANA_RPC_URL", &sol_rpc)
@@ -147,17 +148,29 @@ impl FlashSdkClient {
             request_id: 0,
         };
 
-        // Wait for "Ready" signal
+        // Wait for "Ready" signal on stdout (wrapper writes it via process.stdout).
+        // Node may emit non-ready lines first; keep scanning until match or EOF.
         let mut line = String::new();
-        let timeout = tokio::time::Duration::from_secs(30);
+        let timeout = tokio::time::Duration::from_secs(45);
         let ready = tokio::time::timeout(timeout, async {
-            while client.stdout.read_line(&mut line).await.is_ok() {
+            loop {
+                line.clear();
+                let n = client
+                    .stdout
+                    .read_line(&mut line)
+                    .await
+                    .map_err(|e| format!("Read wrapper stdout: {e}"))?;
+                if n == 0 {
+                    return Err(
+                        "Wrapper did not signal ready (stdout closed)".to_string(),
+                    );
+                }
                 if line.contains("Ready for JSON-RPC") {
                     return Ok::<(), String>(());
                 }
-                line.clear();
+                // Ignore any pre-ready stdout noise (should be rare).
+                tracing::debug!("[FLASH_SDK] pre-ready stdout: {}", line.trim());
             }
-            Err("Wrapper did not signal ready (stdout closed)".to_string())
         })
         .await;
 
@@ -784,10 +797,12 @@ pub async fn v2_one_time_setup(
         .await
     {
         Ok(sig) => submitted.push(format!("init-deposit-ledger: {sig}")),
-        Err(e) if e.contains("already") || e.contains("initialized") || e.contains("0x0") => {
+        Err(e) if is_setup_already_done(&e) => {
             tracing::info!("[V2_SETUP] deposit-ledger already initialized; skipping");
         }
-        Err(e) => return Err(format!("init-deposit-ledger failed: {e}")),
+        Err(e) => {
+            tracing::warn!("[V2_SETUP] init-deposit-ledger non-fatal: {e}");
+        }
     }
 
     tokio::time::sleep(std::time::Duration::from_secs(2)).await;
@@ -798,10 +813,14 @@ pub async fn v2_one_time_setup(
         .await
     {
         Ok(sig) => submitted.push(format!("init-basket: {sig}")),
-        Err(e) if e.contains("already") || e.contains("initialized") || e.contains("0x0") => {
-            tracing::info!("[V2_SETUP] basket already initialized; skipping");
+        Err(e) if is_setup_already_done(&e) => {
+            tracing::info!("[V2_SETUP] basket already initialized; skipping ({e})");
         }
-        Err(e) => return Err(format!("init-basket failed: {e}")),
+        // Re-runs after first setup often fail simulation (account exists).
+        // Non-fatal: trading loop continues with existing basket.
+        Err(e) => {
+            tracing::warn!("[V2_SETUP] init-basket non-fatal: {e}");
+        }
     }
 
     tokio::time::sleep(std::time::Duration::from_secs(2)).await;
@@ -1092,6 +1111,16 @@ fn is_blockhash_error(err: &str) -> bool {
         || err.contains("blockhash")
         || err.contains("expired")
         || err.contains("Block height exceeded")
+}
+
+/// Setup steps are idempotent; re-runs hit "already exists" / simulation fails.
+fn is_setup_already_done(err: &str) -> bool {
+    let e = err.to_ascii_lowercase();
+    e.contains("already")
+        || e.contains("initialized")
+        || e.contains("0x0")
+        || e.contains("custom program error")
+        || e.contains("simulation failed")
 }
 
 /// Errors that should trigger a fresh builder call (Flash rotates blockhashes
