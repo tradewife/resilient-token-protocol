@@ -91,6 +91,9 @@ async function handleRequest(req) {
       case "get_price":
         result = await doGetPrice(params);
         break;
+      case "readiness":
+        result = await readTradeReadiness(await initClient());
+        break;
       default:
         throw new Error(`Unknown method: ${method}`);
     }
@@ -197,25 +200,99 @@ async function entryPrice(targetSymbol, side, isEntry, slippageBps = 100) {
   return c.getPriceAfterSlippage(isEntry, new BN(slippageBps), tp, side);
 }
 
-// Five-step v2 setup. Steps 1, 2, 3, 5 are idempotent. Step 4 (depositDirect) is
-// non-idempotent (transfers value), so we skip it when the deposit ledger already
-// holds a usable balance. Caller has wallet pre-funded at 2.4 SOL per operations.
+function solDepositBalance(ledger) {
+  const entries = ledger?.deposits ?? ledger?.entries ?? [];
+  if (!Array.isArray(entries)) return new BN(0);
+  const solEntry = entries.find((d) => {
+    const mint = d?.mintKey ?? d?.tokenMint ?? d?.mint;
+    try {
+      return mint && new PublicKey(mint).equals(SOL_MINT);
+    } catch {
+      return false;
+    }
+  });
+  if (!solEntry) return new BN(0);
+  const bal = solEntry?.balance ?? solEntry?.amount ?? solEntry?.lamports ?? 0;
+  try {
+    return toBn(bal);
+  } catch {
+    return new BN(0);
+  }
+}
+
+/** Readiness for Flash v2 trading: funded deposit ledger + Flash basket.delegate set. */
+async function readTradeReadiness(c) {
+  const out = {
+    depositLamports: "0",
+    depositOk: false,
+    basketDelegate: null,
+    flashDelegated: false,
+    ready: false,
+    issues: [],
+  };
+  try {
+    const ledger = await c.accounts.fetchUserDepositLedger(keypair.publicKey);
+    const bal = solDepositBalance(ledger);
+    out.depositLamports = bal.toString();
+    out.depositOk = bal.gte(new BN(DEPOSIT_SKIP_FUNDED_LAMPORTS));
+    if (!out.depositOk) {
+      out.issues.push(
+        `deposit ledger SOL balance ${bal.toString()} lamports < ${DEPOSIT_SKIP_FUNDED_LAMPORTS}`,
+      );
+    }
+  } catch (e) {
+    out.issues.push(`deposit ledger unreadable: ${e?.message ?? e}`);
+  }
+
+  try {
+    if (!c.erAccounts) {
+      out.issues.push("ER accounts client unavailable (set RTP_TRADER_ER_RPC)");
+    } else {
+      const basket = await c.erAccounts.fetchBasket(keypair.publicKey);
+      const del = basket?.delegate?.toBase58?.() ?? String(basket?.delegate ?? "");
+      out.basketDelegate = del;
+      // Flash-level trading delegate (not MagicBlock account ownership).
+      out.flashDelegated = Boolean(del && del !== PublicKey.default.toBase58());
+      if (!out.flashDelegated) {
+        out.issues.push("basket.delegate is unset (Flash trading not activated)");
+      }
+    }
+  } catch (e) {
+    out.issues.push(`basket unreadable on ER: ${e?.message ?? e}`);
+  }
+
+  out.ready = out.depositOk && out.flashDelegated;
+  return out;
+}
+
+// Setup/funds → Solana RPC (sendAndConfirmTransaction). Trading → ER.
+// Steps 1–3 and 5 are idempotent. depositDirect is skipped when ledger funded.
 async function doSetup() {
   const c = await initClient();
   const sigs = [];
+  const depositUi = process.env.RTP_TRADER_V2_DEPOSIT_AMOUNT_UI || "1.0";
+  const depositLamports = Math.max(
+    1,
+    Math.round(Number.parseFloat(depositUi) * 1e9),
+  );
 
-  async function runStep(name, builder) {
+  async function runStep(name, builder, { viaEr = false } = {}) {
     let r;
     try {
       r = await builder();
     } catch (e) {
-      // already-initialized races surface as zero-instruction results on the
-      // happy path, but if the SDK throws first we still treat "already
-      // initialized" as a no-op.
       const msg = e?.message ?? String(e);
       if (/already/i.test(msg) || /initialized/i.test(msg)) {
         sigs.push({ step: name, signature: null, skipped: "already-initialized" });
         return;
+      }
+      // Surface program IDL mismatch clearly (Flash InstructionFallbackNotFound).
+      if (isProgramMismatchError(msg)) {
+        throw new Error(
+          `${name} failed: Flash program rejected instruction (InstructionFallbackNotFound / Custom 101). ` +
+            `SDK/API IDL is out of sync with the deployed Flash program on this cluster. ` +
+            `Original: ${msg}`,
+        );
       }
       throw e;
     }
@@ -223,10 +300,18 @@ async function doSetup() {
       sigs.push({ step: name, signature: null, skipped: "noop" });
       return;
     }
-    const sig = await c.sendAndConfirmErTransaction(r.instructions, [
-      keypair,
-      ...(r.additionalSigners ?? []),
-    ]);
+    let sig;
+    if (viaEr) {
+      sig = await c.sendAndConfirmErTransaction(r.instructions, [
+        keypair,
+        ...(r.additionalSigners ?? []),
+      ]);
+    } else {
+      // Funds/setup must hit Solana RPC, not ER (Flash docs).
+      sig = await c.sendAndConfirmTransaction(r.instructions, {
+        additionalSigners: r.additionalSigners ?? [],
+      });
+    }
     sigs.push({ step: name, signature: sig });
   }
 
@@ -234,22 +319,10 @@ async function doSetup() {
   await runStep("init-basket", () => c.initializeBasket());
   await runStep("init-trade-vault-SOL", () => c.initTradeVault(SOL_MINT));
 
-  // Skip deposit if the ledger is already funded. fetchUserDepositLedger returns
-  // any per-token balances the program tracks; if SOL ledger already has enough
-  // balance we don't run depositDirect (which transfers lamports on each call).
   let skipDeposit = false;
   try {
     const ledger = await c.accounts.fetchUserDepositLedger(keypair.publicKey);
-    // The ledger shape exposes per-token entries; check for SOL entry with
-    // balance >= threshold. Field access is best-effort — if the SDK shape
-    // changes, fall through to deposit (safer than double-depositing).
-    const entries = ledger?.deposits ?? ledger?.entries ?? [];
-    const solEntry = entries.find((d) => {
-      const mint = d?.mintKey ?? d?.tokenMint ?? d?.mint;
-      return mint && new PublicKey(mint).equals?.(SOL_MINT);
-    });
-    const bal = solEntry?.balance ?? solEntry?.amount ?? solEntry?.lamports;
-    if (bal instanceof BN && bal.gte(new BN(DEPOSIT_SKIP_FUNDED_LAMPORTS))) {
+    if (solDepositBalance(ledger).gte(new BN(DEPOSIT_SKIP_FUNDED_LAMPORTS))) {
       skipDeposit = true;
     }
   } catch (e) {
@@ -263,12 +336,86 @@ async function doSetup() {
       skipped: `ledger-funded (>=${DEPOSIT_SKIP_FUNDED_LAMPORTS} lamports)`,
     });
   } else {
-    await runStep("deposit-direct", () => c.depositDirect(SOL_MINT, new BN(1_000_000_000)));
+    await runStep("deposit-direct", () =>
+      c.depositDirect(SOL_MINT, new BN(depositLamports)),
+    );
   }
 
-  await runStep("delegate-basket", () => c.delegateBasket(keypair.publicKey));
+  // SDK delegateBasket no-ops when the basket account is MagicBlock-owned on L1,
+  // even if Flash's basket.delegate field is still unset. Force Flash-level
+  // activation on ER when readiness says we're not flash-delegated.
+  const before = await readTradeReadiness(c);
+  if (before.flashDelegated) {
+    sigs.push({ step: "delegate-basket", signature: null, skipped: "already-flash-delegated" });
+  } else {
+    // Prefer SDK path first (base). If it no-ops, force ER send of the ix.
+    let r;
+    try {
+      r = await c.delegateBasket(keypair.publicKey);
+    } catch (e) {
+      const msg = e?.message ?? String(e);
+      if (isProgramMismatchError(msg)) {
+        throw new Error(
+          `delegate-basket failed: Flash program InstructionFallbackNotFound (Custom 101). ` +
+            `Deployed program does not recognize delegate_basket. Original: ${msg}`,
+        );
+      }
+      throw e;
+    }
+    if (r?.instructions?.length) {
+      try {
+        const sig = await c.sendAndConfirmTransaction(r.instructions, {
+          additionalSigners: r.additionalSigners ?? [],
+        });
+        sigs.push({ step: "delegate-basket", signature: sig });
+      } catch (e) {
+        // Basket is often already MagicBlock-delegated on L1; Flash-level
+        // delegate must land on ER.
+        console.error(
+          "[wrapper] base delegate-basket failed, retrying on ER:",
+          e?.message ?? e,
+        );
+        const sig = await c.sendAndConfirmErTransaction(r.instructions, [
+          keypair,
+          ...(r.additionalSigners ?? []),
+        ]);
+        sigs.push({ step: "delegate-basket-er", signature: sig });
+      }
+    } else {
+      // SDK no-op due to MagicBlock ownership — still need Flash delegate on ER.
+      // Re-use program method builder if available.
+      try {
+        const erProg = c.erProgram ?? c.program;
+        if (typeof erProg?.methods?.delegateBasket === "function") {
+          const ix = await erProg.methods
+            .delegateBasket()
+            .accounts({ owner: keypair.publicKey })
+            .instruction();
+          const sig = await c.sendAndConfirmErTransaction([ix], [keypair]);
+          sigs.push({ step: "delegate-basket-er-forced", signature: sig });
+        } else {
+          sigs.push({
+            step: "delegate-basket",
+            signature: null,
+            skipped: "sdk-noop-no-force-path",
+          });
+        }
+      } catch (e) {
+        const msg = e?.message ?? String(e);
+        if (isProgramMismatchError(msg)) {
+          throw new Error(
+            `delegate-basket (ER force) failed: Flash InstructionFallbackNotFound (Custom 101). ` +
+              `Upstream program/IDL mismatch. Original: ${msg}`,
+          );
+        }
+        throw e;
+      }
+    }
+  }
 
-  return { signatures: sigs };
+  const readiness = await readTradeReadiness(c);
+  console.error("[wrapper] setup readiness", JSON.stringify(readiness));
+  return { signatures: sigs, readiness };
 }
 
 function isCapacityError(msg) {
@@ -281,6 +428,23 @@ function isCapacityError(msg) {
 
 function isMinCollateralError(msg) {
   return /Custom["']?:\s*6034|MinCollateral/i.test(String(msg));
+}
+
+/** Anchor InstructionFallbackNotFound — program has no matching instruction. */
+function isProgramMismatchError(msg) {
+  const s = String(msg);
+  return (
+    /InstructionFallbackNotFound/i.test(s) ||
+    /Custom["']?:\s*101\b/.test(s) ||
+    /custom program error:\s*0x65/i.test(s) ||
+    /Error Number:\s*101/.test(s)
+  );
+}
+
+function isInsufficientBalanceError(msg) {
+  return /Custom["']?:\s*607[89]|InsufficientBalance|InsufficientAvailableBalance/i.test(
+    String(msg),
+  );
 }
 
 function readPositiveIntEnv(name, fallback) {
@@ -297,6 +461,17 @@ async function doOpenPosition(params) {
     throw new Error("open_position requires collateralAmount (lamports) and leverage");
   }
   const side = sideStr === "short" || sideStr === "SHORT" ? sideShort() : sideLong();
+
+  // Fail fast when wallet is not trade-ready. Empty deposit ledger + undelegated
+  // basket previously surfaced as misleading 6024 CustodyAmountLimit retries.
+  const readiness = await readTradeReadiness(c);
+  console.error("[wrapper] open readiness", JSON.stringify(readiness));
+  if (!readiness.ready) {
+    throw new Error(
+      `wallet not trade-ready: ${readiness.issues.join("; ")}. ` +
+        `Run setup (RTP_TRADER_RUN_V2_SETUP=1) so deposit ledger is funded and basket.delegate is set.`,
+    );
+  }
 
   const { market, lockSymbol, fundingSymbol } = resolveOpenMarket("SOL", side);
   const targetCustody = getCustodyBySymbol("SOL");
@@ -355,6 +530,12 @@ async function doOpenPosition(params) {
       const msg = e?.message ?? String(e);
       lastErr = `quote failed: ${msg}`;
       console.error(`[wrapper] ${lastErr}`);
+      if (isProgramMismatchError(msg)) {
+        throw new Error(
+          `open quote failed: Flash program InstructionFallbackNotFound (Custom 101). ` +
+            `Deployed ER program does not match SDK IDL (open_position_er / views). Not a capacity issue. Original: ${msg}`,
+        );
+      }
       if (isCapacityError(msg) && attempt < maxAttempts - 1) {
         amount = amount.div(new BN(2));
         continue;
@@ -390,6 +571,18 @@ async function doOpenPosition(params) {
     } catch (e) {
       const msg = e?.message ?? String(e);
       lastErr = msg;
+      if (isProgramMismatchError(msg)) {
+        throw new Error(
+          `open failed: Flash program InstructionFallbackNotFound (Custom 101). ` +
+            `ER program rejected open_position_er — upstream IDL/program mismatch, not CustodyAmountLimit. Original: ${msg}`,
+        );
+      }
+      if (isInsufficientBalanceError(msg)) {
+        throw new Error(
+          `open failed: insufficient Flash deposit-ledger balance (not pool capacity). ` +
+            `Fund via setup/deposit-direct. Original: ${msg}`,
+        );
+      }
       if (isMinCollateralError(msg)) {
         throw new Error(
           `open failed: Flash rejected ${amount.toString()} lamports as below MinCollateral after capacity backoff (lev fixed at ${lev}): ${msg}`,

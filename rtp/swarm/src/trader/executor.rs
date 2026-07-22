@@ -494,6 +494,19 @@ fn is_sdk_dead_error(err: &str) -> bool {
 }
 
 fn is_flash_capacity_error(err: &str) -> bool {
+    // Do NOT treat InstructionFallbackNotFound (Custom 101 / 0x65) as capacity —
+    // that is an IDL/program mismatch and must not trigger size backoff.
+    if err.contains("InstructionFallbackNotFound")
+        || err.contains("Custom\":101")
+        || err.contains("Custom: 101")
+        || err.contains("0x65")
+        || err.contains("Error Number: 101")
+        || err.contains("not trade-ready")
+        || err.contains("program/IDL mismatch")
+        || err.contains("IDL is out of sync")
+    {
+        return false;
+    }
     err.contains("Custom\":6024")
         || err.contains("Custom: 6024")
         || err.contains("0x1788")
@@ -923,132 +936,28 @@ pub async fn close_position(
 /// Safe to re-run: each step is idempotent on the Flash side.
 ///
 /// Order matters (per Flash SDK v2): deposit-ledger → basket → trade-vault → deposit → delegate.
-/// We sleep 2s between steps so the prior account is visible to the next.
+/// The Node SDK wrapper handles account-existence checks and skips deposit when
+/// the SOL ledger is already funded.
 pub async fn v2_one_time_setup(
-    keypair: &solana_sdk::signature::Keypair,
+    _keypair: &solana_sdk::signature::Keypair,
 ) -> Result<Vec<String>, String> {
-    let wallet = keypair.pubkey().to_string();
-    let mut submitted: Vec<String> = Vec::new();
-    const SOL_MINT: &str = "So11111111111111111111111111111111111111112";
-    const SOL_DEPOSIT_UI: &str = "1.0"; // 1 SOL deposit for collateral
-
-    // Step 0a — init deposit ledger
-    match v2_call_and_submit(
-        keypair,
-        "/transaction-builder/init-deposit-ledger",
-        serde_json::json!({ "owner": wallet.clone() }),
-    )
-    .await
-    {
-        Ok(sig) => submitted.push(format!("init-deposit-ledger: {sig}")),
-        Err(e) if is_setup_already_done(&e) => {
-            tracing::info!("[V2_SETUP] deposit-ledger already initialized; skipping");
-        }
-        Err(e) => {
-            tracing::warn!("[V2_SETUP] init-deposit-ledger non-fatal: {e}");
-        }
-    }
-
-    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-
-    // Step 0b — init basket
-    match v2_call_and_submit(
-        keypair,
-        "/transaction-builder/init-basket",
-        serde_json::json!({ "owner": wallet.clone() }),
-    )
-    .await
-    {
-        Ok(sig) => submitted.push(format!("init-basket: {sig}")),
-        Err(e) if is_setup_already_done(&e) => {
-            tracing::info!("[V2_SETUP] basket already initialized; skipping ({e})");
-        }
-        // Re-runs after first setup often fail simulation (account exists).
-        // Non-fatal: trading loop continues with existing basket.
-        Err(e) => {
-            tracing::warn!("[V2_SETUP] init-basket non-fatal: {e}");
-        }
-    }
-
-    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-
-    // Step 0c — init trade vault for SOL (globally idempotent)
-    match v2_call_and_submit(
-        keypair,
-        "/transaction-builder/init-token-stake",
-        serde_json::json!({ "owner": wallet.clone(), "tokenMint": SOL_MINT }),
-    )
-    .await
-    {
-        Ok(sig) => submitted.push(format!("init-token-stake(SOL): {sig}")),
-        Err(e) if e.contains("already") || e.contains("initialized") => {
-            tracing::info!("[V2_SETUP] trade vault for SOL already initialized; skipping");
-        }
-        Err(e) => return Err(format!("init-token-stake failed: {e}")),
-    }
-
-    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-
-    // Step 1 — deposit SOL collateral
-    match v2_call_and_submit(
-        keypair,
-        "/transaction-builder/deposit-direct",
-        serde_json::json!({
-            "owner": wallet.clone(),
-            "tokenMint": SOL_MINT,
-            "amount": SOL_DEPOSIT_UI,
-        }),
-    )
-    .await
-    {
-        Ok(sig) => submitted.push(format!("deposit-direct(SOL): {sig}")),
-        Err(e) => {
-            tracing::warn!("[V2_SETUP] deposit-direct non-fatal: {}", e);
-        }
-    }
-
-    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-
-    // Step 2 — delegate basket (required before any open/close lands)
-    match v2_call_and_submit(
-        keypair,
-        "/transaction-builder/delegate-basket",
-        serde_json::json!({
-            "payer": wallet.clone(),
-            "owner": wallet.clone(),
-        }),
-    )
-    .await
-    {
-        Ok(sig) => submitted.push(format!("delegate-basket: {sig}")),
-        Err(e) if e.contains("already") || e.contains("delegated") => {
-            tracing::info!("[V2_SETUP] basket already delegated; skipping");
-        }
-        Err(e) => return Err(format!("delegate-basket failed: {e}")),
-    }
-
-    Ok(submitted)
-}
-
-/// Build a Flash transaction via `flash_post`, then sign+submit.
-/// Used for the v2 setup endpoints (funds path → Solana mainnet RPC).
-async fn v2_call_and_submit(
-    keypair: &solana_sdk::signature::Keypair,
-    path: &str,
-    body: serde_json::Value,
-) -> Result<String, String> {
-    let val = flash_post(path, &body).await?;
-    if let Some(err) = val.get("err").and_then(|v| v.as_str())
-        && !err.is_empty()
-    {
-        return Err(format!("API {path} err: {err}"));
-    }
-    let tx_b64 = val
-        .get("transactionBase64")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| format!("No transaction in {path} response"))?;
-    // Account & funds ops → Solana RPC (not v2/ER).
-    sign_and_submit(keypair, tx_b64, &solana_rpc_url()).await
+    let mut guard = try_get_sdk_client().await?;
+    let sigs = guard
+        .inner
+        .as_mut()
+        .ok_or("SDK client missing after initialization")?
+        .setup()
+        .await?;
+    Ok(sigs
+        .into_iter()
+        .map(|(step, sig)| {
+            if sig.is_empty() {
+                step
+            } else {
+                format!("{step}: {sig}")
+            }
+        })
+        .collect())
 }
 
 /// Sign a VersionedTransaction (base64) and submit via raw RPC to `rpc_url`.
@@ -1267,16 +1176,6 @@ fn is_blockhash_error(err: &str) -> bool {
         || err.contains("Block height exceeded")
 }
 
-/// Setup steps are idempotent; re-runs hit "already exists" / simulation fails.
-fn is_setup_already_done(err: &str) -> bool {
-    let e = err.to_ascii_lowercase();
-    e.contains("already")
-        || e.contains("initialized")
-        || e.contains("0x0")
-        || e.contains("custom program error")
-        || e.contains("simulation failed")
-}
-
 /// Errors that should trigger a fresh builder call (Flash rotates blockhashes
 /// between calls; the only durable fix is to rebuild). Includes blockhash
 /// expiries, transaction simulation failures, and signature issues.
@@ -1443,6 +1342,16 @@ mod tests {
         assert!(is_flash_capacity_error("MaxExposure"));
         assert!(!is_flash_capacity_error(
             "SDK error -32000: StaleOraclePrice"
+        ));
+        // Program/IDL mismatch and readiness failures must not look like capacity.
+        assert!(!is_flash_capacity_error(
+            "InstructionFallbackNotFound. Error Number: 101"
+        ));
+        assert!(!is_flash_capacity_error(
+            "custom program error: 0x65"
+        ));
+        assert!(!is_flash_capacity_error(
+            "wallet not trade-ready: deposit ledger SOL balance 0"
         ));
     }
 

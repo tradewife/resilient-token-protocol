@@ -363,17 +363,16 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
     let http_state = state.clone();
     start_status_server(http_state, http_port);
 
-    // Optional: one-time Flutter v2 wallet setup (init-deposit-ledger +
-    // init-basket + deposit-direct + delegate-basket). Without these, v2
-    // trades fail on-chain with Custom: 3012 because the basket isn't
-    // delegated. Set RTP_TRADER_RUN_V2_SETUP=1 to run on first startup;
-    // the trader continues even if setup fails (forwards might not be
-    // deployed yet — caller can monitor logs and re-roll the deploy).
+    // Optional: one-time Flash v2 wallet setup via Node SDK wrapper
+    // (init-deposit-ledger → init-basket → init-trade-vault → depositDirect SOL
+    // → delegate-basket). Funds ops use Solana RPC; trading uses ER.
+    // Without a funded ledger + Flash basket.delegate, opens fail (historically
+    // misreported as 6024). Set RTP_TRADER_RUN_V2_SETUP=1 on first startup.
     if std::env::var("RTP_TRADER_RUN_V2_SETUP")
         .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
         .unwrap_or(false)
     {
-        tracing::info!("[V2_SETUP] Starting Flash v2 one-time setup (USDC deposit)");
+        tracing::info!("[V2_SETUP] Starting Flash v2 one-time setup (SOL deposit + delegate)");
         match executor::v2_one_time_setup(&keypair).await {
             Ok(sigs) => {
                 tracing::info!("[V2_SETUP] OK: {}", sigs.join(", "));
