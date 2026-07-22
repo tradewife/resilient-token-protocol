@@ -493,14 +493,15 @@ async function doOpenPosition(params) {
   }
   const side = sideStr === "short" || sideStr === "SHORT" ? sideShort() : sideLong();
 
-  // Fail fast when wallet is not trade-ready. Empty deposit ledger + undelegated
-  // basket previously surfaced as misleading 6024 CustodyAmountLimit retries.
+  // Log readiness (deposit ledger + Flash basket.delegate). Do NOT hard-block:
+  // 6024 also reproduces for third-party wallets that already have deposits, so
+  // empty-ledger alone is not a reliable gate. Prefer attempt + real on-chain error.
   const readiness = await readTradeReadiness(c);
   console.error("[wrapper] open readiness", JSON.stringify(readiness));
   if (!readiness.ready) {
-    throw new Error(
-      `wallet not trade-ready: ${readiness.issues.join("; ")}. ` +
-        `Run setup (RTP_TRADER_RUN_V2_SETUP=1) so deposit ledger is funded and basket.delegate is set.`,
+    console.error(
+      "[wrapper] readiness warning (continuing open attempt):",
+      readiness.issues.join("; "),
     );
   }
 

@@ -960,12 +960,18 @@ pub async fn v2_one_time_setup(
         .collect())
 }
 
-/// Sign a VersionedTransaction (base64) and submit via raw RPC to `rpc_url`.
+/// Sign a Flash API transaction and submit to `rpc_url`.
 ///
-/// Flash docs: funds ops → Solana RPC; trading → v2/ER RPC. Blockhash is
-/// refreshed from the **same** RPC we submit to. We wait for confirmed
-/// status and reject if `meta.err` is set so callers never treat a failed
-/// on-chain open as success.
+/// **Critical (Flash CLI / V2 contract):** the API returns *partially signed*
+/// transactions — it pre-fills its own signer slots (e.g. temp WSOL for
+/// deposit-direct) and chooses the blockhash for the target chain. We add
+/// **only** the owner keypair's signature at the matching account index and
+/// **never** replace the blockhash. Mutating the blockhash invalidates the
+/// server's pre-signatures and is the #1 integration footgun.
+///
+/// Routing (caller responsibility):
+/// - funds/setup → Solana mainnet RPC
+/// - trading → ER RPC (`https://flash.magicblock.xyz`)
 async fn sign_and_submit(
     keypair: &solana_sdk::signature::Keypair,
     tx_b64: &str,
@@ -980,38 +986,44 @@ async fn sign_and_submit(
     let mut tx: VersionedTransaction = bincode::deserialize(&tx_bytes)
         .map_err(|e| format!("Transaction deserialize error: {}", e))?;
 
+    partial_sign_owner(&mut tx, keypair)?;
+
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(30))
         .build()
         .map_err(|e| format!("RPC client build failed: {}", e))?;
 
-    let fresh_hash = fetch_latest_blockhash(&client, rpc_url).await?;
-    match &mut tx.message {
-        solana_sdk::message::VersionedMessage::Legacy(m) => m.recent_blockhash = fresh_hash,
-        solana_sdk::message::VersionedMessage::V0(m) => m.recent_blockhash = fresh_hash,
-    }
-
-    let sig = keypair.sign_message(&tx.message.serialize());
-
-    let mut signatures = tx.signatures;
-    if !signatures.is_empty() {
-        signatures[0] = sig;
-    } else {
-        signatures.push(sig);
-    }
-
-    let signed_tx = VersionedTransaction {
-        signatures,
-        message: tx.message,
-    };
-
-    let serialized = bincode::serialize(&signed_tx)
+    let serialized = bincode::serialize(&tx)
         .map_err(|e| format!("Transaction serialize error: {}", e))?;
     let signed_b64 = base64::engine::general_purpose::STANDARD.encode(&serialized);
 
     let signature = rpc_send_transaction(&client, rpc_url, &signed_b64).await?;
     confirm_signature(&client, rpc_url, &signature).await?;
     Ok(signature)
+}
+
+/// Fill only this keypair's signature slot. Preserves API pre-filled signatures.
+/// Never touches the blockhash. Mirrors flash-trade-MCP `cli/src/core/signer.rs`.
+fn partial_sign_owner(
+    tx: &mut solana_sdk::transaction::VersionedTransaction,
+    keypair: &solana_sdk::signature::Keypair,
+) -> Result<(), String> {
+    use solana_sdk::signer::Signer;
+
+    let msg_bytes = tx.message.serialize();
+    let keys = tx.message.static_account_keys();
+    let pos = keys
+        .iter()
+        .position(|k| *k == keypair.pubkey())
+        .ok_or_else(|| {
+            "transaction was built for a different wallet — this keypair is not a required signer"
+                .to_string()
+        })?;
+    if pos >= tx.signatures.len() {
+        return Err("signer index out of range for transaction".to_string());
+    }
+    tx.signatures[pos] = keypair.sign_message(&msg_bytes);
+    Ok(())
 }
 
 /// Poll `getSignatureStatuses` until confirmed/finalized or timeout.
@@ -1137,36 +1149,6 @@ async fn confirm_signature_via_get_transaction(
         }
         tokio::time::sleep(std::time::Duration::from_millis(TX_CONFIRM_POLL_MS)).await;
     }
-}
-
-/// Fetch a recent blockhash from Solana RPC (`getLatestBlockhash`).
-async fn fetch_latest_blockhash(
-    client: &reqwest::Client,
-    rpc_url: &str,
-) -> Result<solana_sdk::hash::Hash, String> {
-    let resp = client
-        .post(rpc_url)
-        .json(&serde_json::json!({
-            "jsonrpc": "2.0",
-            "id": 1,
-            "method": "getLatestBlockhash",
-            "params": [{ "commitment": "confirmed" }]
-        }))
-        .send()
-        .await
-        .map_err(|e| format!("getLatestBlockhash request failed: {}", e))?;
-    let json: serde_json::Value = resp
-        .json()
-        .await
-        .map_err(|e| format!("getLatestBlockhash parse error: {}", e))?;
-    let bs = json
-        .get("result")
-        .and_then(|r| r.get("value"))
-        .and_then(|v| v.get("blockhash"))
-        .and_then(|b| b.as_str())
-        .ok_or_else(|| format!("getLatestBlockhash missing blockhash: {}", json))?;
-    bs.parse::<solana_sdk::hash::Hash>()
-        .map_err(|e| format!("blockhash decode error: {}", e))
 }
 
 fn is_blockhash_error(err: &str) -> bool {
