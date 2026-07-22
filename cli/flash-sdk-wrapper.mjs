@@ -73,6 +73,24 @@ async function initClient() {
   return client;
 }
 
+function formatError(e) {
+  if (e == null) return "unknown error";
+  if (typeof e === "string") return e;
+  if (typeof e?.message === "string" && e.message.length) return e.message;
+  if (typeof e?.message === "object") {
+    try {
+      return JSON.stringify(e.message);
+    } catch {
+      /* fall through */
+    }
+  }
+  try {
+    return JSON.stringify(e);
+  } catch {
+    return String(e);
+  }
+}
+
 // JSON-RPC request handler
 async function handleRequest(req) {
   const { method, params, id } = req;
@@ -99,7 +117,9 @@ async function handleRequest(req) {
     }
     return { jsonrpc: "2.0", id, result };
   } catch (e) {
-    return { jsonrpc: "2.0", id, error: { code: -32000, message: e?.message ?? String(e) } };
+    const message = formatError(e);
+    console.error("[wrapper] request error:", message);
+    return { jsonrpc: "2.0", id, error: { code: -32000, message } };
   }
 }
 
