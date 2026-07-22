@@ -220,6 +220,15 @@ async function entryPrice(targetSymbol, side, isEntry, slippageBps = 100) {
   return c.getPriceAfterSlippage(isEntry, new BN(slippageBps), tp, side);
 }
 
+function depositEntryBalance(entry) {
+  const bal = entry?.balance ?? entry?.amount ?? entry?.lamports ?? 0;
+  try {
+    return toBn(bal);
+  } catch {
+    return new BN(0);
+  }
+}
+
 function solDepositBalance(ledger) {
   const entries = ledger?.deposits ?? ledger?.entries ?? [];
   if (!Array.isArray(entries)) return new BN(0);
@@ -232,21 +241,32 @@ function solDepositBalance(ledger) {
     }
   });
   if (!solEntry) return new BN(0);
-  const bal = solEntry?.balance ?? solEntry?.amount ?? solEntry?.lamports ?? 0;
-  try {
-    return toBn(bal);
-  } catch {
-    return new BN(0);
-  }
+  return depositEntryBalance(solEntry);
 }
 
-/** Readiness for Flash v2 trading: funded deposit ledger + Flash basket.delegate set. */
+/** True when the deposit ledger has any non-zero mint balance (SOL, USDC, …). */
+function anyDepositFunded(ledger) {
+  const entries = ledger?.deposits ?? ledger?.entries ?? [];
+  if (!Array.isArray(entries) || entries.length === 0) return false;
+  return entries.some((d) => depositEntryBalance(d).gt(new BN(0)));
+}
+
+/**
+ * Readiness for Flash v2 trading.
+ *
+ * Required: non-empty deposit ledger (opens fail with 6024 when unfunded).
+ * Advisory: basket.delegate — successful mainnet opens use session keys with
+ * delegate still unset (1111…); MagicBlock ownership of the basket is enough.
+ */
 async function readTradeReadiness(c) {
   const out = {
     depositLamports: "0",
     depositOk: false,
+    anyDepositOk: false,
+    depositMints: [],
     basketDelegate: null,
     flashDelegated: false,
+    basketOk: false,
     ready: false,
     issues: [],
   };
@@ -254,10 +274,25 @@ async function readTradeReadiness(c) {
     const ledger = await c.accounts.fetchUserDepositLedger(keypair.publicKey);
     const bal = solDepositBalance(ledger);
     out.depositLamports = bal.toString();
-    out.depositOk = bal.gte(new BN(DEPOSIT_SKIP_FUNDED_LAMPORTS));
+    out.anyDepositOk = anyDepositFunded(ledger);
+    // SOL path (our trader collateral) needs SOL on the ledger. Accept any
+    // funded mint for setup diagnostics, but ready requires SOL for SOL opens.
+    out.depositOk = bal.gt(new BN(0));
+    const entries = ledger?.deposits ?? ledger?.entries ?? [];
+    if (Array.isArray(entries)) {
+      out.depositMints = entries.map((d) => {
+        const mint = d?.mintKey ?? d?.tokenMint ?? d?.mint;
+        return {
+          mint: mint?.toBase58?.() ?? String(mint ?? ""),
+          amount: depositEntryBalance(d).toString(),
+        };
+      });
+    }
     if (!out.depositOk) {
       out.issues.push(
-        `deposit ledger SOL balance ${bal.toString()} lamports < ${DEPOSIT_SKIP_FUNDED_LAMPORTS}`,
+        out.anyDepositOk
+          ? `deposit ledger has non-SOL balances only; SOL balance is 0 (trader opens need SOL or switch funding mint)`
+          : `deposit ledger empty (0 deposits). Flash deposit_direct currently returns InstructionFallbackNotFound (101) after program upgrade — cannot fund ledger until Flash restores the instruction or ships a replacement`,
       );
     }
   } catch (e) {
@@ -271,17 +306,22 @@ async function readTradeReadiness(c) {
       const basket = await c.erAccounts.fetchBasket(keypair.publicKey);
       const del = basket?.delegate?.toBase58?.() ?? String(basket?.delegate ?? "");
       out.basketDelegate = del;
-      // Flash-level trading delegate (not MagicBlock account ownership).
+      // Flash-level trading delegate field (legacy). Unset is OK with owner/session signing.
       out.flashDelegated = Boolean(del && del !== PublicKey.default.toBase58());
+      out.basketOk = true;
       if (!out.flashDelegated) {
-        out.issues.push("basket.delegate is unset (Flash trading not activated)");
+        // Advisory only — do not block readiness on this after session-key migration.
+        out.issues.push(
+          "basket.delegate is unset (legacy field; owner/session-signed opens still work when deposit is funded)",
+        );
       }
     }
   } catch (e) {
     out.issues.push(`basket unreadable on ER: ${e?.message ?? e}`);
   }
 
-  out.ready = out.depositOk && out.flashDelegated;
+  // Gate on funded SOL deposit + readable basket. Do not require flashDelegated.
+  out.ready = out.depositOk && out.basketOk;
   return out;
 }
 
@@ -310,8 +350,9 @@ async function doSetup() {
       if (isProgramMismatchError(msg)) {
         throw new Error(
           `${name} failed: Flash program rejected instruction (InstructionFallbackNotFound / Custom 101). ` +
-            `SDK/API IDL is out of sync with the deployed Flash program on this cluster. ` +
-            `Original: ${msg}`,
+            `Deployed FLASH6 binary (post slot 434407053 / ~2026-07-22T00:33Z upgrade) no longer embeds ` +
+            `deposit_direct / init_user_deposit_ledger / delegate_basket — confirmed via programdata string scan ` +
+            `and sim. SDK/API IDL still advertise them. Original: ${msg}`,
         );
       }
       throw e;
@@ -338,7 +379,8 @@ async function doSetup() {
       if (isProgramMismatchError(msg)) {
         throw new Error(
           `${name} failed: Flash program InstructionFallbackNotFound (Custom 101). ` +
-            `SDK/API IDL is out of sync with the deployed Flash program. Original: ${msg}`,
+            `Deployed FLASH6 binary no longer includes this instruction (program upgrade ~2026-07-22T00:33Z). ` +
+            `SDK/API IDL is ahead of mainnet. Original: ${msg}`,
         );
       }
       throw new Error(`${name} failed: ${msg}`);
@@ -493,15 +535,22 @@ async function doOpenPosition(params) {
   }
   const side = sideStr === "short" || sideStr === "SHORT" ? sideShort() : sideLong();
 
-  // Log readiness (deposit ledger + Flash basket.delegate). Do NOT hard-block:
-  // 6024 also reproduces for third-party wallets that already have deposits, so
-  // empty-ledger alone is not a reliable gate. Prefer attempt + real on-chain error.
+  // Hard-gate on empty deposit ledger. Empirically (2026-07-22): unfunded
+  // HDQ79… always hits OpenPositionEr 6024 CustodyAmountLimit; funded third-party
+  // ledgers (e.g. 238 USDC) open successfully on the same market. Soft-continue
+  // only burned gas and flooded logs with size backoff.
   const readiness = await readTradeReadiness(c);
   console.error("[wrapper] open readiness", JSON.stringify(readiness));
-  if (!readiness.ready) {
-    console.error(
-      "[wrapper] readiness warning (continuing open attempt):",
-      readiness.issues.join("; "),
+  if (!readiness.depositOk) {
+    throw new Error(
+      `wallet not trade-ready: deposit ledger unfunded for SOL. ` +
+        `${readiness.issues.join("; ")}. ` +
+        `Refusing open to avoid 6024 death spiral.`,
+    );
+  }
+  if (!readiness.basketOk) {
+    throw new Error(
+      `wallet not trade-ready: basket unreadable on ER. ${readiness.issues.join("; ")}`,
     );
   }
 
