@@ -321,16 +321,27 @@ async function doSetup() {
       return;
     }
     let sig;
-    if (viaEr) {
-      sig = await c.sendAndConfirmErTransaction(r.instructions, [
-        keypair,
-        ...(r.additionalSigners ?? []),
-      ]);
-    } else {
-      // Funds/setup must hit Solana RPC, not ER (Flash docs).
-      sig = await c.sendAndConfirmTransaction(r.instructions, {
-        additionalSigners: r.additionalSigners ?? [],
-      });
+    try {
+      if (viaEr) {
+        sig = await c.sendAndConfirmErTransaction(r.instructions, [
+          keypair,
+          ...(r.additionalSigners ?? []),
+        ]);
+      } else {
+        // Funds/setup must hit Solana RPC, not ER (Flash docs).
+        sig = await c.sendAndConfirmTransaction(r.instructions, {
+          additionalSigners: r.additionalSigners ?? [],
+        });
+      }
+    } catch (e) {
+      const msg = formatError(e);
+      if (isProgramMismatchError(msg)) {
+        throw new Error(
+          `${name} failed: Flash program InstructionFallbackNotFound (Custom 101). ` +
+            `SDK/API IDL is out of sync with the deployed Flash program. Original: ${msg}`,
+        );
+      }
+      throw new Error(`${name} failed: ${msg}`);
     }
     sigs.push({ step: name, signature: sig });
   }
