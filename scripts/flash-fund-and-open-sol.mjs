@@ -63,6 +63,58 @@ function loadKeypair() {
   return kp;
 }
 
+/**
+ * Check if the deposit ledger is funded with SOL (via SDK).
+ */
+async function ledgerHasSol(client, owner) {
+  try {
+    const ledger = await client.accounts.fetchUserDepositLedger(owner);
+    const entries = ledger?.deposits ?? [];
+    for (const d of entries) {
+      const mint = d?.mintKey ?? d?.tokenMint ?? d?.mint;
+      const amt = d?.amount ?? d?.balance ?? 0;
+      if (mint && new PublicKey(mint).equals(NATIVE_MINT) && Number(amt?.toString?.() ?? 0) > 0) {
+        return true;
+      }
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Fund the deposit ledger using the REST API one-shot /deposit endpoint.
+ * The API builds a composite tx (system+token+flash+token) that bundles any
+ * missing setup (basket, deposit ledger, delegation, trade vault) and works
+ * with the post-upgrade binary. The SDK's depositDirect instruction alone
+ * returns InstructionFallbackNotFound (101).
+ */
+async function apiDepositSol(kp, amountUi) {
+  const body = {
+    owner: kp.publicKey.toBase58(),
+    tokenSymbol: "SOL",
+    amount: String(amountUi),
+  };
+  console.log(`API /deposit ${amountUi} SOL for ${kp.publicKey.toBase58()}`);
+  const res = await fetch(`${API}/transaction-builder/deposit`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const j = await res.json();
+  if (!j.transactionBase64) {
+    throw new Error(`API /deposit failed (${res.status}): ${JSON.stringify(j).substring(0, 300)}`);
+  }
+  const conn = new Connection(RPC, "confirmed");
+  const tx = VersionedTransaction.deserialize(Buffer.from(j.transactionBase64, "base64"));
+  tx.sign([kp]);
+  const { blockhash, lastValidBlockHeight } = await conn.getLatestBlockhash("confirmed");
+  const sig = await conn.sendRawTransaction(tx.serialize(), { skipPreflight: false, maxRetries: 3 });
+  await conn.confirmTransaction({ signature: sig, blockhash, lastValidBlockHeight }, "confirmed");
+  return sig;
+}
+
 async function programSlot(conn) {
   const info = await conn.getAccountInfo(PROGRAMDATA);
   return info.data.readBigUInt64LE(4).toString();
@@ -181,54 +233,26 @@ async function main() {
   console.log("program slot", await programSlot(base));
   console.log("ledger before", await ledgerSummary(client, kp.publicKey));
 
-  for (let i = 1; i <= MAX_ATTEMPTS; i++) {
-    console.log(`\n=== attempt ${i}/${MAX_ATTEMPTS} ===`);
-    console.log("program slot", await programSlot(base));
-
-    const probe = await depositDirectWorks(
-      client,
-      kp,
-      Math.round(0.01 * 1e9),
-    );
-    if (probe.sim.value.err) {
-      const log = (probe.sim.value.logs || []).find((l) =>
-        /Error|Fallback|Deposit/.test(l),
-      );
-      console.log("deposit still failing:", JSON.stringify(probe.sim.value.err));
-      console.log(" ", log || "");
-      if (i < MAX_ATTEMPTS) {
-        await new Promise((r) => setTimeout(r, POLL_SECS * 1000));
-      }
-      continue;
-    }
-
-    console.log("deposit instruction accepted — funding", DEPOSIT_SOL, "SOL");
-    const dep = await sendDeposit(
-      client,
-      kp,
-      Math.round(DEPOSIT_SOL * 1e9),
-    );
-    console.log("deposit", dep);
-    if (!dep.ok) {
-      console.error("deposit send failed after successful sim");
-      process.exit(2);
-    }
-
+  // Check if ledger is already funded — if so skip deposit and go straight to open.
+  const alreadyFunded = await ledgerHasSol(client, kp.publicKey);
+  if (alreadyFunded) {
+    console.log("ledger already funded with SOL — skipping deposit");
+  } else {
+    // Fund via API one-shot /deposit (bundles init + deposit in one tx).
+    // The SDK's depositDirect instruction returns 101 post-upgrade.
+    console.log("funding deposit ledger via API /deposit", DEPOSIT_SOL, "SOL");
+    const depSig = await apiDepositSol(kp, DEPOSIT_SOL);
+    console.log("deposit confirmed:", depSig);
     console.log("ledger after deposit", await ledgerSummary(client, kp.publicKey));
-    console.log("opening SOL long", OPEN_SOL, "SOL @", LEVERAGE, "x");
-    const open = await openSolLong(kp, OPEN_SOL, LEVERAGE);
-    console.log("open", open);
-    if (!open.ok) process.exit(3);
-    console.log("SUCCESS open sig", open.sig);
-    process.exit(0);
   }
 
-  console.error(
-    "Gave up: deposit_direct still InstructionFallbackNotFound (101). " +
-      "Flash mainnet FLASH6 binary (post slot 434407053) is missing deposit_direct. " +
-      "Opens require a funded deposit ledger; SOL collateral is correct once funded.",
-  );
-  process.exit(1);
+  // Open micro SOL long.
+  console.log("opening SOL long", OPEN_SOL, "SOL @", LEVERAGE, "x");
+  const open = await openSolLong(kp, OPEN_SOL, LEVERAGE);
+  console.log("open", open);
+  if (!open.ok) process.exit(3);
+  console.log("SUCCESS open sig", open.sig);
+  process.exit(0);
 }
 
 main().catch((e) => {

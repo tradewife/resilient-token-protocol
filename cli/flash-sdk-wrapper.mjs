@@ -292,7 +292,7 @@ async function readTradeReadiness(c) {
       out.issues.push(
         out.anyDepositOk
           ? `deposit ledger has non-SOL balances only; SOL balance is 0 (trader opens need SOL or switch funding mint)`
-          : `deposit ledger empty (0 deposits). Flash deposit_direct currently returns InstructionFallbackNotFound (101) after program upgrade — cannot fund ledger until Flash restores the instruction or ships a replacement`,
+          : `deposit ledger empty (0 deposits). Flash deposit_direct SDK instruction returns InstructionFallbackNotFound (101) post-upgrade — use POST /transaction-builder/deposit (API one-shot) instead`,
       );
     }
   } catch (e) {
@@ -326,72 +326,19 @@ async function readTradeReadiness(c) {
 }
 
 // Setup/funds → Solana RPC (sendAndConfirmTransaction). Trading → ER.
-// Steps 1–3 and 5 are idempotent. depositDirect is skipped when ledger funded.
+//
+// The SDK's depositDirect() calls the bare on-chain instruction which returns
+// InstructionFallbackNotFound (101) after the Squads upgrade at slot 434407053
+// (2026-07-22). The REST API's POST /transaction-builder/deposit builds a
+// composite 4-instruction tx (system → token → flash → token) that bundles
+// any missing setup (basket, deposit ledger, delegation, trade vault) and
+// works with the deployed binary. We use the API path for funding.
 async function doSetup() {
   const c = await initClient();
   const sigs = [];
   const depositUi = process.env.RTP_TRADER_V2_DEPOSIT_AMOUNT_UI || "1.0";
-  const depositLamports = Math.max(
-    1,
-    Math.round(Number.parseFloat(depositUi) * 1e9),
-  );
 
-  async function runStep(name, builder, { viaEr = false } = {}) {
-    let r;
-    try {
-      r = await builder();
-    } catch (e) {
-      const msg = e?.message ?? String(e);
-      if (/already/i.test(msg) || /initialized/i.test(msg)) {
-        sigs.push({ step: name, signature: null, skipped: "already-initialized" });
-        return;
-      }
-      // Surface program IDL mismatch clearly (Flash InstructionFallbackNotFound).
-      if (isProgramMismatchError(msg)) {
-        throw new Error(
-          `${name} failed: Flash program rejected instruction (InstructionFallbackNotFound / Custom 101). ` +
-            `Deployed FLASH6 binary (post slot 434407053 / ~2026-07-22T00:33Z upgrade) no longer embeds ` +
-            `deposit_direct / init_user_deposit_ledger / delegate_basket — confirmed via programdata string scan ` +
-            `and sim. SDK/API IDL still advertise them. Original: ${msg}`,
-        );
-      }
-      throw e;
-    }
-    if (!r || !Array.isArray(r.instructions) || r.instructions.length === 0) {
-      sigs.push({ step: name, signature: null, skipped: "noop" });
-      return;
-    }
-    let sig;
-    try {
-      if (viaEr) {
-        sig = await c.sendAndConfirmErTransaction(r.instructions, [
-          keypair,
-          ...(r.additionalSigners ?? []),
-        ]);
-      } else {
-        // Funds/setup must hit Solana RPC, not ER (Flash docs).
-        sig = await c.sendAndConfirmTransaction(r.instructions, {
-          additionalSigners: r.additionalSigners ?? [],
-        });
-      }
-    } catch (e) {
-      const msg = formatError(e);
-      if (isProgramMismatchError(msg)) {
-        throw new Error(
-          `${name} failed: Flash program InstructionFallbackNotFound (Custom 101). ` +
-            `Deployed FLASH6 binary no longer includes this instruction (program upgrade ~2026-07-22T00:33Z). ` +
-            `SDK/API IDL is ahead of mainnet. Original: ${msg}`,
-        );
-      }
-      throw new Error(`${name} failed: ${msg}`);
-    }
-    sigs.push({ step: name, signature: sig });
-  }
-
-  await runStep("init-deposit-ledger", () => c.initializeUserDepositLedger());
-  await runStep("init-basket", () => c.initializeBasket());
-  await runStep("init-trade-vault-SOL", () => c.initTradeVault(SOL_MINT));
-
+  // Check if ledger is already funded — skip deposit if so.
   let skipDeposit = false;
   try {
     const ledger = await c.accounts.fetchUserDepositLedger(keypair.publicKey);
@@ -399,19 +346,55 @@ async function doSetup() {
       skipDeposit = true;
     }
   } catch (e) {
-    console.error("[wrapper] ledger read failed, will run depositDirect:", e?.message);
+    console.error("[wrapper] ledger read failed, will attempt API deposit:", e?.message);
   }
 
   if (skipDeposit) {
     sigs.push({
-      step: "deposit-direct",
+      step: "deposit",
       signature: null,
       skipped: `ledger-funded (>=${DEPOSIT_SKIP_FUNDED_LAMPORTS} lamports)`,
     });
   } else {
-    await runStep("deposit-direct", () =>
-      c.depositDirect(SOL_MINT, new BN(depositLamports)),
+    // One-shot POST /transaction-builder/deposit — bundles init + deposit.
+    // Submits to Solana mainnet RPC (funds ops, not ER).
+    const api = process.env.FLASH_API_URL || "https://flashapi.trade";
+    const rpc = process.env.RTP_SOLANA_RPC_URL || RPC_URL;
+    console.error(`[wrapper] depositing ${depositUi} SOL via API /deposit (one-shot)`);
+    const body = {
+      owner: keypair.publicKey.toBase58(),
+      tokenSymbol: "SOL",
+      amount: depositUi,
+    };
+    const res = await fetch(`${api}/transaction-builder/deposit`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const j = await res.json();
+    if (!j.transactionBase64) {
+      throw new Error(
+        `API /deposit failed (status ${res.status}): ${JSON.stringify(j).substring(0, 300)}`,
+      );
+    }
+    // Sign and submit to Solana mainnet RPC.
+    const { VersionedTransaction, Connection } = await import("@solana/web3.js");
+    const tx = VersionedTransaction.deserialize(
+      Buffer.from(j.transactionBase64, "base64"),
     );
+    tx.sign([keypair]);
+    const conn = new Connection(rpc, "confirmed");
+    const { blockhash, lastValidBlockHeight } = await conn.getLatestBlockhash("confirmed");
+    const sig = await conn.sendRawTransaction(tx.serialize(), {
+      skipPreflight: false,
+      maxRetries: 3,
+    });
+    await conn.confirmTransaction(
+      { signature: sig, blockhash, lastValidBlockHeight },
+      "confirmed",
+    );
+    console.error(`[wrapper] deposit confirmed: ${sig}`);
+    sigs.push({ step: "deposit", signature: sig });
   }
 
   // SDK delegateBasket no-ops when the basket account is MagicBlock-owned on L1,
