@@ -2,7 +2,7 @@
 
 > **How to use this file:** Paste the relevant sections at the top of every fresh agent session. Do not paste the full papers or full repo. This file is the compressed institutional memory of the project. Update it after each significant session.
 
-**Last updated:** 2026-07-07 — Migrated execution path to `@flash_trade/flash-sdk-v2@1.0.36` via Node child process bridge (`cli/flash-sdk-wrapper.mjs`). REST `/transaction-builder/*` kept as fallback. Node 20 baked into `rtp/swarm/Dockerfile.trader` wrapper stage; `RTP_TRADER_WRAPPER_PATH=/app/wrapper/flash-sdk-wrapper.mjs`, `RTP_TRADER_ER_RPC=https://flash.magicblock.xyz`. Strategy rules (TP/SL/trail/time-decay/score-flip-delay/MR-target), risk priority ordering, side-correct PnL math, position sizing — all unchanged. 85 trader tests + 5 executor tests pass. Auto-deploy on push (Railway connected to `tradewife/resilient-token-protocol`).
+**Last updated:** 2026-07-23 — Fixed Flash Trade V2 deposit path. The Flash program's Squads upgrade at slot 434407053 (~2026-07-22) removed the bare `deposit_direct` on-chain instruction (InstructionFallbackNotFound / 101). The SDK's `c.depositDirect()` calls that instruction directly and fails. Without a funded deposit ledger, every `openPositionEr` fails with `CustodyAmountLimit (6024)`. **Fix**: `doSetup()` in `cli/flash-sdk-wrapper.mjs` and `scripts/flash-fund-and-open-sol.mjs` now call the Flash REST API's `POST /transaction-builder/deposit` endpoint, which builds a composite 4-instruction tx that bundles all setup (basket, deposit ledger, delegation, trade vault) and works with the deployed binary. Verified on mainnet: deposit 0.5 SOL confirmed (sig `5P3V45...`), open + close cycle verified (open sig `2gkCXg...`, close sig `2kwwEh...`). Railway rtp-trader redeployed successfully (deploy `179631ba...`). SDK pin updated to `@flash_trade/flash-sdk-v2@1.0.46`. Production trader wallet: `HDQ79fQ1YbL9CenS1DzfHizEWGrJdnmo99fgAWmdhuy5` (keypair at `~/.config/solana/rtp-trader.json`). 87 trader tests pass.
 **Current state:** Live autonomous trader (rtp-trader) running 24/7 on Railway with validated config loaded from `data/trader-strategy-config.json`: thresh=0.3, tp=6.0, sl=2.5, trail=1.0, hold=96h, decay=48h, flip_delay=2h, align=3. Supports both LONG and SHORT positions. Score flip delay provides 2h grace period before exit. Health endpoint returns 503 when stale/erroring. **Trader watchdog:** 120s cycle timeout, 30s HTTP timeouts, consecutive error tracking with exponential backoff. `RTP_TRADER_LEVERAGE=9.0` on Railway. All 7 Railway services green. License: BSL-1.1.
 
 ---
@@ -230,6 +230,62 @@ A judge must be able to verify these five things in under 3 minutes:
 ---
 
 ## 8. Session Status
+
+**Session 2026-07-23 — Flash Trade V2 Deposit Fix (Squads Upgrade Remediation)**
+
+State as of Jul 23:
+- **87 trader tests, 0 failures**
+- **Flash Trade V2 deposit/open/close all verified on mainnet with real SOL**
+- **Railway rtp-trader redeployed successfully**
+
+**Problem:**
+The Flash program's Squads upgrade at slot 434407053 (~2026-07-22T00:33Z, upgrade tx `5ZpxYJud...`) removed the bare `deposit_direct` on-chain instruction. The deployed FLASH6 binary no longer includes ` DepositDirect` (confirmed via ELF string scan + sim). The SDK's `c.depositDirect(NATIVE_MINT, lamports)` calls that instruction directly and gets `InstructionFallbackNotFound (101)`. The API/SDK IDL still advertises `deposit_direct`, creating an IDL-ahead-of-binary mismatch.
+
+Without a funded deposit ledger, every `openPositionEr` fails with `CustodyAmountLimit (6024)` at `open_position_er.rs:245`. Pool capacity is not the issue (Crypto.1 SOL util ~4%, API available liquidity ~$2.2M). The issue is purely the empty deposit ledger for wallet HDQ79...
+
+**Root cause proven:**
+- Empty HDQ79 deposit ledger + openPositionEr = 6024 CustodyAmountLimit
+- Funded third-party ledgers (e.g. 238.44 USDC) open successfully on same market
+- `basket.delegate` unset (1111...) is OK for owner/session signing — not a blocker
+- SDK `depositDirect` = 101; API `/deposit-direct` = 101; V1 `openPosition` = 6081 (deprecated); V1 `swapAndOpen` = 6081
+- SOL collateral is correct (docs + markets): SOL/JitoSOL long market, SOL/SOL long market
+
+**Fix:**
+The Flash REST API's `POST /transaction-builder/deposit` endpoint builds a composite 4-instruction tx (system + token + flash + token) that bundles all missing setup (basket, deposit ledger, delegation, trade vault) and works with the deployed binary. This is different from the SDK's `depositDirect()` which calls the bare instruction.
+
+Updated `doSetup()` in `cli/flash-sdk-wrapper.mjs` to call the API `/deposit` endpoint instead of `c.depositDirect()`. Also updated `scripts/flash-fund-and-open-sol.mjs` to use the same API path.
+
+**Mainnet verification (HDQ79 wallet):**
+
+| TX | Type | Detail |
+|----|------|--------|
+| `5P3V45...` | Deposit 0.5 SOL | Confirmed on mainnet via API /deposit one-shot |
+| `2gkCXg...` | Open SOL long 0.05 @ 9x | Entry $76.18, liquidation $67.79 (ER) |
+| `2kwwEh...` | Close all SOL long | Settled cleanly, pnl -$0.00 (ER) |
+
+**Files changed:**
+- `cli/flash-sdk-wrapper.mjs` — `doSetup()` now calls API `/deposit` instead of SDK `depositDirect()`
+- `scripts/flash-fund-and-open-sol.mjs` — replaced polling loop with direct API deposit + open flow
+
+**Key learnings for future agents:**
+- **Wallet**: Production trader is `HDQ79fQ1YbL9CenS1DzfHizEWGrJdnmo99fgAWmdhuy5` (`~/.config/solana/rtp-trader.json`). Do NOT use default `id.json` (`Driyi8Sw...`).
+- **SDK depositDirect = 101 post-upgrade**: Use `POST /transaction-builder/deposit` (API one-shot) instead. The API builds a composite tx; the SDK calls the bare instruction which is removed from the binary.
+- **101 = InstructionFallbackNotFound**: Program/IDL mismatch. The IDL ahead of the deployed binary.
+- **6024 = CustodyAmountLimit**: Not pool capacity. Is the empty deposit ledger. Fund via API /deposit first.
+- **`basket.delegate` unset (1111...) is OK**: Owner/session-signed opens work when deposit is funded.
+- **Flash V2 API field reference**: Open: `inputTokenSymbol`, `outputTokenSymbol`, `inputAmountUi`, `leverage` (numeric), `tradeType` (LONG/SHORT), `owner`, `slippagePercentage`. Close: `marketSymbol`, `side` (LONG/SHORT), `inputUsdUi`, `closeAll` (boolean), `withdrawTokenSymbol`, `owner`, `slippagePercentage`. Deposit: `owner`, `tokenSymbol` (SOL/USDC), `amount` (UI units).
+- **Routing**: Funds/setup txs = Solana mainnet RPC. Trading txs = ER (`https://flash.magicblock.xyz`).
+- **Signing**: API returns partially signed txs. Wallet adds owner signature only. Never mutate blockhash.
+
+**Railway:**
+- rtp-trader redeployed via GraphQL `serviceInstanceDeployV2` (deploy `179631ba...`, SUCCESS)
+- Service ID: `40456d7a-5dfe-4112-8cf3-9a2ae5e3a910`
+- Env: `RTP_TRADER_RUN_V2_SETUP=1`, `RTP_TRADER_V2_DEPOSIT_AMOUNT_UI=1.0`, `RTP_TRADER_LEVERAGE=9.0`, `RTP_TRADER_AMOUNT=0.20`
+
+**Commits this session:**
+- `6d6eacf` fix(trader): use Flash API /deposit one-shot instead of broken SDK depositDirect
+
+---
 
 **Session 2026-05-05 — Live Autonomous Trader + Dashboard Real-Time Updates**
 
