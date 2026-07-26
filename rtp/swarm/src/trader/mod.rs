@@ -295,6 +295,18 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
     tracing::info!("State:      {}", config.state_path.display());
     tracing::info!("");
 
+    // Operational overrides — allow live tunability without redeploying the
+    // binary. With the V2 transition (Jul 2026) we already had one multi-day
+    // trading shutdown — the operator requested the ability to relax strict
+    // WFA-confluence params on the fly. These env vars ONLY relax thresholds
+    // (never tighten them). Missing env = validated config.
+    let min_alignment_override = std::env::var("RTP_TRADER_MIN_ALIGNMENT_OVERRIDE")
+        .ok()
+        .and_then(|s| s.parse::<usize>().ok());
+    let signal_threshold_override = std::env::var("RTP_TRADER_SIGNAL_THRESHOLD_OVERRIDE")
+        .ok()
+        .and_then(|s| s.parse::<f64>().ok());
+
     // Load or create state — shared with HTTP status server via Arc<Mutex>
     let mut initial =
         TraderState::load(&config.state_path).unwrap_or_else(|| TraderState::new(&wallet));
@@ -336,7 +348,39 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
         }
     }
     let state = Arc::new(Mutex::new(initial));
-    let params = StrategyParams::load_from_daemon_config();
+    let mut params = StrategyParams::load_from_daemon_config();
+
+    // Apply operational overrides from env. Both are loosening-only.
+    let min_align_before = params.min_alignment;
+    let signal_before = params.signal_threshold;
+    if let Some(v) = min_alignment_override {
+        if v < params.min_alignment {
+            tracing::warn!(
+                "[OVERRIDE] min_alignment {} -> {} (RTP_TRADER_MIN_ALIGNMENT_OVERRIDE). NOTE: not WFA-validated, loosens strict-WFA confluence config.",
+                params.min_alignment, v
+            );
+            params.min_alignment = v;
+        } else {
+            tracing::warn!(
+                "[OVERRIDE] env value {} >= configured {} — ignored (overrides are loosening-only).",
+                v, params.min_alignment
+            );
+        }
+    }
+    if let Some(v) = signal_threshold_override {
+        if v < params.signal_threshold {
+            tracing::warn!(
+                "[OVERRIDE] signal_threshold {:.3} -> {:.3} (RTP_TRADER_SIGNAL_THRESHOLD_OVERRIDE). NOTE: not WFA-validated.",
+                params.signal_threshold, v
+            );
+            params.signal_threshold = v;
+        } else {
+            tracing::warn!(
+                "[OVERRIDE] signal_threshold env value {:.3} >= configured {:.3} — ignored (overrides are loosening-only).",
+                v, params.signal_threshold
+            );
+        }
+    }
 
     // Store active config in state for /state endpoint visibility
     {
