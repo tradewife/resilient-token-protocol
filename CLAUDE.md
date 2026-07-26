@@ -259,6 +259,25 @@ All commands support `--json` (machine-readable), `--quiet` (errors only), `--cl
 
 **Archived:** `demo.sh` and `scripts/flash-trade-demo.ts` moved to `scripts/archive/`. Use `rtp demo` instead.
 
+### Railway Operator Helpers (`scripts/`)
+
+Lightweight Node-based GraphQL helpers for the rtp-trader service. Read `RAILWAY_TOKEN` from env or `.secrets/railway-workspace-token`. They do NOT trigger a deploy by themselves.
+
+```bash
+# View current rtp-trader env vars (filter for override block)
+node scripts/railway-trader-override.mjs show
+
+# Loosen strict-WFA confluence params on the fly (deploy after to apply)
+node scripts/railway-trader-override.mjs set --min-alignment 2 --signal-threshold 0.2
+node scripts/railway-redeploy-trader.mjs
+
+# Revert to validated config (one-shot — both vars go away)
+node scripts/railway-trader-override.mjs unset
+node scripts/railway-redeploy-trader.mjs
+```
+
+**Override semantics:** see "Trader has loosening-only env overrides" in Operational Notes below. The script silently no-ops on values >= configured (one-way loosening is enforced in Rust, not the helper — the helper just sets whatever the operator passes).
+
 ---
 
 ## Architecture

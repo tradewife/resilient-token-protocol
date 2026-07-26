@@ -3,6 +3,61 @@
 > **How to use this file:** Paste the relevant sections at the top of every fresh agent session. Do not paste the full papers or full repo. This file is the compressed institutional memory of the project. Update it after each significant session.
 
 **Last updated:** 2026-07-26 — Added RTP_TRADER_MIN_ALIGNMENT_OVERRIDE + RTP_TRADER_SIGNAL_THRESHOLD_OVERRIDE (loosening-only) env vars to rtp-trader so the operator can relax the strict WFA-validated confluence params on Railway without rebuilding the binary. Survived 4 days of "no entries" with `bull=2 bear=1` 1h/4h bull + 1d bear (SOL range $73.63-$78.58). Override applied on Railway (deploys `5f0bdc99...`, `aec992bc...`). Verified startup logs: `[OVERRIDE] min_alignment 3 -> 2 ... signal_threshold 0.300 -> 0.200`. Trader now correctly fires `[SIGNAL]` on 2-of-3 TF confluence. Operator scripts: `scripts/railway-trader-override.mjs` (set/unset/show) and `scripts/railway-redeploy-trader.mjs`. 87 trader tests pass.
+
+---
+
+## 0. Live System State (read first when resuming a trader investigation)
+
+**Active trader service:** rtp-trader on Railway (id `40456d7a-5dfe-4112-8cf3-9a2ae5e3a910`, env `986bee12-1028-4016-aa42-ba0a174233b4`).
+
+**Production wallet:** `HDQ79fQ1YbL9CenS1DzfHizEWGrJdnmo99fgAWmdhuy5` (keypair at `~/.config/solana/rtp-trader.json`). **NEVER** use the local default `id.json` (Driyi...) for trading — that's the dev wallet only.
+
+**Currently active env overrides (2026-07-26 onward, loosening-only):**
+- `RTP_TRADER_MIN_ALIGNMENT_OVERRIDE=2`
+- `RTP_TRADER_SIGNAL_THRESHOLD_OVERRIDE=0.2`
+
+**Configuration source of truth:** `data/trader-strategy-config.json` (validated WFA pass). **Effective (post-override) values are surfaced via the `/state` endpoint and the trader's startup `[STARTUP]` log line** — always check those before claiming a parameter is or isn't applied.
+
+**Operator helpers (Network access to Railway via workspace token at `.secrets/railway-workspace-token`):**
+```bash
+node scripts/railway-trader-override.mjs show            # current override values
+node scripts/railway-trader-override.mjs set  --min-alignment 2 --signal-threshold 0.2
+node scripts/railway-trader-override.mjs unset
+node scripts/railway-redeploy-trader.mjs                  # applies env changes (forces service restart)
+```
+
+**Liveness probes:**
+- `curl https://rtp-dashboard-production.up.railway.app/api/trader-status/` — returns `{wallet, open_position, trade_history, ...}` state JSON. `last_poll` within 5 min ⇒ alive.
+- Railway deployment logs (`deploymentLogs` GraphQL on the latest deployment id from `deployments(projectId,serviceId,first:1)`) — every cycle emits `[POLL]` and `[SIGNAL]` lines.
+
+**Required invariant checks before any trader fix:**
+1. Trader is actually alive (last_poll fresh) — otherwise it's a connection/V2_SETUP/6024 problem, not a strategy problem.
+2. Last V2_SETUP succeeded — `[OVERRIDE]` line only matters after `[V2_SETUP] OK` or `[V2_SETUP] failed` (non-fatal).
+3. Override values match Railway env (`override show`) — never assume the binary will reflect something not in env.
+4. Override env values are actually < validated config values — looser-than-baseline must be the intent.
+
+**Pre-flight commands when investigating "no trades":**
+```bash
+# 1. Live state
+curl -s https://rtp-dashboard-production.up.railway.app/api/trader-status/ | python3 -m json.tool
+# 2. Override env
+node scripts/railway-trader-override.mjs show
+# 3. Latest Railway logs (last 60 lines from rtp-trader)
+node scripts/railway-logs.mjs --last 60
+# 3b. Override events only
+node scripts/railway-logs.mjs --filter OVERRIDE
+# 4. Logs from a different service (rtp-dashboard, etc.)
+node scripts/railway-logs.mjs --service rtp-dashboard --last 30
+# 4b. Logs from a specific deployment id (rarely needed)
+node scripts/railway-logs.mjs --from 5f0bdc99-b9c4-4f99-8163-1ee8ab7b4435
+```
+
+**Revert override procedure:**
+`node scripts/railway-trader-override.mjs unset && node scripts/railway-redeploy-trader.mjs` — removes both env vars, reverting to WFA-validated config on next start. NEVER delete env vars directly from Railway dashboard; the helper is idempotent and the API `variableUpsert` accepts empty string for unset.
+
+---
+
+## 1. Canonical Project Definition
 **Current state:** Live autonomous trader (rtp-trader) running 24/7 on Railway. Config from `data/trader-strategy-config.json`: thresh=0.3, tp=6.0, sl=2.5, trail=1.0, hold=96h, decay=48h, flip_delay=2h, align=3. **Currently overridden (operator-applied, loosening-only):** `RTP_TRADER_MIN_ALIGNMENT_OVERRIDE=2`, `RTP_TRADER_SIGNAL_THRESHOLD_OVERRIDE=0.2`. Use `node scripts/railway-trader-override.mjs unset` to revert to WFA-validated config. Supports LONG+SHORT positions. Score flip delay provides 2h grace period. Health endpoint returns 503 when stale/erroring. **Trader watchdog:** 120s cycle timeout, 30s HTTP timeouts, consecutive error tracking with exponential backoff. `RTP_TRADER_LEVERAGE=9.0` on Railway. All 7 Railway services green. License: BSL-1.1.
 
 ---
