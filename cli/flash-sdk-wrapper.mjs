@@ -310,10 +310,16 @@ async function readTradeReadiness(c) {
       out.flashDelegated = Boolean(del && del !== PublicKey.default.toBase58());
       out.basketOk = true;
       if (!out.flashDelegated) {
-        // Advisory only — do not block readiness on this after session-key migration.
+        // Block readiness: after the Jul-22 program upgrade + new SDK version,
+        // opens require a real basket.delegate on ER. The 0x1792 (5778) on-chain
+        // error surfaces when delegate is the system-program default
+        // (1111...1111). DO NOT treat this as advisory — surfaces all open
+        // attempts and renders the strategy inert. Forces the setup() caller
+        // to land delegateBasket on ER before continuing.
         out.issues.push(
-          "basket.delegate is unset (legacy field; owner/session-signed opens still work when deposit is funded)",
+          "basket.delegate unset (system-program default) — opens fail on-chain with 0x1792 (5778). Setup must land delegateBasket on ER before trading is viable.",
         );
+        out.ready = false;
       }
     }
   } catch (e) {
@@ -439,21 +445,34 @@ async function doSetup() {
       }
     } else {
       // SDK no-op due to MagicBlock ownership — still need Flash delegate on ER.
-      // Re-use program method builder if available.
+      // CRITICAL: Anchor's `.accounts()` shorthand requires ALL known accounts,
+      // not just owner. The earlier `.accounts({owner: ...})` build path surfaced
+      // "Account `payer` not provided" because the ER program method needs payer
+      // resolved and `.accounts()` validates ALL accounts are present. Use
+      // `.accountsPartial({payer, owner})` so Anchor fills the remaining
+      // PDAs from the IDL — same pattern as the SDK's own delegateBasket helper
+      // (cli/node_modules/@flash_trade/flash-sdk-v2/dist/instructions/trade/delegateBasket.js).
+      // Without a real `payer`, the basket never gets delegated to ER and every
+      // subsequent open fails on-chain with 0x1792 (5778).
       try {
         const erProg = c.erProgram ?? c.program;
         if (typeof erProg?.methods?.delegateBasket === "function") {
-          const ix = await erProg.methods
-            .delegateBasket()
-            .accounts({ owner: keypair.publicKey })
-            .instruction();
+          const builder = erProg.methods
+            .delegateBasket({})
+            .accountsPartial({
+              payer: keypair.publicKey,
+              owner: keypair.publicKey,
+            });
+          const ix = typeof builder.instruction === "function"
+            ? await builder.instruction()
+            : await builder.rpc();
           const sig = await c.sendAndConfirmErTransaction([ix], [keypair]);
           sigs.push({ step: "delegate-basket-er-forced", signature: sig });
         } else {
           sigs.push({
             step: "delegate-basket",
             signature: null,
-            skipped: "sdk-noop-no-force-path",
+            skipped: "no-er-program-method",
           });
         }
       } catch (e) {
