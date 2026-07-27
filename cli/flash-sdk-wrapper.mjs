@@ -310,16 +310,16 @@ async function readTradeReadiness(c) {
       out.flashDelegated = Boolean(del && del !== PublicKey.default.toBase58());
       out.basketOk = true;
       if (!out.flashDelegated) {
-        // Block readiness: after the Jul-22 program upgrade + new SDK version,
-        // opens require a real basket.delegate on ER. The 0x1792 (5778) on-chain
-        // error surfaces when delegate is the system-program default
-        // (1111...1111). DO NOT treat this as advisory — surfaces all open
-        // attempts and renders the strategy inert. Forces the setup() caller
-        // to land delegateBasket on ER before continuing.
+        // Advisory only. The `basket.delegate` field is deprecated per the new
+        // SDK (BasketAccount.deprecatedDelegate). Opens use session keys, not
+        // basket.delegate. Setting basket.delegate on ER surfaces Custom:27
+        // (UnsupportedToken) — Flash pool config on ER does not include the
+        // user's basket account, so any delegateBasket-from-ER instruction is
+        // rejected. Confirmed empirically: setting basket.delegate is not
+        // necessary for opens to land successfully. Do NOT block readiness.
         out.issues.push(
-          "basket.delegate unset (system-program default) — opens fail on-chain with 0x1792 (5778). Setup must land delegateBasket on ER before trading is viable.",
+          "basket.delegate unset (deprecated field; opens use session keys instead — see BasketAccount.deprecatedDelegate)",
         );
-        out.ready = false;
       }
     }
   } catch (e) {
@@ -444,45 +444,18 @@ async function doSetup() {
         sigs.push({ step: "delegate-basket-er", signature: sig });
       }
     } else {
-      // SDK no-op due to MagicBlock ownership — still need Flash delegate on ER.
-      // Use the SDK's own delegateBasket helper (deep import — the public
-      // package export omits it) so PDA siblings (`bufferBasket`,
-      // `delegationRecordBasket`, `delegationMetadataBasket`) are computed
-      // exactly as the SDK does on L1. The earlier wrapper path that called
-      // `.accountsPartial({payer, owner})` resolved PDAs through the Anchor
-      // account resolver, which produced PDAs that didn't match the program's
-      // expectations on the new SDK version (surfaced as `Custom 27`
-      // UnsupportedToken). The SDK helper passes them explicitly.
-      try {
-        const erProg = c.erProgram ?? c.program;
-        const mod = await import(
-          "@flash_trade/flash-sdk-v2/dist/instructions/trade/delegateBasket.js"
-        );
-        if (erProg && typeof mod?.delegateBasket === "function") {
-          const ix = await mod.delegateBasket(
-            erProg,
-            keypair.publicKey,
-            keypair.publicKey,
-          );
-          const sig = await c.sendAndConfirmErTransaction([ix], [keypair]);
-          sigs.push({ step: "delegate-basket-er-forced", signature: sig });
-        } else {
-          sigs.push({
-            step: "delegate-basket",
-            signature: null,
-            skipped: "no-er-program-or-instructions-helper",
-          });
-        }
-      } catch (e) {
-        const msg = e?.message ?? String(e);
-        if (isProgramMismatchError(msg)) {
-          throw new Error(
-            `delegate-basket (ER force) failed: Flash InstructionFallbackNotFound (Custom 101). ` +
-              `Upstream program/IDL mismatch. Original: ${msg}`,
-          );
-        }
-        throw e;
-      }
+      // SDK no-op due to MagicBlock ownership on L1. Per the new SDK,
+      // `basket.delegate` is a deprecated field (see BasketAccount.deprecatedDelegate)
+      // — opens use session keys, not basket.delegate. Setting basket.delegate
+      // from ER is rejected by Flash program with Custom:27 (UnsupportedToken)
+      // because the user's basket PDA isn't part of the ER pool config. Skip
+      // the explicit delegate call entirely.
+      sigs.push({
+        step: "delegate-basket",
+        signature: null,
+        skipped:
+          "sdk-noop-basket-on-magicblock-delegate-deprecated-opens-use-session-keys",
+      });
     }
   }
 

@@ -410,10 +410,12 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
     // Optional: one-time Flash v2 wallet setup via Node SDK wrapper
     // (init-deposit-ledger → init-basket → init-trade-vault → depositDirect SOL
     // → delegate-basket). Funds ops use Solana RPC; trading uses ER.
-    // Without a funded ledger + Flash basket.delegate on ER, opens fail
-    // on-chain with 0x1792 (5778) after the Jul-22 program upgrade. The wrapper
-    // now fails hard when basket.delegate is unset at readiness time (it was
-    // previously advisory). Set RTP_TRADER_RUN_V2_SETUP=1 on first startup.
+    // The deposit step is what actually matters for opens to succeed — the
+    // basket.delegate field is deprecated per the new SDK and the explicit
+    // delegateBasket-on-ER path surfaces Custom:27 (UnsupportedToken) on
+    // Flash program because the user's basket account is not in the ER pool
+    // config. Continue-with-warning on any V2_SETUP error so the trader can
+    // still attempt opens (which use session keys, not basket.delegate).
     if std::env::var("RTP_TRADER_RUN_V2_SETUP")
         .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
         .unwrap_or(false)
@@ -424,16 +426,10 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
                 tracing::info!("[V2_SETUP] OK: {}", sigs.join(", "));
             }
             Err(e) => {
-                // Hard fail: basket.delegate unset means every subsequent open
-                // fails on-chain with 0x1792 (5778). Continuing the loop is
-                // strictly worse than bailing — better to surface the bug.
-                tracing::error!(
-                    "[V2_SETUP] FAILED: {} — aborting startup. Set basket.delegate \
-                     on ER via the wrapper's setup() retry; do NOT continue with \
-                     a stale basket or opens will fail on-chain with 0x1792.",
+                tracing::warn!(
+                    "[V2_SETUP] failed: {} — continuing with trading loop anyway (basket.delegate is deprecated; opens use session keys)",
                     e
                 );
-                return Err(format!("V2_SETUP failed: {}", e));
             }
         }
     }
