@@ -2,19 +2,31 @@
 
 > **How to use this file:** Paste the relevant sections at the top of every fresh agent session. Do not paste the full papers or full repo. This file is the compressed institutional memory of the project. Update it after each significant session.
 
-**Last updated:** 2026-07-26 — Added RTP_TRADER_MIN_ALIGNMENT_OVERRIDE + RTP_TRADER_SIGNAL_THRESHOLD_OVERRIDE (loosening-only) env vars to rtp-trader so the operator can relax the strict WFA-validated confluence params on Railway without rebuilding the binary. Survived 4 days of "no entries" with `bull=2 bear=1` 1h/4h bull + 1d bear (SOL range $73.63-$78.58). Override applied on Railway (deploys `5f0bdc99...`, `aec992bc...`). Verified startup logs: `[OVERRIDE] min_alignment 3 -> 2 ... signal_threshold 0.300 -> 0.200`. Trader now correctly fires `[SIGNAL]` on 2-of-3 TF confluence. Operator scripts: `scripts/railway-trader-override.mjs` (set/unset/show) and `scripts/railway-redeploy-trader.mjs`. 87 trader tests pass.
+**Last updated:** 2026-07-28 — Two real root causes of "no trades" fixed and verified live. (1) Multi-TF was fake: one 1h Binance buffer sliced at 20/80/200 lookbacks, so bull/bear always moved together; fixed in `697bc04` with independent 1h/4h/1d buffers. (2) Opens failed with `0x1792` = Anchor **6034 MinCollateral** — 1% of ~0.9 SOL wallet ≈ $0.66, Flash needs ~$11+; fixed by `RTP_TRADER_POSITION_FRACTION=0.20` and `RTP_TRADER_MIN_OPEN_COLLATERAL_LAMPORTS=150000000`. Live proof: Short OPEN entry $73.27, size_usd $118.05, TX `3cvbZpBT...`, deploy `31466ef9...`. SDK path still hits 6024 then REST fallback succeeds. 87 trader tests pass.
 
 ---
 
 ## 0. Live System State (read first when resuming a trader investigation)
 
-**Active trader service:** rtp-trader on Railway (id `40456d7a-5dfe-4112-8cf3-9a2ae5e3a910`, env `986bee12-1028-4016-aa42-ba0a174233b4`).
+**Active trader service:** rtp-trader on Railway (id `40456d7a-5dfe-4112-8cf3-9a2ae5e3a910`, env `986bee12-1028-4016-aa42-ba0a174233b4`). Latest known good deploy: `31466ef9-4d14-4f2f-adb4-49ec47469b44`.
 
 **Production wallet:** `HDQ79fQ1YbL9CenS1DzfHizEWGrJdnmo99fgAWmdhuy5` (keypair at `~/.config/solana/rtp-trader.json`). **NEVER** use the local default `id.json` (Driyi...) for trading — that's the dev wallet only.
 
-**Currently active env overrides (2026-07-26 onward, loosening-only):**
-- `RTP_TRADER_MIN_ALIGNMENT_OVERRIDE=2`
-- `RTP_TRADER_SIGNAL_THRESHOLD_OVERRIDE=0.2`
+**Currently active env (2026-07-28):**
+- `RTP_TRADER_MIN_ALIGNMENT_OVERRIDE=2` (loosening-only vs config align=3)
+- `RTP_TRADER_SIGNAL_THRESHOLD_OVERRIDE=0.2` (loosening-only vs config 0.3)
+- `RTP_TRADER_POSITION_FRACTION=0.20` (was 0.01 — required for Flash MinCollateral)
+- `RTP_TRADER_MIN_OPEN_COLLATERAL_LAMPORTS=150000000` (0.15 SOL floor ≈ $11 at ~$73)
+- `RTP_TRADER_LEVERAGE=9.0`
+- Deposit ledger funded: 1.5 SOL on SOL mint (HDQ79)
+
+**Live trade proof (2026-07-28 ~05:34 UTC):** Short SOL @ entry 73.2729, size_usd 118.05, score -0.4, align=3. Explorer: `https://explorer.solana.com/tx/3cvbZpBTisnmtAZdfLxJEpexVELZdAi6sobbHcezcFxANC3NyKPLrnvt1ajF4rwmfrdnitbVQtujjU3X2QdwZiYd?cluster=mainnet-beta`. Subsequent polls show `pos=OPEN`.
+
+**Root-cause cheatsheet (do not re-learn the hard way):**
+1. **Fake multi-TF** — never slice one 1h series as 1h/4h/1d. Must fetch Binance `interval=1h|4h|1d` separately (`candles::fetch_binance_ohlcv(symbol, interval, limit)`).
+2. **`0x1792` = 6034 MinCollateral** — not basket.delegate, not mystery composability. Raise collateral above Flash min (~$11–12).
+3. **SDK 6024 on open** — often capacity/path noise; REST builder fallback can still open (as on the live Short).
+4. **basket.delegate unset (1111…)** — deprecated field; opens use session/owner path. Do not crash-loop V2_SETUP on this alone.
 
 **Configuration source of truth:** `data/trader-strategy-config.json` (validated WFA pass). **Effective (post-override) values are surfaced via the `/state` endpoint and the trader's startup `[STARTUP]` log line** — always check those before claiming a parameter is or isn't applied.
 
@@ -58,7 +70,7 @@ node scripts/railway-logs.mjs --from 5f0bdc99-b9c4-4f99-8163-1ee8ab7b4435
 ---
 
 ## 1. Canonical Project Definition
-**Current state:** Live autonomous trader (rtp-trader) running 24/7 on Railway. Config from `data/trader-strategy-config.json`: thresh=0.3, tp=6.0, sl=2.5, trail=1.0, hold=96h, decay=48h, flip_delay=2h, align=3. **Currently overridden (operator-applied, loosening-only):** `RTP_TRADER_MIN_ALIGNMENT_OVERRIDE=2`, `RTP_TRADER_SIGNAL_THRESHOLD_OVERRIDE=0.2`. Use `node scripts/railway-trader-override.mjs unset` to revert to WFA-validated config. Supports LONG+SHORT positions. Score flip delay provides 2h grace period. Health endpoint returns 503 when stale/erroring. **Trader watchdog:** 120s cycle timeout, 30s HTTP timeouts, consecutive error tracking with exponential backoff. `RTP_TRADER_LEVERAGE=9.0` on Railway. All 7 Railway services green. License: BSL-1.1.
+**Current state:** Live autonomous trader (rtp-trader) running 24/7 on Railway with **real multi-TF** (independent Binance 1h/4h/1d buffers, commit `697bc04`). Config from `data/trader-strategy-config.json`: thresh=0.3, tp=6.0, sl=2.5, trail=1.0, hold=96h, decay=48h, flip_delay=2h, align=3. **Operator env:** alignment override=2, signal override=0.2, **position_fraction=0.20**, min_open_collateral=0.15 SOL, leverage=9.0. Supports LONG+SHORT. Live Short open verified 2026-07-28 (entry ~$73.27, ~$118 notional). Score flip delay 2h. Health 503 when stale/erroring. Watchdog 120s cycle / 30s HTTP. All 7 Railway services green. License: BSL-1.1.
 
 ---
 
