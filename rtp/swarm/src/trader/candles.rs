@@ -125,13 +125,14 @@ impl CandleBuffer {
     }
 }
 
-/// Fetch historical hourly candles from Binance.
-/// Returns up to `limit` candles (most recent last).
-pub async fn fetch_binance_ohlcv(symbol: &str, limit: usize) -> Result<Vec<Candle>, String> {
+/// Fetch historical candles from Binance.
+/// Returns up to `limit` candles (most recent last) for the given interval.
+/// `interval` is one of "1h", "4h", "1d".
+pub async fn fetch_binance_ohlcv(symbol: &str, interval: &str, limit: usize) -> Result<Vec<Candle>, String> {
     let client = reqwest::Client::new();
     let url = format!(
-        "https://api.binance.com/api/v3/klines?symbol={}&interval=1h&limit={}",
-        symbol, limit
+        "https://api.binance.com/api/v3/klines?symbol={}&interval={}&limit={}",
+        symbol, interval, limit
     );
 
     let resp = client

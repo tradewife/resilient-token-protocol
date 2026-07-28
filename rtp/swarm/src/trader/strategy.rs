@@ -165,48 +165,51 @@ pub struct SignalResult {
 }
 
 /// Compute the multi-TF confluence score.
-/// Returns None if not enough data.
-pub fn compute_signal(closes: &[f64], volumes: &[f64], min_alignment: usize) -> Option<SignalResult> {
-    if closes.len() < 100 {
-        return None;
-    }
+///
+/// IMPORTANT: the three TF args must come from DIFFERENT candle intervals.
+/// Historically (Jul 26 → Jul 28 trader stuck in `bear=3` permanently) this
+/// function sliced a single 1h buffer at lookback 20/80/200 — which is the
+/// same trend smoothed three different ways, NOT real multi-timeframe.
+/// With a sustained 1d downtrend, all three derivatives were bearish and
+/// the trader could never fire a long entry.
+///
+/// Now `closes_1h`, `closes_4h`, `closes_1d` are independent candle buffers
+/// fetched from Binance's `interval=1h`, `4h`, `1d` endpoints. The `volumes`
+/// arg is used only for the volume-confirmation signal; pair it with the 1h
+/// buffer (most granular).
+///
+/// Returns None if any of the three TF buffers is too short.
+pub fn compute_signal(
+    closes_1h: &[f64],
+    closes_4h: &[f64],
+    closes_1d: &[f64],
+    volumes: &[f64],
+    min_alignment: usize,
+) -> Option<SignalResult> {
+    // Real multi-TF: each timeframe is its own candle series. Use a 20-period
+    // SMA (matches strategy design) and fall back to whatever is available if
+    // the buffer is shorter.
+    let tf_1h = timeframe_signal(closes_1h, 20)
+        .or_else(|| timeframe_signal(closes_1h, closes_1h.len().min(50)))?;
+    let tf_4h = timeframe_signal(closes_4h, 20)
+        .or_else(|| timeframe_signal(closes_4h, closes_4h.len().min(50)))?;
+    let tf_1d = timeframe_signal(closes_1d, 20)
+        .or_else(|| timeframe_signal(closes_1d, closes_1d.len().min(50)))?;
 
-    // Multi-timeframe trends
-    let tf_1h = timeframe_signal(closes, 20);
-    let tf_4h = timeframe_signal(closes, 80);
-    let tf_1d = timeframe_signal(closes, 200);
-
-    // If we don't have enough for daily, degrade gracefully
-    let tf_1h = tf_1h?;
-    let tf_4h = match tf_4h {
-        Some(t) => t,
-        None => {
-            // Not enough for 4h — can still compute with what we have
-            return None;
-        }
-    };
-
-    let bullish_count = [&tf_1h, &tf_4h]
+    let bullish_count = [&tf_1h, &tf_4h, &tf_1d]
         .iter()
         .filter(|t| t.trend == "bullish")
-        .count()
-        + match &tf_1d {
-            Some(t) if t.trend == "bullish" => 1,
-            _ => 0,
-        };
+        .count();
 
-    let bearish_count = [&tf_1h, &tf_4h]
+    let bearish_count = [&tf_1h, &tf_4h, &tf_1d]
         .iter()
         .filter(|t| t.trend == "bearish")
-        .count()
-        + match &tf_1d {
-            Some(t) if t.trend == "bearish" => 1,
-            _ => 0,
-        };
+        .count();
 
-    let rsi_val = rsi(closes, 14).unwrap_or(50.0);
-    let atr = atr_proxy(closes, 20).unwrap_or_else(|| closes.last().copied().unwrap_or(100.0) * 0.02);
-    let bb = bollinger_position(closes, 20).unwrap_or(0.5);
+    // RSI + ATR + BB are computed off the 1h buffer (most granular).
+    let rsi_val = rsi(closes_1h, 14).unwrap_or(50.0);
+    let atr = atr_proxy(closes_1h, 20).unwrap_or_else(|| closes_1h.last().copied().unwrap_or(100.0) * 0.02);
+    let bb = bollinger_position(closes_1h, 20).unwrap_or(0.5);
     let vol_r = if !volumes.is_empty() { volume_ratio(volumes, 20).unwrap_or(1.0) } else { 1.0 };
 
     let mut score = 0.0;
@@ -233,17 +236,11 @@ pub fn compute_signal(closes: &[f64], volumes: &[f64], min_alignment: usize) -> 
     let mr_signal: f64 = if rsi_val < 30.0 {
         0.3
     } else if rsi_val < 35.0 {
-        match &tf_1d {
-            Some(t) if t.trend == "bullish" => 0.2,
-            _ => 0.0,
-        }
+        if tf_1d.trend == "bullish" { 0.2 } else { 0.0 }
     } else if rsi_val > 70.0 {
         -0.3
     } else if rsi_val > 65.0 {
-        match &tf_1d {
-            Some(t) if t.trend == "bearish" => -0.2,
-            _ => 0.0,
-        }
+        if tf_1d.trend == "bearish" { -0.2 } else { 0.0 }
     } else {
         0.0
     };
@@ -551,7 +548,7 @@ mod tests {
         // 200 candles of steady uptrend
         let closes: Vec<f64> = (0..200).map(|i| 100.0 + i as f64 * 0.5).collect();
         let volumes: Vec<f64> = vec![1000.0; 200];
-        let result = compute_signal(&closes, &volumes, 3).unwrap();
+        let result = compute_signal(&closes, &closes, &closes, &volumes, 3).unwrap();
         assert!(result.score > 0.0, "Uptrend should have positive score, got {}", result.score);
         assert!(result.bullish_count >= 2);
     }
@@ -560,7 +557,7 @@ mod tests {
     fn compute_signal_with_downtrend() {
         let closes: Vec<f64> = (0..200).map(|i| 200.0 - i as f64 * 0.5).collect();
         let volumes: Vec<f64> = vec![1000.0; 200];
-        let result = compute_signal(&closes, &volumes, 3).unwrap();
+        let result = compute_signal(&closes, &closes, &closes, &volumes, 3).unwrap();
         assert!(result.score < 0.0, "Downtrend should have negative score, got {}", result.score);
     }
 
@@ -768,8 +765,8 @@ mod tests {
         let closes: Vec<f64> = (0..200).map(|i| 100.0 + i as f64 * 0.5).collect();
         let volumes: Vec<f64> = vec![1000.0; 200];
         // With min_alignment=3, need all 3 TFs; with 2, need only 2
-        let result_align2 = compute_signal(&closes, &volumes, 2).unwrap();
-        let result_align3 = compute_signal(&closes, &volumes, 3).unwrap();
+        let result_align2 = compute_signal(&closes, &closes, &closes, &volumes, 2).unwrap();
+        let result_align3 = compute_signal(&closes, &closes, &closes, &volumes, 3).unwrap();
         // Both should work — the function doesn't crash with different alignment values
         assert!(result_align2.score > 0.0);
         assert!(result_align3.score > 0.0);
@@ -1298,7 +1295,7 @@ mod tests {
         // Test that at most one direction triggers per cycle
         let closes: Vec<f64> = (0..200).map(|i| 100.0 + i as f64 * 0.5).collect();
         let volumes: Vec<f64> = vec![1000.0; 200];
-        let result = compute_signal(&closes, &volumes, 3).unwrap();
+        let result = compute_signal(&closes, &closes, &closes, &volumes, 3).unwrap();
 
         // Uptrend: score > 0 — should not trigger SHORT
         if result.score > 0.0 {
@@ -1324,7 +1321,7 @@ mod tests {
         // Verify compute_signal produces bearish_count for downtrend data
         let closes: Vec<f64> = (0..200).map(|i| 200.0 - i as f64 * 0.5).collect();
         let volumes: Vec<f64> = vec![1000.0; 200];
-        let result = compute_signal(&closes, &volumes, 3).unwrap();
+        let result = compute_signal(&closes, &closes, &closes, &volumes, 3).unwrap();
         assert!(result.score < 0.0, "Downtrend should produce negative score");
         assert!(result.bearish_count >= 2, "Downtrend should have bearish alignment");
     }

@@ -397,7 +397,13 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
         params.min_alignment,
     );
 
-    let mut buffer = CandleBuffer::new(300); // 300 candles ≈ 12.5 days of 1h data
+    // Multi-TF candle buffers. Each is a separate Binance interval — slicing
+    // a single 1h buffer at lookback 20/80/200 is NOT multi-timeframe, it's
+    // the same trend smoothed three ways (Jul 26-28 trader stuck in bear=3
+    // permanently from this bug). Fetch 1h, 4h, and 1d candles independently.
+    let mut buffer_1h = CandleBuffer::new(300); // 300 candles ≈ 12.5 days of 1h
+    let mut buffer_4h = CandleBuffer::new(200); // 200 candles ≈ 33 days of 4h
+    let mut buffer_1d = CandleBuffer::new(120); // 120 candles ≈ 4 months of 1d
 
     // Start HTTP status server for live dashboard access
     let http_port: u16 = std::env::var("RTP_TRADER_HTTP_PORT")
@@ -434,17 +440,32 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
         }
     }
 
-    // Warmup: fetch historical candles from Binance
-    tracing::info!("[WARMUP] Fetching 200h OHLCV from Binance...");
-    match candles::fetch_binance_ohlcv("SOLUSDT", 200).await {
-        Ok(candles) => {
-            tracing::info!("[WARMUP] Loaded {} candles from Binance", candles.len());
-            buffer.load_candles(candles);
-        }
-        Err(e) => {
-            tracing::warn!("[WARMUP] Binance fetch failed ({}). Starting cold.", e);
-            tracing::warn!("[WARMUP] SMA(200) will not be available until buffer fills.");
-        }
+    // Warmup: fetch historical candles from Binance — INDEPENDENT intervals
+    // for 1h, 4h, 1d. Each is fetched in parallel; one failure doesn't block
+    // the others.
+    tracing::info!("[WARMUP] Fetching multi-TF OHLCV from Binance (1h, 4h, 1d)...");
+    let (r1h, r4h, r1d) = tokio::join!(
+        candles::fetch_binance_ohlcv("SOLUSDT", "1h", 300),
+        candles::fetch_binance_ohlcv("SOLUSDT", "4h", 200),
+        candles::fetch_binance_ohlcv("SOLUSDT", "1d", 120),
+    );
+    if let Ok(c) = r1h {
+        tracing::info!("[WARMUP] Loaded {} 1h candles from Binance", c.len());
+        buffer_1h.load_candles(c);
+    } else if let Err(e) = r1h {
+        tracing::warn!("[WARMUP] 1h Binance fetch failed ({}). Starting cold.", e);
+    }
+    if let Ok(c) = r4h {
+        tracing::info!("[WARMUP] Loaded {} 4h candles from Binance", c.len());
+        buffer_4h.load_candles(c);
+    } else if let Err(e) = r4h {
+        tracing::warn!("[WARMUP] 4h Binance fetch failed ({}). Starting cold.", e);
+    }
+    if let Ok(c) = r1d {
+        tracing::info!("[WARMUP] Loaded {} 1d candles from Binance", c.len());
+        buffer_1d.load_candles(c);
+    } else if let Err(e) = r1d {
+        tracing::warn!("[WARMUP] 1d Binance fetch failed ({}). Starting cold.", e);
     }
 
     // Reconcile with Flash Trade: if a position is open on-chain but missing
@@ -558,7 +579,16 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
 
         let cycle_result = tokio::time::timeout(
             std::time::Duration::from_secs(CYCLE_TIMEOUT_SECS),
-            run_cycle(&config, &keypair, &wallet, &params, &mut buffer, &state),
+            run_cycle(
+                &config,
+                &keypair,
+                &wallet,
+                &params,
+                &mut buffer_1h,
+                &mut buffer_4h,
+                &mut buffer_1d,
+                &state,
+            ),
         ).await;
 
         match cycle_result {
@@ -587,7 +617,7 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
         // Save state after every cycle (success or failure)
         {
             let mut s = state.lock().await;
-            s.candle_count = buffer.len();
+            s.candle_count = buffer_1h.len();
             if let Err(e) = s.save(&config.state_path) {
                 tracing::warn!("[STATE] Save failed: {}", e);
             }
@@ -620,7 +650,9 @@ async fn run_cycle(
     keypair: &solana_sdk::signature::Keypair,
     wallet: &str,
     params: &StrategyParams,
-    buffer: &mut CandleBuffer,
+    buffer_1h: &mut CandleBuffer,
+    buffer_4h: &mut CandleBuffer,
+    buffer_1d: &mut CandleBuffer,
     state: &Arc<Mutex<TraderState>>,
 ) -> Result<(), String> {
     let cycle_start = Utc::now();
@@ -634,25 +666,33 @@ async fn run_cycle(
         }
     };
 
-    buffer.append_tick(price, cycle_start.timestamp());
+    // Tick the 1h buffer only — 4h and 1d are slow-moving and don't get fresh
+    // ticks on every cycle. Append only when the timestamp rolls into a new
+    // candle boundary so we don't blow up the slow TFs with noise.
+    let tick_ts = cycle_start.timestamp();
+    buffer_1h.append_tick(price, tick_ts);
     let has_pos = state.lock().await.open_position.is_some();
     tracing::info!(
-        "[POLL] SOL=${:.2} | candles={} | pos={}",
+        "[POLL] SOL=${:.2} | 1h={} 4h={} 1d={} | pos={}",
         price,
-        buffer.len(),
+        buffer_1h.len(),
+        buffer_4h.len(),
+        buffer_1d.len(),
         if has_pos { "OPEN" } else { "FLAT" }
     );
 
-    let closes = buffer.closes();
-    let volumes = buffer.volumes();
+    let closes_1h = buffer_1h.closes();
+    let closes_4h = buffer_4h.closes();
+    let closes_1d = buffer_1d.closes();
+    let volumes = buffer_1h.volumes();
 
     // 2. Check exit on existing position
     let exit_info = {
         let s = state.lock().await;
         if let Some(ref pos) = s.open_position {
-            if let Some(signal) = strategy::compute_signal(&closes, &volumes, params.min_alignment) {
+            if let Some(signal) = strategy::compute_signal(&closes_1h, &closes_4h, &closes_1d, &volumes, params.min_alignment) {
                 let now_secs = Utc::now().timestamp();
-                let current_price = closes.last().copied().unwrap_or(0.0);
+                let current_price = closes_1h.last().copied().unwrap_or(0.0);
                 // Determine position side from stored state (default "Long" for backward compat)
                 let side = pos.side();
                 let result = strategy::check_exit(
@@ -712,7 +752,7 @@ async fn run_cycle(
                                     tracing::info!("[EXIT] TX: https://explorer.solana.com/tx/{}?cluster=mainnet-beta", sig);
                                     tracing::info!("[EXIT] PnL: ${:.4}", pnl);
 
-                                    let exit_price = closes.last().copied().unwrap_or(0.0);
+                                    let exit_price = closes_1h.last().copied().unwrap_or(0.0);
                                     let side = pos_info.side();
                                     let pnl_pct = if pos_info.entry_price > 0.0 {
                                         match side {
@@ -755,7 +795,7 @@ async fn run_cycle(
                             );
                             // Never treat a missing on-chain position as a real close for PnL,
                             // but record an audit row so the dashboard trade tape advances.
-                            let exit_price = closes.last().copied().unwrap_or(pos_info.entry_price);
+                            let exit_price = closes_1h.last().copied().unwrap_or(pos_info.entry_price);
                             let side = pos_info.side().to_string();
                             let trade = TradeRecord {
                                 entry_price: pos_info.entry_price,
@@ -786,7 +826,7 @@ async fn run_cycle(
             }
         } else {
             // No exit triggered — update peak price for trailing stop
-            let current_price = closes.last().copied().unwrap_or(0.0);
+            let current_price = closes_1h.last().copied().unwrap_or(0.0);
             let side = pos_info.side();
             let should_update_peak = match side {
                 "Short" => current_price < pos_info.peak_price, // track trough for SHORT
@@ -800,7 +840,7 @@ async fn run_cycle(
         }
     } else {
         // 3. Check entry signal (only if flat)
-        if let Some(signal) = strategy::compute_signal(&closes, &volumes, params.min_alignment) {
+        if let Some(signal) = strategy::compute_signal(&closes_1h, &closes_4h, &closes_1d, &volumes, params.min_alignment) {
             tracing::info!(
                 "[SIGNAL] score={:.3} rsi={:.1} bull={} bear={} atr={:.2} reasons={:?}",
                 signal.score, signal.rsi, signal.bullish_count, signal.bearish_count, signal.atr, signal.reasons
