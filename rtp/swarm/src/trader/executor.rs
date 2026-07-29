@@ -868,14 +868,14 @@ pub async fn close_position(
     size_usd: &str,
     withdraw_token_symbol: &str,
 ) -> Result<(String, f64), String> {
-    // SDK path first.
+    // SDK path first — fall back to REST on any SDK error so a broken wrapper or
+    // SDK version mismatch does not permanently trap an open position.
     let size_usd_f: f64 = size_usd.parse().unwrap_or(0.0);
     match try_close_via_sdk(size_usd_f, withdraw_token_symbol, side).await {
         Ok(sig_pnl) => return Ok(sig_pnl),
-        Err(e) if e.starts_with("node unavailable") => {
-            tracing::warn!("[CLOSE] SDK unavailable ({}). Falling back to REST.", e);
+        Err(e) => {
+            tracing::warn!("[CLOSE] SDK path failed ({}). Falling back to REST.", e);
         }
-        Err(other) => return Err(other),
     }
 
     let wallet = keypair.pubkey().to_string();

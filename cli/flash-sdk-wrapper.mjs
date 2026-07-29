@@ -670,12 +670,13 @@ async function doClosePosition(params) {
     `[wrapper] close SOL ${isVariant(side, "long") ? "long" : "short"} market=${market.toBase58?.() ?? market} collateralSymbol=${collateralSymbol}`,
   );
 
+  // SDK signature: closePosition(targetSymbol, collateralSymbol, price, side, poolConfig, Privilege?)
   const { instructions: closeIxs } = await c.closePosition(
     "SOL",
     collateralSymbol,
+    price,
     side,
     poolConfig,
-    price,
   );
 
   // Cancel any stale TP/SL trigger orders parked on the basket so they don't
