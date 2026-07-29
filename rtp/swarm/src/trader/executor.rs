@@ -891,6 +891,7 @@ pub async fn close_position(
         "inputUsdUi": size_usd,
         "withdrawTokenSymbol": withdraw_token_symbol,
         "owner": wallet,
+        "closeAll": true,
         "slippagePercentage": "1.0"
     });
 
