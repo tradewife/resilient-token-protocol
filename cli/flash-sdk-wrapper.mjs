@@ -437,11 +437,11 @@ async function doSetup() {
           "[wrapper] base delegate-basket failed, retrying on ER:",
           e?.message ?? e,
         );
-        const sig = await c.sendAndConfirmErTransaction(r.instructions, [
+        const erRes = await c.sendAndConfirmErTransaction(r.instructions, [
           keypair,
           ...(r.additionalSigners ?? []),
         ]);
-        sigs.push({ step: "delegate-basket-er", signature: sig });
+        sigs.push({ step: "delegate-basket-er", signature: typeof erRes === "string" ? erRes : erRes.signature });
       }
     } else {
       // SDK no-op due to MagicBlock ownership on L1. Per the new SDK,
@@ -611,9 +611,9 @@ async function doOpenPosition(params) {
         sizeAmount,
       );
 
-      const sig = await c.sendAndConfirmErTransaction(instructions, [keypair]);
+      const erResult = await c.sendAndConfirmErTransaction(instructions, [keypair]);
       return {
-        signature: sig,
+        signature: typeof erResult === "string" ? erResult : erResult.signature,
         sizeAmount: sizeAmount.toString(),
         collateralAmount: amount.toString(),
         collateralSymbol: lockSymbol,
@@ -670,13 +670,13 @@ async function doClosePosition(params) {
     `[wrapper] close SOL ${isVariant(side, "long") ? "long" : "short"} market=${market.toBase58?.() ?? market} collateralSymbol=${collateralSymbol}`,
   );
 
-  // SDK signature: closePosition(targetSymbol, collateralSymbol, price, side, poolConfig, Privilege?)
+  // SDK v2 signature: closePosition(targetSymbol, collateralSymbol, side, poolConfig, priceWithSlippage, receivingSymbol?, privilege?)
   const { instructions: closeIxs } = await c.closePosition(
     "SOL",
     collateralSymbol,
-    price,
     side,
     poolConfig,
+    price,
   );
 
   // Cancel any stale TP/SL trigger orders parked on the basket so they don't
@@ -690,8 +690,8 @@ async function doClosePosition(params) {
     // no trigger orders, or already cancelled — proceed with close only
   }
 
-  const sig = await c.sendAndConfirmErTransaction(allIxs, [keypair]);
-  return { signature: sig, collateralSymbol };
+  const erResult = await c.sendAndConfirmErTransaction(allIxs, [keypair]);
+  return { signature: typeof erResult === "string" ? erResult : erResult.signature, collateralSymbol };
 }
 
 async function doGetPrice(params) {
