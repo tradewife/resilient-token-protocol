@@ -923,6 +923,10 @@ async fn run_cycle(
                         }
                         Err(e) => {
                             tracing::error!("[ENTRY] Open failed: {}", e);
+                            // Count open failures as cycle errors so the
+                            // error-backoff sleep prevents burning gas on
+                            // retries during pool-capacity stalls.
+                            return Err(format!("Open position failed: {e}"));
                         }
                     }
                 } else {
