@@ -2,7 +2,9 @@
 
 > **How to use this file:** Paste the relevant sections at the top of every fresh agent session. Do not paste the full papers or full repo. This file is the compressed institutional memory of the project. Update it after each significant session.
 
-**Last updated:** 2026-07-28 — Two real root causes of "no trades" fixed and verified live. (1) Multi-TF was fake: one 1h Binance buffer sliced at 20/80/200 lookbacks, so bull/bear always moved together; fixed in `697bc04` with independent 1h/4h/1d buffers. (2) Opens failed with `0x1792` = Anchor **6034 MinCollateral** — 1% of ~0.9 SOL wallet ≈ $0.66, Flash needs ~$11+; fixed by `RTP_TRADER_POSITION_FRACTION=0.20` and `RTP_TRADER_MIN_OPEN_COLLATERAL_LAMPORTS=150000000`. Live proof: Short OPEN entry $73.27, size_usd $118.05, TX `3cvbZpBT...`, deploy `31466ef9...`. SDK path still hits 6024 then REST fallback succeeds. 87 trader tests pass.
+**Last updated:** 2026-08-04 — `min_alignment` lowered 3→2 in `data/trader-strategy-config.json` (commit `5fa657a`, deploy `bc3b7645`) to fix the latent deadlock exposed by the Jul 28 multi-TF fix. With real independent Binance 1h/4h/1d buffers, ranged markets legitimately produce bull=2/bear=1 mixes that min_alignment=3 cannot reconcile; the score locked at 0.000 and no entries fired. `min_alignment=2` matches the Python reference (`research/simulation/run_backtest_r2.py`) which the Survivor 2.69 WFA was validated against. `min_alignment` was never in `data/sensitivity_sol_survivor_2_69_lev3.csv` — Rust default 3 was a stale inheritance from the fake-multi-TF era. After this fix: SOL $73.52 → `[SIGNAL] score=0.267 bull=2 bear=1 reasons=["tf_bull_2"]` (was score=0.000, no trend reason). 87 trader tests pass. Operator overrides `RTP_TRADER_MIN_ALIGNMENT_OVERRIDE` / `RTP_TRADER_SIGNAL_THRESHOLD_OVERRIDE` remain UNSET — strategy is now strict-WFA except for the corrected alignment semantics.
+
+Prior session 2026-07-28: Multi-TF was fake: one 1h Binance buffer sliced at 20/80/200 lookbacks, so bull/bear always moved together; fixed in `697bc04` with independent 1h/4h/1d buffers. Opens failed with `0x1792` = Anchor **6034 MinCollateral** — 1% of ~0.9 SOL wallet ≈ $0.66, Flash needs ~$11+; fixed by `RTP_TRADER_POSITION_FRACTION=0.20` and `RTP_TRADER_MIN_OPEN_COLLATERAL_LAMPORTS=150000000`. Live proof: Short OPEN entry $73.27, size_usd $118.05, TX `3cvbZpBT...`, deploy `31466ef9...`. SDK path still hits 6024 then REST fallback succeeds.
 
 ---
 
@@ -12,9 +14,9 @@
 
 **Production wallet:** `HDQ79fQ1YbL9CenS1DzfHizEWGrJdnmo99fgAWmdhuy5` (keypair at `~/.config/solana/rtp-trader.json`). **NEVER** use the local default `id.json` (Driyi...) for trading — that's the dev wallet only.
 
-**Currently active env (2026-07-28):**
-- `RTP_TRADER_MIN_ALIGNMENT_OVERRIDE=2` (loosening-only vs config align=3)
-- `RTP_TRADER_SIGNAL_THRESHOLD_OVERRIDE=0.2` (loosening-only vs config 0.3)
+**Currently active env (2026-08-04):**
+- `RTP_TRADER_MIN_ALIGNMENT_OVERRIDE` — UNSET (config now `min_alignment=2`)
+- `RTP_TRADER_SIGNAL_THRESHOLD_OVERRIDE` — UNSET (config now `signal_threshold=0.3`)
 - `RTP_TRADER_POSITION_FRACTION=0.20` (was 0.01 — required for Flash MinCollateral)
 - `RTP_TRADER_MIN_OPEN_COLLATERAL_LAMPORTS=150000000` (0.15 SOL floor ≈ $11 at ~$73)
 - `RTP_TRADER_LEVERAGE=9.0`
@@ -70,7 +72,7 @@ node scripts/railway-logs.mjs --from 5f0bdc99-b9c4-4f99-8163-1ee8ab7b4435
 ---
 
 ## 1. Canonical Project Definition
-**Current state:** Live autonomous trader (rtp-trader) running 24/7 on Railway with **real multi-TF** (independent Binance 1h/4h/1d buffers, commit `697bc04`). Config from `data/trader-strategy-config.json`: thresh=0.3, tp=6.0, sl=2.5, trail=1.0, hold=96h, decay=48h, flip_delay=2h, align=3. **Operator env:** alignment override=2, signal override=0.2, **position_fraction=0.20**, min_open_collateral=0.15 SOL, leverage=9.0. Supports LONG+SHORT. Live Short open verified 2026-07-28 (entry ~$73.27, ~$118 notional). Score flip delay 2h. Health 503 when stale/erroring. Watchdog 120s cycle / 30s HTTP. All 7 Railway services green. License: BSL-1.1.
+**Current state:** Live autonomous trader (rtp-trader) running 24/7 on Railway with **real multi-TF** (independent Binance 1h/4h/1d buffers, commit `697bc04`) and **corrected alignment semantics** (`min_alignment=2` in `data/trader-strategy-config.json`, commit `5fa657a`). Config: thresh=0.3, tp=6.0, sl=2.5, trail=1.0, hold=96h, decay=48h, flip_delay=2h, align=2 (matches Python reference). **Operator env:** no overrides active, **position_fraction=0.20**, min_open_collateral=0.15 SOL, leverage=9.0. Supports LONG+SHORT. Live Short open verified 2026-07-28 (entry ~$73.27, ~$118 notional). Score flip delay 2h. Health 503 when stale/erroring. Watchdog 120s cycle / 30s HTTP. All 7 Railway services green. License: BSL-1.1.
 
 ---
 
@@ -297,6 +299,36 @@ A judge must be able to verify these five things in under 3 minutes:
 ---
 
 ## 8. Session Status
+
+**Session 2026-08-04 — min_alignment 3→2 fix (latent multi-TF deadlock resolved)**
+
+Trigger: Operator reported "trader is still blocked" despite having reverted all operator overrides on Jul 28. Live logs showed `[SIGNAL] score=0.000 rsi=54.8 bull=2 bear=1 atr=0.32 reasons=[]` — every 5-min cycle, zero trend contribution, no entries. The Jul 28 multi-TF fix (`697bc04`) replaced fake multi-TF (one 1h buffer sliced at 20/80/200) with real independent 1h/4h/1d Binance buffers. This **exposed** a latent bug: `min_alignment=3` in `data/trader-strategy-config.json` required all 3 TFs to agree, but real independent TFs legitimately disagree on ranging markets (e.g. 1h bull, 4h bear, 1d bear → bull=1 bear=2). The `compute_signal` if/else chain contributed zero to the score when neither bull_count nor bear_count reached `min_alignment=3`, so the score locked at 0.000 and no entries could fire.
+
+**Root cause confirmed:** `min_alignment=3` was never WFA-validated. It was not in `data/sensitivity_sol_survivor_2_69_lev3.csv`. It was inherited from the fake-multi-TF era when bull/bear always showed 3/3 together (same trend smoothed three ways). The Python reference `research/simulation/run_backtest_r2.py` uses `min_alignment=2` by default — the Survivor 2.69 WFA was validated against this. The Rust trader config added `min_alignment=3` on commit `c01c222` (May 18) which worked accidentally because the fake-multi-TF always produced 3/3 alignment.
+
+**Fix shipped:** One-line change in `data/trader-strategy-config.json`: `"min_alignment": 3` → `"min_alignment": 2` (commit `5fa657a`, deploy `bc3b7645`). No code changes. All 87 trader tests pass. Operator overrides remain UNSET — the strategy is now strict-WFA except for the corrected alignment semantics.
+
+**Verification (live, 2026-08-04 07:35 UTC):**
+```
+[STRATEGY] loaded from daemon config: signal=0.30 tp=6.0 sl=2.5 hold=96h trail=1.00 decay=48h flip_delay=2.0h alignment=2
+[SIGNAL] score=0.267 rsi=48.5 bull=2 bear=1 atr=0.33 reasons=["tf_bull_2"]
+```
+Before fix: `score=0.000 bull=2 bear=1 reasons=[]` (deadlocked, no trend contribution)
+After fix: `score=0.267 bull=2 bear=1 reasons=["tf_bull_2"]` (trend contributes +0.267, still below 0.30 threshold but alive)
+
+**Key learnings:**
+- Do not assume a config value is WFA-validated just because it's in `data/trader-strategy-config.json` — check `data/sensitivity_sol_survivor_2_69_lev3.csv` for the actual sweep.
+- `min_alignment=3` was a stale inheritance from the fake-multi-TF era. The Jul 28 multi-TF fix exposed it as a deadlock on ranging markets.
+- The override mechanism (`RTP_TRADER_MIN_ALIGNMENT_OVERRIDE`) was masking this by forcing align=2, but the config itself was wrong. Proper fix is to correct the config, not to layer overrides.
+- With `min_alignment=2`, both LONG (bull>=2 + score>0.30) and SHORT (bear>=2 + score<-0.30) can fire on 2-of-3 confluence.
+
+---
+
+**Session 2026-07-28 — Multi-TF fix + MinCollateral sizing + live Short proof**
+
+(See prior entries for full detail.) Two real root causes of "no trades" fixed and verified live. (1) Multi-TF was fake: one 1h Binance buffer sliced at 20/80/200 lookbacks, so bull/bear always moved together; fixed in `697bc04` with independent 1h/4h/1d buffers. (2) Opens failed with `0x1792` = Anchor **6034 MinCollateral** — 1% of ~0.9 SOL wallet ≈ $0.66, Flash needs ~$11+; fixed by `RTP_TRADER_POSITION_FRACTION=0.20` and `RTP_TRADER_MIN_OPEN_COLLATERAL_LAMPORTS=150000000`. Live proof: Short OPEN entry $73.27, size_usd $118.05, TX `3cvbZpBT...`. 87 trader tests pass.
+
+---
 
 **Session 2026-07-26 — Add Loosening-Only Trader Env Overrides (min_alignment + signal_threshold)**
 

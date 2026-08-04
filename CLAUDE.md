@@ -17,7 +17,7 @@ The Flash Trade on-chain CPI execution path is fully implemented (M0–M5). PDA-
 
 ```
 Night Shift (Python, DONE)
-  └── validated strategy: SOL/USDT Survivor 2.69, signal_threshold=0.3, tp_atr=6.0, sl_atr=2.5, trailing_stop_atr=1.0, max_hold_hours=96, score_flip_delay_hrs=2
+  └── validated strategy: SOL/USDT Survivor 2.69, signal_threshold=0.3, tp_atr=6.0, sl_atr=2.5, trailing_stop_atr=1.0, max_hold_hours=96, score_flip_delay_hrs=2, min_alignment=2
         │
         ▼ bridge.rs (DONE)
 Trading Wing (Rust, DONE)
@@ -101,6 +101,7 @@ Fee-Payer Wallet (gas only, DONE)
 - **Trader config loads from validated file** — `Dockerfile.trader` copies `data/trader-strategy-config.json` into container and sets `RTP_STRATEGY_CONFIG`. If config file is missing or invalid, falls back to hardcoded defaults with a warning log. The validated config (trail=1.0, tp=6.0, sl=2.5, hold=96h, decay=48h, flip_delay=2h) must NOT be silently replaced with defaults — check Railway logs for the startup param line.
 - **Trader has loosening-only env overrides** — `RTP_TRADER_MIN_ALIGNMENT_OVERRIDE` and `RTP_TRADER_SIGNAL_THRESHOLD_OVERRIDE` let the operator relax strict-WFA confluence params on Railway without rebuilding the binary. Override values >= configured are silently ignored (one-way loosening); missing env = validated config. Application logs a `[OVERRIDE]` WARN line on every applied override. Use `node scripts/railway-trader-override.mjs set --min-alignment 2 --signal-threshold 0.2` then `node scripts/railway-redeploy-trader.mjs` to apply. Set values tighter than config = silent no-op (designed to prevent accidental overrides that would re-introduce riskier-than-baseline behavior).
 - **Real multi-TF only (Jul 28, 2026)** — `compute_signal` must receive **independent** 1h / 4h / 1d close series from Binance (`interval=1h|4h|1d`). Never slice a single 1h buffer at 20/80/200 lookbacks; that made all three TFs lock together and blocked opposite-side entries for days. Warmup uses `tokio::join!` of three fetches; poll line shows `1h=N 4h=N 1d=N`.
+- **min_alignment=2 (Aug 4, 2026)** — `data/trader-strategy-config.json` uses `min_alignment: 2`, matching the Python reference (`research/simulation/run_backtest_r2.py`). The old `min_alignment=3` was a stale inheritance from the fake-multi-TF era (when bull/bear always showed 3/3 together) and was **never WFA-validated** — it is absent from `data/sensitivity_sol_survivor_2_69_lev3.csv`. With real independent TFs, ranged markets legitimately produce bull=2/bear=1 mixes that `min_alignment=3` cannot reconcile (score locked at 0.000, no entries). Do NOT "fix" this back to 3; re-verify against the WFA sweep before touching it. The `compute_signal` if/else chain still throws away partial alignment (bull=2 contributes 0, not 0.27) — that is a known limitation, not the cause of the current operating state.
 - **Flash MinCollateral / 0x1792** — on-chain `custom program error: 0x1792` is **6034 MinCollateral**, not basket.delegate. Collateral must clear Flash's ~$11–12 floor. Production sizing: `RTP_TRADER_POSITION_FRACTION=0.20` and `RTP_TRADER_MIN_OPEN_COLLATERAL_LAMPORTS=150000000` on ~0.9 SOL wallet. 1% fraction produced ~$0.66 notionals that always failed open.
 - **Trader supports both LONG and SHORT positions** — entry conditions: LONG when score > threshold AND bullish_count >= min_alignment; SHORT when score < -threshold AND bearish_count >= min_alignment. Exit math (PnL, trailing, SL/TP) is inverted for SHORT positions. OpenPosition has a `side` field ("Long"/"Short").
 - **Score flip delay** — `score_flip_delay_hrs` (default 0.0, set to 2.0 in validated config) provides a grace period before ScoreFlip exit. Timer starts from `first_negative_score_time` (tracked in OpenPosition), resets when score goes positive.
@@ -518,7 +519,7 @@ If you change anything in `_compute_score()` or `simulate_trades()`, run `evalua
 Active symbols: BTC/USDT, ETH/USDT, SOL/USDT, BNB/USDT. XRP dropped (net negative).
 
 **Top live candidate (Apr 9 Night Shift):**
-SOL/USDT Survivor 2.69 — signal_threshold=0.3, tp_atr=6.0, sl_atr=2.5, max_hold=96h, trailing_stop_atr=1.0, time_decay_hours=48, score_flip_delay_hrs=2
+SOL/USDT Survivor 2.69 — signal_threshold=0.3, tp_atr=6.0, sl_atr=2.5, max_hold=96h, trailing_stop_atr=1.0, time_decay_hours=48, score_flip_delay_hrs=2, min_alignment=2
 This is the config the Trading Wing targets on Flash Trade (via on-chain CPI).
 
 ---

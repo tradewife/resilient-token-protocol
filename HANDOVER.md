@@ -1,0 +1,11 @@
+# Handover for next agent — 2026-08-04
+
+**Trader unblocked.** The `min_alignment=3` deadlock is fixed. Commit `5fa657a` lowered `min_alignment` to 2 in `data/trader-strategy-config.json` (deploy `bc3b7645`). Root cause: the Jul 28 multi-TF fix (`697bc04`) replaced fake multi-TF (one 1h buffer sliced at 20/80/200) with real independent 1h/4h/1d Binance buffers. This exposed a latent bug — the old `min_alignment=3` (inherited from the fake-multi-TF era, never WFA-validated, absent from `data/sensitivity_sol_survivor_2_69_lev3.csv`) required all 3 TFs to agree. On ranging markets (SOL ~$73) real TFs legitimately disagree (e.g. bull=2 bear=1), so `compute_signal` contributed 0 to the score and the trader deadlocked at `score=0.000` with no entries. `min_alignment=2` matches the Python reference `research/simulation/run_backtest_r2.py` that the Survivor 2.69 WFA was validated against.
+
+**Verified live (2026-08-04 07:35 UTC):** `[STRATEGY] ... alignment=2` and `[SIGNAL] score=0.267 rsi=48.5 bull=2 bear=1 reasons=["tf_bull_2"]` — the trend now contributes +0.267 (was 0.000). Still below the 0.30 threshold, so no entries yet, but the trader is responsive to market direction and will fire LONG (bull>=2, score>0.30) or SHORT (bear>=2, score<-0.30).
+
+**Operator overrides:** `RTP_TRADER_MIN_ALIGNMENT_OVERRIDE` and `RTP_TRADER_SIGNAL_THRESHOLD_OVERRIDE` are UNSET on Railway (verified via `node scripts/railway-trader-override.mjs show`). The strategy is now strict-WFA except for the corrected alignment semantics. Do NOT re-add the overrides — they were masking the config bug.
+
+**Known limitation (not the current blocker):** `compute_signal`'s if/else chain throws away partial alignment (bull=2 contributes 0, not 0.27). This is a design choice, not a bug — it's how the strategy keeps the 0.30 threshold meaningful. Only revisit if you have WFA evidence.
+
+**Production wallet:** `HDQ79...` (NOT `Driyi...`). Service `40456d7a-5dfe-4112-8cf3-9a2ae5e3a910`. Latest deploy `bc3b7645-1a6e-4046-9829-bc092b2a3afc` SUCCESS. All 87 trader tests pass. Next: monitor the next real entry/exit event to confirm the SDK close path (arg order + SendErResult extraction from `e9596b1`) works end-to-end in production.

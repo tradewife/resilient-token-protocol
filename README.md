@@ -46,7 +46,7 @@ Every position open/close is an on-chain transaction. The Treasury PDA signs via
 
 ## Live Autonomous Trading
 
-The Survivor 2.69 strategy runs autonomously 24/7 on Railway. A Rust binary (`rtp-trader`) polls Flash Trade every 5 minutes, computes the multi-timeframe signal (ATR/RSI/SMA/Bollinger Band), and executes positions when conditions are met — no human in the loop.
+The Survivor 2.69 strategy runs autonomously 24/7 on Railway. A Rust binary (`rtp-trader`) polls Flash Trade every 5 minutes, computes the multi-timeframe signal (ATR/RSI/SMA/Bollinger Band across independent 1h/4h/1d Binance candles), and executes LONG or SHORT positions when 2+ aligned timeframes confirm the signal above a 0.3 score threshold — no human in the loop.
 
 | Component | Detail |
 |-----------|--------|
@@ -54,7 +54,7 @@ The Survivor 2.69 strategy runs autonomously 24/7 on Railway. A Rust binary (`rt
 | Execution | Flash SDK v2 (`@flash_trade/flash-sdk-v2@1.0.36`) via Node child process · REST `/transaction-builder/*` fallback retained |
 | Position sizing | 20% of capital per trade, 9x leverage |
 | Stops | TP: 6.0× ATR, SL: 2.5× ATR, Trailing: 1.0× ATR |
-| Signal | threshold=0.3 with 3+ aligned timeframes, max hold 96h |
+| Signal | threshold=0.3 with 2+ aligned timeframes, max hold 96h |
 
 **Confirmed mainnet transactions:**
 
