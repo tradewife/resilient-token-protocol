@@ -569,6 +569,17 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
     const CYCLE_TIMEOUT_SECS: u64 = 120; // max time for one trading cycle
     const MAX_CONSECUTIVE_ERRORS: u32 = 10; // after this many, sleep longer
 
+    // Slow-TF refresh schedule. After warmup, buffer_4h and buffer_1d are
+    // stale snapshots — they never receive `append_tick` (only 1h ticks).
+    // Without periodic refetch from Binance, tf_4h.trend and tf_1d.trend are
+    // pinned at warmup SMA/price, and bullish/bearish counts can never flip
+    // as the market moves. Refetch 4h every 2h, 1d every 6h — fast enough to
+    // react to real TF changes, slow enough to avoid burning Binance quota.
+    const SLOW_REFRESH_4H_SECS: i64 = 2 * 3600;
+    const SLOW_REFRESH_1D_SECS: i64 = 6 * 3600;
+    let mut last_4h_refresh = Utc::now().timestamp();
+    let mut last_1d_refresh = Utc::now().timestamp();
+
     tracing::info!("[LOOP] Starting autonomous trading loop (watchdog: {}s cycle timeout)...", CYCLE_TIMEOUT_SECS);
     loop {
         let cycle_start = Utc::now();
@@ -588,6 +599,10 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
                 &mut buffer_4h,
                 &mut buffer_1d,
                 &state,
+                &mut last_4h_refresh,
+                &mut last_1d_refresh,
+                SLOW_REFRESH_4H_SECS,
+                SLOW_REFRESH_1D_SECS,
             ),
         ).await;
 
@@ -654,8 +669,43 @@ async fn run_cycle(
     buffer_4h: &mut CandleBuffer,
     buffer_1d: &mut CandleBuffer,
     state: &Arc<Mutex<TraderState>>,
+    last_4h_refresh: &mut i64,
+    last_1d_refresh: &mut i64,
+    refresh_4h_secs: i64,
+    refresh_1d_secs: i64,
 ) -> Result<(), String> {
     let cycle_start = Utc::now();
+
+    // 0. Periodically refresh slow-TF buffers from Binance. The 1h buffer
+    // receives live ticks via `append_tick`, but the 4h/1d buffers would
+    // stay pinned at the warmup snapshot — leaving tf_4h.trend and
+    // tf_1d.trend frozen at deploy-time SMA values. Without this refresh,
+    // bullish/bearish counts can never flip with the market even when the
+    // trend has clearly shifted. This was the core wiring bug behind the
+    // "stuck at bull=2 bear=1 for 12 hours" deadlock.
+    let now_ts = cycle_start.timestamp();
+    if now_ts - *last_4h_refresh >= refresh_4h_secs {
+        match candles::fetch_binance_ohlcv("SOLUSDT", "4h", 200).await {
+            Ok(c) if !c.is_empty() => {
+                tracing::info!("[REFRESH] 4h: loaded {} candles from Binance", c.len());
+                buffer_4h.load_candles(c);
+                *last_4h_refresh = now_ts;
+            }
+            Ok(_) => tracing::warn!("[REFRESH] 4h: Binance returned empty candle set"),
+            Err(e) => tracing::warn!("[REFRESH] 4h: Binance fetch failed ({}) — using stale buffer", e),
+        }
+    }
+    if now_ts - *last_1d_refresh >= refresh_1d_secs {
+        match candles::fetch_binance_ohlcv("SOLUSDT", "1d", 120).await {
+            Ok(c) if !c.is_empty() => {
+                tracing::info!("[REFRESH] 1d: loaded {} candles from Binance", c.len());
+                buffer_1d.load_candles(c);
+                *last_1d_refresh = now_ts;
+            }
+            Ok(_) => tracing::warn!("[REFRESH] 1d: Binance returned empty candle set"),
+            Err(e) => tracing::warn!("[REFRESH] 1d: Binance fetch failed ({}) — using stale buffer", e),
+        }
+    }
 
     // 1. Fetch current SOL price from Flash Trade
     let price = match executor::get_sol_price().await {
@@ -846,10 +896,21 @@ async fn run_cycle(
                 signal.score, signal.rsi, signal.bullish_count, signal.bearish_count, signal.atr, signal.reasons
             );
 
-            // Entry logic: LONG or SHORT, mutually exclusive
-            let entry_signal = if signal.score > params.signal_threshold && signal.bullish_count >= params.min_alignment {
+            // Entry logic: LONG or SHORT, mutually exclusive.
+            //
+            // Mirrors the Python Survivor 2.69 reference (`run_backtest_r2.py`,
+            // line ~257): `if score > threshold: buy`. The alignment count is
+            // already baked into the score (trend weight 0.4 × bull_count/3),
+            // so an extra `bullish_count >= min_alignment` AND-gate here would
+            // double-count the alignment requirement and make it impossible
+            // to clear the threshold with min_alignment=2 unless an additional
+            // booster (momentum, MR, BB) pushed the score past 0.30. In a
+            // sideways market those boosters don't fire, so the score caps at
+            // 0.267 and no entry triggers — even when price action would
+            // normally qualify. Matching Python: gate on score only.
+            let entry_signal = if signal.score > params.signal_threshold {
                 Some(("Long", "LONG", signal.score, signal.bullish_count, signal.reasons.clone()))
-            } else if signal.score < -params.signal_threshold && signal.bearish_count >= params.min_alignment {
+            } else if signal.score < -params.signal_threshold {
                 Some(("Short", "SHORT", signal.score, signal.bearish_count, signal.reasons.clone()))
             } else {
                 None
@@ -1254,32 +1315,34 @@ mod tests {
 
     #[test]
     fn entry_signal_logic_long_condition() {
-        // Verify: score > threshold && bullish_count >= min_alignment → LONG
+        // Verify: score > threshold → LONG (matches Python reference — no
+        // separate alignment AND-gate; the alignment count is already baked
+        // into the score via the trend weight 0.4 × bull_count/3).
         let params = StrategyParams {
             signal_threshold: 0.3,
-            min_alignment: 3,
+            min_alignment: 2,
             ..StrategyParams::default()
         };
         let score = 0.5;
-        let bullish_count: usize = 3;
+        let bullish_count: usize = 2;
 
-        let is_long = score > params.signal_threshold && bullish_count >= params.min_alignment;
-        assert!(is_long, "Score 0.5 > 0.3 with 3 bull → LONG");
+        let is_long = score > params.signal_threshold;
+        assert!(is_long, "Score 0.5 > 0.3 → LONG regardless of alignment count ({})", bullish_count);
     }
 
     #[test]
     fn entry_signal_logic_short_condition() {
-        // Verify: score < -threshold && bearish_count >= min_alignment → SHORT
+        // Verify: score < -threshold → SHORT (matches Python reference — score-only)
         let params = StrategyParams {
             signal_threshold: 0.3,
-            min_alignment: 3,
+            min_alignment: 2,
             ..StrategyParams::default()
         };
         let score = -0.5;
-        let bearish_count: usize = 3;
+        let bearish_count: usize = 2;
 
-        let is_short = score < -params.signal_threshold && bearish_count >= params.min_alignment;
-        assert!(is_short, "Score -0.5 < -0.3 with 3 bear → SHORT");
+        let is_short = score < -params.signal_threshold;
+        assert!(is_short, "Score -0.5 < -0.3 → SHORT regardless of alignment count ({})", bearish_count);
     }
 
     #[test]
