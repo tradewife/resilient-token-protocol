@@ -2,7 +2,11 @@
 
 > **How to use this file:** Paste the relevant sections at the top of every fresh agent session. Do not paste the full papers or full repo. This file is the compressed institutional memory of the project. Update it after each significant session.
 
-**Last updated:** 2026-08-04 — `min_alignment` lowered 3→2 in `data/trader-strategy-config.json` (commit `5fa657a`, deploy `bc3b7645`) to fix the latent deadlock exposed by the Jul 28 multi-TF fix. With real independent Binance 1h/4h/1d buffers, ranged markets legitimately produce bull=2/bear=1 mixes that min_alignment=3 cannot reconcile; the score locked at 0.000 and no entries fired. `min_alignment=2` matches the Python reference (`research/simulation/run_backtest_r2.py`) which the Survivor 2.69 WFA was validated against. `min_alignment` was never in `data/sensitivity_sol_survivor_2_69_lev3.csv` — Rust default 3 was a stale inheritance from the fake-multi-TF era. After this fix: SOL $73.52 → `[SIGNAL] score=0.267 bull=2 bear=1 reasons=["tf_bull_2"]` (was score=0.000, no trend reason). 87 trader tests pass. Operator overrides `RTP_TRADER_MIN_ALIGNMENT_OVERRIDE` / `RTP_TRADER_SIGNAL_THRESHOLD_OVERRIDE` remain UNSET — strategy is now strict-WFA except for the corrected alignment semantics.
+**Last updated:** 2026-08-05 — **Trader unblocked — real root cause found.** Three wiring bugs pinned the score below the 0.30 threshold and froze the slow-TF trends. Commit `311457f` (deploy `c6ff1910`): (A+B) the 4h/1d `CandleBuffer`s were never refreshed after Binance warmup — only `buffer_1h.append_tick()` runs, so `tf_4h`/`tf_1d` trends were frozen at deploy-time SMA/price and bullish/bearish counts could never flip with the market; fixed by refreshing 4h every 2h / 1d every 6h via `last_4h_refresh`/`last_1d_refresh`. (C) the Rust entry had an extra `bullish_count >= min_alignment` AND-gate that the Python Survivor 2.69 reference (`run_backtest_r2.py` line ~257) does NOT have — the alignment count is already baked into the score (trend weight 0.4 × bull/3), so the extra gate double-counted it and capped the score at 0.267 (just under 0.30) in sideways markets; fixed by gating on score only. Verified live: score now varies with market (0.057 → 0.117, responding to RSI/BB), not pinned at ±0.267. 87 trader tests pass. Operator overrides remain UNSET.
+
+Prior (2026-08-04): `min_alignment` lowered 3→2 in `data/trader-strategy-config.json` (commit `5fa657a`, deploy `bc3b7645`) — the Jul 28 multi-TF fix exposed that real TFs disagree on ranged markets (bull=2 bear=1), deadlocking min_alignment=3. `min_alignment=2` matches the Python reference. This was a necessary but insufficient fix; the score was still capped at 0.267 by bugs A/B/C above.
+
+<!-- Note for future agents: the "min_alignment=3 deadlock" (5fa657a) was real but NOT the whole story. The trader remained blocked after that fix because the 4h/1d buffers were still frozen (bugs A/B) and the entry gate double-counted alignment (bug C). Both were fixed together in 311457f. -->
 
 Prior session 2026-07-28: Multi-TF was fake: one 1h Binance buffer sliced at 20/80/200 lookbacks, so bull/bear always moved together; fixed in `697bc04` with independent 1h/4h/1d buffers. Opens failed with `0x1792` = Anchor **6034 MinCollateral** — 1% of ~0.9 SOL wallet ≈ $0.66, Flash needs ~$11+; fixed by `RTP_TRADER_POSITION_FRACTION=0.20` and `RTP_TRADER_MIN_OPEN_COLLATERAL_LAMPORTS=150000000`. Live proof: Short OPEN entry $73.27, size_usd $118.05, TX `3cvbZpBT...`, deploy `31466ef9...`. SDK path still hits 6024 then REST fallback succeeds.
 
@@ -299,6 +303,29 @@ A judge must be able to verify these five things in under 3 minutes:
 ---
 
 ## 8. Session Status
+
+**Session 2026-08-05 — Root cause: 4h/1d buffers frozen + extra alignment gate (trader unblocked)**
+
+Trigger: Operator reported "trader is still blocked. I am very certain it is being blocked or the strategy which can go EITHER short or long has been incorrectly wired up. Find the REAL issue. do not gaslight me." Fresh audit of the live logs + source revealed the `min_alignment=2` fix (Aug 4) was necessary but NOT sufficient — the score was still pinned.
+
+**Bug A+B (4h/1d buffers never refreshed):** `run_cycle` only calls `buffer_1h.append_tick(price, tick_ts)`. The 4h and 1d `CandleBuffer`s are loaded once at Binance warmup and never updated, so `tf_4h.trend` and `tf_1d.trend` are computed against a frozen snapshot (a >1-day-old close vs a stale SMA). Bullish/bearish counts can never flip with the market, so the signal stays locked at `bull=2 bear=1` or `bull=1 bear=2` for hours regardless of actual price action. **Fix:** refresh 4h every 2h, 1d every 6h from Binance via `last_4h_refresh` / `last_1d_refresh` timestamps passed into `run_cycle` (logs `[REFRESH] 4h/1d: loaded N candles`).
+
+**Bug C (extra alignment AND-gate):** The Rust entry was `score > threshold && bullish_count >= min_alignment`, but the Python Survivor 2.69 reference (`run_backtest_r2.py` line ~257) only checks `if score > threshold`. The alignment count is already baked into the score (trend weight = 0.4 × bull_count/3), so the extra gate double-counted it. With `min_alignment=2`, trend alone gives 0.267 — just under the 0.30 threshold — and in a sideways market momentum/MR/BB don't fire, so the score caps at 0.267 and no entry ever triggers. **Fix:** gate on score only, matching Python.
+
+**Verified live (2026-08-05 ~19:00 UTC):**
+```
+[POLL] SOL=$74.42 | 1h=300 4h=200 1d=120 | pos=FLAT
+[SIGNAL] score=0.057 bull=2 bear=1 reasons=["tf_bull_2","rsi_near_overbought_daily_bear","bb_upper"]
+[SIGNAL] score=0.117 bull=2 bear=1 reasons=["tf_bull_2","bb_upper"]
+```
+Score now varies with the market (0.057 → 0.117, RSI crossing 69→58, reason set changing) instead of being pinned at ±0.267.
+
+**Key learnings:**
+- `min_alignment=2` (Aug 4) was necessary but not sufficient — the score was still capped by the frozen 4h/1d buffers and the double-counted alignment gate.
+- The Python reference is the source of truth for entry semantics: gate on score only; the alignment weight is inside the score.
+- Slow-TF buffers MUST be refreshed periodically or their trends freeze at warmup. This is now a documented invariant.
+
+---
 
 **Session 2026-08-04 — min_alignment 3→2 fix (latent multi-TF deadlock resolved)**
 

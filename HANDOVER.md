@@ -1,11 +1,17 @@
-# Handover for next agent — 2026-08-04
+# Handover for next agent — 2026-08-05
 
-**Trader unblocked.** The `min_alignment=3` deadlock is fixed. Commit `5fa657a` lowered `min_alignment` to 2 in `data/trader-strategy-config.json` (deploy `bc3b7645`). Root cause: the Jul 28 multi-TF fix (`697bc04`) replaced fake multi-TF (one 1h buffer sliced at 20/80/200) with real independent 1h/4h/1d Binance buffers. This exposed a latent bug — the old `min_alignment=3` (inherited from the fake-multi-TF era, never WFA-validated, absent from `data/sensitivity_sol_survivor_2_69_lev3.csv`) required all 3 TFs to agree. On ranging markets (SOL ~$73) real TFs legitimately disagree (e.g. bull=2 bear=1), so `compute_signal` contributed 0 to the score and the trader deadlocked at `score=0.000` with no entries. `min_alignment=2` matches the Python reference `research/simulation/run_backtest_r2.py` that the Survivor 2.69 WFA was validated against.
+**Trader unblocked — real root cause found and fixed.** The trader was blocked not by `min_alignment` semantics alone, but by **three bugs in the wiring** that together pinned the score below the 0.30 threshold and froze the slow-TF trends. Commit `311457f` (deploy `c6ff1910`) fixes all three:
 
-**Verified live (2026-08-04 07:35 UTC):** `[STRATEGY] ... alignment=2` and `[SIGNAL] score=0.267 rsi=48.5 bull=2 bear=1 reasons=["tf_bull_2"]` — the trend now contributes +0.267 (was 0.000). Still below the 0.30 threshold, so no entries yet, but the trader is responsive to market direction and will fire LONG (bull>=2, score>0.30) or SHORT (bear>=2, score<-0.30).
+**Bug A+B: 4h/1d candle buffers never refreshed after warmup.**
+`run_cycle` only called `buffer_1h.append_tick()`. The 4h and 1d `CandleBuffer`s never received fresh data, so `tf_4h.trend` and `tf_1d.trend` were computed from Binance candles frozen at deploy time. After 24h the 1d trend compared a >1-day-old close against a stale SMA — bullish/bearish counts could never flip with the market. **Fix:** refresh 4h every 2h, 1d every 6h from Binance via `last_4h_refresh`/`last_1d_refresh` timestamps passed into `run_cycle`. Logs show `[REFRESH] 4h/1d: loaded N candles`.
 
-**Operator overrides:** `RTP_TRADER_MIN_ALIGNMENT_OVERRIDE` and `RTP_TRADER_SIGNAL_THRESHOLD_OVERRIDE` are UNSET on Railway (verified via `node scripts/railway-trader-override.mjs show`). The strategy is now strict-WFA except for the corrected alignment semantics. Do NOT re-add the overrides — they were masking the config bug.
+**Bug C: extra `bullish_count >= min_alignment` AND-gate on entry.**
+The Rust entry had `score > threshold && bullish_count >= min_alignment`, but the Python Survivor 2.69 reference (`run_backtest_r2.py` line ~257) only gates on `if score > threshold`. The alignment count is already baked into the score via the trend weight (0.4 × bull_count/3), so the extra gate double-counted it. With `min_alignment=2`, trend alone gives 0.267 — just under 0.30 — and in a sideways market momentum/MR/BB don't fire, capping the score at 0.267 forever. **Fix:** gate on score only, matching Python.
 
-**Known limitation (not the current blocker):** `compute_signal`'s if/else chain throws away partial alignment (bull=2 contributes 0, not 0.27). This is a design choice, not a bug — it's how the strategy keeps the 0.30 threshold meaningful. Only revisit if you have WFA evidence.
+**Verified live (2026-08-05 ~19:00 UTC):** score now varies with the market (0.057 → 0.117 → varies with RSI/BB) instead of being pinned at ±0.267. Reason sets change in real time (RSI crossing 69→58, `rsi_near_overbought_daily_bear` appearing/disappearing), confirming the 4h/1d buffers are live.
 
-**Production wallet:** `HDQ79...` (NOT `Driyi...`). Service `40456d7a-5dfe-4112-8cf3-9a2ae5e3a910`. Latest deploy `bc3b7645-1a6e-4046-9829-bc092b2a3afc` SUCCESS. All 87 trader tests pass. Next: monitor the next real entry/exit event to confirm the SDK close path (arg order + SendErResult extraction from `e9596b1`) works end-to-end in production.
+**Active config:** `data/trader-strategy-config.json` — `min_alignment=2` (matches Python default), `signal_threshold=0.30`, tp=6.0, sl=2.5, trail=1.0, hold=96h, decay=48h, flip_delay=2h. **NO operator overrides active** (`RTP_TRADER_MIN_ALIGNMENT_OVERRIDE` / `RTP_TRADER_SIGNAL_THRESHOLD_OVERRIDE` UNSET — verified via `override show`).
+
+**Production wallet:** `HDQ79...` (NOT `Driyi...`). Service `40456d7a-5dfe-4112-8cf3-9a2ae5e3a910`. All 87 trader tests pass.
+
+**Next:** monitor the next real entry/exit event to confirm the SDK close path (arg order + SendErResult extraction from `e9596b1`) works end-to-end in production. The trader should now fire on genuine LONG *and* SHORT signals when the score crosses ±0.30.
