@@ -220,6 +220,42 @@ async function entryPrice(targetSymbol, side, isEntry, slippageBps = 100) {
   return c.getPriceAfterSlippage(isEntry, new BN(slippageBps), tp, side);
 }
 
+// USD price of SOL from the Flash REST API (same source the Rust executor uses).
+async function fetchSolPriceUi() {
+  const api = process.env.FLASH_API_URL || "https://flashapi.trade";
+  const res = await fetch(`${api}/prices/SOL`);
+  const j = await res.json().catch(() => ({}));
+  const p = Number(j?.priceUi);
+  if (!Number.isFinite(p) || p <= 0) {
+    throw new Error(
+      `SOL price unavailable from ${api}/prices/SOL: ${JSON.stringify(j).slice(0, 200)}`,
+    );
+  }
+  return p;
+}
+
+// Convert SOL collateral (lamports, 9 decimals) into the collateral/lock
+// symbol's base units. Post `feat/funded-pool-accounting` (API build 2026-07-30)
+// SOL markets collateralize in USDC (6 decimals); passing raw lamports as
+// `amountIn` inflated the quoted size ~13.5x (179,653,124 lamports quoted as
+// ~21.75 SOL ≈ $1.6M for a $13 position) and tripped CustodyAmountLimit (6024).
+// Verified 2026-08-07 against the REST USDC-input form via ER simulation.
+async function collateralToLockUnits(lamports, lockSymbol) {
+  // 9-decimal SOL-family collateral: units match lamports (JitoSOL≈SOL, the
+  // program's internal conversion absorbs the small rate difference).
+  if (lockSymbol === "SOL" || lockSymbol === "JitoSOL") return lamports;
+  if (lockSymbol === "USDC") {
+    const priceUi = await fetchSolPriceUi();
+    const sol = Number(lamports.toString()) / 1e9;
+    const usdcBase = Math.round(sol * priceUi * 1e6);
+    if (usdcBase <= 0) {
+      throw new Error(`collateral conversion produced 0 USDC for ${lamports.toString()} lamports`);
+    }
+    return new BN(usdcBase);
+  }
+  throw new Error(`unsupported collateral symbol for unit conversion: ${lockSymbol}`);
+}
+
 function depositEntryBalance(entry) {
   const bal = entry?.balance ?? entry?.amount ?? entry?.lamports ?? 0;
   try {
@@ -563,6 +599,11 @@ async function doOpenPosition(params) {
 
     const price = await entryPrice("SOL", side, true);
 
+    // Convert SOL lamports → collateral/lock base units (USDC is 6-decimal).
+    // Passing raw lamports (9-decimal) as amountIn inflated sizeAmount ~13.5x
+    // and tripped CustodyAmountLimit (6024). See collateralToLockUnits.
+    const amountInUnits = await collateralToLockUnits(amount, lockSymbol);
+
     // sizeAmount is in SOL base units (target-token), derived from the quote to
     // avoid Custom 6021/6023 (Min/MaxLeverage). leverage is in BPS (BPS_DECIMALS = 4).
     let sizeAmount;
@@ -572,13 +613,13 @@ async function doOpenPosition(params) {
         targetSymbol: "SOL",
         collateralSymbol: lockSymbol,
         receivingSymbol: fundingSymbol,
-        amountIn: amount,
+        amountIn: amountInUnits,
         leverage: levBps,
         owner: keypair.publicKey,
       });
       sizeAmount = quote.sizeAmount;
       console.error(
-        `[wrapper] quote attempt=${attempt} market=${market.toBase58?.() ?? market} lockSymbol=${lockSymbol} fundingSymbol=${fundingSymbol} amount=${amount.toString()} lev=${lev} sizeAmount=${sizeAmount?.toString?.() ?? sizeAmount}`,
+        `[wrapper] quote attempt=${attempt} market=${market.toBase58?.() ?? market} lockSymbol=${lockSymbol} fundingSymbol=${fundingSymbol} amount(lamports)=${amount.toString()} amountIn(${lockSymbol})=${amountInUnits.toString()} lev=${lev} sizeAmount=${sizeAmount?.toString?.() ?? sizeAmount}`,
       );
     } catch (e) {
       const msg = e?.message ?? String(e);
@@ -600,6 +641,8 @@ async function doOpenPosition(params) {
     try {
       // 2nd arg is lockSymbol; SOL longs resolve to JitoSOL in SDK v2.
       // 3rd arg is the user's funding/receiving custody, kept as SOL.
+      // 7th arg is the collateral amount in COLLATERAL base units (USDC 6dp),
+      // NOT raw SOL lamports — mirrors amountInUnits used for the quote.
       const { instructions } = await c.openPosition(
         "SOL",
         lockSymbol,
@@ -607,7 +650,7 @@ async function doOpenPosition(params) {
         side,
         poolConfig,
         price,
-        amount,
+        amountInUnits,
         sizeAmount,
       );
 
@@ -615,7 +658,7 @@ async function doOpenPosition(params) {
       return {
         signature: typeof erResult === "string" ? erResult : erResult.signature,
         sizeAmount: sizeAmount.toString(),
-        collateralAmount: amount.toString(),
+        collateralAmount: amountInUnits.toString(),
         collateralSymbol: lockSymbol,
         fundingSymbol,
         leverage: lev,

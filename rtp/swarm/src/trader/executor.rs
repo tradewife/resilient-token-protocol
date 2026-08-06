@@ -710,15 +710,29 @@ pub async fn open_position(
     leverage: f64,
     trade_type: &str,
 ) -> Result<(String, f64, f64), String> {
-    // SDK path first: returns Ok on success or an error tagged "node unavailable"
-    // when the wrapper child is missing / died. Other errors (RPC rejection,
-    // size/price issue) bubble up unchanged.
+    // REST-first. The USDC-input REST form is the only open shape that passes
+    // on-chain post `feat/funded-pool-accounting` (verified 2026-08-07 via ER
+    // simulateTransaction: `inputTokenSymbol:"SOL"` fails 6024 for BOTH sides at
+    // every size/leverage; `inputTokenSymbol:"USDC"` passes both directions).
+    // The SDK wrapper path stays as a last-resort fallback but is known-degraded
+    // (stale PoolConfig snapshot + collateral unit mismatch) — never make it
+    // primary again.
     let wallet = keypair.pubkey().to_string();
     let side_for_wait = if trade_type.eq_ignore_ascii_case("long") {
         "Long"
     } else {
         "Short"
     };
+
+    let rest_err =
+        match open_position_via_rest(keypair, amount_sol, leverage, trade_type, &wallet).await {
+            Ok(v) => return Ok(v),
+            Err(e) => e,
+        };
+    tracing::warn!(
+        "[OPEN] REST path failed ({}). Attempting SDK wrapper as last resort.",
+        rest_err
+    );
 
     match try_open_via_sdk(amount_sol, leverage, trade_type).await {
         Ok((sig, size_usd, entry_price)) => {
@@ -737,21 +751,36 @@ pub async fn open_position(
                 }
             }
         }
-        Err(e) if e.starts_with("node unavailable") => {
-            tracing::warn!("[OPEN] SDK unavailable ({}). Falling back to REST.", e);
+        Err(sdk_err) => {
+            return Err(format!(
+                "open_position failed on both paths: REST: {} | SDK: {}",
+                rest_err, sdk_err
+            ));
         }
-        Err(e) if is_flash_capacity_error(&e) => {
-            tracing::warn!(
-                "[OPEN] SDK Flash capacity error ({}). Falling back to REST builder.",
-                e
-            );
-        }
-        Err(other) => return Err(other),
     }
+}
 
+/// REST transaction-builder open path — the USDC-input form verified against ER
+/// post `feat/funded-pool-accounting`. Sends `inputTokenSymbol: "USDC"` with a
+/// USD-denominated `inputAmountUi`; the program draws collateral from the deposit
+/// ledger and converts it internally (pool swap fee applies). The pre-v2 form
+/// (`inputTokenSymbol: "SOL"` with SOL units) fails on-chain with
+/// CustodyAmountLimit (6024 / 0x1788) at open_position_er.rs:245 for BOTH sides
+/// at every size.
+async fn open_position_via_rest(
+    keypair: &solana_sdk::signature::Keypair,
+    amount_sol: f64,
+    leverage: f64,
+    trade_type: &str,
+    wallet: &str,
+) -> Result<(String, f64, f64), String> {
     // Flash v2: trading txs must be submitted to the v2/ER RPC (not mainnet).
     // Builder blockhash expires ~45s — rebuild on blockhash / simulation errors.
     let trade_rpc = v2_rpc_url();
+    let sol_price = get_sol_price().await?;
+    if sol_price <= 0.0 {
+        return Err("Cannot open position: SOL price unavailable".to_string());
+    }
     let mut last_err = String::new();
     let mut rest_amount_sol = amount_sol;
     let min_rest_amount_sol = min_open_collateral_lamports() as f64 / 1e9;
@@ -763,10 +792,14 @@ pub async fn open_position(
             ));
         }
 
+        // USD value of the SOL collateral — this is what Flash v2 expects as
+        // inputAmountUi (USDC units in the UI).
+        let input_usd = rest_amount_sol * sol_price;
+
         let body = serde_json::json!({
-            "inputTokenSymbol": "SOL",
+            "inputTokenSymbol": "USDC",
             "outputTokenSymbol": "SOL",
-            "inputAmountUi": rest_amount_sol.to_string(),
+            "inputAmountUi": format!("{:.4}", input_usd),
             "leverage": leverage,
             "tradeType": trade_type,
             "owner": wallet,
@@ -774,10 +807,11 @@ pub async fn open_position(
         });
 
         tracing::info!(
-            "[OPEN] REST builder attempt {}/{} amount={:.9} SOL leverage={}x",
+            "[OPEN] REST builder attempt {}/{} collateral={:.9} SOL (~${:.2}) leverage={}x",
             size_attempt + 1,
             open_backoff_attempts(),
             rest_amount_sol,
+            input_usd,
             leverage
         );
 
@@ -994,8 +1028,8 @@ async fn sign_and_submit(
         .build()
         .map_err(|e| format!("RPC client build failed: {}", e))?;
 
-    let serialized = bincode::serialize(&tx)
-        .map_err(|e| format!("Transaction serialize error: {}", e))?;
+    let serialized =
+        bincode::serialize(&tx).map_err(|e| format!("Transaction serialize error: {}", e))?;
     let signed_b64 = base64::engine::general_purpose::STANDARD.encode(&serialized);
 
     let signature = rpc_send_transaction(&client, rpc_url, &signed_b64).await?;
@@ -1300,17 +1334,26 @@ mod tests {
         // /transaction-builder/open-position (NOT /v2/transaction-builder/...).
         // Earlier commit reintroduced the /v2 prefix and the trader silently
         // 404'd on Reddit without surfacing the error. Lock the path here.
+        //
+        // Body shape guard: since the `feat/funded-pool-accounting` API build
+        // (2026-07-30) opens MUST use `inputTokenSymbol: "USDC"` with a
+        // USD-denominated `inputAmountUi`. `inputTokenSymbol: "SOL"` fails
+        // on-chain with CustodyAmountLimit (6024 / 0x1788) for both sides at
+        // every size — reproduced via ER simulateTransaction 2026-08-07.
         let body = serde_json::json!({
-            "inputTokenSymbol": "SOL",
+            "inputTokenSymbol": "USDC",
             "outputTokenSymbol": "SOL",
-            "inputAmountUi": "0.5",
+            "inputAmountUi": "13.3000",
             "leverage": 9,
             "tradeType": "LONG",
             "owner": "11111111111111111111111111111111",
             "slippagePercentage": "1.0",
         });
         assert!(body.get("leverage").unwrap().is_number());
-        assert!(body.get("inputTokenSymbol").unwrap().is_string());
+        assert_eq!(body.get("inputTokenSymbol").unwrap(), "USDC");
+        assert_eq!(body.get("outputTokenSymbol").unwrap(), "SOL");
+        // inputAmountUi is a USD string, never a SOL-unit number
+        assert!(body.get("inputAmountUi").unwrap().is_string());
     }
 
     #[test]
@@ -1330,9 +1373,7 @@ mod tests {
         assert!(!is_flash_capacity_error(
             "InstructionFallbackNotFound. Error Number: 101"
         ));
-        assert!(!is_flash_capacity_error(
-            "custom program error: 0x65"
-        ));
+        assert!(!is_flash_capacity_error("custom program error: 0x65"));
         assert!(!is_flash_capacity_error(
             "wallet not trade-ready: deposit ledger SOL balance 0"
         ));
