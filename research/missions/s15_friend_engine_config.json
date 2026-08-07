@@ -1,0 +1,107 @@
+{
+  "engine": "friend_engine_s15_blindtouch",
+  "client": "client_1 (close friend) — mandate per docs/mandate-intake-client1.md",
+  "verdict": "DEPLOYABLE — 10/10 gates (v7e corrected equal-window folds)",
+  "verdict_doc": "research/missions/s15_final_verdict.md",
+  "generated": "2026-08-07T19:33Z",
+
+  "instrument": "SOL/USDT perpetuals on Flash Trade (mainnet)",
+  "timeframe_minutes": 20,
+  "entry_mode": "blind_touch (confirm_mode=none) — limit-at-zone execution; resting limit at retracement zone absorbs detection latency",
+  "direction": "composite (independent long + short legs)",
+
+  "leverage": {
+    "validated_max": 5.0,
+    "conservative_recommended": 3.0,
+    "note": "Leverage sweep passes 3x and 5x with 0 liquidations; 1x/2x fail the fold-positive gate. 5x gives 3.1942 SOL (+27.8%) from 2.5 SOL, dd 20.56%. 3x gives 2.584 (+3.4%), dd 14.88%. Friend mandate should pick conservatively."
+  },
+
+  "params_long": {
+    "retracement_pct": 0.62,
+    "wick_tolerance_pct": 0.15,
+    "body_atr_multiplier": 1.0,
+    "expiry_hours": 2.0,
+    "trend_fast_period": 20,
+    "trend_slow_period": 50,
+    "direction_filter": "long",
+    "volume_multiplier": 0.0,
+    "confirm_mode": "none",
+    "confirm_bars": 1,
+    "exit_mode": "atr",
+    "trail_after_r": 0.0,
+    "use_vwap_filter": true,
+    "stop_loss_atr": 2.0,
+    "take_profit_atr": 4.0,
+    "max_hold_hours": 24,
+    "time_decay_hours": 8,
+    "trailing_stop_atr": 0.0
+  },
+  "params_short": {
+    "retracement_pct": 0.75,
+    "wick_tolerance_pct": 0.3,
+    "body_atr_multiplier": 0.75,
+    "expiry_hours": 1.0,
+    "trend_fast_period": 20,
+    "trend_slow_period": 50,
+    "direction_filter": "short",
+    "volume_multiplier": 0.0,
+    "confirm_mode": "none",
+    "confirm_bars": 1,
+    "exit_mode": "atr",
+    "trail_after_r": 0.0,
+    "use_vwap_filter": false,
+    "stop_loss_atr": 2.5,
+    "take_profit_atr": 3.0,
+    "max_hold_hours": 12,
+    "time_decay_hours": 8,
+    "trailing_stop_atr": 0.0
+  },
+
+  "fee_basis": {
+    "source": "MEASURED Flash v2 via /preview/limit-order-fees + /preview/exit-fee + live accrual, 2026-08-07",
+    "open_pct": 0.02,
+    "close_pct": 0.02,
+    "spread_per_side_pct": 0.01,
+    "borrow_hourly_pct": 0.0004,
+    "borrow_applies": "both sides (v2 pool-utilization margin fee)",
+    "round_trip_pct": 0.06,
+    "note": "v1-era research model (0.06/0.06/0.0042) is ~5x harsher and produced the v6 falsification artifact. Never judge this engine on the v1 fee model."
+  },
+
+  "operational_gates_passed": [
+    "oos_positive_total_pnl (+49.8% over 334 trades, 20 full windows + 1 remnant)",
+    "oos_consistency_ge_50 (67%, 14/21)",
+    "bidirectional_attribution_ge_0 (long +12.0% / short +37.8%)",
+    "min_trades_per_fold_ge_10 (full-window min 10; 6-day remnant excluded by construction)",
+    "latency_retention_ge_80 (105% @ +1 bar — limit-at-zone absorbs latency)",
+    "sensitivity_robust (0 sign flips, spread 26.7)",
+    "compounding_gt_start (3.1942 from 2.5 SOL @5x)",
+    "dd_le_25 (20.56% @5x)",
+    "zero_halts_zero_liq",
+    "trades_per_day_le_4 (0.51/day)"
+  ],
+
+  "known_risks": [
+    "Live limit-order placement on Flash must be verified before capital (order support, fill rate at zone price). Backtest assumes fills at touch-bar close, stressed +1 bar.",
+    "SOL-only mandate; BTC/ETH transfer negative (-28%/-26%) — waived by design.",
+    "Aug-Dec 2024 regime was net negative (-13.4% over 4 months); expect multi-month drawdowns in live operation.",
+    "Rust momentum off-by-one flagged (momentum term dead in production) — separate decision, does not affect this Python-validated config."
+  ],
+
+  "data": {
+    "window": "2024-08-06 -> 2026-08-05 (2 years)",
+    "bars": 52530,
+    "source": "data/ohlcv/SOL_USDT_20m.parquet + SOL_USDT_20m_y2.parquet (y2 resampled from 5m)",
+    "folds": "20 full 36-day anchored windows + 1 trailing 6-day remnant (warmup 250 bars)"
+  },
+
+  "provenance_lineage": [
+    "v5: 20m_COMPOSITE close_reassert champion (8/11 criteria, latency 48% FAIL, v1 fees)",
+    "v6: 2yr re-validation falsified champion under v1 fees (fee artifact)",
+    "v7: measured v2 fees resurrect champion (8/10)",
+    "v7b: 72d folds fix trade floor; cb2 NOT the latency absorber (-88%)",
+    "v7c: blind touch (limit-at-zone) latency 108%, OOS +68.4%",
+    "v7d: full gate suite 10/10 but fold artifact discovered",
+    "v7e: equal-window corrected folds -> 10/10 DEPLOYABLE (this config)"
+  ]
+}
