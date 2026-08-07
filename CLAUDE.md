@@ -510,6 +510,13 @@ The fast simulator (`per_symbol_optimizer`) MUST match the full simulator exactl
 
 If you change anything in `_compute_score()` or `simulate_trades()`, run `evaluator_calibration.py` to verify directional agreement.
 
+## Critical: Research Fee Model + Fold Artifact (Aug 7, 2026)
+
+1. **Never judge a strategy on the v1-era fee model** (open 0.06% + close 0.06% + borrow 0.0042%/hr shorts-only ≈ 0.32%/trip). Measured Flash **v2** costs (2026-08-07, via `/preview/limit-order-fees` + `/preview/exit-fee` + live accrual): open 0.02% + close 0.02% + spread ~0.01%/side + borrow 0.0004%/hr **both sides** ≈ **0.06%/trip — ~5× cheaper**. The v6 S15 "falsification" was entirely this artifact. New missions: import `net_pnl_v2` from `research/missions/s15_v7_v2fee_recheck.py`.
+2. **`create_folds()` absorbs all leftover bars into the LAST fold** when data is longer than `num_folds × test_window` — on multi-year data one mega-fold dominates the headline stats and the min-trades gate becomes meaningless. Use explicit equal anchored windows (`equal_folds()` in `s15_v7e_corrected_folds.py`) for multi-year WFA.
+3. **Latency absorber finding**: confirmation entries (close_reassert) pay detection latency at the fill (47% retention under +1-bar stress). Blind touch / limit-at-zone (`confirm_mode=none`) absorbs it via the order book (105% retention). `confirm_bars=2` is NOT an absorber (−88%).
+4. **Friend's engine config**: `research/missions/s15_friend_engine_config.json` (DEPLOYABLE 10/10, verdict in `s15_final_verdict.md`). Open prerequisite before client capital: verify live LIMIT order placement on Flash (order support + fill rate at zone price).
+
 ---
 
 ## Yield Brain Results

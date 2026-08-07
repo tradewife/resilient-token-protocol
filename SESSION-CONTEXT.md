@@ -2,7 +2,9 @@
 
 > **How to use this file:** Paste the relevant sections at the top of every fresh agent session. Do not paste the full papers or full repo. This file is the compressed institutional memory of the project. Update it after each significant session.
 
-**Last updated:** 2026-08-05 — **Trader unblocked — real root cause found.** Three wiring bugs pinned the score below the 0.30 threshold and froze the slow-TF trends. Commit `311457f` (deploy `c6ff1910`): (A+B) the 4h/1d `CandleBuffer`s were never refreshed after Binance warmup — only `buffer_1h.append_tick()` runs, so `tf_4h`/`tf_1d` trends were frozen at deploy-time SMA/price and bullish/bearish counts could never flip with the market; fixed by refreshing 4h every 2h / 1d every 6h via `last_4h_refresh`/`last_1d_refresh`. (C) the Rust entry had an extra `bullish_count >= min_alignment` AND-gate that the Python Survivor 2.69 reference (`run_backtest_r2.py` line ~257) does NOT have — the alignment count is already baked into the score (trend weight 0.4 × bull/3), so the extra gate double-counted it and capped the score at 0.267 (just under 0.30) in sideways markets; fixed by gating on score only. Verified live: score now varies with market (0.057 → 0.117, responding to RSI/BB), not pinned at ±0.267. 87 trader tests pass. Operator overrides remain UNSET.
+**Last updated:** 2026-08-07 — **Trader EXECUTION unblocked (the Aug 5 signal fix was necessary but not sufficient); first live SHORT traded end-to-end; S15 friend's engine DEPLOYABLE 10/10.** Two layers: (1) Aug 5 fixed the SIGNAL (score wiring), (2) Aug 7 fixed EXECUTION — post-`feat/funded-pool-accounting` Flash API (Jul 30) rejects SOL-input opens with 6024 CustodyAmountLimit on both sides/all sizes; USDC-input passes. Root cause: wrapper had a 13.5× lamports-vs-USDC unit bug AND the executor was SOL-input. Fix: REST-first `open_position` with USDC-input + USD `inputAmountUi`, SDK wrapper demoted to last-resort fallback, wrapper gained `collateralToLockUnits()` (lamports→USDC 6dp). Real-funds smoke tests PASSED both directions (LONG `4Zk19z4…`, SHORT `61xLdve…`). Commit `76cf891`, pushed, Railway redeployed — first live SHORT fired on first poll. Also fixed side-aware score-flip (shorts were force-closed at exactly 2.08h because the flip check wasn't side-aware — 41/75 live shorts died this way; commit `2f28241`, emergency redeploy beat the live position's close boundary). v2 cost post-mortem (commit `0453733`): Survivor 2.69 edge SURVIVES Flash v2 fees (~5× cheaper than the v1 model). Fee ledger live (commit `cdb0515`): first `[EXIT] Fees:` captured 09:03 UTC (TrailingStop, total $0.0248, PnL −$0.66). **S15 friend's engine**: passes 10/10 gates on 2yr data under measured v2 fees — blind touch (limit-at-zone) composite, 20m, 3–5x, OOS +49.8%/334 trades, 2.5→3.19 SOL @5x (commit `2f2ae30`). Key lesson: the v6 "falsification" was a fee-model artifact; never judge on the v1 fee model.
+
+Prior (2026-08-05): **Trader unblocked (signal layer).** Commit `311457f` (deploy `c6ff1910`): (A+B) 4h/1d `CandleBuffer`s refreshed (4h every 2h / 1d every 6h); (C) extra `bullish_count >= min_alignment` AND-gate removed (gate on score only). 87 trader tests pass. NOTE: this unblocked the SIGNAL but the trader still could not OPEN positions until the Aug 7 execution fix above.
 
 Prior (2026-08-04): `min_alignment` lowered 3→2 in `data/trader-strategy-config.json` (commit `5fa657a`, deploy `bc3b7645`) — the Jul 28 multi-TF fix exposed that real TFs disagree on ranged markets (bull=2 bear=1), deadlocking min_alignment=3. `min_alignment=2` matches the Python reference. This was a necessary but insufficient fix; the score was still capped at 0.267 by bugs A/B/C above.
 
@@ -303,6 +305,35 @@ A judge must be able to verify these five things in under 3 minutes:
 ---
 
 ## 8. Session Status
+
+**Session 2026-08-07 — Execution unblock + v2 cost truth + S15 friend's engine DEPLOYABLE**
+
+Two-layer trader fix and the client-1 mandate crossed the finish line.
+
+**Layer 2 — EXECUTION (the real Aug 7 fix).** The Aug 5 signal fix unblocked the score but the trader still could not OPEN. Diagnosis: post-`feat/funded-pool-accounting` Flash API (Jul 30) rejects SOL-input opens with `6024 CustodyAmountLimit` on both sides and all sizes; USDC-input passes. Two bugs compounded: (a) `executor.rs::open_position` was SOL-input, (b) `cli/flash-sdk-wrapper.mjs` had a 13.5× lamports-vs-USDC unit bug. Fix: restructured `open_position` REST-first (extracted `open_position_via_rest`, USDC-input + USD `inputAmountUi`), SDK wrapper demoted to last-resort fallback; wrapper gained `fetchSolPriceUi()` + `collateralToLockUnits()` (lamports→USDC 6dp). **Real-funds smoke tests PASSED both directions** (LONG `4Zk19z4…`, SHORT `61xLdve…`, flat after). Commit `76cf891`, pushed, Railway redeployed — first live SHORT fired on the first poll.
+
+**Side-aware score-flip bug.** Shorts enter on `score < -0.3`, so the `score < 0` flip check IS the entry condition — 41/75 live shorts were force-closed at exactly 2.08h. Fixed `strategy.rs` (`flipped = score > 0 for Short`), +4 SHORT regression tests, 91 tests. Commit `2f28241`; emergency redeploy at 06:38:43 UTC beat the open short's 06:39 force-close boundary.
+
+**v2 cost post-mortem.** Measured real Flash v2 costs via `/preview/limit-order-fees` + `/preview/exit-fee` + live accrual: open/close 0.02% + spread ~0.01%/side + borrow 0.0004%/hr (both sides) = **0.06%/trip — ~2.3–5× cheaper** than the v1-era research model (0.32%/trip). Exact-replay post-mortem: Survivor 2.69 edge SURVIVES v2 costs (581 trips, +2.69%/trade net on margin). Commit `0453733`. Also surfaced a Rust `timeframe_signal` momentum off-by-one (momentum always 0.0 in production) — flagged, not silently fixed.
+
+**Fee ledger.** `FeeBreakdown` struct + `TradeRecord.fees`; `PositionInfo` +4 raw 1e6-scaled fee fields + `fee_breakdown_usd()`; wired into close path with `[EXIT] Fees:` log. 95 tests. Commit `cdb0515`. First live capture 09:03 UTC: TrailingStop, exit=$0.0235 borrow=$0.0013 impact=$0.0000 total=$0.0248, PnL −$0.66.
+
+**S15 friend's engine — DEPLOYABLE.** Re-validated the v5 champion on 2yr SOL data. v6 had "falsified" it (33% cons, −13.5%) but that used the v1 fee model — a fee artifact. Under measured v2 fees the champion resurrects (v7, 8/10). Latency absorber found: blind touch (limit-at-zone, `confirm_mode=none`) retains 105% under +1-bar delay (confirmation variants: 47%/−88%). Discovered and corrected a `create_folds()` artifact (last fold absorbs all leftover bars). Final (v7e, equal 36-day windows): **10/10 gates** — OOS +49.8%/334 trades, cons 67%, long +12.0%/short +37.8%, sensitivity ROBUST (0 flips), 2.5→3.19 SOL @5x (dd 20.56%, 0 liq/halts), 0.51 trades/day. Commit `2f2ae30`. Artifacts: `research/missions/s15_final_verdict.md` + `s15_friend_engine_config.json`, `docs/mandate-intake-client1.md`.
+
+**Open items:**
+1. Verify live limit-order placement on Flash (order support + fill rate at zone) before committing client capital.
+2. Rust momentum off-by-one: keep dead (matches the record being judged) vs fix + re-WFA — decision pending.
+3. Track 1c: checkpoint Survivor 2.69 verdicts at 5 and 10 post-v2 live trades (fee ledger capturing).
+4. Track 3: website copy reframe after 2.69 has clean post-v2 trades.
+5. Track 4: finalize mandate doc commercials with client.
+
+**Key learnings:**
+- Never judge an RTP strategy on the v1-era fee model — it is ~5× harsher than measured Flash v2 reality and produced a false falsification.
+- `create_folds()` absorbs leftover bars into the last fold; on multi-year data use explicit equal windows.
+- Limit-at-zone (blind touch) is the latency absorber for confirmation entries; confirm_bars=2 is NOT.
+- The execution layer (input token + unit conversion) was the binding blocker, not the signal.
+
+---
 
 **Session 2026-08-05 — Root cause: 4h/1d buffers frozen + extra alignment gate (trader unblocked)**
 
