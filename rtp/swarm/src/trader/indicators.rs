@@ -6,7 +6,7 @@
 /// Candle data point used by all indicators.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Candle {
-    pub timestamp: i64,    // unix seconds
+    pub timestamp: i64, // unix seconds
     pub open: f64,
     pub high: f64,
     pub low: f64,
@@ -106,7 +106,7 @@ pub fn volume_ratio(volumes: &[f64], period: usize) -> Option<f64> {
 
 /// Multi-timeframe trend signal for a single lookback window.
 pub struct TrendSignal {
-    pub trend: String,   // "bullish", "bearish", "neutral"
+    pub trend: String, // "bullish", "bearish", "neutral"
     pub strength: f64,
     pub rsi: f64,
     pub momentum: f64,
@@ -125,24 +125,38 @@ pub fn timeframe_signal(closes: &[f64], lookback: usize) -> Option<TrendSignal> 
     let (trend, strength) = if sma_val == 0.0 {
         ("neutral".to_string(), 0.0)
     } else if price > sma_val {
-        ("bullish".to_string(), ((price - sma_val) / sma_val * 100.0).min(2.0))
+        (
+            "bullish".to_string(),
+            ((price - sma_val) / sma_val * 100.0).min(2.0),
+        )
     } else if price < sma_val {
-        ("bearish".to_string(), ((sma_val - price) / sma_val * 100.0).min(2.0))
+        (
+            "bearish".to_string(),
+            ((sma_val - price) / sma_val * 100.0).min(2.0),
+        )
     } else {
         ("neutral".to_string(), 0.0)
     };
 
     let rsi_val = rsi(closes, 14).unwrap_or(50.0);
 
-    // Momentum: mean of returns over lookback
-    let returns: Vec<f64> = slice.windows(2).map(|w| (w[1] - w[0]) / w[0]).collect();
+    // Momentum: mean of the last `lookback` returns. The Python reference
+    // computes `returns.rolling(lookback).mean().iloc[-1]` over the FULL
+    // close series. `lookback` closes yield only `lookback - 1` returns, so
+    // this must run over all closes — using the window slice made the
+    // `returns.len() >= lookback` check unreachable and momentum (and
+    // volatility) were permanently 0.0 in production (off-by-one).
+    let returns: Vec<f64> = closes.windows(2).map(|w| (w[1] - w[0]) / w[0]).collect();
     let momentum = if returns.len() >= lookback {
-        returns[returns.len() - lookback..].iter().sum::<f64>() / lookback as f64
+        returns[returns.len() - lookback..]
+            .iter()
+            .sum::<f64>()
+            / lookback as f64
     } else {
         0.0
     };
 
-    // Volatility: std of returns
+    // Volatility: std of the last `lookback` returns (same Python parity).
     let volatility = if returns.len() >= lookback {
         std_dev(&returns[returns.len() - lookback..])
     } else {
@@ -195,7 +209,11 @@ mod tests {
     fn bollinger_mid_range() {
         let closes: Vec<f64> = (0..40).map(|i| 100.0 + (i as f64 - 20.0)).collect();
         let pos = bollinger_position(&closes, 20).unwrap();
-        assert!(pos > 0.0 && pos < 1.0, "BB position should be in range, got {}", pos);
+        assert!(
+            pos > 0.0 && pos < 1.0,
+            "BB position should be in range, got {}",
+            pos
+        );
     }
 
     #[test]
@@ -204,5 +222,85 @@ mod tests {
         let sig = timeframe_signal(&closes, 20).unwrap();
         assert_eq!(sig.trend, "bullish");
         assert!(sig.strength > 0.0);
+    }
+
+    // =====================================================================
+    // Momentum off-by-one regression tests (Aug 7, 2026)
+    //
+    // Bug: returns were computed over the `lookback`-close window slice,
+    // which yields only `lookback - 1` returns, so the
+    // `returns.len() >= lookback` guard was unreachable and momentum (and
+    // volatility) were permanently 0.0 in production. Python reference:
+    // `returns.rolling(lookback).mean().iloc[-1]` over the FULL series.
+    // =====================================================================
+
+    #[test]
+    fn timeframe_signal_momentum_steady_uptrend() {
+        // Constant +2%/bar: every pct_change return is exactly 0.02, so the
+        // mean of the last `lookback` returns must be 0.02 — not 0.0.
+        let closes: Vec<f64> = (0..60).map(|i| 100.0 * 1.02f64.powi(i)).collect();
+        let sig = timeframe_signal(&closes, 20).unwrap();
+        assert!(
+            sig.momentum > 0.0,
+            "momentum must be nonzero on a steady uptrend (off-by-one regression), got {}",
+            sig.momentum
+        );
+        assert!(
+            (sig.momentum - 0.02).abs() < 1e-9,
+            "momentum should equal the constant return 0.02, got {}",
+            sig.momentum
+        );
+        assert!(sig.volatility >= 0.0);
+    }
+
+    #[test]
+    fn timeframe_signal_momentum_steady_downtrend_is_negative() {
+        // Constant -1%/bar: momentum must be exactly -0.01.
+        let closes: Vec<f64> = (0..60).map(|i| 100.0 * 0.99f64.powi(i)).collect();
+        let sig = timeframe_signal(&closes, 20).unwrap();
+        assert!(
+            (sig.momentum + 0.01).abs() < 1e-9,
+            "momentum should equal -0.01 on a steady downtrend, got {}",
+            sig.momentum
+        );
+    }
+
+    #[test]
+    fn timeframe_signal_momentum_matches_python_reference() {
+        // Python: returns = close.pct_change();
+        //         momentum = returns.rolling(lookback).mean().iloc[-1]
+        // i.e. the mean of the last `lookback` returns of the FULL series
+        // (the last `lookback` returns span `lookback + 1` closes).
+        let closes: Vec<f64> = vec![
+            100.0, 102.0, 101.0, 105.0, 103.0, 108.0, 110.0, 107.0, 112.0, 115.0,
+        ];
+        let lookback = 4;
+        let returns: Vec<f64> = closes.windows(2).map(|w| (w[1] - w[0]) / w[0]).collect();
+        let expected: f64 =
+            returns[returns.len() - lookback..].iter().sum::<f64>() / lookback as f64;
+        let sig = timeframe_signal(&closes, lookback).unwrap();
+        assert!(
+            (sig.momentum - expected).abs() < 1e-12,
+            "momentum should match Python rolling-mean semantics: got {}, expected {}",
+            sig.momentum,
+            expected
+        );
+        assert!(
+            sig.momentum != 0.0,
+            "momentum must not be dead on a series with enough returns"
+        );
+    }
+
+    #[test]
+    fn timeframe_signal_momentum_insufficient_returns_is_zero() {
+        // Exactly `lookback` closes -> only `lookback - 1` returns. The
+        // Python reference returns 0 when `len(returns) < lookback`; parity.
+        let closes: Vec<f64> = (0..20).map(|i| 100.0 + i as f64).collect();
+        let sig = timeframe_signal(&closes, 20).unwrap();
+        assert_eq!(
+            sig.momentum, 0.0,
+            "fewer than `lookback` returns must yield 0.0 (Python parity)"
+        );
+        assert_eq!(sig.volatility, 0.0);
     }
 }
