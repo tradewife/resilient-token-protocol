@@ -56,7 +56,10 @@ impl StrategyParams {
             .or_else(|| {
                 // Resolve repo root relative to CARGO_MANIFEST_DIR (rtp/swarm/)
                 let manifest = std::env::var("CARGO_MANIFEST_DIR").ok()?;
-                Some(std::path::Path::new(&manifest).join("../../data/devnet-cycles/latest/config.json"))
+                Some(
+                    std::path::Path::new(&manifest)
+                        .join("../../data/devnet-cycles/latest/config.json"),
+                )
             });
 
         match config_path {
@@ -78,48 +81,71 @@ impl StrategyParams {
                         let params = Self {
                             signal_threshold: clamp_param(
                                 v.get("signal_threshold").and_then(|v| v.as_f64()),
-                                0.1, 0.5, base.signal_threshold,
+                                0.1,
+                                0.5,
+                                base.signal_threshold,
                             ),
                             tp_atr: clamp_param(
                                 v.get("tp_atr").and_then(|v| v.as_f64()),
-                                1.5, 8.0, base.tp_atr,
+                                1.5,
+                                8.0,
+                                base.tp_atr,
                             ),
                             sl_atr: clamp_param(
                                 v.get("sl_atr").and_then(|v| v.as_f64()),
-                                0.5, 3.0, base.sl_atr,
+                                0.5,
+                                3.0,
+                                base.sl_atr,
                             ),
                             max_hold_hours: clamp_param(
                                 v.get("max_hold_hours").and_then(|v| v.as_f64()),
-                                12.0, 120.0, base.max_hold_hours,
+                                12.0,
+                                120.0,
+                                base.max_hold_hours,
                             ),
                             trailing_stop_atr: clamp_param(
                                 v.get("trailing_stop_atr").and_then(|v| v.as_f64()),
-                                0.1, 1.5, base.trailing_stop_atr,
+                                0.1,
+                                1.5,
+                                base.trailing_stop_atr,
                             ),
                             time_decay_hours: clamp_param(
                                 v.get("time_decay_hours").and_then(|v| v.as_f64()),
-                                0.0, 200.0, base.time_decay_hours,
+                                0.0,
+                                200.0,
+                                base.time_decay_hours,
                             ),
-                            min_alignment: v.get("min_alignment")
+                            min_alignment: v
+                                .get("min_alignment")
                                 .and_then(|v| v.as_u64())
                                 .map(|n| n as usize)
                                 .unwrap_or(base.min_alignment),
                             score_flip_delay_hrs: clamp_param(
                                 v.get("score_flip_delay_hrs").and_then(|v| v.as_f64()),
-                                0.0, 72.0, base.score_flip_delay_hrs,
+                                0.0,
+                                72.0,
+                                base.score_flip_delay_hrs,
                             ),
                         };
                         tracing::info!(
                             "[STRATEGY] loaded from daemon config: signal={:.2} tp={:.1} sl={:.1} hold={:.0}h trail={:.2} decay={:.0}h flip_delay={:.1}h alignment={}",
-                            params.signal_threshold, params.tp_atr, params.sl_atr,
-                            params.max_hold_hours, params.trailing_stop_atr,
-                            params.time_decay_hours, params.score_flip_delay_hrs,
+                            params.signal_threshold,
+                            params.tp_atr,
+                            params.sl_atr,
+                            params.max_hold_hours,
+                            params.trailing_stop_atr,
+                            params.time_decay_hours,
+                            params.score_flip_delay_hrs,
                             params.min_alignment,
                         );
                         params
                     }
                     Err(e) => {
-                        tracing::warn!("[STRATEGY] parse error on {}: {}. Using defaults.", path.display(), e);
+                        tracing::warn!(
+                            "[STRATEGY] parse error on {}: {}. Using defaults.",
+                            path.display(),
+                            e
+                        );
                         Self::default()
                     }
                 }
@@ -127,7 +153,8 @@ impl StrategyParams {
             Err(e) => {
                 tracing::info!(
                     "[STRATEGY] no daemon config at {} ({}). Using defaults.",
-                    path.display(), e,
+                    path.display(),
+                    e,
                 );
                 Self::default()
             }
@@ -143,7 +170,9 @@ fn clamp_param(parsed: Option<f64>, min: f64, max: f64, default: f64) -> f64 {
         Some(v) => {
             tracing::warn!(
                 "[STRATEGY] clamped out-of-bounds param: {} not in [{}, {}]",
-                v, min, max,
+                v,
+                min,
+                max,
             );
             default
         }
@@ -208,9 +237,14 @@ pub fn compute_signal(
 
     // RSI + ATR + BB are computed off the 1h buffer (most granular).
     let rsi_val = rsi(closes_1h, 14).unwrap_or(50.0);
-    let atr = atr_proxy(closes_1h, 20).unwrap_or_else(|| closes_1h.last().copied().unwrap_or(100.0) * 0.02);
+    let atr = atr_proxy(closes_1h, 20)
+        .unwrap_or_else(|| closes_1h.last().copied().unwrap_or(100.0) * 0.02);
     let bb = bollinger_position(closes_1h, 20).unwrap_or(0.5);
-    let vol_r = if !volumes.is_empty() { volume_ratio(volumes, 20).unwrap_or(1.0) } else { 1.0 };
+    let vol_r = if !volumes.is_empty() {
+        volume_ratio(volumes, 20).unwrap_or(1.0)
+    } else {
+        1.0
+    };
 
     let mut score = 0.0;
     let mut reasons = Vec::new();
@@ -248,9 +282,23 @@ pub fn compute_signal(
     if mr_signal.abs() > 0.1 {
         score += mr_signal * 0.3;
         if mr_signal > 0.0 {
-            reasons.push(if rsi_val < 30.0 { "rsi_oversold" } else { "rsi_near_oversold_daily_bull" }.to_string());
+            reasons.push(
+                if rsi_val < 30.0 {
+                    "rsi_oversold"
+                } else {
+                    "rsi_near_oversold_daily_bull"
+                }
+                .to_string(),
+            );
         } else {
-            reasons.push(if rsi_val > 70.0 { "rsi_overbought" } else { "rsi_near_overbought_daily_bear" }.to_string());
+            reasons.push(
+                if rsi_val > 70.0 {
+                    "rsi_overbought"
+                } else {
+                    "rsi_near_overbought_daily_bear"
+                }
+                .to_string(),
+            );
         }
     }
 
@@ -300,14 +348,16 @@ pub enum ExitReason {
 /// Check if an open position should be exited.
 /// Returns Some(reason) if an exit is triggered.
 ///
-/// `position_side` is "Long" or "Short" (for future SHORT support).
-/// `first_negative_score_time` tracks when the score first went negative.
-/// Returns the updated `first_negative_score_time` via the `CheckExitResult`.
+/// `position_side` is "Long" or "Short".
+/// `first_negative_score_time` tracks the thesis-flip timer (name kept for
+/// state-file compatibility): for a LONG it starts when the score first goes
+/// NEGATIVE; for a SHORT it starts when the score first goes POSITIVE.
+/// Returns the updated timer via the `CheckExitResult`.
 #[allow(clippy::too_many_arguments)]
 pub fn check_exit(
     params: &StrategyParams,
     entry_price: f64,
-    entry_time: i64,       // unix seconds
+    entry_time: i64, // unix seconds
     peak_price: f64,
     entry_rsi: f64,
     current_price: f64,
@@ -393,13 +443,29 @@ pub fn check_exit(
         };
     }
 
-    // Score flip with delay grace period
-    let updated_fnst = if current_score < 0.0 {
+    // Score flip with delay grace period.
+    //
+    // SIDE-AWARE: a LONG is entered on positive score, so its thesis breaks
+    // when the score flips NEGATIVE. A SHORT is entered on negative score, so
+    // its thesis breaks when the score flips POSITIVE. The pre-2026-08-07 code
+    // checked `score < 0` for both sides — for shorts that is the entry
+    // condition, not a flip, and it force-closed every short once the grace
+    // period elapsed even while the bearish thesis still held (41 of 75 live
+    // shorts exited at exactly 2.08h with `ScoreFlip`; long median hold was
+    // 3.92h). The timer field keeps its name for state-file compatibility; it
+    // now means "thesis-flip timer" for both sides.
+    let flipped = match position_side {
+        "Short" => current_score > 0.0,
+        _ => current_score < 0.0,
+    };
+    let updated_fnst = if flipped {
         match first_negative_score_time {
             Some(t) => {
                 // Score was already negative — check if delay has elapsed
                 let flip_duration_hrs = (now_secs - t) as f64 / 3600.0;
-                if params.score_flip_delay_hrs > 0.0 && flip_duration_hrs < params.score_flip_delay_hrs {
+                if params.score_flip_delay_hrs > 0.0
+                    && flip_duration_hrs < params.score_flip_delay_hrs
+                {
                     // Still within grace period — don't exit, keep timer
                     Some(t)
                 } else {
@@ -549,7 +615,11 @@ mod tests {
         let closes: Vec<f64> = (0..200).map(|i| 100.0 + i as f64 * 0.5).collect();
         let volumes: Vec<f64> = vec![1000.0; 200];
         let result = compute_signal(&closes, &closes, &closes, &volumes, 3).unwrap();
-        assert!(result.score > 0.0, "Uptrend should have positive score, got {}", result.score);
+        assert!(
+            result.score > 0.0,
+            "Uptrend should have positive score, got {}",
+            result.score
+        );
         assert!(result.bullish_count >= 2);
     }
 
@@ -558,7 +628,11 @@ mod tests {
         let closes: Vec<f64> = (0..200).map(|i| 200.0 - i as f64 * 0.5).collect();
         let volumes: Vec<f64> = vec![1000.0; 200];
         let result = compute_signal(&closes, &closes, &closes, &volumes, 3).unwrap();
-        assert!(result.score < 0.0, "Downtrend should have negative score, got {}", result.score);
+        assert!(
+            result.score < 0.0,
+            "Downtrend should have negative score, got {}",
+            result.score
+        );
     }
 
     #[test]
@@ -567,14 +641,14 @@ mod tests {
         let now = Utc::now().timestamp();
         let result = check_exit(
             &params,
-            100.0,       // entry
-            now - 7200,  // 2h ago
-            110.0,       // peak
-            40.0,        // entry_rsi
-            106.0,       // current price (pulled back from peak)
-            -0.1,        // score
-            40.0,        // rsi
-            2.0,         // atr
+            100.0,      // entry
+            now - 7200, // 2h ago
+            110.0,      // peak
+            40.0,       // entry_rsi
+            106.0,      // current price (pulled back from peak)
+            -0.1,       // score
+            40.0,       // rsi
+            2.0,        // atr
             now,
             "Long",
             None,
@@ -593,10 +667,10 @@ mod tests {
             now - 3600,
             100.0,
             50.0,
-            90.0,  // 10% loss
+            90.0, // 10% loss
             0.1,
             50.0,
-            3.0,   // ATR=3 → sl = 2.7*3/100*100 = 8.1%
+            3.0, // ATR=3 → sl = 2.7*3/100*100 = 8.1%
             now,
             "Long",
             None,
@@ -611,18 +685,21 @@ mod tests {
         let result = check_exit(
             &params,
             100.0,
-            now - 1800,  // 30min ago
+            now - 1800, // 30min ago
             102.0,
             50.0,
-            101.5,  // 1.5% profit — well within trailing stop
-            0.3,    // positive score
+            101.5, // 1.5% profit — well within trailing stop
+            0.3,   // positive score
             50.0,
-            5.0,    // larger ATR makes triggers looser
+            5.0, // larger ATR makes triggers looser
             now,
             "Long",
             None,
         );
-        assert!(result.reason.is_none(), "Should not exit a healthy position");
+        assert!(
+            result.reason.is_none(),
+            "Should not exit a healthy position"
+        );
     }
 
     // =========================================================================
@@ -663,66 +740,93 @@ mod tests {
     fn clamp_accepts_tp_atr_eight() {
         let config = r#"{"signal_threshold":0.3,"tp_atr":8.0,"sl_atr":2.5,"max_hold_hours":36.0,"trailing_stop_atr":0.5}"#;
         let params = load_config_from_json(config, "test_clamp_tp_atr.json");
-        assert_eq!(params.tp_atr, 8.0, "tp_atr=8.0 should pass through clamping");
+        assert_eq!(
+            params.tp_atr, 8.0,
+            "tp_atr=8.0 should pass through clamping"
+        );
     }
 
     #[test]
     fn clamp_rejects_tp_atr_nine() {
         let config = r#"{"signal_threshold":0.3,"tp_atr":9.0,"sl_atr":2.5,"max_hold_hours":36.0,"trailing_stop_atr":0.5}"#;
         let params = load_config_from_json(config, "test_clamp_tp_atr_high.json");
-        assert_eq!(params.tp_atr, StrategyParams::default().tp_atr,
-            "tp_atr=9.0 should be clamped to default");
+        assert_eq!(
+            params.tp_atr,
+            StrategyParams::default().tp_atr,
+            "tp_atr=9.0 should be clamped to default"
+        );
     }
 
     #[test]
     fn clamp_accepts_max_hold_120() {
         let config = r#"{"signal_threshold":0.3,"tp_atr":5.0,"sl_atr":2.5,"max_hold_hours":120.0,"trailing_stop_atr":0.5}"#;
         let params = load_config_from_json(config, "test_clamp_hold.json");
-        assert_eq!(params.max_hold_hours, 120.0, "max_hold_hours=120 should pass through");
+        assert_eq!(
+            params.max_hold_hours, 120.0,
+            "max_hold_hours=120 should pass through"
+        );
     }
 
     #[test]
     fn clamp_rejects_max_hold_130() {
         let config = r#"{"signal_threshold":0.3,"tp_atr":5.0,"sl_atr":2.5,"max_hold_hours":130.0,"trailing_stop_atr":0.5}"#;
         let params = load_config_from_json(config, "test_clamp_hold_high.json");
-        assert_eq!(params.max_hold_hours, StrategyParams::default().max_hold_hours,
-            "max_hold_hours=130 should be clamped to default");
+        assert_eq!(
+            params.max_hold_hours,
+            StrategyParams::default().max_hold_hours,
+            "max_hold_hours=130 should be clamped to default"
+        );
     }
 
     #[test]
     fn clamp_accepts_trailing_stop_atr_0_1() {
         let config = r#"{"signal_threshold":0.3,"tp_atr":5.0,"sl_atr":2.5,"max_hold_hours":36.0,"trailing_stop_atr":0.1}"#;
         let params = load_config_from_json(config, "test_clamp_trail.json");
-        assert_eq!(params.trailing_stop_atr, 0.1, "trailing_stop_atr=0.1 should pass through");
+        assert_eq!(
+            params.trailing_stop_atr, 0.1,
+            "trailing_stop_atr=0.1 should pass through"
+        );
     }
 
     #[test]
     fn clamp_rejects_trailing_stop_atr_0_05() {
         let config = r#"{"signal_threshold":0.3,"tp_atr":5.0,"sl_atr":2.5,"max_hold_hours":36.0,"trailing_stop_atr":0.05}"#;
         let params = load_config_from_json(config, "test_clamp_trail_low.json");
-        assert_eq!(params.trailing_stop_atr, StrategyParams::default().trailing_stop_atr,
-            "trailing_stop_atr=0.05 should be clamped to default");
+        assert_eq!(
+            params.trailing_stop_atr,
+            StrategyParams::default().trailing_stop_atr,
+            "trailing_stop_atr=0.05 should be clamped to default"
+        );
     }
 
     #[test]
     fn config_loads_time_decay_hours() {
         let config = r#"{"time_decay_hours":48.0}"#;
         let params = load_config_from_json(config, "test_config_decay.json");
-        assert_eq!(params.time_decay_hours, 48.0, "time_decay_hours should be parsed from JSON");
+        assert_eq!(
+            params.time_decay_hours, 48.0,
+            "time_decay_hours should be parsed from JSON"
+        );
     }
 
     #[test]
     fn config_loads_min_alignment() {
         let config = r#"{"min_alignment":2}"#;
         let params = load_config_from_json(config, "test_config_alignment.json");
-        assert_eq!(params.min_alignment, 2, "min_alignment should be parsed from JSON");
+        assert_eq!(
+            params.min_alignment, 2,
+            "min_alignment should be parsed from JSON"
+        );
     }
 
     #[test]
     fn config_loads_score_flip_delay_hrs() {
         let config = r#"{"score_flip_delay_hrs":2.0}"#;
         let params = load_config_from_json(config, "test_config_flip.json");
-        assert_eq!(params.score_flip_delay_hrs, 2.0, "score_flip_delay_hrs should be parsed from JSON");
+        assert_eq!(
+            params.score_flip_delay_hrs, 2.0,
+            "score_flip_delay_hrs should be parsed from JSON"
+        );
     }
 
     #[test]
@@ -730,9 +834,18 @@ mod tests {
         let config = r#"{"signal_threshold":0.35}"#;
         let params = load_config_from_json(config, "test_partial_config.json");
         let defaults = StrategyParams::default();
-        assert_eq!(params.signal_threshold, 0.35, "Provided field should be used");
-        assert_eq!(params.tp_atr, defaults.tp_atr, "Missing tp_atr should use default");
-        assert_eq!(params.sl_atr, defaults.sl_atr, "Missing sl_atr should use default");
+        assert_eq!(
+            params.signal_threshold, 0.35,
+            "Provided field should be used"
+        );
+        assert_eq!(
+            params.tp_atr, defaults.tp_atr,
+            "Missing tp_atr should use default"
+        );
+        assert_eq!(
+            params.sl_atr, defaults.sl_atr,
+            "Missing sl_atr should use default"
+        );
         assert_eq!(params.max_hold_hours, defaults.max_hold_hours);
         assert_eq!(params.trailing_stop_atr, defaults.trailing_stop_atr);
         assert_eq!(params.time_decay_hours, defaults.time_decay_hours);
@@ -751,7 +864,8 @@ mod tests {
 
     #[test]
     fn missing_file_falls_back_to_defaults() {
-        let params = StrategyParams::load_from_path(std::path::Path::new("/nonexistent/path/strategy.json"));
+        let params =
+            StrategyParams::load_from_path(std::path::Path::new("/nonexistent/path/strategy.json"));
         let defaults = StrategyParams::default();
         assert_eq!(params.signal_threshold, defaults.signal_threshold);
         assert_eq!(params.score_flip_delay_hrs, defaults.score_flip_delay_hrs);
@@ -816,19 +930,22 @@ mod tests {
         let first_neg = now - 3600; // score went negative 1h ago
         let result = check_exit(
             &params,
-            100.0,        // entry_price
-            now - 7200,   // 2h ago entry
-            100.0,        // peak
-            50.0,         // entry_rsi
-            100.0,        // current_price (no change)
-            -0.3,         // negative score
-            50.0,         // current_rsi
-            2.0,          // atr
+            100.0,      // entry_price
+            now - 7200, // 2h ago entry
+            100.0,      // peak
+            50.0,       // entry_rsi
+            100.0,      // current_price (no change)
+            -0.3,       // negative score
+            50.0,       // current_rsi
+            2.0,        // atr
             now,
             "Long",
             Some(first_neg),
         );
-        assert!(result.reason.is_none(), "Should not exit within grace period");
+        assert!(
+            result.reason.is_none(),
+            "Should not exit within grace period"
+        );
         // Timer should still be tracking
         assert_eq!(result.first_negative_score_time, Some(first_neg));
     }
@@ -842,7 +959,7 @@ mod tests {
         let result = check_exit(
             &params,
             100.0,
-            now - 14400,  // 4h ago entry
+            now - 14400, // 4h ago entry
             100.0,
             50.0,
             100.0,
@@ -867,20 +984,127 @@ mod tests {
         let result = check_exit(
             &params,
             100.0,
-            now - 1800,   // 30min ago
+            now - 1800, // 30min ago
             100.0,
             50.0,
             100.0,
-            -0.1,         // negative score
+            -0.1, // negative score
             50.0,
             2.0,
             now,
             "Long",
-            None,         // first_negative_score_time = None (first tick)
+            None, // first_negative_score_time = None (first tick)
         );
         assert!(
             matches!(result.reason, Some(ExitReason::ScoreFlip)),
             "delay=0 should trigger immediate ScoreFlip"
+        );
+    }
+
+    #[test]
+    fn short_negative_score_is_not_a_flip() {
+        // Regression: shorts are ENTERED on negative score, so a negative
+        // score is the thesis holding, not a flip. Pre-2026-08-07 the flip
+        // check was `score < 0` for both sides and force-closed every short
+        // after the grace period (41 of 75 live shorts exited at ~2.08h).
+        let params = params_with_flip_delay(2.0);
+        let now = Utc::now().timestamp();
+        let result = check_exit(
+            &params,
+            100.0,
+            now - 14400, // entered 4h ago
+            100.0,       // peak == entry: trailing stop (Short) needs trough < entry
+            50.0,
+            100.0,
+            -0.4, // still bearish — the entry thesis holds
+            50.0,
+            2.0,
+            now,
+            "Short",
+            None,
+        );
+        assert!(
+            result.reason.is_none(),
+            "negative score on a Short must never count as a flip"
+        );
+        assert!(
+            result.first_negative_score_time.is_none(),
+            "no flip timer should be started for a Short while score stays negative"
+        );
+    }
+
+    #[test]
+    fn short_flip_within_grace_period_no_exit() {
+        // Short + score went positive 1h ago, delay=2h → no exit yet.
+        let params = params_with_flip_delay(2.0);
+        let now = Utc::now().timestamp();
+        let first_pos = now - 3600;
+        let result = check_exit(
+            &params,
+            100.0,
+            now - 14400,
+            100.0,
+            50.0,
+            100.0,
+            0.3, // score flipped positive
+            50.0,
+            2.0,
+            now,
+            "Short",
+            Some(first_pos),
+        );
+        assert!(result.reason.is_none(), "within grace period");
+        assert_eq!(result.first_negative_score_time, Some(first_pos));
+    }
+
+    #[test]
+    fn short_flip_after_grace_period_exits() {
+        // Short + score positive for 3h, delay=2h → ScoreFlip exit.
+        let params = params_with_flip_delay(2.0);
+        let now = Utc::now().timestamp();
+        let first_pos = now - 10800;
+        let result = check_exit(
+            &params,
+            100.0,
+            now - 14400,
+            100.0,
+            50.0,
+            100.0,
+            0.3,
+            50.0,
+            2.0,
+            now,
+            "Short",
+            Some(first_pos),
+        );
+        assert!(
+            matches!(result.reason, Some(ExitReason::ScoreFlip)),
+            "Short should exit after grace period once score flips positive"
+        );
+    }
+
+    #[test]
+    fn short_flip_delay_zero_immediate_exit() {
+        // delay=0: positive score exits a Short immediately.
+        let params = params_with_flip_delay(0.0);
+        let now = Utc::now().timestamp();
+        let result = check_exit(
+            &params,
+            100.0,
+            now - 1800,
+            100.0,
+            50.0,
+            100.0,
+            0.1,
+            50.0,
+            2.0,
+            now,
+            "Short",
+            None,
+        );
+        assert!(
+            matches!(result.reason, Some(ExitReason::ScoreFlip)),
+            "delay=0 Short should flip immediately on positive score"
         );
     }
 
@@ -892,31 +1116,70 @@ mod tests {
 
         // Step 1: Score goes negative — timer starts
         let result1 = check_exit(
-            &params, 100.0, now - 7200, 100.0, 50.0, 100.0,
-            -0.3, 50.0, 2.0, now,
-            "Long", None,
+            &params,
+            100.0,
+            now - 7200,
+            100.0,
+            50.0,
+            100.0,
+            -0.3,
+            50.0,
+            2.0,
+            now,
+            "Long",
+            None,
         );
-        assert!(result1.reason.is_none(), "First negative: within grace period");
+        assert!(
+            result1.reason.is_none(),
+            "First negative: within grace period"
+        );
         let first_neg = result1.first_negative_score_time.unwrap();
         assert!(first_neg > 0, "Timer should be set");
 
         // Step 2: Score goes positive — timer resets to None
         let result2 = check_exit(
-            &params, 100.0, now - 7200, 100.0, 50.0, 100.0,
-            0.3, 50.0, 2.0, now,
-            "Long", Some(first_neg),
+            &params,
+            100.0,
+            now - 7200,
+            100.0,
+            50.0,
+            100.0,
+            0.3,
+            50.0,
+            2.0,
+            now,
+            "Long",
+            Some(first_neg),
         );
         assert!(result2.reason.is_none(), "Positive score: no exit");
-        assert!(result2.first_negative_score_time.is_none(), "Timer should reset to None");
+        assert!(
+            result2.first_negative_score_time.is_none(),
+            "Timer should reset to None"
+        );
 
         // Step 3: Score goes negative again — timer starts fresh
         let result3 = check_exit(
-            &params, 100.0, now - 7200, 100.0, 50.0, 100.0,
-            -0.3, 50.0, 2.0, now,
-            "Long", None, // timer was reset
+            &params,
+            100.0,
+            now - 7200,
+            100.0,
+            50.0,
+            100.0,
+            -0.3,
+            50.0,
+            2.0,
+            now,
+            "Long",
+            None, // timer was reset
         );
-        assert!(result3.reason.is_none(), "Fresh negative: within grace period again");
-        assert!(result3.first_negative_score_time.is_some(), "Timer should restart");
+        assert!(
+            result3.reason.is_none(),
+            "Fresh negative: within grace period again"
+        );
+        assert!(
+            result3.first_negative_score_time.is_some(),
+            "Timer should restart"
+        );
     }
 
     #[test]
@@ -953,8 +1216,14 @@ mod tests {
             "size_usd": 50.0
         }"#;
         let parsed: OpenPosition = serde_json::from_str(old_json).unwrap();
-        assert_eq!(parsed.first_negative_score_time, None, "Missing field should default to None");
-        assert_eq!(parsed.entry_price, 100.0, "Existing fields should parse correctly");
+        assert_eq!(
+            parsed.first_negative_score_time, None,
+            "Missing field should default to None"
+        );
+        assert_eq!(
+            parsed.entry_price, 100.0,
+            "Existing fields should parse correctly"
+        );
     }
 
     #[test]
@@ -969,14 +1238,14 @@ mod tests {
 
         let result = check_exit(
             &params,
-            100.0,        // entry
-            now - 7200,   // 2h ago
-            110.0,        // peak (10% above entry)
-            40.0,         // entry_rsi
-            106.0,        // current (pulled back 4% from peak)
-            -0.3,         // negative score (past grace)
-            40.0,         // current_rsi
-            2.0,          // atr
+            100.0,      // entry
+            now - 7200, // 2h ago
+            110.0,      // peak (10% above entry)
+            40.0,       // entry_rsi
+            106.0,      // current (pulled back 4% from peak)
+            -0.3,       // negative score (past grace)
+            40.0,       // current_rsi
+            2.0,        // atr
             now,
             "Long",
             Some(first_neg),
@@ -1003,15 +1272,22 @@ mod tests {
             100.0,
             50.0,
             100.0,
-            -0.2,         // first negative tick
+            -0.2, // first negative tick
             50.0,
             2.0,
             now,
             "Long",
-            None,         // no prior negative time
+            None, // no prior negative time
         );
-        assert!(result.reason.is_none(), "First negative tick should start timer, not exit");
-        assert_eq!(result.first_negative_score_time, Some(now), "Timer should be set to now");
+        assert!(
+            result.reason.is_none(),
+            "First negative tick should start timer, not exit"
+        );
+        assert_eq!(
+            result.first_negative_score_time,
+            Some(now),
+            "Timer should be set to now"
+        );
     }
 
     // =========================================================================
@@ -1025,20 +1301,23 @@ mod tests {
         let now = Utc::now().timestamp();
         let result = check_exit(
             &params,
-            100.0,        // entry_price
-            now - 3600,   // 1h ago
-            100.0,        // peak (trough tracking for SHORT)
-            50.0,         // entry_rsi
-            95.0,         // current_price (dropped 5%)
-            0.3,          // score
-            50.0,         // current_rsi
-            2.0,          // atr
+            100.0,      // entry_price
+            now - 3600, // 1h ago
+            100.0,      // peak (trough tracking for SHORT)
+            50.0,       // entry_rsi
+            95.0,       // current_price (dropped 5%)
+            -0.3,       // score still bearish — the short thesis holds
+            50.0,       // current_rsi
+            2.0,        // atr
             now,
             "Short",
             None,
         );
         // PnL for SHORT = (entry - current) / entry * 100 = (100-95)/100*100 = +5%
-        assert!(result.reason.is_none(), "5% profit SHORT should not exit (within TP range)");
+        assert!(
+            result.reason.is_none(),
+            "5% profit SHORT should not exit (within TP range)"
+        );
     }
 
     #[test]
@@ -1052,10 +1331,10 @@ mod tests {
             now - 3600,
             100.0,
             50.0,
-            110.0,        // price rose 10% — bad for SHORT
+            110.0, // price rose 10% — bad for SHORT
             0.3,
             50.0,
-            3.0,          // ATR=3 → sl = 2.7*3/100*100 = 8.1%
+            3.0, // ATR=3 → sl = 2.7*3/100*100 = 8.1%
             now,
             "Short",
             None,
@@ -1075,14 +1354,14 @@ mod tests {
         let now = Utc::now().timestamp();
         let result = check_exit(
             &params,
-            100.0,        // entry
-            now - 7200,   // 2h ago
-            90.0,         // peak = trough at 90 (10% drop from entry)
-            50.0,         // entry_rsi
-            93.0,         // current rose from 90 to 93 (3% pullback from trough)
-            -0.1,         // score
-            50.0,         // rsi
-            2.0,          // atr
+            100.0,      // entry
+            now - 7200, // 2h ago
+            90.0,       // peak = trough at 90 (10% drop from entry)
+            50.0,       // entry_rsi
+            93.0,       // current rose from 90 to 93 (3% pullback from trough)
+            -0.1,       // score
+            50.0,       // rsi
+            2.0,        // atr
             now,
             "Short",
             None,
@@ -1105,10 +1384,10 @@ mod tests {
             &params,
             100.0,
             now - 3600,
-            95.0,         // trough at 95 (5% drop)
+            95.0, // trough at 95 (5% drop)
             50.0,
-            94.0,         // price dropped further to 94 (below trough)
-            0.3,
+            94.0, // price dropped further to 94 (below trough)
+            -0.3, // score still bearish — the short thesis holds
             50.0,
             2.0,
             now,
@@ -1138,10 +1417,10 @@ mod tests {
             now - 3600,
             100.0,
             50.0,
-            80.0,         // 20% drop — huge profit for SHORT
+            80.0, // 20% drop — huge profit for SHORT
             0.3,
             50.0,
-            5.0,          // ATR=5 → tp = 3.0*5/100*100 = 15%
+            5.0, // ATR=5 → tp = 3.0*5/100*100 = 15%
             now,
             "Short",
             None,
@@ -1168,10 +1447,10 @@ mod tests {
             now - 3600,
             100.0,
             50.0,
-            115.0,        // 15% rise — bad for SHORT
+            115.0, // 15% rise — bad for SHORT
             0.3,
             50.0,
-            5.0,          // ATR=5 → sl = 2.0*5/100*100 = 10%
+            5.0, // ATR=5 → sl = 2.0*5/100*100 = 10%
             now,
             "Short",
             None,
@@ -1285,7 +1564,10 @@ mod tests {
             "first_negative_score_time": null
         }"#;
         let parsed: OpenPosition = serde_json::from_str(old_json).unwrap();
-        assert_eq!(parsed.side, "Long", "Missing side field should default to Long");
+        assert_eq!(
+            parsed.side, "Long",
+            "Missing side field should default to Long"
+        );
         assert_eq!(parsed.entry_price, 100.0);
     }
 
@@ -1299,7 +1581,10 @@ mod tests {
 
         // Uptrend: score > 0 — should not trigger SHORT
         if result.score > 0.0 {
-            assert!(result.score > -0.01, "Positive score should not trigger SHORT condition");
+            assert!(
+                result.score > -0.01,
+                "Positive score should not trigger SHORT condition"
+            );
         }
     }
 
@@ -1312,8 +1597,14 @@ mod tests {
         };
         // Score exactly 0.0 is between ±0.3 — neither condition met
         let score = 0.0;
-        assert!(score <= params.signal_threshold, "0.0 should not exceed threshold");
-        assert!(score >= -params.signal_threshold, "0.0 should not exceed negative threshold");
+        assert!(
+            score <= params.signal_threshold,
+            "0.0 should not exceed threshold"
+        );
+        assert!(
+            score >= -params.signal_threshold,
+            "0.0 should not exceed negative threshold"
+        );
     }
 
     #[test]
@@ -1322,7 +1613,13 @@ mod tests {
         let closes: Vec<f64> = (0..200).map(|i| 200.0 - i as f64 * 0.5).collect();
         let volumes: Vec<f64> = vec![1000.0; 200];
         let result = compute_signal(&closes, &closes, &closes, &volumes, 3).unwrap();
-        assert!(result.score < 0.0, "Downtrend should produce negative score");
-        assert!(result.bearish_count >= 2, "Downtrend should have bearish alignment");
+        assert!(
+            result.score < 0.0,
+            "Downtrend should produce negative score"
+        );
+        assert!(
+            result.bearish_count >= 2,
+            "Downtrend should have bearish alignment"
+        );
     }
 }
