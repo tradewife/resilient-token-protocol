@@ -3,8 +3,8 @@ import "./globals.css";
 import { WalletContextProvider } from "./WalletContextProvider";
 
 export const metadata: Metadata = {
-  title: "Resilient Token Protocol: On-Chain Treasury Yield for Every Token",
-  description: "Token projects route trading fees to RTP → the swarm generates yield via on-chain perps → yield flows back to holders. 70/20/10 split, enforced on-chain. No RTP token. Pure infrastructure.",
+  title: "Resilient Token Protocol: Bespoke Treasury Engines on Solana",
+  description: "State your mandate — risk budget, drawdown limit, horizon. RTP manufactures a distinct strategy, validates it through a fixed gate suite, and runs it on self-custodied rails on Solana. Start with the Paper Engine diagnostic.",
   icons: {
     icon: "/icon.svg",
     apple: "/apple-touch-icon.png",

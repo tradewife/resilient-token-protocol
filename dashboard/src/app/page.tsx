@@ -366,11 +366,11 @@ export default function Home() {
 
         <div className="hero-content">
           <div className="hero-copy">
-            <span className="hero-label">SOLANA-NATIVE · AUTONOMOUS TREASURY · SELF-FUNDING</span>
+            <span className="hero-label">SOLANA-NATIVE · BESPOKE TREASURY · SELF-CUSTODY</span>
             <h1 className="hero-title">
-              Every token gets a
+              Every mandate gets
               <br />
-              program-enforced treasury
+              a manufactured engine
             </h1>
             <p className="hero-tagline" style={{
               fontSize: "1.25rem",
@@ -380,16 +380,19 @@ export default function Home() {
               margin: "0.5rem 0 0.75rem",
               lineHeight: 1.4,
             }}>
-              No one wants to hold anymore.{" "}<span className="hero-tagline-break">RTP gives them a reason.</span>
+              Shared strategies get crowded.{" "}<span className="hero-tagline-break">Yours is made for you.</span>
             </p>
             <p className="hero-subtitle">
-              Token projects route trading fees to RTP → the swarm generates returns via on-chain perps → SOL flows back to holders. 70/20/10 split, enforced on-chain. No RTP token.<br />Pure infrastructure.
+              State your mandate — risk budget, drawdown limit, horizon. RTP&apos;s research
+              pipeline manufactures a distinct strategy, validates it through a fixed gate
+              suite, and runs it on self-custodied rails on Solana. The factory is proven live
+              on mainnet. Your engine is next.<br />No RTP token. Pure infrastructure.
             </p>
           </div>
 
           <div className="sys2-hero-cta-row" style={{ marginBottom: "var(--space-lg)" }}>
-            <Link href="/launch" className="sys2-cta-primary">
-              Launch a token <span className="cta-badge-devnet">DEVNET</span>
+            <Link href="/diagnostic" className="sys2-cta-primary">
+              Run the Paper Engine diagnostic
             </Link>
             <Link href="/docs" className="sys2-cta-secondary">Read the docs →</Link>
           </div>
@@ -727,27 +730,22 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ════════ §4 INTEGRATE ════════ */}
+      {/* ════════ §4 ENGAGE ════════ */}
       <section className="sys2-section sys2-cta-section" id="integrate">
         <div className="cta2-card">
           <div className="cta2-content">
-            <div className="sys2-sect-eyebrow">§4 · integrate</div>
-            <h2 className="cta2-title">One function call. A program-enforced treasury for any token.</h2>
+            <div className="sys2-sect-eyebrow">§4 · engage</div>
+            <h2 className="cta2-title">One mandate. A strategy manufactured against it.</h2>
             <p className="cta2-lede">
-              No RTP token. No custody. No new wallet. The SDK registers a Token-2022 mint with its own
-              Treasury PDA in a single call. Trading fees flow in. SOL flows out 70/20/10. The program is
-              the only thing that can sign, by design.
+              No shared templates. No crowded edges. State your risk budget, drawdown limit, and
+              horizon — the research pipeline manufactures a distinct strategy, validates it
+              through the same gate suite behind the live specimen, and returns a paper-traded
+              verdict with the full configuration. Your custody throughout; nothing moves until
+              you say so.
             </p>
-            <pre className="cta2-code"><code>{`import { registerWithRTP } from "@resilient-protocol/sdk";
-
-const result = await registerWithRTP(connection, payer, {
-  authority: payer.publicKey,
-});
-
-// result.treasuryPDA → program-owned, no human can sign for it`}</code></pre>
             <div className="cta2-actions">
-              <Link href="/launch" className="sys2-cta-primary">
-                Launch a token <span className="cta-badge-devnet">DEVNET</span>
+              <Link href="/diagnostic" className="sys2-cta-primary">
+                Run the Paper Engine diagnostic
               </Link>
               <Link href="/docs" className="sys2-cta-secondary">Read the docs →</Link>
             </div>
