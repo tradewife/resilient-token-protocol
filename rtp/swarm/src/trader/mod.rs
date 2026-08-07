@@ -15,8 +15,8 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use candles::CandleBuffer;
-use strategy::{StrategyParams, TradeRecord, OpenPosition};
 use solana_sdk::signer::Signer;
+use strategy::{OpenPosition, StrategyParams, TradeRecord};
 
 /// Trader configuration loaded from env vars.
 pub struct TraderConfig {
@@ -41,11 +41,15 @@ impl TraderConfig {
         let position_fraction: f64 = std::env::var("RTP_TRADER_POSITION_FRACTION")
             .unwrap_or_else(|_| "0.20".to_string())
             .parse()
-            .map_err(|e: std::num::ParseFloatError| format!("Invalid RTP_TRADER_POSITION_FRACTION: {}", e))?;
+            .map_err(|e: std::num::ParseFloatError| {
+                format!("Invalid RTP_TRADER_POSITION_FRACTION: {}", e)
+            })?;
         let leverage = std::env::var("RTP_TRADER_LEVERAGE")
             .unwrap_or_else(|_| "9.0".to_string())
             .parse()
-            .map_err(|e: std::num::ParseFloatError| format!("Invalid RTP_TRADER_LEVERAGE: {}", e))?;
+            .map_err(|e: std::num::ParseFloatError| {
+                format!("Invalid RTP_TRADER_LEVERAGE: {}", e)
+            })?;
         let poll_secs: u64 = std::env::var("RTP_TRADER_POLL_SECS")
             .unwrap_or_else(|_| "300".to_string())
             .parse()
@@ -144,13 +148,17 @@ async fn fetch_wallet_balance(rpc_url: &str, wallet: &str) -> Result<f64, String
         "method": "getBalance",
         "params": [wallet]
     });
-    let resp = client.post(rpc_url)
+    let resp = client
+        .post(rpc_url)
         .json(&body)
         .timeout(std::time::Duration::from_secs(15))
         .send()
         .await
         .map_err(|e| format!("RPC request failed: {}", e))?;
-    let val: serde_json::Value = resp.json().await.map_err(|e| format!("RPC parse failed: {}", e))?;
+    let val: serde_json::Value = resp
+        .json()
+        .await
+        .map_err(|e| format!("RPC parse failed: {}", e))?;
     let lamports: u64 = val["result"]["value"].as_u64().unwrap_or(0);
     Ok(lamports as f64 / 1e9)
 }
@@ -168,7 +176,11 @@ pub fn start_status_server(
                 l
             }
             Err(e) => {
-                tracing::error!("[HTTP] Failed to bind port {}: {}. Status server not started.", port, e);
+                tracing::error!(
+                    "[HTTP] Failed to bind port {}: {}. Status server not started.",
+                    port,
+                    e
+                );
                 return;
             }
         };
@@ -201,22 +213,31 @@ const HEALTH_STALE_THRESHOLD_SECS: i64 = 30 * 60; // 30 minutes
 pub fn check_trader_health(state: &TraderState) -> (u16, &'static str, String) {
     // 1. Too many consecutive errors → 503
     if state.consecutive_errors >= HEALTH_MAX_ERRORS {
-        return (503, "Service Unavailable",
-            format!("unhealthy: {} consecutive errors", state.consecutive_errors));
+        return (
+            503,
+            "Service Unavailable",
+            format!("unhealthy: {} consecutive errors", state.consecutive_errors),
+        );
     }
 
     // 2. Empty last_healthy (initial state) → 503
     if state.last_healthy.is_empty() {
-        return (503, "Service Unavailable",
-            "unhealthy: no healthy timestamp".to_string());
+        return (
+            503,
+            "Service Unavailable",
+            "unhealthy: no healthy timestamp".to_string(),
+        );
     }
 
     // 3. Unparseable last_healthy → 503
     let last_healthy = match chrono::DateTime::parse_from_rfc3339(&state.last_healthy) {
         Ok(dt) => dt,
         Err(_) => {
-            return (503, "Service Unavailable",
-                "unhealthy: invalid last_healthy timestamp".to_string());
+            return (
+                503,
+                "Service Unavailable",
+                "unhealthy: invalid last_healthy timestamp".to_string(),
+            );
         }
     };
 
@@ -224,8 +245,11 @@ pub fn check_trader_health(state: &TraderState) -> (u16, &'static str, String) {
     let now = chrono::Utc::now();
     let elapsed_secs = now.signed_duration_since(last_healthy).num_seconds();
     if elapsed_secs > HEALTH_STALE_THRESHOLD_SECS {
-        return (503, "Service Unavailable",
-            format!("unhealthy: last_healthy is stale ({}s ago)", elapsed_secs));
+        return (
+            503,
+            "Service Unavailable",
+            format!("unhealthy: last_healthy is stale ({}s ago)", elapsed_secs),
+        );
     }
 
     // All checks passed → healthy
@@ -240,11 +264,16 @@ async fn handle_status_request(
 
     // Read enough to parse the request line
     let mut buf = [0u8; 1024];
-    let n = stream.read(&mut buf).await.map_err(|e| format!("read: {}", e))?;
+    let n = stream
+        .read(&mut buf)
+        .await
+        .map_err(|e| format!("read: {}", e))?;
     let request = String::from_utf8_lossy(&buf[..n]);
 
     // Extract the path from the request line (e.g., "GET /state HTTP/1.1")
-    let path = request.lines().next()
+    let path = request
+        .lines()
+        .next()
         .and_then(|line| line.split_whitespace().nth(1))
         .unwrap_or("/");
 
@@ -261,15 +290,25 @@ async fn handle_status_request(
         tracing::warn!("[HTTP] open_position cleared via /clear-position endpoint");
         ("200 OK".to_string(), "ok".to_string(), "text/plain")
     } else {
-        ("404 Not Found".to_string(), "not found".to_string(), "text/plain")
+        (
+            "404 Not Found".to_string(),
+            "not found".to_string(),
+            "text/plain",
+        )
     };
 
     let response = format!(
         "HTTP/1.1 {}\r\nContent-Type: {}\r\nContent-Length: {}\r\nAccess-Control-Allow-Origin: *\r\nConnection: close\r\n\r\n{}",
-        status, content_type, body.len(), body
+        status,
+        content_type,
+        body.len(),
+        body
     );
 
-    stream.write_all(response.as_bytes()).await.map_err(|e| format!("write: {}", e))?;
+    stream
+        .write_all(response.as_bytes())
+        .await
+        .map_err(|e| format!("write: {}", e))?;
     stream.flush().await.map_err(|e| format!("flush: {}", e))?;
     Ok(())
 }
@@ -279,8 +318,8 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
     // Load keypair
     let keypair_data = std::fs::read_to_string(&config.keypair_path)
         .map_err(|e| format!("Read keypair {}: {}", config.keypair_path.display(), e))?;
-    let keypair_bytes: Vec<u8> = serde_json::from_str(&keypair_data)
-        .map_err(|e| format!("Parse keypair: {}", e))?;
+    let keypair_bytes: Vec<u8> =
+        serde_json::from_str(&keypair_data).map_err(|e| format!("Parse keypair: {}", e))?;
     let keypair = solana_sdk::signature::Keypair::try_from(keypair_bytes.as_slice())
         .map_err(|e| format!("Invalid keypair: {}", e))?;
     let wallet = keypair.pubkey().to_string();
@@ -288,7 +327,10 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
     tracing::info!("=== RTP Autonomous Trader ===");
     tracing::info!("Wallet:     {}", wallet);
     tracing::info!("Amount:     {} SOL (fallback)", config.amount_sol);
-    tracing::info!("Fraction:   {}% of wallet balance", config.position_fraction * 100.0);
+    tracing::info!(
+        "Fraction:   {}% of wallet balance",
+        config.position_fraction * 100.0
+    );
     tracing::info!("Leverage:   {}x", config.leverage);
     tracing::info!("Poll:       {}s", config.poll_secs);
     tracing::info!("Dry run:    {}", config.dry_run);
@@ -344,7 +386,10 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
             repaired
         );
         if let Err(e) = initial.save(&config.state_path) {
-            tracing::warn!("[STATE] Could not persist side repairs (trading continues): {}", e);
+            tracing::warn!(
+                "[STATE] Could not persist side repairs (trading continues): {}",
+                e
+            );
         }
     }
     let state = Arc::new(Mutex::new(initial));
@@ -357,13 +402,15 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
         if v < params.min_alignment {
             tracing::warn!(
                 "[OVERRIDE] min_alignment {} -> {} (RTP_TRADER_MIN_ALIGNMENT_OVERRIDE). NOTE: not WFA-validated, loosens strict-WFA confluence config.",
-                params.min_alignment, v
+                params.min_alignment,
+                v
             );
             params.min_alignment = v;
         } else {
             tracing::warn!(
                 "[OVERRIDE] env value {} >= configured {} — ignored (overrides are loosening-only).",
-                v, params.min_alignment
+                v,
+                params.min_alignment
             );
         }
     }
@@ -371,13 +418,15 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
         if v < params.signal_threshold {
             tracing::warn!(
                 "[OVERRIDE] signal_threshold {:.3} -> {:.3} (RTP_TRADER_SIGNAL_THRESHOLD_OVERRIDE). NOTE: not WFA-validated.",
-                params.signal_threshold, v
+                params.signal_threshold,
+                v
             );
             params.signal_threshold = v;
         } else {
             tracing::warn!(
                 "[OVERRIDE] signal_threshold env value {:.3} >= configured {:.3} — ignored (overrides are loosening-only).",
-                v, params.signal_threshold
+                v,
+                params.signal_threshold
             );
         }
     }
@@ -391,9 +440,13 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
     // Log loaded params at startup for Railway log visibility
     tracing::info!(
         "[STARTUP] Active strategy config: signal={:.2} tp={:.1} sl={:.1} hold={:.0}h trail={:.2} decay={:.0}h flip_delay={:.1}h alignment={}",
-        params.signal_threshold, params.tp_atr, params.sl_atr,
-        params.max_hold_hours, params.trailing_stop_atr,
-        params.time_decay_hours, params.score_flip_delay_hrs,
+        params.signal_threshold,
+        params.tp_atr,
+        params.sl_atr,
+        params.max_hold_hours,
+        params.trailing_stop_atr,
+        params.time_decay_hours,
+        params.score_flip_delay_hrs,
         params.min_alignment,
     );
 
@@ -486,7 +539,10 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
                         tracing::warn!(
                             "[RECONCILE] Found orphaned SOL {} position on Flash Trade: \
                              entry=${:.2} size=${:.2} key={}...restoring to internal state.",
-                            side, entry_price, size_usd, &pos.key[..8]
+                            side,
+                            entry_price,
+                            size_usd,
+                            &pos.key[..8]
                         );
                         s.open_position = Some(OpenPosition {
                             entry_price,
@@ -503,7 +559,10 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
                     }
                 }
                 Err(e) => {
-                    tracing::warn!("[RECONCILE] Failed to check Flash Trade positions: {}. Continuing without reconciliation.", e);
+                    tracing::warn!(
+                        "[RECONCILE] Failed to check Flash Trade positions: {}. Continuing without reconciliation.",
+                        e
+                    );
                 }
             }
         }
@@ -518,8 +577,11 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
     if stale_state {
         match executor::get_positions(&wallet).await {
             Ok(positions) => {
-                let side_upper = state.lock().await
-                    .open_position.as_ref()
+                let side_upper = state
+                    .lock()
+                    .await
+                    .open_position
+                    .as_ref()
                     .map(|p| match p.side.as_str() {
                         "Long" | "LONG" => "LONG".to_string(),
                         "Short" | "SHORT" => "SHORT".to_string(),
@@ -530,9 +592,9 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
                     "SHORT" => "Short",
                     _ => "Long",
                 };
-                let on_chain = positions.iter().any(|p| {
-                    p.market_symbol == "SOL" && p.side_ui == side_lookup
-                });
+                let on_chain = positions
+                    .iter()
+                    .any(|p| p.market_symbol == "SOL" && p.side_ui == side_lookup);
                 if !on_chain {
                     tracing::warn!(
                         "[CLEANUP] Stale SOL {} position in state — not found on Flash Trade. Clearing.",
@@ -549,6 +611,7 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
                             exit_reason: "PhantomClear(StartupReconcile)".to_string(),
                             size_usd: pos.size_usd,
                             side: pos.side().to_string(),
+                            fees: None,
                         });
                         s.total_trades += 1;
                     }
@@ -580,7 +643,10 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
     let mut last_4h_refresh = Utc::now().timestamp();
     let mut last_1d_refresh = Utc::now().timestamp();
 
-    tracing::info!("[LOOP] Starting autonomous trading loop (watchdog: {}s cycle timeout)...", CYCLE_TIMEOUT_SECS);
+    tracing::info!(
+        "[LOOP] Starting autonomous trading loop (watchdog: {}s cycle timeout)...",
+        CYCLE_TIMEOUT_SECS
+    );
     loop {
         let cycle_start = Utc::now();
         {
@@ -604,7 +670,8 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
                 SLOW_REFRESH_4H_SECS,
                 SLOW_REFRESH_1D_SECS,
             ),
-        ).await;
+        )
+        .await;
 
         match cycle_result {
             Ok(Ok(())) => {
@@ -618,14 +685,25 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
                 tracing::error!("[WATCHDOG] Cycle error: {}", e);
                 let mut s = state.lock().await;
                 s.consecutive_errors += 1;
-                tracing::warn!("[WATCHDOG] Consecutive errors: {}/{}", s.consecutive_errors, MAX_CONSECUTIVE_ERRORS);
+                tracing::warn!(
+                    "[WATCHDOG] Consecutive errors: {}/{}",
+                    s.consecutive_errors,
+                    MAX_CONSECUTIVE_ERRORS
+                );
             }
             Err(_) => {
                 // Cycle timed out — watchdog killed it
-                tracing::error!("[WATCHDOG] Cycle timed out after {}s — likely HTTP hang", CYCLE_TIMEOUT_SECS);
+                tracing::error!(
+                    "[WATCHDOG] Cycle timed out after {}s — likely HTTP hang",
+                    CYCLE_TIMEOUT_SECS
+                );
                 let mut s = state.lock().await;
                 s.consecutive_errors += 1;
-                tracing::warn!("[WATCHDOG] Consecutive errors: {}/{}", s.consecutive_errors, MAX_CONSECUTIVE_ERRORS);
+                tracing::warn!(
+                    "[WATCHDOG] Consecutive errors: {}/{}",
+                    s.consecutive_errors,
+                    MAX_CONSECUTIVE_ERRORS
+                );
             }
         }
 
@@ -692,7 +770,10 @@ async fn run_cycle(
                 *last_4h_refresh = now_ts;
             }
             Ok(_) => tracing::warn!("[REFRESH] 4h: Binance returned empty candle set"),
-            Err(e) => tracing::warn!("[REFRESH] 4h: Binance fetch failed ({}) — using stale buffer", e),
+            Err(e) => tracing::warn!(
+                "[REFRESH] 4h: Binance fetch failed ({}) — using stale buffer",
+                e
+            ),
         }
     }
     if now_ts - *last_1d_refresh >= refresh_1d_secs {
@@ -703,7 +784,10 @@ async fn run_cycle(
                 *last_1d_refresh = now_ts;
             }
             Ok(_) => tracing::warn!("[REFRESH] 1d: Binance returned empty candle set"),
-            Err(e) => tracing::warn!("[REFRESH] 1d: Binance fetch failed ({}) — using stale buffer", e),
+            Err(e) => tracing::warn!(
+                "[REFRESH] 1d: Binance fetch failed ({}) — using stale buffer",
+                e
+            ),
         }
     }
 
@@ -740,7 +824,13 @@ async fn run_cycle(
     let exit_info = {
         let s = state.lock().await;
         if let Some(ref pos) = s.open_position {
-            if let Some(signal) = strategy::compute_signal(&closes_1h, &closes_4h, &closes_1d, &volumes, params.min_alignment) {
+            if let Some(signal) = strategy::compute_signal(
+                &closes_1h,
+                &closes_4h,
+                &closes_1d,
+                &volumes,
+                params.min_alignment,
+            ) {
                 let now_secs = Utc::now().timestamp();
                 let current_price = closes_1h.last().copied().unwrap_or(0.0);
                 // Determine position side from stored state (default "Long" for backward compat)
@@ -786,9 +876,10 @@ async fn run_cycle(
                 match executor::get_positions(wallet).await {
                     Ok(positions) => {
                         let pos_side = pos_info.side();
-                        if let Some(pos_api) = positions.iter().find(|p| {
-                            p.market_symbol == "SOL" && p.side_ui == pos_side
-                        }) {
+                        if let Some(pos_api) = positions
+                            .iter()
+                            .find(|p| p.market_symbol == "SOL" && p.side_ui == pos_side)
+                        {
                             match executor::close_position(
                                 keypair,
                                 &pos_api.market_symbol,
@@ -799,15 +890,26 @@ async fn run_cycle(
                             .await
                             {
                                 Ok((sig, pnl)) => {
-                                    tracing::info!("[EXIT] TX: https://explorer.solana.com/tx/{}?cluster=mainnet-beta", sig);
+                                    tracing::info!(
+                                        "[EXIT] TX: https://explorer.solana.com/tx/{}?cluster=mainnet-beta",
+                                        sig
+                                    );
                                     tracing::info!("[EXIT] PnL: ${:.4}", pnl);
 
                                     let exit_price = closes_1h.last().copied().unwrap_or(0.0);
                                     let side = pos_info.side();
                                     let pnl_pct = if pos_info.entry_price > 0.0 {
                                         match side {
-                                            "Short" => (pos_info.entry_price - exit_price) / pos_info.entry_price * 100.0,
-                                            _ => (exit_price - pos_info.entry_price) / pos_info.entry_price * 100.0,
+                                            "Short" => {
+                                                (pos_info.entry_price - exit_price)
+                                                    / pos_info.entry_price
+                                                    * 100.0
+                                            }
+                                            _ => {
+                                                (exit_price - pos_info.entry_price)
+                                                    / pos_info.entry_price
+                                                    * 100.0
+                                            }
                                         }
                                     } else {
                                         0.0
@@ -818,6 +920,20 @@ async fn run_cycle(
                                     } else {
                                         0.0
                                     };
+                                    // Flash v2 cost ledger: capture the fee
+                                    // breakdown the positions API reports for
+                                    // this position (unsettled obligations =
+                                    // what the close charges). Raw fields are
+                                    // 1e6-scaled integer strings; PositionInfo
+                                    // converts them to USD.
+                                    let fees = pos_api.fee_breakdown_usd();
+                                    tracing::info!(
+                                        "[EXIT] Fees: exit=${:.4} borrow=${:.4} impact=${:.4} total=${:.4}",
+                                        fees.exit_fee_usd,
+                                        fees.borrow_fee_usd,
+                                        fees.price_impact_usd,
+                                        fees.total_fee_usd
+                                    );
                                     let trade = TradeRecord {
                                         entry_price: pos_info.entry_price,
                                         exit_price,
@@ -827,6 +943,7 @@ async fn run_cycle(
                                         exit_reason: format!("{:?}", reason),
                                         size_usd: pos_info.size_usd,
                                         side: side.to_string(),
+                                        fees: Some(fees),
                                     };
                                     let mut s = state.lock().await;
                                     s.trade_history.push(trade);
@@ -845,7 +962,8 @@ async fn run_cycle(
                             );
                             // Never treat a missing on-chain position as a real close for PnL,
                             // but record an audit row so the dashboard trade tape advances.
-                            let exit_price = closes_1h.last().copied().unwrap_or(pos_info.entry_price);
+                            let exit_price =
+                                closes_1h.last().copied().unwrap_or(pos_info.entry_price);
                             let side = pos_info.side().to_string();
                             let trade = TradeRecord {
                                 entry_price: pos_info.entry_price,
@@ -856,6 +974,7 @@ async fn run_cycle(
                                 exit_reason: format!("PhantomClear({:?})", reason),
                                 size_usd: pos_info.size_usd,
                                 side,
+                                fees: None,
                             };
                             let mut s = state.lock().await;
                             s.trade_history.push(trade);
@@ -882,18 +1001,27 @@ async fn run_cycle(
                 "Short" => current_price < pos_info.peak_price, // track trough for SHORT
                 _ => current_price > pos_info.peak_price,       // track peak for LONG
             };
-            if should_update_peak
-                && let Some(ref mut pos) = state.lock().await.open_position
-            {
+            if should_update_peak && let Some(ref mut pos) = state.lock().await.open_position {
                 pos.peak_price = current_price;
             }
         }
     } else {
         // 3. Check entry signal (only if flat)
-        if let Some(signal) = strategy::compute_signal(&closes_1h, &closes_4h, &closes_1d, &volumes, params.min_alignment) {
+        if let Some(signal) = strategy::compute_signal(
+            &closes_1h,
+            &closes_4h,
+            &closes_1d,
+            &volumes,
+            params.min_alignment,
+        ) {
             tracing::info!(
                 "[SIGNAL] score={:.3} rsi={:.1} bull={} bear={} atr={:.2} reasons={:?}",
-                signal.score, signal.rsi, signal.bullish_count, signal.bearish_count, signal.atr, signal.reasons
+                signal.score,
+                signal.rsi,
+                signal.bullish_count,
+                signal.bearish_count,
+                signal.atr,
+                signal.reasons
             );
 
             // Entry logic: LONG or SHORT, mutually exclusive.
@@ -909,9 +1037,21 @@ async fn run_cycle(
             // 0.267 and no entry triggers — even when price action would
             // normally qualify. Matching Python: gate on score only.
             let entry_signal = if signal.score > params.signal_threshold {
-                Some(("Long", "LONG", signal.score, signal.bullish_count, signal.reasons.clone()))
+                Some((
+                    "Long",
+                    "LONG",
+                    signal.score,
+                    signal.bullish_count,
+                    signal.reasons.clone(),
+                ))
             } else if signal.score < -params.signal_threshold {
-                Some(("Short", "SHORT", signal.score, signal.bearish_count, signal.reasons.clone()))
+                Some((
+                    "Short",
+                    "SHORT",
+                    signal.score,
+                    signal.bearish_count,
+                    signal.reasons.clone(),
+                ))
             } else {
                 None
             };
@@ -919,7 +1059,10 @@ async fn run_cycle(
             if let Some((side, trade_type, score, align_count, reasons)) = entry_signal {
                 tracing::info!(
                     "[ENTRY] Signal: {} score={:.3} align={} reasons={:?}",
-                    side, score, align_count, reasons
+                    side,
+                    score,
+                    align_count,
+                    reasons
                 );
 
                 if !config.dry_run {
@@ -929,18 +1072,30 @@ async fn run_cycle(
                             let sized = balance * config.position_fraction;
                             tracing::info!(
                                 "[ENTRY] Wallet: {:.4} SOL → position: {:.4} SOL ({:.0}% @ {}x)",
-                                balance, sized, config.position_fraction * 100.0, config.leverage
+                                balance,
+                                sized,
+                                config.position_fraction * 100.0,
+                                config.leverage
                             );
                             sized
                         }
                         Err(e) => {
-                            tracing::warn!("[ENTRY] Balance fetch failed ({}). Using fallback: {} SOL", e, config.amount_sol);
+                            tracing::warn!(
+                                "[ENTRY] Balance fetch failed ({}). Using fallback: {} SOL",
+                                e,
+                                config.amount_sol
+                            );
                             config.amount_sol
                         }
                     };
-                    match executor::open_position(keypair, amount_sol, config.leverage, trade_type).await {
+                    match executor::open_position(keypair, amount_sol, config.leverage, trade_type)
+                        .await
+                    {
                         Ok((sig, size_usd, entry_price)) => {
-                            tracing::info!("[ENTRY] TX: https://explorer.solana.com/tx/{}?cluster=mainnet-beta", sig);
+                            tracing::info!(
+                                "[ENTRY] TX: https://explorer.solana.com/tx/{}?cluster=mainnet-beta",
+                                sig
+                            );
 
                             // open_position already waits for the position to be readable.
                             // Re-fetch key for state; refuse to set open if still missing.
@@ -951,10 +1106,7 @@ async fn run_cycle(
                                         .into_iter()
                                         .find(|p| p.market_symbol == "SOL" && p.side_ui == side)
                                     {
-                                        let entry = p
-                                            .entry_price_ui
-                                            .parse()
-                                            .unwrap_or(entry_price);
+                                        let entry = p.entry_price_ui.parse().unwrap_or(entry_price);
                                         let size = p.size_usd_ui.parse().unwrap_or(size_usd);
                                         state.lock().await.open_position = Some(OpenPosition {
                                             entry_price: entry,
@@ -991,7 +1143,13 @@ async fn run_cycle(
                         }
                     }
                 } else {
-                    tracing::info!("[DRY RUN] Would open {} SOL {} @ {}x ({}%)", config.amount_sol, side, config.leverage, config.position_fraction * 100.0);
+                    tracing::info!(
+                        "[DRY RUN] Would open {} SOL {} @ {}x ({}%)",
+                        config.amount_sol,
+                        side,
+                        config.leverage,
+                        config.position_fraction * 100.0
+                    );
                 }
             }
         }
@@ -1048,11 +1206,23 @@ mod tests {
         }"#;
         let parsed: TraderState = serde_json::from_str(old_json).unwrap();
         let defaults = StrategyParams::default();
-        assert_eq!(parsed.wallet, "Driyi8Sw2622yCefU34zrjBsQynrDoGD31tBecXrEF6R");
-        assert_eq!(parsed.active_config.signal_threshold, defaults.signal_threshold);
+        assert_eq!(
+            parsed.wallet,
+            "Driyi8Sw2622yCefU34zrjBsQynrDoGD31tBecXrEF6R"
+        );
+        assert_eq!(
+            parsed.active_config.signal_threshold,
+            defaults.signal_threshold
+        );
         assert_eq!(parsed.active_config.tp_atr, defaults.tp_atr);
-        assert_eq!(parsed.active_config.score_flip_delay_hrs, defaults.score_flip_delay_hrs);
-        assert_eq!(parsed.active_config.time_decay_hours, defaults.time_decay_hours);
+        assert_eq!(
+            parsed.active_config.score_flip_delay_hrs,
+            defaults.score_flip_delay_hrs
+        );
+        assert_eq!(
+            parsed.active_config.time_decay_hours,
+            defaults.time_decay_hours
+        );
         assert_eq!(parsed.active_config.min_alignment, defaults.min_alignment);
     }
 
@@ -1060,14 +1230,26 @@ mod tests {
     fn trader_state_new_has_default_active_config() {
         let state = TraderState::new("TestWallet11111111111111111111111111111111");
         let defaults = StrategyParams::default();
-        assert_eq!(state.active_config.signal_threshold, defaults.signal_threshold);
+        assert_eq!(
+            state.active_config.signal_threshold,
+            defaults.signal_threshold
+        );
         assert_eq!(state.active_config.tp_atr, defaults.tp_atr);
         assert_eq!(state.active_config.sl_atr, defaults.sl_atr);
         assert_eq!(state.active_config.max_hold_hours, defaults.max_hold_hours);
-        assert_eq!(state.active_config.trailing_stop_atr, defaults.trailing_stop_atr);
-        assert_eq!(state.active_config.time_decay_hours, defaults.time_decay_hours);
+        assert_eq!(
+            state.active_config.trailing_stop_atr,
+            defaults.trailing_stop_atr
+        );
+        assert_eq!(
+            state.active_config.time_decay_hours,
+            defaults.time_decay_hours
+        );
         assert_eq!(state.active_config.min_alignment, defaults.min_alignment);
-        assert_eq!(state.active_config.score_flip_delay_hrs, defaults.score_flip_delay_hrs);
+        assert_eq!(
+            state.active_config.score_flip_delay_hrs,
+            defaults.score_flip_delay_hrs
+        );
     }
 
     #[test]
@@ -1086,33 +1268,62 @@ mod tests {
         };
         let log_msg = format!(
             "signal={:.2} tp={:.1} sl={:.1} hold={:.0}h trail={:.2} decay={:.0}h flip_delay={:.1}h alignment={}",
-            params.signal_threshold, params.tp_atr, params.sl_atr,
-            params.max_hold_hours, params.trailing_stop_atr,
-            params.time_decay_hours, params.score_flip_delay_hrs,
+            params.signal_threshold,
+            params.tp_atr,
+            params.sl_atr,
+            params.max_hold_hours,
+            params.trailing_stop_atr,
+            params.time_decay_hours,
+            params.score_flip_delay_hrs,
             params.min_alignment,
         );
         // Verify all key fields appear in the formatted log
-        assert!(log_msg.contains("signal=0.30"), "Log must include signal_threshold");
+        assert!(
+            log_msg.contains("signal=0.30"),
+            "Log must include signal_threshold"
+        );
         assert!(log_msg.contains("tp=6.0"), "Log must include tp_atr");
         assert!(log_msg.contains("sl=2.5"), "Log must include sl_atr");
-        assert!(log_msg.contains("hold=96h"), "Log must include max_hold_hours");
-        assert!(log_msg.contains("trail=1.00"), "Log must include trailing_stop_atr");
-        assert!(log_msg.contains("decay=48h"), "Log must include time_decay_hours");
-        assert!(log_msg.contains("flip_delay=2.0h"), "Log must include score_flip_delay_hrs");
-        assert!(log_msg.contains("alignment=3"), "Log must include min_alignment");
+        assert!(
+            log_msg.contains("hold=96h"),
+            "Log must include max_hold_hours"
+        );
+        assert!(
+            log_msg.contains("trail=1.00"),
+            "Log must include trailing_stop_atr"
+        );
+        assert!(
+            log_msg.contains("decay=48h"),
+            "Log must include time_decay_hours"
+        );
+        assert!(
+            log_msg.contains("flip_delay=2.0h"),
+            "Log must include score_flip_delay_hrs"
+        );
+        assert!(
+            log_msg.contains("alignment=3"),
+            "Log must include min_alignment"
+        );
     }
 
     #[test]
     fn existing_trader_state_json_file_loads() {
         // Load the actual data/trader-state.json file from the repo
-        let repo_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../data/trader-state.json");
+        let repo_root =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../data/trader-state.json");
         if let Some(state) = TraderState::load(&repo_root) {
             assert_eq!(state.wallet, "Driyi8Sw2622yCefU34zrjBsQynrDoGD31tBecXrEF6R");
             assert_eq!(state.total_trades, 1);
             // active_config should default since the file doesn't have this field
             let defaults = StrategyParams::default();
-            assert_eq!(state.active_config.signal_threshold, defaults.signal_threshold);
-            assert_eq!(state.active_config.score_flip_delay_hrs, defaults.score_flip_delay_hrs);
+            assert_eq!(
+                state.active_config.signal_threshold,
+                defaults.signal_threshold
+            );
+            assert_eq!(
+                state.active_config.score_flip_delay_hrs,
+                defaults.score_flip_delay_hrs
+            );
         }
         // If the file doesn't exist (CI), that's fine — we already test with a JSON string above
     }
@@ -1158,6 +1369,7 @@ mod tests {
             exit_reason: "ScoreFlip".to_string(),
             size_usd: 266.77,
             side: "Long".to_string(),
+            fees: None,
         });
         state.trade_history.push(TradeRecord {
             entry_price: 95.35,
@@ -1168,6 +1380,7 @@ mod tests {
             exit_reason: "TrailingStop".to_string(),
             size_usd: 337.46,
             side: "Long".to_string(),
+            fees: None,
         });
         assert_eq!(state.repair_trade_history_sides(), 1);
         assert_eq!(state.trade_history[0].side, "Short");
@@ -1198,12 +1411,18 @@ mod tests {
         let entry_price = 100.0;
         let exit_price = 95.0;
         let pnl_pct = (entry_price - exit_price) / entry_price * 100.0;
-        assert_eq!(pnl_pct, 5.0, "SHORT profit should be +5% when price drops 5%");
+        assert_eq!(
+            pnl_pct, 5.0,
+            "SHORT profit should be +5% when price drops 5%"
+        );
 
         // Verify SHORT loss PnL
         let exit_price_loss = 110.0;
         let pnl_pct_loss = (entry_price - exit_price_loss) / entry_price * 100.0;
-        assert_eq!(pnl_pct_loss, -10.0, "SHORT loss should be -10% when price rises 10%");
+        assert_eq!(
+            pnl_pct_loss, -10.0,
+            "SHORT loss should be -10% when price rises 10%"
+        );
     }
 
     #[test]
@@ -1212,11 +1431,17 @@ mod tests {
         let entry_price = 100.0;
         let exit_price = 110.0;
         let pnl_pct = (exit_price - entry_price) / entry_price * 100.0;
-        assert_eq!(pnl_pct, 10.0, "LONG profit should be +10% when price rises 10%");
+        assert_eq!(
+            pnl_pct, 10.0,
+            "LONG profit should be +10% when price rises 10%"
+        );
 
         let exit_price_loss = 90.0;
         let pnl_pct_loss = (exit_price_loss - entry_price) / entry_price * 100.0;
-        assert_eq!(pnl_pct_loss, -10.0, "LONG loss should be -10% when price drops 10%");
+        assert_eq!(
+            pnl_pct_loss, -10.0,
+            "LONG loss should be -10% when price drops 10%"
+        );
     }
 
     #[test]
@@ -1249,7 +1474,10 @@ mod tests {
 
         // Price rises to 93 — should NOT update (tracking trough, not peak)
         let current3 = 93.0;
-        assert!(current3 > pos.peak_price, "93 > 90: should NOT update trough");
+        assert!(
+            current3 > pos.peak_price,
+            "93 > 90: should NOT update trough"
+        );
         assert_eq!(pos.peak_price, 90.0, "Trough should remain at 90");
     }
 
@@ -1305,10 +1533,14 @@ mod tests {
     #[test]
     fn existing_trader_state_json_loads_with_default_side() {
         // Load the actual data/trader-state.json which has an open position without `side` field
-        let repo_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../data/trader-state.json");
+        let repo_root =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../data/trader-state.json");
         if let Some(state) = TraderState::load(&repo_root) {
             if let Some(ref pos) = state.open_position {
-                assert_eq!(pos.side, "Long", "Existing state should default side to Long");
+                assert_eq!(
+                    pos.side, "Long",
+                    "Existing state should default side to Long"
+                );
             }
         }
     }
@@ -1327,7 +1559,11 @@ mod tests {
         let bullish_count: usize = 2;
 
         let is_long = score > params.signal_threshold;
-        assert!(is_long, "Score 0.5 > 0.3 → LONG regardless of alignment count ({})", bullish_count);
+        assert!(
+            is_long,
+            "Score 0.5 > 0.3 → LONG regardless of alignment count ({})",
+            bullish_count
+        );
     }
 
     #[test]
@@ -1342,7 +1578,11 @@ mod tests {
         let bearish_count: usize = 2;
 
         let is_short = score < -params.signal_threshold;
-        assert!(is_short, "Score -0.5 < -0.3 → SHORT regardless of alignment count ({})", bearish_count);
+        assert!(
+            is_short,
+            "Score -0.5 < -0.3 → SHORT regardless of alignment count ({})",
+            bearish_count
+        );
     }
 
     #[test]
@@ -1410,13 +1650,21 @@ mod tests {
         state.consecutive_errors = 5;
         let (code, _reason, body) = check_trader_health(&state);
         assert_eq!(code, 503, "Should return 503 when consecutive_errors >= 5");
-        assert!(body.contains("consecutive errors"), "Body should mention errors: {}", body);
+        assert!(
+            body.contains("consecutive errors"),
+            "Body should mention errors: {}",
+            body
+        );
 
         // Also test with > 5
         state.consecutive_errors = 10;
         let (code, _reason, body) = check_trader_health(&state);
         assert_eq!(code, 503, "Should return 503 when consecutive_errors = 10");
-        assert!(body.contains("consecutive errors"), "Body should mention errors: {}", body);
+        assert!(
+            body.contains("consecutive errors"),
+            "Body should mention errors: {}",
+            body
+        );
     }
 
     #[test]
@@ -1429,7 +1677,11 @@ mod tests {
         state.consecutive_errors = 0;
         let (code, _reason, body) = check_trader_health(&state);
         assert_eq!(code, 503, "Should return 503 when last_healthy is stale");
-        assert!(body.contains("stale"), "Body should mention stale: {}", body);
+        assert!(
+            body.contains("stale"),
+            "Body should mention stale: {}",
+            body
+        );
     }
 
     #[test]
@@ -1440,7 +1692,11 @@ mod tests {
         state.last_healthy = String::new(); // empty — initial state
         let (code, _reason, body) = check_trader_health(&state);
         assert_eq!(code, 503, "Should return 503 when last_healthy is empty");
-        assert!(body.contains("no healthy timestamp"), "Body should mention missing timestamp: {}", body);
+        assert!(
+            body.contains("no healthy timestamp"),
+            "Body should mention missing timestamp: {}",
+            body
+        );
     }
 
     #[test]
@@ -1450,8 +1706,15 @@ mod tests {
         state.consecutive_errors = 0;
         state.last_healthy = "garbage-not-a-timestamp".to_string();
         let (code, _reason, body) = check_trader_health(&state);
-        assert_eq!(code, 503, "Should return 503 when last_healthy cannot be parsed");
-        assert!(body.contains("invalid"), "Body should mention invalid timestamp: {}", body);
+        assert_eq!(
+            code, 503,
+            "Should return 503 when last_healthy cannot be parsed"
+        );
+        assert!(
+            body.contains("invalid"),
+            "Body should mention invalid timestamp: {}",
+            body
+        );
     }
 
     #[test]
@@ -1462,7 +1725,10 @@ mod tests {
         state.last_healthy = recent_time.to_rfc3339();
         state.consecutive_errors = 0;
         let (code, _reason, _body) = check_trader_health(&state);
-        assert_eq!(code, 200, "Should return 200 when last_healthy is 29 minutes ago");
+        assert_eq!(
+            code, 200,
+            "Should return 200 when last_healthy is 29 minutes ago"
+        );
     }
 
     #[test]
@@ -1474,7 +1740,11 @@ mod tests {
         state.last_healthy = String::new();
         let (code, _reason, body) = check_trader_health(&state);
         assert_eq!(code, 503);
-        assert!(body.contains("consecutive errors"), "Error check should fire first: {}", body);
+        assert!(
+            body.contains("consecutive errors"),
+            "Error check should fire first: {}",
+            body
+        );
     }
 
     #[test]
@@ -1484,12 +1754,30 @@ mod tests {
         let json = serde_json::to_string(&state).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
         // Verify key fields exist
-        assert!(parsed.get("wallet").is_some(), "/state JSON must include wallet");
-        assert!(parsed.get("open_position").is_some(), "/state JSON must include open_position");
-        assert!(parsed.get("consecutive_errors").is_some(), "/state JSON must include consecutive_errors");
-        assert!(parsed.get("last_healthy").is_some(), "/state JSON must include last_healthy");
-        assert!(parsed.get("active_config").is_some(), "/state JSON must include active_config");
-        assert!(parsed.get("trade_history").is_some(), "/state JSON must include trade_history");
+        assert!(
+            parsed.get("wallet").is_some(),
+            "/state JSON must include wallet"
+        );
+        assert!(
+            parsed.get("open_position").is_some(),
+            "/state JSON must include open_position"
+        );
+        assert!(
+            parsed.get("consecutive_errors").is_some(),
+            "/state JSON must include consecutive_errors"
+        );
+        assert!(
+            parsed.get("last_healthy").is_some(),
+            "/state JSON must include last_healthy"
+        );
+        assert!(
+            parsed.get("active_config").is_some(),
+            "/state JSON must include active_config"
+        );
+        assert!(
+            parsed.get("trade_history").is_some(),
+            "/state JSON must include trade_history"
+        );
     }
 
     #[test]

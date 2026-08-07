@@ -574,6 +574,26 @@ pub struct TradeRecord {
     /// Position side: "Long" or "Short". Defaults to "Long" for backward compat with existing state files.
     #[serde(default = "default_side")]
     pub side: String,
+    /// Flash Trade v2 fee breakdown captured from the positions API at close
+    /// time (exit fee, borrow fee, price impact, total — USD). Populated since
+    /// 2026-08-07 to build the v2 cost ledger; older records deserialize with
+    /// `None` thanks to `#[serde(default)]`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fees: Option<FeeBreakdown>,
+}
+
+/// Flash Trade v2 per-position fee components in USD.
+///
+/// The positions API exposes raw 1e6-scaled integer strings (`exitFeeUsd`,
+/// `borrowFeeUsd`, `priceImpactUsd`, `totalFeeUsd`); executor converts them
+/// to USD before storing here. `totalFeeUsd` = exit + borrow + impact on the
+/// closing leg (the opening-leg fee is charged at open and not reported here).
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+pub struct FeeBreakdown {
+    pub exit_fee_usd: f64,
+    pub borrow_fee_usd: f64,
+    pub price_impact_usd: f64,
+    pub total_fee_usd: f64,
 }
 
 impl TradeRecord {
@@ -1527,6 +1547,7 @@ mod tests {
             exit_reason: "ScoreFlip".to_string(),
             size_usd: 266.77,
             side: "Long".to_string(),
+            fees: None,
         };
         assert_eq!(t.infer_side_from_pnl(), "Short");
         assert!(t.repair_side_from_pnl());
@@ -1544,9 +1565,50 @@ mod tests {
             exit_reason: "TrailingStop".to_string(),
             size_usd: 337.46,
             side: "Long".to_string(),
+            fees: None,
         };
         assert_eq!(t.infer_side_from_pnl(), "Long");
         assert!(!t.repair_side_from_pnl());
+    }
+
+    #[test]
+    fn trade_record_without_fees_field_deserializes() {
+        // Pre-2026-08-07 state files have no `fees` key; must deserialize None.
+        let json = r#"{
+            "entry_price": 73.0, "exit_price": 72.5, "entry_time": 0,
+            "exit_time": 0, "pnl_pct": 0.6, "exit_reason": "TrailingStop",
+            "size_usd": 118.0, "side": "Short"
+        }"#;
+        let parsed: TradeRecord = serde_json::from_str(json).unwrap();
+        assert!(parsed.fees.is_none());
+        assert_eq!(parsed.side, "Short");
+    }
+
+    #[test]
+    fn trade_record_fees_serde_roundtrip() {
+        let t = TradeRecord {
+            entry_price: 73.0,
+            exit_price: 72.5,
+            entry_time: 0,
+            exit_time: 0,
+            pnl_pct: 0.6,
+            exit_reason: "TrailingStop".to_string(),
+            size_usd: 118.0,
+            side: "Short".to_string(),
+            fees: Some(FeeBreakdown {
+                exit_fee_usd: 0.0234,
+                borrow_fee_usd: 0.0005,
+                price_impact_usd: 0.0,
+                total_fee_usd: 0.0239,
+            }),
+        };
+        let json = serde_json::to_string(&t).unwrap();
+        let parsed: TradeRecord = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.fees.as_ref().unwrap().total_fee_usd, 0.0239);
+        // None fees must NOT serialize a null key (skip_serializing_if)
+        let no_fees = TradeRecord { fees: None, ..t };
+        let json2 = serde_json::to_string(&no_fees).unwrap();
+        assert!(!json2.contains("fees"));
     }
 
     #[test]

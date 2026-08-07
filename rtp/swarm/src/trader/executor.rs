@@ -84,6 +84,32 @@ pub struct PositionInfo {
     pub pnl_with_fee_usd_ui: String,
     #[serde(default)]
     pub leverage_ui: String,
+    /// Raw fee components (v2 PositionMetricsDto). Integer strings scaled by
+    /// 1e6 (verified 2026-08-07: exitFeeUsd "23419" == $0.023419). Read via
+    /// `fee_breakdown_usd()` which converts to USD.
+    #[serde(default)]
+    pub exit_fee_usd: String,
+    #[serde(default)]
+    pub borrow_fee_usd: String,
+    #[serde(default)]
+    pub price_impact_usd: String,
+    #[serde(default)]
+    pub total_fee_usd: String,
+}
+
+impl PositionInfo {
+    /// Parse the raw 1e6-scaled fee component strings into USD.
+    pub fn fee_breakdown_usd(&self) -> crate::trader::strategy::FeeBreakdown {
+        fn usd(s: &str) -> f64 {
+            s.parse::<f64>().map(|v| v / 1e6).unwrap_or(0.0)
+        }
+        crate::trader::strategy::FeeBreakdown {
+            exit_fee_usd: usd(&self.exit_fee_usd),
+            borrow_fee_usd: usd(&self.borrow_fee_usd),
+            price_impact_usd: usd(&self.price_impact_usd),
+            total_fee_usd: usd(&self.total_fee_usd),
+        }
+    }
 }
 
 fn default_collateral_sol() -> String {
@@ -1326,6 +1352,41 @@ mod tests {
         assert_eq!(positions[0].market_symbol, "SOL");
         assert_eq!(positions[0].key, "SoLMarketPubkey1111111111111111111111111");
         assert_eq!(positions[0].collateral_symbol, "SOL"); // default
+    }
+
+    #[test]
+    fn fee_breakdown_parses_raw_1e6_scaled_strings() {
+        // Live Flash v2 payload (2026-08-07): raw fee components are integer
+        // strings scaled by 1e6 (exitFeeUsd "23419" == $0.023419).
+        let info: PositionInfo = serde_json::from_value(serde_json::json!({
+            "sideUi": "Short",
+            "marketSymbol": "SOL",
+            "sizeUsdUi": "117.09",
+            "entryPriceUi": "72.82",
+            "exitFeeUsd": "23419",
+            "borrowFeeUsd": "432",
+            "priceImpactUsd": "0",
+            "totalFeeUsd": "23851"
+        }))
+        .unwrap();
+        let fb = info.fee_breakdown_usd();
+        assert!((fb.exit_fee_usd - 0.023419).abs() < 1e-9);
+        assert!((fb.borrow_fee_usd - 0.000432).abs() < 1e-9);
+        assert!((fb.total_fee_usd - 0.023851).abs() < 1e-9);
+        assert_eq!(fb.price_impact_usd, 0.0);
+    }
+
+    #[test]
+    fn fee_breakdown_defaults_zero_on_missing_fields() {
+        let info: PositionInfo = serde_json::from_value(serde_json::json!({
+            "sideUi": "Long",
+            "marketSymbol": "SOL"
+        }))
+        .unwrap();
+        let fb = info.fee_breakdown_usd();
+        assert_eq!(fb.exit_fee_usd, 0.0);
+        assert_eq!(fb.borrow_fee_usd, 0.0);
+        assert_eq!(fb.total_fee_usd, 0.0);
     }
 
     #[test]
