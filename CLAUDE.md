@@ -9,6 +9,8 @@ This file provides guidance to Claude Code when working with this repository.
 **Hackathon**: SWARMs / Canteen × Colosseum, deadline May 11, 2026.
 **License**: BSL 1.1 (converts to Apache 2.0 on 2030-05-11)
 
+**Strategic direction (canonical)**: `docs/STRATEGIC-DIRECTION.md`. RTP is pivoting to **bespoke treasury infrastructure** — one manufactured strategy per client, self-custody, on-chain-verifiable. Survivor 2.69 is the *specimen* proving the factory; the pipeline is the product. Bespoke-first, scale-later (only after the exit criteria in that doc are met). Sequencing: (1) get 2.69 healthy/impressive, (2) website copy reframe after clean post-v2 trades, (3) client #1 = close friend (their mandate is the S15 lineage, `research/missions/s15_final_verdict.md`). Consult that doc before any product/positioning/copy work.
+
 ---
 
 ## Execution Venue — Complete (Flash Trade CPI)

@@ -80,6 +80,8 @@ node scripts/railway-logs.mjs --from 5f0bdc99-b9c4-4f99-8163-1ee8ab7b4435
 ## 1. Canonical Project Definition
 **Current state:** Live autonomous trader (rtp-trader) running 24/7 on Railway with **real multi-TF** (independent Binance 1h/4h/1d buffers, commit `697bc04`) and **corrected alignment semantics** (`min_alignment=2` in `data/trader-strategy-config.json`, commit `5fa657a`). Config: thresh=0.3, tp=6.0, sl=2.5, trail=1.0, hold=96h, decay=48h, flip_delay=2h, align=2 (matches Python reference). **Operator env:** no overrides active, **position_fraction=0.20**, min_open_collateral=0.15 SOL, leverage=9.0. Supports LONG+SHORT. Live Short open verified 2026-07-28 (entry ~$73.27, ~$118 notional). Score flip delay 2h. Health 503 when stale/erroring. Watchdog 120s cycle / 30s HTTP. All 7 Railway services green. License: BSL-1.1.
 
+**Strategic direction (READ FIRST for any product/positioning work):** `docs/STRATEGIC-DIRECTION.md` is canonical. RTP is pivoting to **bespoke treasury infrastructure** — one manufactured strategy per client, self-custody, on-chain verifiable. Survivor 2.69 = specimen, pipeline = product. Bespoke-first / scale-later (scaling only after exit criteria are met). Sequencing: (1) get 2.69 healthy/impressive, (2) website copy reframe after clean post-v2 trades, (3) client #1 = close friend (their mandate IS the S15 lineage). Client engine config frozen pending leverage decision.
+
 ---
 
 ## 1. Canonical Project Definition
