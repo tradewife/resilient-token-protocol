@@ -322,10 +322,11 @@ Two-layer trader fix and the client-1 mandate crossed the finish line.
 
 **Open items:**
 1. Verify live limit-order placement on Flash (order support + fill rate at zone) before committing client capital.
-2. Rust momentum off-by-one: keep dead (matches the record being judged) vs fix + re-WFA — decision pending.
-3. Track 1c: checkpoint Survivor 2.69 verdicts at 5 and 10 post-v2 live trades (fee ledger capturing).
+2. ~~Rust momentum off-by-one~~ — **FIXED (commit `b178da7`, deployed `188e006e`, Aug 7 ~10:21 UTC)**: momentum/volatility computed over the lookback-window slice (lookback-1 returns) so the `>= lookback` guard was unreachable — always 0.0. Now matches the Python reference (rolling mean over the full series). 4 regression tests, 417 lib tests green. Live with momentum since this deploy; trader was FLAT at switchover.
+3. Track 1c: checkpoint Survivor 2.69 verdicts at 5 and 10 post-v2 live trades (fee ledger capturing; 1 trade logged).
 4. Track 3: website copy reframe after 2.69 has clean post-v2 trades.
 5. Track 4: finalize mandate doc commercials with client.
+6. Friend's engine leverage decision deferred by user — currently documented as 3x→5x step-up option in the verdict.
 
 **Key learnings:**
 - Never judge an RTP strategy on the v1-era fee model — it is ~5× harsher than measured Flash v2 reality and produced a false falsification.

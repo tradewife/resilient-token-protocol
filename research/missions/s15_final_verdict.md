@@ -61,4 +61,4 @@ create_folds() absorbs all leftover bars into the LAST fold when data > num_fold
 - Live limit-order placement on Flash must be verified (order support, fill rate at zone price); backtest assumes fills at touch-bar close, stressed +1 bar
 - SOL-only mandate (BTC/ETH transfer negative) — waived by design
 - Aug-Dec 2024 regime was net negative: expect multi-month drawdown periods in live operation
-- Rust momentum off-by-one (flagged, separate decision)
+- Rust momentum off-by-one — FIXED (commit b178da7, deploy 188e006e, Aug 7): momentum/volatility now match the Python reference; was unrelated to this Python-validated config anyway

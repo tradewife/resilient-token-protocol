@@ -516,6 +516,7 @@ If you change anything in `_compute_score()` or `simulate_trades()`, run `evalua
 2. **`create_folds()` absorbs all leftover bars into the LAST fold** when data is longer than `num_folds × test_window` — on multi-year data one mega-fold dominates the headline stats and the min-trades gate becomes meaningless. Use explicit equal anchored windows (`equal_folds()` in `s15_v7e_corrected_folds.py`) for multi-year WFA.
 3. **Latency absorber finding**: confirmation entries (close_reassert) pay detection latency at the fill (47% retention under +1-bar stress). Blind touch / limit-at-zone (`confirm_mode=none`) absorbs it via the order book (105% retention). `confirm_bars=2` is NOT an absorber (−88%).
 4. **Friend's engine config**: `research/missions/s15_friend_engine_config.json` (DEPLOYABLE 10/10, verdict in `s15_final_verdict.md`). Open prerequisite before client capital: verify live LIMIT order placement on Flash (order support + fill rate at zone price).
+5. **Momentum off-by-one — FIXED (Aug 7, `b178da7`)**: `timeframe_signal()` computed returns over the lookback-close slice (lookback−1 returns), so momentum/volatility were permanently 0.0 in production. Fixed to match the Python reference (`returns.rolling(lookback).mean()` over the full series). Do NOT reintroduce a window-slice returns computation here. Live semantics match the WFA record since deploy `188e006e`.
 
 ---
 
