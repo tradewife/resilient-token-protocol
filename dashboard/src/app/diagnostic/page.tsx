@@ -54,11 +54,17 @@ const DELIVERABLES = [
 ] as const;
 
 const PROCESS = [
-  { n: "01", t: "Submit your mandate", d: "The intake form below. Ten minutes. You keep a copy." },
-  { n: "02", t: "The factory runs", d: "Research pipeline manufactures a strategy for your mandate and runs the full gate suite on two years of historical data." },
-  { n: "03", t: "Paper verdict", d: "A complete paper-traded package under measured venue fees. Nothing live, nothing moves." },
-  { n: "04", t: "Debrief", d: "You receive the verdict, the config, and the risk report — and decide what happens next. If nothing, the mandate simply ends." },
+  { n: "01", t: "Reserve a slot", d: "One-time payment below. Limited to 3–4 engagements; your slot is held the moment payment clears." },
+  { n: "02", t: "Submit your mandate", d: "The intake form below. Ten minutes. You keep a copy." },
+  { n: "03", t: "The factory runs", d: "Research pipeline manufactures a strategy for your mandate and runs the full gate suite on two years of historical data." },
+  { n: "04", t: "Paper verdict", d: "A complete paper-traded package under measured venue fees. Nothing live, nothing moves." },
+  { n: "05", t: "Debrief", d: "You receive the verdict, the config, and the risk report — and decide what happens next. If nothing, the mandate simply ends." },
 ] as const;
+
+// Sandbox Payment Link (test mode). Swap for the live link when the
+// account moves to production — see .secrets/stripe-sandbox-resources.
+const PAYMENT_LINK = process.env.NEXT_PUBLIC_RTP_DIAGNOSTIC_PAY_URL ||
+  "https://buy.stripe.com/test_8x2cN6dajgfm0JK33S57W00";
 
 export default function DiagnosticPage() {
   const [form, setForm] = useState<IntakeForm>(EMPTY);
@@ -113,6 +119,13 @@ export default function DiagnosticPage() {
             </span>
           </div>
         </header>
+
+        <div style={{ marginTop: "var(--space-lg)", display: "flex", gap: "var(--space-md)", alignItems: "center", flexWrap: "wrap" }}>
+          <a href={PAYMENT_LINK} target="_blank" rel="noopener noreferrer" className="sys2-cta-primary">
+            Reserve a slot · A$4,500
+          </a>
+          <a href="#intake" className="sys2-cta-secondary">Already paid? Submit your mandate →</a>
+        </div>
 
         <div className="validated-card" style={{ marginTop: "var(--space-xl)" }}>
           <div className="validated-head">
