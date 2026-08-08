@@ -1,6 +1,7 @@
 ARG RUST_VERSION=1.88-slim
 FROM rust:${RUST_VERSION} AS builder
-RUN apt-get update && apt-get install -y pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*
+# git + ca-certificates: cargo fetches gmsol-sdk from a public git repo
+RUN apt-get update && apt-get install -y pkg-config libssl-dev git ca-certificates && rm -rf /var/lib/apt/lists/*
 WORKDIR /build
 
 # Force cache bust on every build
