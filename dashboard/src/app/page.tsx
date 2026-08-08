@@ -451,15 +451,15 @@ export default function Home() {
       <section className="sys2-section" id="live">
         <header className="sys2-sect-head">
           <div>
-            <div className="sys2-sect-eyebrow">§1 · proven on mainnet</div>
-            <h2 className="sys2-sect-title">The blueprint is running. With real capital.</h2>
+            <div className="sys2-sect-eyebrow">§1 · verifiable mainnet performance</div>
+            <h2 className="sys2-sect-title">Trust is built on public state, not marketing brochures</h2>
             <p className="sys2-sect-lede">
-              Beta testing with skin in the game — real capital on mainnet since May 12, every
-              position verifiable on Solana Explorer. A Rust agent executes validated strategies
-              on Solana perps, signed autonomously. When the original venue (Flash Trade)
-              announced its wind-down in August 2026, the pipeline measured GMTrade&apos;s live
-              on-chain costs and re-validated the engine: 10/10 gates. Migration underway.
-            </p>
+              Beta testing with skin in the game — real capital on mainnet since May 12, 2026,
+              every position verifiable on Solana Explorer. A Rust agent executes validated
+              strategies on Solana perps, signed autonomously. When the original venue (Flash
+              Trade) announced its wind-down in August 2026, the pipeline measured GMTrade&apos;s
+              live on-chain costs and re-validated the engine: 10/10 gates. Migration underway.
+        </p>
           </div>
           <div className="sys2-sect-side">
             <span className={`sys2-status-pill ${traderStatus}`}>
@@ -598,15 +598,13 @@ export default function Home() {
       <section className="sys2-section" id="service" style={{ marginTop: "var(--space-4xl)" }}>
         <header className="sys2-sect-head">
           <div>
-            <div className="sys2-sect-eyebrow">§2 · the service</div>
-            <h2 className="sys2-sect-title">Bring us your terms. We build the engine to fit them.</h2>
+            <div className="sys2-sect-eyebrow">§2 · engineered treasury infrastructure</div>
+            <h2 className="sys2-sect-title">Not a SaaS product. Not a shared template</h2>
             <p className="sys2-sect-lede">
-              Not a SaaS product you configure. Not a shared strategy you rent. The research
-              + validation pipeline is the actual product — it takes your specifics (capital
-              size, risk budget, drawdown limits, horizon) and engineers a distinct,
-              on-chain-verifiable strategy that runs on self-custodied rails. Each engagement
-              is high-touch and deliberately limited, so your edge never gets crowded.
-            </p>
+              Resilient Token Protocol is an engineering-first pipeline built to solve execution
+              decay. We take your exact constraints and write a distinct, isolated trading
+              strategy built for one destination: your account.
+        </p>
           </div>
         </header>
 
@@ -646,13 +644,16 @@ export default function Home() {
       <section className="sys2-section" id="trust" style={{ marginTop: "var(--space-4xl)" }}>
         <header className="sys2-sect-head">
           <div>
-            <div className="sys2-sect-eyebrow">§2 · trustless by design</div>
-            <h2 className="sys2-sect-title">Agents propose. The program disposes.</h2>
+            <div className="sys2-sect-eyebrow">§3 · trustless by design</div>
+            <h2 className="sys2-sect-title">Cryptographic security without custody handovers</h2>
             <p className="sys2-sect-lede">
-              16 constitutional invariants are enforced in both the Rust runtime (<code className="inline-code">soulguard.rs</code>)
-              and the on-chain Anchor program. No human can sign for the treasury. No human can override
-              the rules, not even the authority. The program is the only authority.
-            </p>
+              We do not manage your capital, and we do not hold your funds. Your trading engine
+              runs on self-custodied rails using Solana Program-Derived Addresses (PDAs). 16
+              constitutional invariants are enforced in both the Rust runtime
+              (<code className="inline-code">soulguard.rs</code>) and the on-chain Anchor program.
+              No human can sign for the treasury. No human can override the rules, not even the
+              authority. The program is the only authority.
+        </p>
           </div>
         </header>
 
@@ -695,13 +696,13 @@ export default function Home() {
         <header className="sys2-sect-head">
           <div>
             <div className="sys2-sect-eyebrow">§4 · the engine room</div>
-            <h2 className="sys2-sect-title">30,000 hypotheses tested every night. Only the survivors reach the chain.</h2>
+            <h2 className="sys2-sect-title">Exhaustive mathematical search to isolate true mathematical survivors</h2>
             <p className="sys2-sect-lede">
-              The Night Shift runs exhaustive parameter search, validates through 9 independent time
-              windows, applies Darwinian evolution, and stress-tests with Monte Carlo simulation.
-              An LLM consults a library of 15 strategies and a log of remembered failures before
-              every exploration run. Nothing is repeated. The system learns by remembering what does not work.
-            </p>
+              We do not guess strategy parameters. Every night, our offline validation pipeline —
+              The Night Shift — runs thousands of computational iterations to ensure only the
+              most robust systems are deployed. An LLM consults a library of 15 strategies and a
+              log of remembered failures before every exploration run.
+        </p>
           </div>
         </header>
 
@@ -798,14 +799,12 @@ export default function Home() {
       <section className="sys2-section sys2-cta-section" id="integrate">
         <div className="cta2-card">
           <div className="cta2-content">
-            <div className="sys2-sect-eyebrow">§5 · engage</div>
-            <h2 className="cta2-title">Your terms in. A bespoke engine out.</h2>
+            <div className="sys2-sect-eyebrow">§5 · high-touch engagement & pricing</div>
+            <h2 className="cta2-title">A$4,500 One-Time. Simple. Sovereign</h2>
             <p className="cta2-lede">
-              A$4,500, one-time. Structured intake, engineered strategy, ten-gate validation
-              at measured venue fees, written verdict, 45–60 minute debrief. Three to four
-              slots at a time — deliberately, because crowding an edge destroys it.
-              No live capital moves. Full client custody throughout.
-            </p>
+              We do not charge ongoing asset management fees or performance cuts. You pay once
+              for high-end custom engineering, and the infrastructure is yours to run.
+        </p>
             <div className="cta2-actions">
               <Link href="/diagnostic" className="sys2-cta-primary">
                 Run the Paper Engine diagnostic
