@@ -52,6 +52,7 @@ fn dump_market(pk: &str, market: &gmsol_sdk::programs::gmsol_store::accounts::Ma
     let pools = &market.state.pools;
 
     println!("\n========== {name} ({pk}) ==========");
+    println!("  market_token_mint: {}", market.meta.market_token_mint);
     println!("  tokens: long={} short={} index={}",
         market.meta.long_token_mint, market.meta.short_token_mint, market.meta.index_token_mint);
     let flag_val = cfg.flag.value;
