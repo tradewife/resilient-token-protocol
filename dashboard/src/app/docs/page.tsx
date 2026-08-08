@@ -71,7 +71,7 @@ const DOC_GROUPS: DocGroup[] = [
         title: "What is RTP?",
         content: (
           <>
-            <p>RTP (Resilient Token Protocol) builds <strong>bespoke treasury engines</strong> on Solana. One client, one strategy, manufactured against your specific mandate — risk budget, drawdown limit, accumulation target, horizon — and run on self-custodied, on-chain-verifiable rails. There is no RTP token. RTP is a service backed by infrastructure.</p>
+            <p>RTP (Resilient Token Protocol) builds <strong>bespoke trading engines</strong> on Solana. One client, one strategy, engineered around your specifics — risk budget, drawdown limit, accumulation target, horizon — and run on self-custodied, on-chain-verifiable rails. There is no RTP token. RTP is a service backed by infrastructure.</p>
 
             <h3>What We Are Not</h3>
             <ul>
@@ -86,8 +86,8 @@ const DOC_GROUPS: DocGroup[] = [
 
             <h3>The Service</h3>
             <ol>
-              <li><strong>Mandate intake:</strong> you state capital size, max drawdown (hard limit), horizon, constraints — ten minutes, structured</li>
-              <li><strong>Manufacture:</strong> the research pipeline builds a strategy against the mandate — not from a template library</li>
+              <li><strong>Intake:</strong> you state capital size, max drawdown (hard limit), horizon, constraints — ten minutes, structured</li>
+              <li><strong>Build:</strong> the research pipeline engineers a strategy around your terms — not from a template library</li>
               <li><strong>Validate:</strong> ten fixed gates, identical for every client, run at venue fees measured on-chain — never docs, never assumptions</li>
               <li><strong>Verdict:</strong> written pass / conditional / fail with full configuration, machine-readable and independently verifiable</li>
               <li><strong>Debrief:</strong> 45–60 minutes walking through the verdict and the risk envelope</li>
@@ -104,7 +104,7 @@ const DOC_GROUPS: DocGroup[] = [
               headers={["Dimension", "Squads Multisig", "Yield Aggregator", "RTP"]}
               rows={[
                 ["Who controls funds?", "Multi-sig signers (humans)", "Smart contract (immutable)", "You — self-custody with scoped execution permission"],
-                ["Strategy", "Manual / none", "Preset, shared by all users", "Manufactured per mandate; no shared edges"],
+                ["Strategy", "Manual / none", "Preset, shared by all users", "Engineered per client; no shared edges"],
                 ["Cost model", "None", "Assumed", "Measured on-chain per venue, re-verified on migration"],
                 ["Venue risk", "None (no yield)", "Protocol risk", "Measured + migration-capable; venue health monitored"],
                 ["Trust model", "Trust the signers", "Trust the contract", "Trust the program + audit every transaction"],
@@ -118,7 +118,7 @@ const DOC_GROUPS: DocGroup[] = [
               rows={[
                 ["Live blueprint", "✅ Real capital since May 2026", "SOL/USDT Survivor 2.69 — the specimen engine, every trade on-chain"],
                 ["Venue migration", "✅ Proven live (Aug 2026)", "Flash wind-down → GMTrade re-validation on measured on-chain costs, 10/10 gates"],
-                ["Research factory", "✅ Nightly", "30K configs/night, 9-fold walk-forward, Darwinian evolution"],
+                ["Research pipeline", "✅ Nightly", "30K configs/night, 9-fold walk-forward, Darwinian evolution"],
                 ["Gate suite", "✅ Fixed across clients", "10 gates at measured costs; the standard every engine clears"],
                 ["Rust swarm runtime", "✅ 325 tests passing", "6 wings: Trading, Security, Evolve, Knowledge, Audit, Futureproof"],
                 ["Anchor treasury program", "✅ Deployed", "PDA-owned vault, 19 instructions, constitutional constraints on-chain"],
@@ -138,11 +138,11 @@ const DOC_GROUPS: DocGroup[] = [
         title: "The Diagnostic (Paper Engine)",
         content: (
           <>
-            <p>The <strong>RTP Mandate Diagnostic</strong> is the entry point to the service: a structured research engagement that manufactures a strategy against your mandate and delivers a validated verdict — on paper. No capital moves, nothing live.</p>
+            <p>The <strong>RTP Paper Engine Diagnostic</strong> is the entry point to the service: a structured research engagement that engineers a strategy around your terms and delivers a validated verdict — on paper. No capital moves, nothing live.</p>
 
             <h3>What You Receive</h3>
             <ul>
-              <li>A manufactured strategy configuration built against your mandate</li>
+              <li>A bespoke strategy configuration built around your terms</li>
               <li>Full ten-gate validation at current, on-chain-measured venue fees</li>
               <li>Written verdict — pass / conditional / fail — with supporting analysis</li>
               <li>Machine-readable config and risk report you can verify independently</li>
@@ -155,7 +155,7 @@ const DOC_GROUPS: DocGroup[] = [
               rows={[
                 ["Price", "A$4,500 one-time"],
                 ["Slots", "3–4 at any time, strictly limited"],
-                ["Turnaround", "Typically 5–8 business days after mandate submission"],
+                ["Turnaround", "Typically 5–8 business days after intake"],
                 ["Capital", "None — paper verdict only"],
                 ["Custody", "100% yours, throughout"],
                 ["Advisory", "None — research and infrastructure output only"],

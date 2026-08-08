@@ -368,9 +368,9 @@ export default function Home() {
           <div className="hero-copy">
             <span className="hero-label">SOLANA-NATIVE · BESPOKE TREASURY · SELF-CUSTODY</span>
             <h1 className="hero-title">
-              Every mandate gets
+              Your terms.
               <br />
-              a manufactured engine
+              Your engine. Nobody else runs it.
             </h1>
             <p className="hero-tagline" style={{
               fontSize: "1.25rem",
@@ -380,13 +380,13 @@ export default function Home() {
               margin: "0.5rem 0 0.75rem",
               lineHeight: 1.4,
             }}>
-              Shared strategies get crowded.{" "}<span className="hero-tagline-break">Yours is made for you.</span>
+              Shared strategies get crowded.{" "}<span className="hero-tagline-break">Yours is cut to your measurements.</span>
             </p>
             <p className="hero-subtitle">
-              State your mandate — risk budget, drawdown limit, horizon. RTP manufactures
-              a distinct strategy against it, prices it at live venue fees measured on-chain,
-              validates it through a fixed gate suite, and runs it on self-custodied rails
-              on Solana. You keep the keys and the kill switch. We stay loyal to no one but you.
+              Tell us your terms — risk budget, drawdown limit, horizon. We engineer a distinct
+              strategy around them, price it at live venue fees measured on-chain, and put it
+              through a fixed gate suite before anything runs on your capital. You keep the keys
+              and the kill switch. We stay loyal to no one but you.
             </p>
           </div>
 
@@ -601,23 +601,22 @@ export default function Home() {
         <header className="sys2-sect-head">
           <div>
             <div className="sys2-sect-eyebrow">§2 · the service</div>
-            <h2 className="sys2-sect-title">You bring the mandate. We build the engine around it.</h2>
+            <h2 className="sys2-sect-title">Bring us your terms. We build the engine to fit them.</h2>
             <p className="sys2-sect-lede">
-              This is not a product you configure — it is a service built to your specifics.
-              One client, one strategy, manufactured against your risk budget, drawdown limit,
-              accumulation target and horizon. Delivered with a written verdict, validated
-              against measured venue costs, and deployed only on rails where your custody never
-              leaves your hands.
+              Not a product you configure — a service built to your measurements. One client,
+              one strategy, engineered around your risk budget, drawdown limit, accumulation
+              target and horizon. Delivered with a written verdict, priced at venue fees we
+              measured ourselves, deployed only on rails where your custody never leaves your hands.
             </p>
           </div>
         </header>
 
         <div className="arch2-layer-cells">
           {[
-            { t: "Manufactured for you", d: "Your mandate defines the build: capital size, maximum drawdown, horizon, the assets you want to accumulate. The research pipeline manufactures a strategy against it. No shared templates, no crowded edges — what you receive, nobody else runs." },
-            { t: "Priced to reality, not docs", d: "Every engine is validated against live venue fees measured on-chain — open/close, borrow, funding. This ecosystem moves fast: venues change fee schedules, change mechanics, and shut down. We account for that. Costs are read from the chain before capital moves, and re-measured whenever a venue moves." },
-            { t: "The same gate suite for everyone", d: "Ten fixed gates: out-of-sample PnL, fold consistency, bidirectional attribution, sensitivity, latency, drawdown ≤ 25%, zero liquidations. If an engine cannot clear them at measured costs, it does not ship — even when the answer is no." },
-            { t: "Human where it counts", d: "Structured intake (~10 minutes), manufactured build, written verdict, 45–60 minute debrief. Three to four engagements at a time, never more — bespoke is the ceiling, not the pitch." },
+            { t: "Cut to your measurements", d: "Your terms define the build: capital size, maximum drawdown, horizon, the assets you want to accumulate. We engineer a strategy around them — not from a shelf. No shared templates, no crowded edges. What you receive, nobody else runs. Ever." },
+            { t: "Priced to reality, not brochures", d: "This ecosystem is fast: venues change fee schedules, change mechanics, and shut down — often inside a single market cycle. Every engine is validated against live fees measured on-chain: open/close, borrow, funding. When a venue moves, we re-measure. Stale numbers never touch your capital." },
+            { t: "The same gate suite for everyone", d: "Ten fixed gates: out-of-sample PnL, fold consistency, bidirectional attribution, sensitivity, latency, drawdown ≤ 25%, zero liquidations. If an engine can&apos;t clear them at measured costs, it does not ship — even when the honest answer is no." },
+            { t: "White-glove, not help-desk", d: "Structured intake (~10 minutes), engineered build, written verdict, 45–60 minute debrief — a human walks you through every line. Three to four engagements at a time, never more. Access to us is part of what you&apos;re buying." },
           ].map((c) => (
             <div key={c.t} className="arch2-cell" style={{ borderLeft: "2px solid var(--coral-dim)" }}>
               <div className="arch2-cell-title">{c.t}</div>
@@ -629,18 +628,18 @@ export default function Home() {
         <div className="arch2-coord" style={{ marginTop: "var(--space-xl)" }}>
           <span className="arch2-coord-tag">LOYALTY</span>
           We are loyal to no one but the client. No venue pays us to route you there. No token
-          rewards us for your trades. When we recommend an execution venue, it is because we
-          measured it against your mandate — and the measurement is yours to inspect.
+          rewards us for your trades. No referral fee colors our verdict. When we recommend an
+          execution venue, it is because we measured it against your terms — and the measurement
+          is yours to inspect, line by line.
         </div>
 
         <div className="arch2-coord" style={{ marginTop: "var(--space-md)" }}>
           <span className="arch2-coord-tag">NOT ADVICE — THE ONBOARDING WE WISH WE HAD</span>
           We do not manage your money and we do not tell you what to buy. When we first got into
           the trenches, what we wished for was not a hot tip — it was someone who knew where the
-          traps were: venues that shut down overnight, fee schedules that silently eat edges,
-          custody mistakes that cost everything. That is what we build: a setup engineered around
-          those lessons. You keep custody. You keep the decisions. We build the rails and prove
-          the costs.
+          traps were: venues that vanish overnight, fee schedules that silently eat edges, custody
+          mistakes that cost everything. That is what we build: a setup engineered around those
+          lessons. You keep custody. You keep the decisions. We build the rails and prove the costs.
         </div>
       </section>
 
@@ -696,7 +695,7 @@ export default function Home() {
       <section className="sys2-section" id="pipeline" style={{ marginTop: "var(--space-4xl)" }}>
         <header className="sys2-sect-head">
           <div>
-            <div className="sys2-sect-eyebrow">§4 · the factory</div>
+            <div className="sys2-sect-eyebrow">§4 · the engine room</div>
             <h2 className="sys2-sect-title">30,000 hypotheses tested every night. Only the survivors reach the chain.</h2>
             <p className="sys2-sect-lede">
               The Night Shift runs exhaustive parameter search, validates through 9 independent time
@@ -801,9 +800,9 @@ export default function Home() {
         <div className="cta2-card">
           <div className="cta2-content">
             <div className="sys2-sect-eyebrow">§5 · engage</div>
-            <h2 className="cta2-title">One mandate. A strategy manufactured against it.</h2>
+            <h2 className="cta2-title">Your terms in. A bespoke engine out.</h2>
             <p className="cta2-lede">
-              A$4,500, one-time. Structured intake, manufactured strategy, ten-gate validation
+              A$4,500, one-time. Structured intake, engineered strategy, ten-gate validation
               at measured venue fees, written verdict, 45–60 minute debrief. Three to four
               slots — when they&apos;re gone, they&apos;re gone. Your custody throughout;
               nothing moves until you say so.

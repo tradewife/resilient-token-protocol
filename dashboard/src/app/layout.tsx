@@ -3,8 +3,8 @@ import "./globals.css";
 import { WalletContextProvider } from "./WalletContextProvider";
 
 export const metadata: Metadata = {
-  title: "Resilient Token Protocol: Bespoke Treasury Engines on Solana",
-  description: "State your mandate — risk budget, drawdown limit, horizon. RTP manufactures a distinct strategy, validates it through a fixed gate suite, and runs it on self-custodied rails on Solana. Start with the Paper Engine diagnostic.",
+  title: "Resilient Token Protocol: Bespoke Trading Engines on Solana",
+  description: "Your terms in, a bespoke engine out. One client, one strategy — engineered around your risk budget, drawdown limit and horizon, priced at live venue fees measured on-chain, run on self-custodied rails. Start with the Paper Engine diagnostic.",
   icons: {
     icon: "/icon.svg",
     apple: "/apple-touch-icon.png",

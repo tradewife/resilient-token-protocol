@@ -45,20 +45,20 @@ const EMPTY: IntakeForm = {
 };
 
 const DELIVERABLES = [
-  { v: "01", l: "Mandate intake", d: "Structured intake: capital band, risk budget, drawdown limit, horizon, hard constraints." },
-  { v: "02", l: "Manufactured config", d: "A strategy produced by the research pipeline against your mandate — not a shared template." },
+  { v: "01", l: "Structured intake", d: "Ten minutes of your specifics: capital band, risk budget, drawdown limit, horizon, hard constraints." },
+  { v: "02", l: "Bespoke engine", d: "A strategy engineered around your terms — not pulled from a template library." },
   { v: "03", l: "10-gate validation", d: "The same battery every engine must clear: OOS PnL, consistency, attribution, sensitivity, latency, drawdown, zero liquidations." },
-  { v: "04", l: "Measured fee basis", d: "Paper performance priced at real, current venue costs — measured from the execution venue, not assumed." },
+  { v: "04", l: "Measured fee basis", d: "Paper performance priced at real, current venue costs — measured from the execution venue, not assumed from its brochure." },
   { v: "05", l: "Written verdict", d: "Pass / conditional / fail with supporting analysis, plus a machine-readable config you can verify independently." },
   { v: "06", l: "Debrief", d: "45–60 minutes walking through the verdict, the risk envelope, and what deployment would require." },
 ] as const;
 
 const PROCESS = [
   { n: "01", t: "Reserve a slot", d: "One-time payment below. Limited to 3–4 engagements; your slot is held the moment payment clears." },
-  { n: "02", t: "Submit your mandate", d: "The intake form below. Ten minutes. You keep a copy." },
-  { n: "03", t: "The factory runs", d: "Research pipeline manufactures a strategy for your mandate and runs the full gate suite on two years of historical data." },
+  { n: "02", t: "Lay out your terms", d: "The intake form below. Ten minutes. You keep a copy." },
+  { n: "03", t: "We build", d: "The research pipeline engineers a strategy around your terms and runs the full gate suite on two years of historical data." },
   { n: "04", t: "Paper verdict", d: "A complete paper-traded package under measured venue fees. Nothing live, nothing moves." },
-  { n: "05", t: "Debrief", d: "You receive the verdict, the config, and the risk report — and decide what happens next. If nothing, the mandate simply ends." },
+  { n: "05", t: "Debrief", d: "You receive the verdict, the config, and the risk report — and decide what happens next. If nothing, the engagement simply ends." },
 ] as const;
 
 // Sandbox Payment Link (test mode). Swap for the live link when the
@@ -98,18 +98,18 @@ export default function DiagnosticPage() {
       <section className="sys2-section" style={{ marginTop: "var(--space-xl)" }}>
         <header className="sys2-sect-head">
           <div>
-            <div className="sys2-sect-eyebrow">RTP MANDATE DIAGNOSTIC · PAPER ENGINE</div>
+            <div className="sys2-sect-eyebrow">RTP PAPER ENGINE DIAGNOSTIC</div>
             <h1 className="hero-title" style={{ fontSize: "clamp(2rem, 4.5vw, 3.5rem)" }}>
-              Your mandate, manufactured.
+              Your terms in.
               <br />
-              On paper first.
+              A bespoke engine out.
             </h1>
             <p className="sys2-sect-lede" style={{ marginTop: "var(--space-md)" }}>
-              A structured research engagement that maps your treasury mandate against a
-              manufactured strategy, validates it through a fixed gate suite on historical
-              data, and returns a paper-traded verdict with the full configuration.
-              You retain full custody and control at every stage. This is research and
-              infrastructure output — no capital moves, no discretionary management.
+              A structured research engagement: tell us your risk budget, drawdown limit, and
+              horizon — we engineer a strategy around them, put it through a fixed gate suite
+              on two years of historical data, and hand you a paper-traded verdict with the
+              full configuration. You keep full custody and control at every stage. This is
+              research and infrastructure output — no capital moves, no discretionary management.
             </p>
           </div>
           <div className="sys2-sect-side">
@@ -124,7 +124,7 @@ export default function DiagnosticPage() {
           <a href={PAYMENT_LINK} target="_blank" rel="noopener noreferrer" className="sys2-cta-primary">
             Reserve a slot · A$4,500
           </a>
-          <a href="#intake" className="sys2-cta-secondary">Already paid? Submit your mandate →</a>
+          <a href="#intake" className="sys2-cta-secondary">Already paid? Lay out your terms →</a>
         </div>
 
         <div className="validated-card" style={{ marginTop: "var(--space-xl)" }}>
@@ -139,7 +139,7 @@ export default function DiagnosticPage() {
               { v: "10", l: "Validation gates applied" },
               { v: "0", l: "Capital at risk — paper only" },
               { v: "100%", l: "Your custody, throughout" },
-              { v: "1", l: "Distinct strategy per mandate" },
+              { v: "1", l: "Distinct strategy per client" },
             ].map((m) => (
               <div key={m.l} className="validated-cell">
                 <span className="validated-val">{m.v}</span>
@@ -173,11 +173,12 @@ export default function DiagnosticPage() {
         <header className="sys2-sect-head">
           <div>
             <div className="sys2-sect-eyebrow">HOW IT RUNS</div>
-            <h2 className="sys2-sect-title">The factory, run once, against your mandate.</h2>
+            <h2 className="sys2-sect-title">One build. Your measurements.</h2>
             <p className="sys2-sect-lede">
               The same research pipeline that produced the live specimen on this dashboard —
               validated under measured venue fees, gated by the same battery, delivered as a
-              paper verdict. The specimen is proof the factory works. Your mandate is the next run.
+              paper verdict. The specimen is proof the pipeline delivers. Your terms are the
+              next build.
             </p>
           </div>
         </header>
@@ -199,10 +200,10 @@ export default function DiagnosticPage() {
       <section className="sys2-section" id="intake" style={{ marginTop: "var(--space-4xl)" }}>
         <header className="sys2-sect-head">
           <div>
-            <div className="sys2-sect-eyebrow">MANDATE INTAKE</div>
-            <h2 className="sys2-sect-title">State the mandate.</h2>
+            <div className="sys2-sect-eyebrow">INTAKE</div>
+            <h2 className="sys2-sect-title">Lay out your terms.</h2>
             <p className="sys2-sect-lede">
-              Ten minutes. The more precise the risk parameters, the more meaningful the verdict.
+              Ten minutes. The more precise the risk parameters, the sharper the verdict.
               Submission reaches RTP directly — no third parties, nothing stored beyond this engagement.
             </p>
           </div>
@@ -212,9 +213,9 @@ export default function DiagnosticPage() {
           <div className="cta2-card">
             <div className="cta2-content" style={{ textAlign: "center" }}>
               <div className="sys2-sect-eyebrow">RECEIVED</div>
-              <h2 className="cta2-title">Mandate received.</h2>
+              <h2 className="cta2-title">Terms received.</h2>
               <p className="cta2-lede">
-                RTP will review the mandate and reply by email with scope confirmation and
+                RTP will review your terms and reply by email with scope confirmation and
                 payment instructions. Nothing proceeds until you agree to terms in writing.
               </p>
             </div>
@@ -388,7 +389,7 @@ export default function DiagnosticPage() {
 
             <div style={{ marginTop: "var(--space-lg)", display: "flex", gap: "var(--space-md)", alignItems: "center", flexWrap: "wrap" }}>
               <button type="submit" className="sys2-cta-primary" disabled={status === "submitting"}>
-                {status === "submitting" ? "Submitting…" : "Submit mandate"}
+                {status === "submitting" ? "Submitting…" : "Submit your terms"}
               </button>
               <span style={{ fontSize: "0.8125rem", color: "var(--text-tertiary)" }}>
                 Research and infrastructure output only. No capital moves. No discretionary management.
@@ -396,7 +397,7 @@ export default function DiagnosticPage() {
             </div>
             {status === "error" && (
               <div style={{ color: "var(--coral)", fontSize: "0.8125rem", marginTop: "var(--space-sm)" }}>
-                Submission failed — email the mandate to hello@resilientprotocol.xyz instead.
+                Submission failed — email your terms to hello@resilientprotocol.xyz instead.
               </div>
             )}
           </form>
@@ -408,16 +409,16 @@ export default function DiagnosticPage() {
         <div className="cta2-card">
           <div className="cta2-content">
             <div className="sys2-sect-eyebrow">THE SPECIMEN</div>
-            <h2 className="cta2-title">The engine on this dashboard is proof the factory works.</h2>
+            <h2 className="cta2-title">The engine on this dashboard is proof the pipeline delivers.</h2>
             <p className="cta2-lede">
               Survivor 2.69 is the reference specimen — validated through the same gate suite,
               run on real capital since May 2026, every position verifiable on Solana Explorer.
               When its venue wound down, the pipeline re-validated it on the next venue&apos;s
               measured on-chain costs in a single session. That migration is the product working.
-              Bespoke by construction: one strategy per mandate, no shared edges, nothing crowded.
+              Bespoke by construction: one strategy per client, no shared edges, nothing crowded.
             </p>
             <div className="cta2-actions">
-              <a href="#intake" className="sys2-cta-primary">Submit a mandate</a>
+              <a href="#intake" className="sys2-cta-primary">Lay out your terms</a>
               <Link href="/docs" className="sys2-cta-secondary">Read the docs →</Link>
             </div>
           </div>
