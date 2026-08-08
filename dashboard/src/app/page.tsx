@@ -368,9 +368,7 @@ export default function Home() {
           <div className="hero-copy">
             <span className="hero-label">BESPOKE TREASURY INFRASTRUCTURE · CRYPTO-NATIVE CAPITAL · SELF-CUSTODY</span>
             <h1 className="hero-title">
-              Your terms.
-              <br />
-              Your engine. Nobody else runs it.
+              A trading engine built for one account: yours.
             </h1>
             <p className="hero-tagline" style={{
               fontSize: "1.25rem",
