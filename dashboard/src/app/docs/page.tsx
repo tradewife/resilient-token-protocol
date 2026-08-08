@@ -138,7 +138,7 @@ const DOC_GROUPS: DocGroup[] = [
         title: "The Diagnostic (Paper Engine)",
         content: (
           <>
-            <p>The <strong>RTP Paper Engine Diagnostic</strong> is the entry point to the service: a structured research engagement that engineers a strategy around your terms and delivers a validated verdict — on paper. No capital moves, nothing live.</p>
+            <p>The <strong>RTP Paper Engine Diagnostic</strong> is the entry point to the service: a structured research engagement that engineers a strategy around your terms and delivers a validated verdict — on paper. The research + validation pipeline is the actual product; each engagement is high-touch and deliberately limited so edges don&apos;t get crowded. No live capital moves, full client custody throughout.</p>
 
             <h3>What You Receive</h3>
             <ul>

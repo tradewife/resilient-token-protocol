@@ -54,7 +54,7 @@ const DELIVERABLES = [
 ] as const;
 
 const PROCESS = [
-  { n: "01", t: "Reserve a slot", d: "One-time payment below. Limited to 3–4 engagements; your slot is held the moment payment clears." },
+  { n: "01", t: "Reserve a slot", d: "One-time payment below. Limited to 3–4 engagements — deliberately, because crowding an edge destroys it. Your slot is held the moment payment clears." },
   { n: "02", t: "Lay out your terms", d: "The intake form below. Ten minutes. You keep a copy." },
   { n: "03", t: "We build", d: "The research pipeline engineers a strategy around your terms and runs the full gate suite on two years of historical data." },
   { n: "04", t: "Paper verdict", d: "A complete paper-traded package under measured venue fees. Nothing live, nothing moves." },
@@ -108,14 +108,15 @@ export default function DiagnosticPage() {
               A structured research engagement: tell us your risk budget, drawdown limit, and
               horizon — we engineer a strategy around them, put it through a fixed gate suite
               on two years of historical data, and hand you a paper-traded verdict with the
-              full configuration. You keep full custody and control at every stage. This is
-              research and infrastructure output — no capital moves, no discretionary management.
+              full configuration. You keep full custody and control at every stage. No live
+              capital moves. This is research and infrastructure output — not discretionary
+              management.
             </p>
           </div>
           <div className="sys2-sect-side">
             <span className="sys2-status-pill watching">
               <span className="sys2-status-dot" />
-              Limited slots · 3–4 engagements
+              Deliberately limited · 3–4 engagements
             </span>
           </div>
         </header>
@@ -135,9 +136,9 @@ export default function DiagnosticPage() {
           <div className="validated-grid">
             {[
               { v: "A$4,500", l: "One-time, all deliverables" },
-              { v: "3–4", l: "Slots, strictly limited" },
+              { v: "3–4", l: "Slots — limited so edges stay uncrowded" },
               { v: "10", l: "Validation gates applied" },
-              { v: "0", l: "Capital at risk — paper only" },
+              { v: "0", l: "Live capital at risk — paper only" },
               { v: "100%", l: "Your custody, throughout" },
               { v: "1", l: "Distinct strategy per client" },
             ].map((m) => (

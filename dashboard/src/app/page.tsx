@@ -366,7 +366,7 @@ export default function Home() {
 
         <div className="hero-content">
           <div className="hero-copy">
-            <span className="hero-label">SOLANA-NATIVE · BESPOKE TREASURY · SELF-CUSTODY</span>
+            <span className="hero-label">BESPOKE TREASURY INFRASTRUCTURE · CRYPTO-NATIVE CAPITAL · SELF-CUSTODY</span>
             <h1 className="hero-title">
               Your terms.
               <br />
@@ -603,10 +603,11 @@ export default function Home() {
             <div className="sys2-sect-eyebrow">§2 · the service</div>
             <h2 className="sys2-sect-title">Bring us your terms. We build the engine to fit them.</h2>
             <p className="sys2-sect-lede">
-              Not a product you configure — a service built to your measurements. One client,
-              one strategy, engineered around your risk budget, drawdown limit, accumulation
-              target and horizon. Delivered with a written verdict, priced at venue fees we
-              measured ourselves, deployed only on rails where your custody never leaves your hands.
+              Not a SaaS product you configure. Not a shared strategy you rent. The research
+              + validation pipeline is the actual product — it takes your specifics (capital
+              size, risk budget, drawdown limits, horizon) and engineers a distinct,
+              on-chain-verifiable strategy that runs on self-custodied rails. Each engagement
+              is high-touch and deliberately limited, so your edge never gets crowded.
             </p>
           </div>
         </header>
@@ -616,7 +617,7 @@ export default function Home() {
             { t: "Cut to your measurements", d: "Your terms define the build: capital size, maximum drawdown, horizon, the assets you want to accumulate. We engineer a strategy around them — not from a shelf. No shared templates, no crowded edges. What you receive, nobody else runs. Ever." },
             { t: "Priced to reality, not brochures", d: "This ecosystem is fast: venues change fee schedules, change mechanics, and shut down — often inside a single market cycle. Every engine is validated against live fees measured on-chain: open/close, borrow, funding. When a venue moves, we re-measure. Stale numbers never touch your capital." },
             { t: "The same gate suite for everyone", d: "Ten fixed gates: out-of-sample PnL, fold consistency, bidirectional attribution, sensitivity, latency, drawdown ≤ 25%, zero liquidations. If an engine can&apos;t clear them at measured costs, it does not ship — even when the honest answer is no." },
-            { t: "White-glove, not help-desk", d: "Structured intake (~10 minutes), engineered build, written verdict, 45–60 minute debrief — a human walks you through every line. Three to four engagements at a time, never more. Access to us is part of what you&apos;re buying." },
+            { t: "High-touch by design", d: "Structured intake (~10 minutes), engineered build, written verdict, 45–60 minute debrief — a human walks you through every line. Three to four engagements at a time, deliberately: crowding an edge destroys it. Access to us is part of what you&apos;re buying." },
           ].map((c) => (
             <div key={c.t} className="arch2-cell" style={{ borderLeft: "2px solid var(--coral-dim)" }}>
               <div className="arch2-cell-title">{c.t}</div>
@@ -804,8 +805,8 @@ export default function Home() {
             <p className="cta2-lede">
               A$4,500, one-time. Structured intake, engineered strategy, ten-gate validation
               at measured venue fees, written verdict, 45–60 minute debrief. Three to four
-              slots — when they&apos;re gone, they&apos;re gone. Your custody throughout;
-              nothing moves until you say so.
+              slots at a time — deliberately, because crowding an edge destroys it.
+              No live capital moves. Full client custody throughout.
             </p>
             <div className="cta2-actions">
               <Link href="/diagnostic" className="sys2-cta-primary">
