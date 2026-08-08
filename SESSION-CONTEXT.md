@@ -2,7 +2,9 @@
 
 > **How to use this file:** Paste the relevant sections at the top of every fresh agent session. Do not paste the full papers or full repo. This file is the compressed institutional memory of the project. Update it after each significant session.
 
-**Last updated:** 2026-08-07 — **Trader EXECUTION unblocked (the Aug 5 signal fix was necessary but not sufficient); first live SHORT traded end-to-end; S15 friend's engine DEPLOYABLE 10/10.** Two layers: (1) Aug 5 fixed the SIGNAL (score wiring), (2) Aug 7 fixed EXECUTION — post-`feat/funded-pool-accounting` Flash API (Jul 30) rejects SOL-input opens with 6024 CustodyAmountLimit on both sides/all sizes; USDC-input passes. Root cause: wrapper had a 13.5× lamports-vs-USDC unit bug AND the executor was SOL-input. Fix: REST-first `open_position` with USDC-input + USD `inputAmountUi`, SDK wrapper demoted to last-resort fallback, wrapper gained `collateralToLockUnits()` (lamports→USDC 6dp). Real-funds smoke tests PASSED both directions (LONG `4Zk19z4…`, SHORT `61xLdve…`). Commit `76cf891`, pushed, Railway redeployed — first live SHORT fired on first poll. Also fixed side-aware score-flip (shorts were force-closed at exactly 2.08h because the flip check wasn't side-aware — 41/75 live shorts died this way; commit `2f28241`, emergency redeploy beat the live position's close boundary). v2 cost post-mortem (commit `0453733`): Survivor 2.69 edge SURVIVES Flash v2 fees (~5× cheaper than the v1 model). Fee ledger live (commit `cdb0515`): first `[EXIT] Fees:` captured 09:03 UTC (TrailingStop, total $0.0248, PnL −$0.66). **S15 friend's engine**: passes 10/10 gates on 2yr data under measured v2 fees — blind touch (limit-at-zone) composite, 20m, 3–5x, OOS +49.8%/334 trades, 2.5→3.19 SOL @5x (commit `2f2ae30`). Key lesson: the v6 "falsification" was a fee-model artifact; never judge on the v1 fee model.
+**Last updated:** 2026-08-08 — **Flash Trade wind-down response COMPLETE: trader HALTED, all funds EXTRACTED.** Flash announced winding down (X post, Aug 7). Response executed in one session: (1) trader halted via `RTP_TRADER_DRY_RUN=1` (deploy `51add6e1`, SUCCESS; verified FLAT on-chain via position PDAs), (2) deposit ledger drained — **API path (`/transaction-builder/withdraw`) paid only 25% of the SOL entry (0.375571401 wSOL) then settled zero on every retry; the UI path (Phantom import → flash.trade) withdrew the remaining USDC 76.59 + JitoSOL 0.032 instantly and in full**, (3) wSOL unwrapped to native SOL. Final wallet state: native SOL 1.2757, USDC 76.59, JitoSOL 0.032 ≈ 1.45 SOL equiv recovered of 1.5 deposited (gap ≈ lifetime trading fees). Key mechanics learned: withdrawal relayer vault `HRSohn83…` is hand-funded by the team (visible `DepositDirect` top-ups precede paid settles); the deposit-ledger SOL entry reads a stale book figure (1.5) that no longer corresponds to withdrawable value once other-mint entries are drained — zero settles are "nothing left," not errors. The ledger's `UserDepositLedger` PDA may keep showing the old SOL amount indefinitely; do not trust it as ground truth. **Next venue work is the priority** (Jupiter Perps instrumenting — SOL-collateral accumulation mechanic; see Flash AMA Mon Aug 10 16:00 UTC questions).
+
+Prior (2026-08-07): **Trader EXECUTION unblocked (the Aug 5 signal fix was necessary but not sufficient); first live SHORT traded end-to-end; S15 friend's engine DEPLOYABLE 10/10.** Two layers: (1) Aug 5 fixed the SIGNAL (score wiring), (2) Aug 7 fixed EXECUTION — post-`feat/funded-pool-accounting` Flash API (Jul 30) rejects SOL-input opens with 6024 CustodyAmountLimit on both sides/all sizes; USDC-input passes. Root cause: wrapper had a 13.5× lamports-vs-USDC unit bug AND the executor was SOL-input. Fix: REST-first `open_position` with USDC-input + USD `inputAmountUi`, SDK wrapper demoted to last-resort fallback, wrapper gained `collateralToLockUnits()` (lamports→USDC 6dp). Real-funds smoke tests PASSED both directions (LONG `4Zk19z4…`, SHORT `61xLdve…`). Commit `76cf891`, pushed, Railway redeployed — first live SHORT fired on first poll. Also fixed side-aware score-flip (shorts were force-closed at exactly 2.08h because the flip check wasn't side-aware — 41/75 live shorts died this way; commit `2f28241`, emergency redeploy beat the live position's close boundary). v2 cost post-mortem (commit `0453733`): Survivor 2.69 edge SURVIVES Flash v2 fees (~5× cheaper than the v1 model). Fee ledger live (commit `cdb0515`): first `[EXIT] Fees:` captured 09:03 UTC (TrailingStop, total $0.0248, PnL −$0.66). **S15 friend's engine**: passes 10/10 gates on 2yr data under measured v2 fees — blind touch (limit-at-zone) composite, 20m, 3–5x, OOS +49.8%/334 trades, 2.5→3.19 SOL @5x (commit `2f2ae30`). Key lesson: the v6 "falsification" was a fee-model artifact; never judge on the v1 fee model.
 
 Prior (2026-08-05): **Trader unblocked (signal layer).** Commit `311457f` (deploy `c6ff1910`): (A+B) 4h/1d `CandleBuffer`s refreshed (4h every 2h / 1d every 6h); (C) extra `bullish_count >= min_alignment` AND-gate removed (gate on score only). 87 trader tests pass. NOTE: this unblocked the SIGNAL but the trader still could not OPEN positions until the Aug 7 execution fix above.
 
@@ -307,6 +309,48 @@ A judge must be able to verify these five things in under 3 minutes:
 ---
 
 ## 8. Session Status
+
+**Session 2026-08-08 — Flash Trade wind-down response: halt + full extraction**
+
+**Trigger:** Flash Trade announced winding down operations unless acquired (official X post, verified Aug 7 15:26 UTC; AMA Mon Aug 10 16:00 UTC; withdrawals promised to stay open). User directive: "go" — withdraw the deposit ledger.
+
+**Timeline and outcome:**
+1. **Measured exposure first:** trader FLAT (position PDAs absent on-chain), wallet 0.898 SOL, deposit ledger 1.5 SOL via wrapper readiness.
+2. **Built `scripts/flash-withdraw-deposit.mjs`** — dry-run-decode gate (`SEND=1` to execute), owner = trader wallet, feePayer = gas-only dev wallet (API rejects owner==feePayer: "withdrawal relayer must differ from owner").
+3. **API-path withdrawal (tx `378qWH3E…`):** two-phase mechanics — `WithdrawalWithAction` creates an escrow receipt, then a relayer `WithdrawalSettle` pays. Relayer paid exactly **0.375571401 SOL (25% of 1.502285604 incl. interest)** to the owner's wSOL ATA.
+4. **Four more API requests (1.124, 1.5, 0.3, 1.5 SOL) all settled at ZERO** — escrow closed, rent refunded, no payout — while concurrent other-user withdrawals paid in full. Relay vault (`HRSohn83…`) is hand-funded: `DepositDirect` top-ups appear minutes before each paid settle.
+5. **Halted the trader:** `RTP_TRADER_DRY_RUN=1` upserted (skipDeploys) + redeployed (`51add6e1`, SUCCESS 00:16 UTC). Dry-run gates opens at `mod.rs:1068`; trader was FLAT so no exit was blocked.
+6. **User completed extraction via UI:** imported trader key into Phantom, withdrew through flash.trade — USDC 76.59 and JitoSOL 0.032 settled instantly and in full (txs `33cF1vUQ…`, `2mTc1SyF…`, `5LPGoYte…`, `5cc2nVxz…`); the earlier wSOL unwrapped to native SOL (`27bMjBWc…`).
+7. **Final reconciliation:** recovered 0.3756 wSOL→SOL + USDC 76.59 (≈1.0404 SOL @ $73.62) + JitoSOL 0.032 (≈0.0346) ≈ **1.45 SOL equiv of 1.5 deposited**; gap ≈ lifetime trading fees. Wallet now: SOL 1.2757, USDC 76.59, JitoSOL 0.032.
+
+**Root cause of the zero-settles:** the deposit ledger held multiple mint entries (SOL, USDC, JitoSOL). The wrapper's readiness check only surfaced the SOL entry. Once the USDC/JitoSOL value was drained via the UI, the SOL entry's remaining book figure (1.5 — stale, never decremented) had nothing to settle against; every further settle was correctly a no-op. The on-chain `UserDepositLedger` SOL amount (1.5) is a stale book figure, NOT ground truth of withdrawable value.
+
+**Withdrawal mechanics reference (for any future venue-exit):**
+- `/transaction-builder/withdraw` requires `feePayer != owner` (delegation program constraint).
+- Two-phase: `WithdrawalWithAction` (owner+feePayer sign) → relayer `WithdrawalSettle` (pays from relay vault `HRSohn83…`).
+- `WithdrawalEscrowReceipt` PDA = pending state (`amount`, `ledger_deductible`, `ledger_reserved`, `processed`); closed on settle.
+- During wind-down the relay vault is hand-funded — settlements pay only what the team deposits into it; the UI path appears to be the sanctioned/queued path.
+
+**Operational notes:**
+- Trader remains HALTED (`RTP_TRADER_DRY_RUN=1`). Do not clear this flag until a new venue is instrumented and the trader is rewired.
+- `cli/flash-ledger-dump.mjs` — read-only forensic dump of the deposit ledger PDA + delegation accounts.
+- Import key file `/tmp/flash-wallet-import-key.txt` created for the Phantom import was deleted after use. **Recommend removing the trader account from Phantom** now that extraction is done.
+- Flash API degradation observed: `/markets`, `/positions`, `/custodies` endpoints now 404; `/prices` still works.
+
+**Open items:**
+1. Flash AMA Mon Aug 10 16:00 UTC — questions: timeline for disabling new positions; any residual ledger SOL book value; FAF/snapshot mechanics (no FAF held).
+2. Venue re-selection: instrument Jupiter Perps (measured fees, funding, SOL-collateral accumulation, gate suite) as primary candidate; GMTrade/Pacifica as secondary. Drift excluded by user.
+3. Update `docs/STRATEGIC-DIRECTION.md` — venue-dependency risk is now ACTIVE, not hypothetical.
+4. Trader rewiring decision: Jupiter Perps SDK/API adapter when venue chosen.
+5. Build Day Aug 18 prep continues on `feat/mandate-diagnostic` branch (Stripe sandbox wired, product page + intake API committed, awaiting user review/merge approval).
+
+**Key learnings:**
+- A winding-down venue's API and its UI can behave completely differently for the same on-chain flow — the relayer/queue infrastructure is the difference. When an API path stalls, try the sanctioned UI path before more retries.
+- Deposit-ledger book figures are NOT ground truth of withdrawable value during wind-down; enumerate ALL mint entries and verify actual settlements on-chain.
+- Empty ledger ≠ halted trader — an explicit halt flag (`RTP_TRADER_DRY_RUN`) is the reliable kill switch; the wrapper readiness check can read stale ledger state.
+- Verify FLAT via on-chain position PDAs, not just API endpoints that may be degrading.
+
+---
 
 **Session 2026-08-07 — Execution unblock + v2 cost truth + S15 friend's engine DEPLOYABLE**
 
