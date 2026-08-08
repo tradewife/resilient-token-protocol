@@ -1238,11 +1238,20 @@ async fn run_cycle(
                             }
                         }
                         Err(e) => {
-                            tracing::error!("[ENTRY] Open failed: {}", e);
-                            // Count open failures as cycle errors so the
-                            // error-backoff sleep prevents burning gas on
-                            // retries during pool-capacity stalls.
-                            return Err(format!("Open position failed: {e}"));
+                            // Venue capacity soft-skip: market side is full.
+                            // Do NOT count as a cycle error — the loop stays
+                            // healthy and retries when headroom reappears.
+                            if e.starts_with(gmtrade::CAPACITY_FULL_PREFIX) {
+                                tracing::warn!(
+                                    "[ENTRY] Venue capacity full — soft-skip open: {e}"
+                                );
+                            } else {
+                                tracing::error!("[ENTRY] Open failed: {}", e);
+                                // Count open failures as cycle errors so the
+                                // error-backoff sleep prevents burning gas on
+                                // retries during hard failures.
+                                return Err(format!("Open position failed: {e}"));
+                            }
                         }
                     }
                 } else {

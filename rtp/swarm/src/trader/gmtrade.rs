@@ -62,6 +62,12 @@ const DEFAULT_FILL_TIMEOUT_SECS: u64 = 90;
 const MIN_NATIVE_SOL_RESERVE_LAMPORTS: u64 = 50_000_000;
 /// Keep 2% of the available balance back as additional headroom.
 const SOL_BALANCE_SAFETY: f64 = 0.98;
+/// Leave a buffer under the venue's open-interest reserve max so a race with
+/// other traders does not burn execution fees on a rejected keeper fill.
+const OI_HEADROOM_SAFETY: f64 = 0.90;
+/// Refuse to open if remaining OI headroom is below this (USD). Matches the
+/// venue's $1 min position with room for fees/rounding.
+const MIN_OI_HEADROOM_USD: f64 = 5.0;
 
 type GmClient = Client<Arc<GmKeypair>>;
 type GmResult<T> = std::result::Result<T, String>;
@@ -71,12 +77,18 @@ type GmResult<T> = std::result::Result<T, String>;
 struct Venue {
     client: Arc<GmClient>,
     store: GmPubkey,
+    /// Market account address (not the market token mint).
+    market: GmPubkey,
     market_token: GmPubkey,
     /// 10^(20 - index_token_decimals); 1e11 for the 9-dp SOL index.
     price_scale: f64,
     /// Owner (trader wallet) the client signs with.
     owner: GmPubkey,
 }
+
+/// Soft-skip marker when the venue cannot accept more size on this side.
+/// The trader loop treats this as a healthy no-op (not a watchdog error).
+pub const CAPACITY_FULL_PREFIX: &str = "GM_CAPACITY_FULL:";
 
 fn venue_slot() -> &'static tokio::sync::Mutex<Option<Venue>> {
     static SLOT: std::sync::OnceLock<tokio::sync::Mutex<Option<Venue>>> =
@@ -174,10 +186,97 @@ async fn init_venue() -> GmResult<Venue> {
     Ok(Venue {
         client,
         store,
+        market,
         market_token,
         price_scale,
         owner,
     })
+}
+
+/// Live open-interest reserve headroom (USD) for one side of the SOL market.
+///
+/// Mirrors GMTrade's `validate_open_interest_reserve`:
+///   max_reserved = pool_value_without_pnl * open_interest_reserve_factor
+///   reserved     = OI_in_tokens * index_price   (long)
+///                = OI_usd                        (short)
+///   headroom     = max_reserved - reserved
+///
+/// Note: live `open_interest_reserve_factor` can be > 1.0 (observed 3.75 on
+/// SOL/USD[WSOL-USDC]). Do not clamp it to [0,1].
+///
+/// Returns Ok(headroom_usd). Negative means the side is already over capacity.
+async fn oi_headroom_usd(v: &Venue, is_long: bool, sol_price: f64) -> GmResult<f64> {
+    let market = v
+        .client
+        .market(&v.market)
+        .await
+        .map_err(|e| format!("GM market fetch for capacity check failed: {e}"))?;
+    let cfg = &market.config;
+    let pools = &market.state.pools;
+
+    let reserve_factor = cfg.open_interest_reserve_factor as f64 / USD_SCALE;
+    if !(reserve_factor > 0.0) || !reserve_factor.is_finite() {
+        return Err(format!(
+            "GM open_interest_reserve_factor out of range: {reserve_factor}"
+        ));
+    }
+
+    // Pool amounts: primary is non-pure on WSOL-USDC (long=wSOL 9dp, short=USDC 6dp).
+    // OI-in-tokens / OI pools store side amounts in long_token_amount + short_token_amount;
+    // gmsol Merged/Balance long_amount sums both legs of the side's pool.
+    let pool_amount = |long_raw: u128, short_raw: u128| -> u128 {
+        long_raw.saturating_add(short_raw)
+    };
+
+    let (pool_value_usd, reserved_usd, oi_usd) = if is_long {
+        let pool_tokens = pools.primary.pool.long_token_amount as f64 / 1e9;
+        let pool_value = pool_tokens * sol_price;
+        let oi_tok_raw = pool_amount(
+            pools.open_interest_in_tokens_for_long.pool.long_token_amount,
+            pools.open_interest_in_tokens_for_long.pool.short_token_amount,
+        );
+        // Index token is SOL (9 dp). reserved = oi_in_tokens * index max price.
+        let reserved = (oi_tok_raw as f64 / 1e9) * sol_price;
+        let oi = pool_amount(
+            pools.open_interest_for_long.pool.long_token_amount,
+            pools.open_interest_for_long.pool.short_token_amount,
+        ) as f64
+            / USD_SCALE;
+        (pool_value, reserved, oi)
+    } else {
+        let pool_usdc = pools.primary.pool.short_token_amount as f64 / 1e6;
+        // Short reserved = open interest in USD (not tokens).
+        let oi = pool_amount(
+            pools.open_interest_for_short.pool.long_token_amount,
+            pools.open_interest_for_short.pool.short_token_amount,
+        ) as f64
+            / USD_SCALE;
+        (pool_usdc, oi, oi)
+    };
+
+    let max_reserved = pool_value_usd * reserve_factor;
+    let max_oi = if is_long {
+        cfg.max_open_interest_for_long as f64 / USD_SCALE
+    } else {
+        cfg.max_open_interest_for_short as f64 / USD_SCALE
+    };
+    // Liquidity ceiling is the tighter of reserve-factor cap and max OI.
+    let headroom_reserve = max_reserved - reserved_usd;
+    let headroom_oi_cap = max_oi - oi_usd;
+    let headroom = headroom_reserve.min(headroom_oi_cap);
+
+    tracing::info!(
+        "[GM] capacity {} headroom=${:.2} (reserve_max=${:.2} reserved=${:.2} \
+         oi=${:.2}/{:.0} factor={:.4})",
+        if is_long { "LONG" } else { "SHORT" },
+        headroom,
+        max_reserved,
+        reserved_usd,
+        oi_usd,
+        max_oi,
+        reserve_factor
+    );
+    Ok(headroom)
 }
 
 /// Get initialized venue handles (initializes on first call).
@@ -393,20 +492,51 @@ pub async fn open_position(
         ));
     }
 
-    let collateral_usd = collateral_sol * sol_price;
-    if collateral_usd < 1.0 {
+    let is_long = trade_type.eq_ignore_ascii_case("long");
+
+    // Pre-flight: refuse before spending wrap/create_order fees if the side
+    // cannot accept more open interest. Soft-skip (CAPACITY_FULL_PREFIX) so
+    // the trader loop stays healthy and retries later when capacity frees.
+    let headroom = oi_headroom_usd(&v, is_long, sol_price).await?;
+    let usable_headroom = (headroom * OI_HEADROOM_SAFETY).max(0.0);
+    if usable_headroom < MIN_OI_HEADROOM_USD {
         return Err(format!(
-            "GM open refused: ${collateral_usd:.2} collateral below $1 floor"
+            "{CAPACITY_FULL_PREFIX} {} headroom ${headroom:.2} (usable ${usable_headroom:.2}) \
+             below ${MIN_OI_HEADROOM_USD:.0} — not opening",
+            if is_long { "LONG" } else { "SHORT" }
         ));
     }
-    let size_usd = collateral_usd * leverage;
+
+    let mut collateral_usd = collateral_sol * sol_price;
+    let mut size_usd = collateral_usd * leverage;
+    if size_usd > usable_headroom {
+        // Shrink to what the venue can actually fill.
+        size_usd = usable_headroom;
+        collateral_usd = size_usd / leverage;
+        let capped_sol = collateral_usd / sol_price;
+        tracing::warn!(
+            "[GM-OPEN] sizing down to venue capacity: ${size_usd:.2} notional \
+             ({capped_sol:.4} SOL collateral) from requested {:.4} SOL",
+            collateral_sol
+        );
+        // Rebind for the rest of the function.
+        // (amount used below comes from collateral_usd / sol_price)
+    }
+    // Final collateral in SOL after any capacity cap.
+    let collateral_sol = collateral_usd / sol_price;
+    if collateral_usd < 1.0 {
+        return Err(format!(
+            "{CAPACITY_FULL_PREFIX} after capacity cap collateral ${collateral_usd:.2} \
+             below $1 floor (headroom ${headroom:.2})"
+        ));
+    }
     let collateral_lamports = (collateral_sol * 1e9) as u64;
     let size_delta = (size_usd * USD_SCALE) as u128;
-    let is_long = trade_type.eq_ignore_ascii_case("long");
 
     tracing::info!(
         "[GM-OPEN] {} {:.4} SOL collateral (${collateral_usd:.2}) @ {leverage}x → \
-         ${size_usd:.2} notional (SOL ${sol_price:.2}, native balance {native_sol:.4})",
+         ${size_usd:.2} notional (SOL ${sol_price:.2}, native balance {native_sol:.4}, \
+         headroom ${headroom:.2})",
         if is_long { "LONG" } else { "SHORT" },
         collateral_sol,
     );
