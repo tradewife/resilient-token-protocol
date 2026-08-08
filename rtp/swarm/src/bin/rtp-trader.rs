@@ -32,7 +32,9 @@ async fn main() {
             eprintln!("  RTP_TRADER_LEVERAGE      Leverage multiplier (default: 1.0)");
             eprintln!("  RTP_TRADER_POLL_SECS     Poll interval in seconds (default: 300)");
             eprintln!("  RTP_TRADER_DRY_RUN       Set to enable dry-run mode");
-            eprintln!("  RTP_TRADER_STATE_PATH    State file path (default: data/trader-state.json)");
+            eprintln!(
+                "  RTP_TRADER_STATE_PATH    State file path (default: data/trader-state.json)"
+            );
             std::process::exit(1);
         }
     };

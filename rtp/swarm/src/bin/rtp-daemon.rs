@@ -5,11 +5,11 @@ use chrono::Utc;
 use rtp_swarm::bridge::read_latest_night_results;
 use rtp_swarm::chain_client::{
     ChainConfig, ExecutionMode, FlashMarketAccounts, FlashSide, OraclePrice,
-    build_open_flash_position_ix, build_close_flash_position_ix, submit_or_simulate,
+    build_close_flash_position_ix, build_open_flash_position_ix, submit_or_simulate,
 };
 use rtp_swarm::wings::evolve::{
-    LlmProposerConfig, MutationContext, propose_strategy_mutation,
-    validate_all_mutations, validate_mutation_deltas,
+    LlmProposerConfig, MutationContext, propose_strategy_mutation, validate_all_mutations,
+    validate_mutation_deltas,
 };
 use rtp_swarm::wings::trading::{StrategyConfig, apply_mutations};
 use serde::{Deserialize, Serialize};
@@ -96,21 +96,21 @@ fn collect_memory_files() -> Vec<String> {
 #[derive(Debug, serde::Deserialize)]
 #[allow(dead_code)]
 struct TreasuryAccount {
-    authority: solana_sdk::pubkey::Pubkey,   // 32 — first field matches on-chain Treasury
-    phase: u8,                                // 1 (enum)
-    total_fees_withdrawn: u64,               // 8
-    total_distributed_holders: u64,           // 8
-    total_distributed_dev: u64,               // 8
-    total_distributed_ecosystem: u64,         // 8
-    total_hydration: u64,                     // 8
-    total_fees_received_lamports: u64,        // 8
+    authority: solana_sdk::pubkey::Pubkey, // 32 — first field matches on-chain Treasury
+    phase: u8,                             // 1 (enum)
+    total_fees_withdrawn: u64,             // 8
+    total_distributed_holders: u64,        // 8
+    total_distributed_dev: u64,            // 8
+    total_distributed_ecosystem: u64,      // 8
+    total_hydration: u64,                  // 8
+    total_fees_received_lamports: u64,     // 8
     holders_wallet: solana_sdk::pubkey::Pubkey, // 32
     project_dev_wallet: solana_sdk::pubkey::Pubkey, // 32
     ecosystem_wallet: solana_sdk::pubkey::Pubkey, // 32
-    min_runway_balance: u64,                  // 8
-    frozen: bool,                             // 1
-    committed_sol_lamports: u64,              // 8
-    bump: u8,                                 // 1
+    min_runway_balance: u64,               // 8
+    frozen: bool,                          // 1
+    committed_sol_lamports: u64,           // 8
+    bump: u8,                              // 1
 }
 
 /// Check for stale positions that have exceeded max_hold_hours * 1.1.
@@ -150,7 +150,8 @@ async fn check_stale_positions(
                     .unwrap_or_else(|e| {
                         tracing::info!(
                             "[DAEMON] warning: could not parse created_at '{}' — {}",
-                            pos.created_at, e
+                            pos.created_at,
+                            e
                         );
                         Utc::now()
                     });
@@ -167,7 +168,9 @@ async fn check_stale_positions(
                 if stale {
                     tracing::info!(
                         "[DAEMON] queued close_flash_position for stale position {} ({:.1}h > {:.1}h)",
-                        pos.position_address, age_hours, timeout_hours
+                        pos.position_address,
+                        age_hours,
+                        timeout_hours
                     );
                     actions.push(StalePositionAction {
                         position_address: pos.position_address.clone(),
@@ -253,7 +256,10 @@ fn check_treasury_frozen(cfg: &ChainConfig) -> Result<bool, String> {
 
     tracing::info!(
         "[DAEMON] treasury decoded: authority={}, phase={}, frozen={}, runway={}",
-        treasury.authority, treasury.phase, treasury.frozen, treasury.min_runway_balance
+        treasury.authority,
+        treasury.phase,
+        treasury.frozen,
+        treasury.min_runway_balance
     );
 
     Ok(treasury.frozen)
@@ -270,8 +276,7 @@ async fn main() {
         std::env::var("SOLANA_RPC_URL")
             .or_else(|_| std::env::var("RTP_SOLANA_RPC_URL"))
             .unwrap_or_else(|_| "default-devnet".into()),
-        std::env::var("RTP_EXECUTION_MODE")
-            .unwrap_or_else(|_| "simulate".into()),
+        std::env::var("RTP_EXECUTION_MODE").unwrap_or_else(|_| "simulate".into()),
         std::env::var("RTP_WATCHDOG").is_ok(),
         std::env::var("LLM_API_KEY").is_ok(),
     );
@@ -284,7 +289,10 @@ async fn main() {
         .unwrap_or(21600); // 6h default
 
     if watch_mode {
-        tracing::info!("[DAEMON] Watchdog mode — cycling every {}s until interrupted", interval_secs);
+        tracing::info!(
+            "[DAEMON] Watchdog mode — cycling every {}s until interrupted",
+            interval_secs
+        );
         loop {
             run_cycle_with_retry(3).await;
             tracing::info!("[DAEMON] sleeping {}s until next cycle", interval_secs);
@@ -397,7 +405,10 @@ async fn run_single_cycle() -> Result<(), String> {
     }
 
     // 0b. Execution mode (replaces legacy RTP_MAINNET_EXECUTE).
-    let execution_mode = chain_cfg.as_ref().map(|c| c.mode).unwrap_or(ExecutionMode::Simulate);
+    let execution_mode = chain_cfg
+        .as_ref()
+        .map(|c| c.mode)
+        .unwrap_or(ExecutionMode::Simulate);
     tracing::info!(" ");
     tracing::info!("[DAEMON] execution mode: {}", execution_mode.label());
     if execution_mode.submits() {
@@ -407,26 +418,22 @@ async fn run_single_cycle() -> Result<(), String> {
         );
     }
 
-
-// 0c. Knowledge Wing with persistence (P1.3).
-// If RTP_KNOWLEDGE_PATH is set (e.g. /data/swarm-memory/knowledge/wing-state.json),
-// the daemon creates a persistent KnowledgeWing that survives container restarts.
-// This is separate from the demo loop's in-memory KnowledgeWing.
-let knowledge_wing: Option<rtp_swarm::wings::knowledge::KnowledgeWing> =
-    if let Ok(path_str) = std::env::var("RTP_KNOWLEDGE_PATH") {
-        let path = std::path::PathBuf::from(&path_str);
-        let wing = rtp_swarm::wings::knowledge::KnowledgeWing::new_with_persistence(path);
-        tracing::info!(
-            "[DAEMON] Knowledge Wing persistence enabled: {}",
-            path_str
-        );
-        Some(wing)
-    } else {
-        tracing::info!(
-            "[DAEMON] RTP_KNOWLEDGE_PATH not set — knowledge not persisted across restarts"
-        );
-        None
-    };
+    // 0c. Knowledge Wing with persistence (P1.3).
+    // If RTP_KNOWLEDGE_PATH is set (e.g. /data/swarm-memory/knowledge/wing-state.json),
+    // the daemon creates a persistent KnowledgeWing that survives container restarts.
+    // This is separate from the demo loop's in-memory KnowledgeWing.
+    let knowledge_wing: Option<rtp_swarm::wings::knowledge::KnowledgeWing> =
+        if let Ok(path_str) = std::env::var("RTP_KNOWLEDGE_PATH") {
+            let path = std::path::PathBuf::from(&path_str);
+            let wing = rtp_swarm::wings::knowledge::KnowledgeWing::new_with_persistence(path);
+            tracing::info!("[DAEMON] Knowledge Wing persistence enabled: {}", path_str);
+            Some(wing)
+        } else {
+            tracing::info!(
+                "[DAEMON] RTP_KNOWLEDGE_PATH not set — knowledge not persisted across restarts"
+            );
+            None
+        };
 
     // 1. Load config.
     let mut config = load_config();
@@ -445,12 +452,27 @@ let knowledge_wing: Option<rtp_swarm::wings::knowledge::KnowledgeWing> =
     match read_latest_night_results() {
         Ok(result) => {
             tracing::info!("[DAEMON] latest results: {}", result.source_path);
-            tracing::info!("[DAEMON] run_at: {}, symbols: {}", result.summary.run_at, result.summary.symbols.join(", "));
-            let eligible: Vec<_> = result.summary.top_candidates.iter().filter(|c| !c.rejected).collect();
-            tracing::info!("[DAEMON] candidates: {} total, {} eligible", result.summary.top_candidates.len(), eligible.len());
+            tracing::info!(
+                "[DAEMON] run_at: {}, symbols: {}",
+                result.summary.run_at,
+                result.summary.symbols.join(", ")
+            );
+            let eligible: Vec<_> = result
+                .summary
+                .top_candidates
+                .iter()
+                .filter(|c| !c.rejected)
+                .collect();
+            tracing::info!(
+                "[DAEMON] candidates: {} total, {} eligible",
+                result.summary.top_candidates.len(),
+                eligible.len()
+            );
 
             if let Some(best) = eligible.iter().max_by(|a, b| {
-                a.survivor_score.partial_cmp(&b.survivor_score).unwrap_or(std::cmp::Ordering::Equal)
+                a.survivor_score
+                    .partial_cmp(&b.survivor_score)
+                    .unwrap_or(std::cmp::Ordering::Equal)
             }) {
                 tracing::info!(
                     "[DAEMON] best: {} — survivor={:.3}, sharpe={:.2}, cons={:.0}%, fragility={:.3}",
@@ -461,7 +483,9 @@ let knowledge_wing: Option<rtp_swarm::wings::knowledge::KnowledgeWing> =
                     best.fragility
                 );
 
-                if let Some(threshold) = best.params.get("signal_threshold").and_then(|v| v.as_f64()) {
+                if let Some(threshold) =
+                    best.params.get("signal_threshold").and_then(|v| v.as_f64())
+                {
                     config.signal_threshold = threshold;
                 }
                 if let Some(tp) = best.params.get("take_profit_atr").and_then(|v| v.as_f64()) {
@@ -473,7 +497,11 @@ let knowledge_wing: Option<rtp_swarm::wings::knowledge::KnowledgeWing> =
                 if let Some(mh) = best.params.get("max_hold_hours").and_then(|v| v.as_f64()) {
                     config.max_hold_hours = mh;
                 }
-                if let Some(ts) = best.params.get("trailing_stop_atr").and_then(|v| v.as_f64()) {
+                if let Some(ts) = best
+                    .params
+                    .get("trailing_stop_atr")
+                    .and_then(|v| v.as_f64())
+                {
                     config.trailing_stop_atr = ts;
                 }
                 tracing::info!(
@@ -489,7 +517,10 @@ let knowledge_wing: Option<rtp_swarm::wings::knowledge::KnowledgeWing> =
             }
         }
         Err(e) => {
-            tracing::info!("[DAEMON] no night shift results available ({}) — using current config", e);
+            tracing::info!(
+                "[DAEMON] no night shift results available ({}) — using current config",
+                e
+            );
         }
     }
     let params_used = config;
@@ -501,7 +532,8 @@ let knowledge_wing: Option<rtp_swarm::wings::knowledge::KnowledgeWing> =
         let stale_timeout_hours = max_hold * 1.1;
         tracing::info!(
             "[DAEMON] stale position timeout: {:.1}h (max_hold={}h × 1.1)",
-            stale_timeout_hours, max_hold
+            stale_timeout_hours,
+            max_hold
         );
         stale_actions = check_stale_positions(max_hold, chain_cfg.as_ref()).await;
 
@@ -527,7 +559,10 @@ let knowledge_wing: Option<rtp_swarm::wings::knowledge::KnowledgeWing> =
                                 &cfg.treasury_pda, // SOL returns to treasury PDA
                                 &market,
                                 side,
-                                OraclePrice { price: 0, exponent: -8 }, // placeholder — real oracle from Flash API
+                                OraclePrice {
+                                    price: 0,
+                                    exponent: -8,
+                                }, // placeholder — real oracle from Flash API
                                 500, // 5% slippage buffer
                                 0,   // delta — let program figure this out
                             );
@@ -539,10 +574,17 @@ let knowledge_wing: Option<rtp_swarm::wings::knowledge::KnowledgeWing> =
                             );
                             match submit_or_simulate(cfg, vec![close_ix], &authority) {
                                 Ok(result) => {
-                                    tracing::info!("[DAEMON] close result: {}", &result[..result.len().min(200)]);
+                                    tracing::info!(
+                                        "[DAEMON] close result: {}",
+                                        &result[..result.len().min(200)]
+                                    );
                                 }
                                 Err(e) => {
-                                    tracing::info!("[DAEMON] close failed for {}: {}", &stale.position_address[..8], e);
+                                    tracing::info!(
+                                        "[DAEMON] close failed for {}: {}",
+                                        &stale.position_address[..8],
+                                        e
+                                    );
                                 }
                             }
                         }
@@ -654,22 +696,34 @@ let knowledge_wing: Option<rtp_swarm::wings::knowledge::KnowledgeWing> =
         match serde_json::from_str::<serde_json::Value>(&content) {
             Ok(ts) => {
                 ctx.total_pnl_sol = ts.get("total_pnl_sol").and_then(|v| v.as_f64());
-                ctx.total_trades = ts.get("total_trades").and_then(|v| v.as_u64()).map(|n| n as usize);
-                ctx.has_open_position = ts.get("open_position")
+                ctx.total_trades = ts
+                    .get("total_trades")
+                    .and_then(|v| v.as_u64())
+                    .map(|n| n as usize);
+                ctx.has_open_position = ts
+                    .get("open_position")
                     .and_then(|v| v.as_object())
                     .map(|o| !o.is_empty())
                     .unwrap_or(false);
                 tracing::info!(
                     "[DAEMON] trader state: pnl={:?} trades={:?} pos={}",
-                    ctx.total_pnl_sol, ctx.total_trades, ctx.has_open_position,
+                    ctx.total_pnl_sol,
+                    ctx.total_trades,
+                    ctx.has_open_position,
                 );
             }
             Err(e) => {
-                tracing::info!("[DAEMON] trader state parse error: {} — using empty context", e);
+                tracing::info!(
+                    "[DAEMON] trader state parse error: {} — using empty context",
+                    e
+                );
             }
         }
     } else {
-        tracing::info!("[DAEMON] no trader state at {} — using empty context", trader_state_path.display());
+        tracing::info!(
+            "[DAEMON] no trader state at {} — using empty context",
+            trader_state_path.display()
+        );
     }
 
     // Read previous cycle output for mutation feedback.
@@ -677,7 +731,8 @@ let knowledge_wing: Option<rtp_swarm::wings::knowledge::KnowledgeWing> =
     if let Ok(content) = std::fs::read_to_string(&prev_cycle_path)
         && let Ok(prev) = serde_json::from_str::<serde_json::Value>(&content)
     {
-        ctx.prev_mutations_applied = prev.get("mutations_accepted")
+        ctx.prev_mutations_applied = prev
+            .get("mutations_accepted")
             .and_then(|v| serde_json::from_value(v.clone()).ok());
         // Compute PnL delta: current PnL vs. the pnl that existed when
         // the previous mutations were applied. If this is the first cycle
@@ -706,7 +761,9 @@ let knowledge_wing: Option<rtp_swarm::wings::knowledge::KnowledgeWing> =
     for m in &propose_result.mutations {
         tracing::info!(
             "[DAEMON] proposed: {} → {} ({})",
-            m.param, m.value, m.rationale
+            m.param,
+            m.value,
+            m.rationale
         );
     }
 
@@ -798,8 +855,7 @@ let knowledge_wing: Option<rtp_swarm::wings::knowledge::KnowledgeWing> =
         tracing::info!("[DAEMON] could not create latest dir: {}", e);
     } else {
         let _ = std::fs::copy(&cycle_path, latest.join("cycle.json"));
-        let config_json =
-            serde_json::to_string_pretty(&output.params_next).unwrap_or_default();
+        let config_json = serde_json::to_string_pretty(&output.params_next).unwrap_or_default();
         let _ = std::fs::write(latest.join("config.json"), &config_json);
         tracing::info!("[DAEMON] updated data/devnet-cycles/latest/");
     }

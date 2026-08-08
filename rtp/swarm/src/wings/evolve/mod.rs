@@ -109,19 +109,29 @@ pub struct MutationContext {
 fn build_mutation_prompt(ctx: &MutationContext) -> String {
     let defaults = StrategyConfig::default();
 
-    let signal = ctx.current_params.as_ref()
+    let signal = ctx
+        .current_params
+        .as_ref()
         .map(|p| p.signal_threshold)
         .unwrap_or(defaults.signal_threshold);
-    let tp = ctx.current_params.as_ref()
+    let tp = ctx
+        .current_params
+        .as_ref()
         .map(|p| p.tp_atr)
         .unwrap_or(defaults.tp_atr);
-    let sl = ctx.current_params.as_ref()
+    let sl = ctx
+        .current_params
+        .as_ref()
         .map(|p| p.sl_atr)
         .unwrap_or(defaults.sl_atr);
-    let hold = ctx.current_params.as_ref()
+    let hold = ctx
+        .current_params
+        .as_ref()
         .map(|p| p.max_hold_hours)
         .unwrap_or(defaults.max_hold_hours);
-    let trail = ctx.current_params.as_ref()
+    let trail = ctx
+        .current_params
+        .as_ref()
         .map(|p| p.trailing_stop_atr)
         .unwrap_or(defaults.trailing_stop_atr);
 
@@ -148,16 +158,21 @@ fn build_mutation_prompt(ctx: &MutationContext) -> String {
 
     let feedback_section = match (&ctx.prev_mutations_applied, ctx.prev_pnl_delta) {
         (Some(prev), Some(delta)) if !prev.is_empty() => {
-            let prev_desc: Vec<String> = prev.iter()
+            let prev_desc: Vec<String> = prev
+                .iter()
                 .map(|m| format!("{}={:.2}", m.param, m.value))
                 .collect();
             format!(
                 "PREVIOUS MUTATIONS: applied [{}]. Resulting PnL delta: {:.6} SOL. {}",
                 prev_desc.join(", "),
                 delta,
-                if delta > 0.0 { "Mutations helped — continue in this direction." }
-                else if delta < 0.0 { "Mutations hurt — consider reversing or trying a different direction." }
-                else { "No measurable impact — try more aggressive changes." },
+                if delta > 0.0 {
+                    "Mutations helped — continue in this direction."
+                } else if delta < 0.0 {
+                    "Mutations hurt — consider reversing or trying a different direction."
+                } else {
+                    "No measurable impact — try more aggressive changes."
+                },
             )
         }
         _ => "PREVIOUS MUTATIONS: none (first mutation cycle).".to_string(),
@@ -303,7 +318,10 @@ pub fn validate_mutation_deltas(
             } else {
                 tracing::info!(
                     "[EVOLVE] delta check passed: {} {} → {} ({:.1}%)",
-                    m.param, current_val, m.value, delta * 100.0,
+                    m.param,
+                    current_val,
+                    m.value,
+                    delta * 100.0,
                 );
                 true
             }
@@ -319,12 +337,21 @@ pub fn validate_mutation_deltas(
 /// defensive tweaks. When positive, returns small exploratory tweaks.
 pub fn deterministic_fallback_mutations(ctx: &MutationContext) -> Vec<StrategyMutation> {
     let defaults = StrategyConfig::default();
-    let signal = ctx.current_params.as_ref()
-        .map(|p| p.signal_threshold).unwrap_or(defaults.signal_threshold);
-    let tp = ctx.current_params.as_ref()
-        .map(|p| p.tp_atr).unwrap_or(defaults.tp_atr);
-    let trail = ctx.current_params.as_ref()
-        .map(|p| p.trailing_stop_atr).unwrap_or(defaults.trailing_stop_atr);
+    let signal = ctx
+        .current_params
+        .as_ref()
+        .map(|p| p.signal_threshold)
+        .unwrap_or(defaults.signal_threshold);
+    let tp = ctx
+        .current_params
+        .as_ref()
+        .map(|p| p.tp_atr)
+        .unwrap_or(defaults.tp_atr);
+    let trail = ctx
+        .current_params
+        .as_ref()
+        .map(|p| p.trailing_stop_atr)
+        .unwrap_or(defaults.trailing_stop_atr);
 
     // If we have positive PnL, don't mess with it — small explorations only.
     // If negative, make defensive adjustments. If no data, stay flat.
@@ -335,7 +362,8 @@ pub fn deterministic_fallback_mutations(ctx: &MutationContext) -> Vec<StrategyMu
                 StrategyMutation {
                     param: "signal_threshold".to_string(),
                     value: (signal * 1.04).clamp(0.1, 0.5),
-                    rationale: "exploratory: slightly tighter entry filter while profitable".to_string(),
+                    rationale: "exploratory: slightly tighter entry filter while profitable"
+                        .to_string(),
                 },
                 StrategyMutation {
                     param: "tp_atr".to_string(),
@@ -362,7 +390,9 @@ pub fn deterministic_fallback_mutations(ctx: &MutationContext) -> Vec<StrategyMu
         _ => {
             // No live data — do NOT mutate. The validated backtest baseline
             // is better than uninformed parameter changes.
-            tracing::info!("[EVOLVE] no live performance data — skipping deterministic mutations (safer to stay flat)");
+            tracing::info!(
+                "[EVOLVE] no live performance data — skipping deterministic mutations (safer to stay flat)"
+            );
             vec![]
         }
     }
@@ -752,7 +782,11 @@ mod tests {
         let mutations = deterministic_fallback_mutations(&losing_ctx());
         assert!(!mutations.is_empty());
         // Should include defensive adjustments
-        assert!(mutations.iter().any(|m| m.param == "trailing_stop_atr" || m.param == "sl_atr"));
+        assert!(
+            mutations
+                .iter()
+                .any(|m| m.param == "trailing_stop_atr" || m.param == "sl_atr")
+        );
     }
 
     #[test]
@@ -914,13 +948,11 @@ mod tests {
     #[test]
     fn delta_gate_allows_small_change() {
         let current = StrategyConfig::default();
-        let mutations = vec![
-            StrategyMutation {
-                param: "signal_threshold".to_string(),
-                value: 0.27, // 0.25 → 0.27 = 8% change
-                rationale: "test".to_string(),
-            },
-        ];
+        let mutations = vec![StrategyMutation {
+            param: "signal_threshold".to_string(),
+            value: 0.27, // 0.25 → 0.27 = 8% change
+            rationale: "test".to_string(),
+        }];
         let accepted = validate_mutation_deltas(mutations, &current);
         assert_eq!(accepted.len(), 1);
     }
@@ -928,13 +960,11 @@ mod tests {
     #[test]
     fn delta_gate_rejects_large_change() {
         let current = StrategyConfig::default();
-        let mutations = vec![
-            StrategyMutation {
-                param: "tp_atr".to_string(),
-                value: 2.0, // 5.0 → 2.0 = 60% change — should be rejected
-                rationale: "test".to_string(),
-            },
-        ];
+        let mutations = vec![StrategyMutation {
+            param: "tp_atr".to_string(),
+            value: 2.0, // 5.0 → 2.0 = 60% change — should be rejected
+            rationale: "test".to_string(),
+        }];
         let accepted = validate_mutation_deltas(mutations, &current);
         assert!(accepted.is_empty(), "60% change should be rejected");
     }
@@ -942,13 +972,11 @@ mod tests {
     #[test]
     fn delta_gate_boundary_exactly_20pct() {
         let current = StrategyConfig::default();
-        let mutations = vec![
-            StrategyMutation {
-                param: "sl_atr".to_string(),
-                value: 2.7 * 1.20, // exactly 20% up
-                rationale: "test".to_string(),
-            },
-        ];
+        let mutations = vec![StrategyMutation {
+            param: "sl_atr".to_string(),
+            value: 2.7 * 1.20, // exactly 20% up
+            rationale: "test".to_string(),
+        }];
         let accepted = validate_mutation_deltas(mutations, &current);
         assert_eq!(accepted.len(), 1, "exactly 20% should pass (<=)");
     }

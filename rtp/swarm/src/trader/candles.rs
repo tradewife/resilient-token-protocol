@@ -128,7 +128,11 @@ impl CandleBuffer {
 /// Fetch historical candles from Binance.
 /// Returns up to `limit` candles (most recent last) for the given interval.
 /// `interval` is one of "1h", "4h", "1d".
-pub async fn fetch_binance_ohlcv(symbol: &str, interval: &str, limit: usize) -> Result<Vec<Candle>, String> {
+pub async fn fetch_binance_ohlcv(
+    symbol: &str,
+    interval: &str,
+    limit: usize,
+) -> Result<Vec<Candle>, String> {
     let client = reqwest::Client::new();
     let url = format!(
         "https://api.binance.com/api/v3/klines?symbol={}&interval={}&limit={}",
@@ -156,11 +160,26 @@ pub async fn fetch_binance_ohlcv(symbol: &str, interval: &str, limit: usize) -> 
             continue;
         }
         let timestamp = kline[0].as_i64().unwrap_or(0) / 1000; // ms → s
-        let open = kline[1].as_str().and_then(|s| s.parse().ok()).unwrap_or(0.0);
-        let high = kline[2].as_str().and_then(|s| s.parse().ok()).unwrap_or(0.0);
-        let low = kline[3].as_str().and_then(|s| s.parse().ok()).unwrap_or(0.0);
-        let close = kline[4].as_str().and_then(|s| s.parse().ok()).unwrap_or(0.0);
-        let volume = kline[5].as_str().and_then(|s| s.parse().ok()).unwrap_or(0.0);
+        let open = kline[1]
+            .as_str()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(0.0);
+        let high = kline[2]
+            .as_str()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(0.0);
+        let low = kline[3]
+            .as_str()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(0.0);
+        let close = kline[4]
+            .as_str()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(0.0);
+        let volume = kline[5]
+            .as_str()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(0.0);
         candles.push(Candle {
             timestamp,
             open,

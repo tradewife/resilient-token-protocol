@@ -109,13 +109,19 @@ impl FlashTradeClient {
     }
 
     /// Execute a GET request with retry logic.
-    async fn get_with_retry<T: serde::de::DeserializeOwned>(&self, path: &str) -> Result<T, String> {
+    async fn get_with_retry<T: serde::de::DeserializeOwned>(
+        &self,
+        path: &str,
+    ) -> Result<T, String> {
         let url = format!("{}{}", self.base_url, path);
         let mut last_err = String::new();
         for attempt in 0..=self.max_retries {
             match self.client.get(&url).send().await {
                 Ok(resp) if resp.status().is_success() => {
-                    return resp.json::<T>().await.map_err(|e| format!("Parse error: {}", e));
+                    return resp
+                        .json::<T>()
+                        .await
+                        .map_err(|e| format!("Parse error: {}", e));
                 }
                 Ok(resp) => {
                     last_err = format!("Flash API returned status {}", resp.status());
@@ -125,7 +131,8 @@ impl FlashTradeClient {
                 }
             }
             if attempt < self.max_retries {
-                tokio::time::sleep(std::time::Duration::from_millis(500 * (attempt + 1) as u64)).await;
+                tokio::time::sleep(std::time::Duration::from_millis(500 * (attempt + 1) as u64))
+                    .await;
             }
         }
         Err(last_err)
@@ -175,14 +182,18 @@ impl FlashTradeClient {
                     );
                     return Ok(*cached_price);
                 }
-                Err(format!("Price unavailable for {} (API: {}, no cache)", symbol, api_err))
+                Err(format!(
+                    "Price unavailable for {} (API: {}, no cache)",
+                    symbol, api_err
+                ))
             }
         }
     }
 
     /// Get all positions for a given owner wallet address.
     pub async fn get_positions(&self, owner: &str) -> Result<Vec<FlashPosition>, String> {
-        self.get_with_retry(&format!("/positions/owner/{}", owner)).await
+        self.get_with_retry(&format!("/positions/owner/{}", owner))
+            .await
     }
 
     /// Get pool utilization data.
