@@ -452,7 +452,7 @@ export default function Home() {
         <header className="sys2-sect-head">
           <div>
             <div className="sys2-sect-eyebrow">§1 · proven on mainnet</div>
-            <h2 className="sys2-sect-title">The yield engine is running. With real capital.</h2>
+            <h2 className="sys2-sect-title">The blueprint is running. With real capital.</h2>
             <p className="sys2-sect-lede">
               Beta testing with skin in the game — real capital on mainnet since May 12, every
               position verifiable on Solana Explorer. A Rust agent executes validated strategies
