@@ -1,29 +1,32 @@
-# Mandate Intake — Client #1 (working draft)
+# Mandate Intake — Client #1 "RB" (working draft)
 
 > Purpose: capture the engagement parameters for the first bespoke treasury
-> engine (close friend). This is the template every future engagement will
-> reuse — keep it honest and minimal. Derived from `perplexity-strat.md`
-> (the original marubozu idea) and the RTP validation gates.
+> engine (close friend, referred to as **RB**). This is the template every
+> future engagement will reuse — keep it honest and minimal. Derived from
+> `perplexity-strat.md` (the original marubozu idea) and the RTP
+> validation gates. Venue decision 2026-08-08: **GMTrade**
+> (`research/missions/s15_v8_venue_ranking.md`).
 
 ## 1. Client & custodian
 
 | Field | Value |
 |---|---|
-| Client | (name / entity) |
-| Engine operator | RTP swarm (treasury PDA execution) |
-| Custody model | **Self-custody.** Client wallet retains all funds. The strategy only receives session-key execution permission for Flash Trade opens/closes; it can never withdraw. |
-| Revocation | Client can revoke the session key at any time from their own wallet — instant kill switch, no operator cooperation needed. |
+| Client | RB (close friend; name/entity TBD) |
+| Engine operator | RTP swarm (execution via venue adapter; custody stays with RB) |
+| Venue | **GMTrade** (Solana-native perps, GMX V2 architecture). Selected 2026-08-08 via venue ranking: 10/10 gates, SOL-collateral longs with profits paid in SOL. HL-direct is the validated fallback if GMTrade live verification disappoints. |
+| Custody model | **Self-custody.** RB's wallet retains all funds. The strategy only receives execution permission scoped to perps opens/closes on the venue; it can never withdraw. (Mechanic is venue-specific: Flash used delegate/session keys; GMTrade's equivalent is confirmed in the live verification probe.) |
+| Revocation | RB can revoke execution permission at any time from their own wallet — instant kill switch, no operator cooperation needed. |
 
 ## 2. Mandate
 
 | Field | Value | Notes |
 |---|---|---|
-| Instrument | SOL/USDT perpetuals on Flash Trade | The strategy family is SOL-native (born as the marubozu retracement idea); other symbols out of scope |
-| Objective | Accumulate SOL while trading a defined risk budget | e.g. "turn idle USDC/SOL into more SOL" |
+| Instrument | SOL/USDT perpetuals on GMTrade | The strategy family is SOL-native (born as the marubozu retracement idea); other symbols out of scope |
+| Objective | Accumulate SOL while trading a defined risk budget | GMTrade SOL-collateral longs pay profits in SOL — accumulation is native, no swap legs |
 | Direction | Both long and short | Survivor-style bidirectional; net exposure follows the validated composite |
-| Starting capital | (client fills) | Recommend ≥ 2.5 SOL operational floor (Flash min-collateral + runway) |
-| Position sizing | 20% of capital per trade | Validated fraction; capped at Flash min-collateral |
-| Leverage | ≤ 5x (validated envelope) | The v5/v6 leverage sweep passes 1–5x with 0 liquidations |
+| Starting capital | (client fills) | Recommend ≥ 2.5 SOL operational floor (venue min-collateral + runway; exact GMTrade floor confirmed in live probe) |
+| Position sizing | 20% of capital per trade | Validated fraction; capped at venue min-collateral |
+| Leverage | ≤ 5x (validated envelope) | The v5/v6 leverage sweep passes 1–5x with 0 liquidations; GMTrade re-run pending live costs |
 | Target cadence | ~0.2–0.5 trades/day | Marubozu setups are rare by design; no overtrading |
 | Max drawdown | 25% hard cap, auto-suspend | Same drawdown gate as the on-chain lifecycle: breach → engine halts and requires review, never auto-resumes |
 | Horizon | ≥ 6 months | Strategies need fold-length windows to express their edge |
@@ -37,11 +40,15 @@ before fill). Current state of validation (updates as gates re-run):
 
 - v5 champion (1-year data): 20m composite, OOS +46.9%, Sharpe 2.38, both
   directions net positive
-- v6 re-validation (2-year data): in progress — see
-  `data/results/s15_v6/verdict.md`
+- v7e (2-year data, measured Flash v2 fees): **10/10 DEPLOYABLE** —
+  OOS +49.8%, 334 trades, 2.5→3.19 SOL @5x (`s15_final_verdict.md`)
+- v8 venue ranking (2026-08-08): **GMTrade docs-cost basis 10/10**, OOS
+  +59.9%, 2.5→3.63 SOL @5x, dd 18.5% — best venue tested
+  (`s15_v8_venue_ranking.md`)
 
-**Nothing ships until the v6 gate suite passes on 2-year data.** That is the
-anti-curve-fit bar the specimen (Survivor 2.69) had to clear.
+**Nothing ships until the gate suite passes on GMTrade's MEASURED live
+costs** (on-chain fee reads + probe trades). That is the anti-curve-fit,
+anti-docs-drift bar the specimen (Survivor 2.69) had to clear on Flash v2.
 
 ## 4. Reporting & audit trail
 
@@ -58,9 +65,10 @@ anti-curve-fit bar the specimen (Survivor 2.69) had to clear.
    limits but does not eliminate loss.
 2. **Strategy risk.** A validated backtest is a probability statement, not a
    promise. The 2025–26 SOL regime is not guaranteed to repeat.
-3. **Execution venue risk.** Flash Trade is the sole venue; pool mechanics,
-   fees, and API behavior can change (as v2 did) and may require engine
-   updates.
+3. **Execution venue risk.** GMTrade is RB's venue; pool mechanics, fees,
+   and oracle behavior can change (Flash v1→v2 and its wind-down proved
+   venues are not permanent) and may require engine updates or venue
+   migration. Venue health is monitored continuously.
 4. **Operator risk.** The swarm runs autonomously; a bug can cause an
    incorrect fill. On-chain audit trail limits damage visibility to zero —
    every action is inspectable.
