@@ -62,12 +62,19 @@ const DEFAULT_FILL_TIMEOUT_SECS: u64 = 90;
 const MIN_NATIVE_SOL_RESERVE_LAMPORTS: u64 = 50_000_000;
 /// Keep 2% of the available balance back as additional headroom.
 const SOL_BALANCE_SAFETY: f64 = 0.98;
-/// Leave a buffer under the venue's open-interest reserve max so a race with
-/// other traders does not burn execution fees on a rejected keeper fill.
-const OI_HEADROOM_SAFETY: f64 = 0.90;
-/// Refuse to open if remaining OI headroom is below this (USD). Matches the
-/// venue's $1 min position with room for fees/rounding.
-const MIN_OI_HEADROOM_USD: f64 = 5.0;
+/// Fraction of computed headroom we are willing to consume. Near the reserve
+/// ceiling other traders + oracle tick can close a thin gap before our keeper
+/// runs, so keep half back.
+const OI_HEADROOM_SAFETY: f64 = 0.50;
+/// Absolute floor (USD) of pessimistic headroom required before we will even
+/// size an open. Live keeper reject (2026-08-08) had true headroom ≈ $10 after
+/// our order while mid-price math claimed ~$330 — refuse thin capacity rather
+/// than burn wrap/create_order fees squeezing into a full book.
+const MIN_OI_HEADROOM_USD: f64 = 500.0;
+/// Oracle bid/ask haircut applied when valuing pool (min) vs reserved OI
+/// (max) for longs. `validate_open_interest_reserve` uses
+/// `pool_value(maximize=false)` and `reserved_value(index max price)`.
+const OI_PRICE_BAND: f64 = 0.005; // 50 bps each side
 
 type GmClient = Client<Arc<GmKeypair>>;
 type GmResult<T> = std::result::Result<T, String>;
@@ -196,10 +203,13 @@ async fn init_venue() -> GmResult<Venue> {
 /// Live open-interest reserve headroom (USD) for one side of the SOL market.
 ///
 /// Mirrors GMTrade's `validate_open_interest_reserve`:
-///   max_reserved = pool_value_without_pnl * open_interest_reserve_factor
-///   reserved     = OI_in_tokens * index_price   (long)
-///                = OI_usd                        (short)
+///   max_reserved = pool_value_without_pnl(min prices) * open_interest_reserve_factor
+///   reserved     = OI_in_tokens * index_max_price   (long)
+///                = OI_usd                           (short)
 ///   headroom     = max_reserved - reserved
+///
+/// Keeper validation runs *after* the new size is added to OI, so callers must
+/// still reserve room for the proposed notional on top of this figure.
 ///
 /// Note: live `open_interest_reserve_factor` can be > 1.0 (observed 3.75 on
 /// SOL/USD[WSOL-USDC]). Do not clamp it to [0,1].
@@ -228,15 +238,20 @@ async fn oi_headroom_usd(v: &Venue, is_long: bool, sol_price: f64) -> GmResult<f
         long_raw.saturating_add(short_raw)
     };
 
+    // Pessimistic oracle band: pool at min, long reserved at index max.
+    let pool_px = sol_price * (1.0 - OI_PRICE_BAND);
+    let index_max_px = sol_price * (1.0 + OI_PRICE_BAND);
+
     let (pool_value_usd, reserved_usd, oi_usd) = if is_long {
         let pool_tokens = pools.primary.pool.long_token_amount as f64 / 1e9;
-        let pool_value = pool_tokens * sol_price;
+        // pool_value_without_pnl(..., maximize=false) → min long-token price.
+        let pool_value = pool_tokens * pool_px;
         let oi_tok_raw = pool_amount(
             pools.open_interest_in_tokens_for_long.pool.long_token_amount,
             pools.open_interest_in_tokens_for_long.pool.short_token_amount,
         );
-        // Index token is SOL (9 dp). reserved = oi_in_tokens * index max price.
-        let reserved = (oi_tok_raw as f64 / 1e9) * sol_price;
+        // reserved_value(long) = OI_in_tokens * index max price.
+        let reserved = (oi_tok_raw as f64 / 1e9) * index_max_px;
         let oi = pool_amount(
             pools.open_interest_for_long.pool.long_token_amount,
             pools.open_interest_for_long.pool.short_token_amount,
@@ -244,8 +259,8 @@ async fn oi_headroom_usd(v: &Venue, is_long: bool, sol_price: f64) -> GmResult<f
             / USD_SCALE;
         (pool_value, reserved, oi)
     } else {
+        // Short pool is USDC — no SOL band on pool value. Reserved = OI USD.
         let pool_usdc = pools.primary.pool.short_token_amount as f64 / 1e6;
-        // Short reserved = open interest in USD (not tokens).
         let oi = pool_amount(
             pools.open_interest_for_short.pool.long_token_amount,
             pools.open_interest_for_short.pool.short_token_amount,
@@ -267,14 +282,15 @@ async fn oi_headroom_usd(v: &Venue, is_long: bool, sol_price: f64) -> GmResult<f
 
     tracing::info!(
         "[GM] capacity {} headroom=${:.2} (reserve_max=${:.2} reserved=${:.2} \
-         oi=${:.2}/{:.0} factor={:.4})",
+         oi=${:.2}/{:.0} factor={:.4} band={:.2}%)",
         if is_long { "LONG" } else { "SHORT" },
         headroom,
         max_reserved,
         reserved_usd,
         oi_usd,
         max_oi,
-        reserve_factor
+        reserve_factor,
+        OI_PRICE_BAND * 100.0
     );
     Ok(headroom)
 }
@@ -497,6 +513,11 @@ pub async fn open_position(
     // Pre-flight: refuse before spending wrap/create_order fees if the side
     // cannot accept more open interest. Soft-skip (CAPACITY_FULL_PREFIX) so
     // the trader loop stays healthy and retries later when capacity frees.
+    //
+    // Keeper validate_open_interest_reserve runs AFTER the new size is added
+    // to reserved OI, so required headroom is the full proposed notional
+    // (plus band/safety). Do not squeeze into a near-full book — that is how
+    // we burned fees on Model 6006 with "headroom $330" that was really ~$10.
     let headroom = oi_headroom_usd(&v, is_long, sol_price).await?;
     let usable_headroom = (headroom * OI_HEADROOM_SAFETY).max(0.0);
     if usable_headroom < MIN_OI_HEADROOM_USD {
@@ -507,27 +528,24 @@ pub async fn open_position(
         ));
     }
 
-    let mut collateral_usd = collateral_sol * sol_price;
-    let mut size_usd = collateral_usd * leverage;
-    if size_usd > usable_headroom {
-        // Shrink to what the venue can actually fill.
-        size_usd = usable_headroom;
-        collateral_usd = size_usd / leverage;
-        let capped_sol = collateral_usd / sol_price;
-        tracing::warn!(
-            "[GM-OPEN] sizing down to venue capacity: ${size_usd:.2} notional \
-             ({capped_sol:.4} SOL collateral) from requested {:.4} SOL",
-            collateral_sol
-        );
-        // Rebind for the rest of the function.
-        // (amount used below comes from collateral_usd / sol_price)
+    let collateral_usd = collateral_sol * sol_price;
+    let size_usd = collateral_usd * leverage;
+    // Long reserved grows by ~size_in_tokens * index_max ≈ size_usd * (1+band).
+    let size_cost = if is_long {
+        size_usd * (1.0 + OI_PRICE_BAND)
+    } else {
+        size_usd
+    };
+    if size_cost > usable_headroom {
+        return Err(format!(
+            "{CAPACITY_FULL_PREFIX} {} need ${size_cost:.2} notional room but usable \
+             headroom is only ${usable_headroom:.2} (raw ${headroom:.2}) — not opening",
+            if is_long { "LONG" } else { "SHORT" }
+        ));
     }
-    // Final collateral in SOL after any capacity cap.
-    let collateral_sol = collateral_usd / sol_price;
     if collateral_usd < 1.0 {
         return Err(format!(
-            "{CAPACITY_FULL_PREFIX} after capacity cap collateral ${collateral_usd:.2} \
-             below $1 floor (headroom ${headroom:.2})"
+            "GM open refused: ${collateral_usd:.2} collateral below $1 floor"
         ));
     }
     let collateral_lamports = (collateral_sol * 1e9) as u64;
@@ -536,7 +554,7 @@ pub async fn open_position(
     tracing::info!(
         "[GM-OPEN] {} {:.4} SOL collateral (${collateral_usd:.2}) @ {leverage}x → \
          ${size_usd:.2} notional (SOL ${sol_price:.2}, native balance {native_sol:.4}, \
-         headroom ${headroom:.2})",
+         headroom ${headroom:.2} usable ${usable_headroom:.2})",
         if is_long { "LONG" } else { "SHORT" },
         collateral_sol,
     );
