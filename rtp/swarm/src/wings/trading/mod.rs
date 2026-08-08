@@ -149,53 +149,68 @@ fn hl_action_hash(action: &serde_json::Value, nonce: u64) -> Result<[u8; 32], St
     let mut buf = Vec::with_capacity(128);
 
     // Outer map: 3 entries in Python SDK order: type, orders, grouping
-    rmp::encode::write_map_len(&mut buf, 3).map_err(|e| format!("msgpack encode map_len: {}", e))?;
+    rmp::encode::write_map_len(&mut buf, 3)
+        .map_err(|e| format!("msgpack encode map_len: {}", e))?;
 
     // "type" → "order"
     rmp::encode::write_str(&mut buf, "type").map_err(|e| format!("msgpack encode str: {}", e))?;
-    rmp::encode::write_str(&mut buf, action["type"].as_str().unwrap_or("order")).map_err(|e| format!("msgpack encode str: {}", e))?;
+    rmp::encode::write_str(&mut buf, action["type"].as_str().unwrap_or("order"))
+        .map_err(|e| format!("msgpack encode str: {}", e))?;
 
     // "orders" → [order, ...]
     rmp::encode::write_str(&mut buf, "orders").map_err(|e| format!("msgpack encode str: {}", e))?;
-    rmp::encode::write_array_len(&mut buf, orders.len() as u32).map_err(|e| format!("msgpack encode array_len: {}", e))?;
+    rmp::encode::write_array_len(&mut buf, orders.len() as u32)
+        .map_err(|e| format!("msgpack encode array_len: {}", e))?;
 
     for order in orders {
         // Inner order map: keys in Python SDK order: a, b, p, s, r, t
-        rmp::encode::write_map_len(&mut buf, 6).map_err(|e| format!("msgpack encode map_len: {}", e))?;
+        rmp::encode::write_map_len(&mut buf, 6)
+            .map_err(|e| format!("msgpack encode map_len: {}", e))?;
 
         // "a" → asset index
         rmp::encode::write_str(&mut buf, "a").map_err(|e| format!("msgpack encode str: {}", e))?;
-        rmp::encode::write_sint(&mut buf, order["a"].as_i64().unwrap_or(0)).map_err(|e| format!("msgpack encode sint: {}", e))?;
+        rmp::encode::write_sint(&mut buf, order["a"].as_i64().unwrap_or(0))
+            .map_err(|e| format!("msgpack encode sint: {}", e))?;
 
         // "b" → is_buy
         rmp::encode::write_str(&mut buf, "b").map_err(|e| format!("msgpack encode str: {}", e))?;
-        rmp::encode::write_bool(&mut buf, order["b"].as_bool().unwrap_or(true)).map_err(|e| format!("msgpack encode bool: {}", e))?;
+        rmp::encode::write_bool(&mut buf, order["b"].as_bool().unwrap_or(true))
+            .map_err(|e| format!("msgpack encode bool: {}", e))?;
 
         // "p" → price
         rmp::encode::write_str(&mut buf, "p").map_err(|e| format!("msgpack encode str: {}", e))?;
-        rmp::encode::write_str(&mut buf, order["p"].as_str().unwrap_or("0")).map_err(|e| format!("msgpack encode str: {}", e))?;
+        rmp::encode::write_str(&mut buf, order["p"].as_str().unwrap_or("0"))
+            .map_err(|e| format!("msgpack encode str: {}", e))?;
 
         // "s" → size
         rmp::encode::write_str(&mut buf, "s").map_err(|e| format!("msgpack encode str: {}", e))?;
-        rmp::encode::write_str(&mut buf, order["s"].as_str().unwrap_or("0")).map_err(|e| format!("msgpack encode str: {}", e))?;
+        rmp::encode::write_str(&mut buf, order["s"].as_str().unwrap_or("0"))
+            .map_err(|e| format!("msgpack encode str: {}", e))?;
 
         // "r" → reduce_only
         rmp::encode::write_str(&mut buf, "r").map_err(|e| format!("msgpack encode str: {}", e))?;
-        rmp::encode::write_bool(&mut buf, order["r"].as_bool().unwrap_or(false)).map_err(|e| format!("msgpack encode bool: {}", e))?;
+        rmp::encode::write_bool(&mut buf, order["r"].as_bool().unwrap_or(false))
+            .map_err(|e| format!("msgpack encode bool: {}", e))?;
 
         // "t" → {"limit": {"tif": ...}}
         rmp::encode::write_str(&mut buf, "t").map_err(|e| format!("msgpack encode str: {}", e))?;
         let tif = order["t"]["limit"]["tif"].as_str().unwrap_or("Ioc");
-        rmp::encode::write_map_len(&mut buf, 1).map_err(|e| format!("msgpack encode map_len: {}", e))?;
-        rmp::encode::write_str(&mut buf, "limit").map_err(|e| format!("msgpack encode str: {}", e))?;
-        rmp::encode::write_map_len(&mut buf, 1).map_err(|e| format!("msgpack encode map_len: {}", e))?;
-        rmp::encode::write_str(&mut buf, "tif").map_err(|e| format!("msgpack encode str: {}", e))?;
+        rmp::encode::write_map_len(&mut buf, 1)
+            .map_err(|e| format!("msgpack encode map_len: {}", e))?;
+        rmp::encode::write_str(&mut buf, "limit")
+            .map_err(|e| format!("msgpack encode str: {}", e))?;
+        rmp::encode::write_map_len(&mut buf, 1)
+            .map_err(|e| format!("msgpack encode map_len: {}", e))?;
+        rmp::encode::write_str(&mut buf, "tif")
+            .map_err(|e| format!("msgpack encode str: {}", e))?;
         rmp::encode::write_str(&mut buf, tif).map_err(|e| format!("msgpack encode str: {}", e))?;
     }
 
     // "grouping" → "na"
-    rmp::encode::write_str(&mut buf, "grouping").map_err(|e| format!("msgpack encode str: {}", e))?;
-    rmp::encode::write_str(&mut buf, action["grouping"].as_str().unwrap_or("na")).map_err(|e| format!("msgpack encode str: {}", e))?;
+    rmp::encode::write_str(&mut buf, "grouping")
+        .map_err(|e| format!("msgpack encode str: {}", e))?;
+    rmp::encode::write_str(&mut buf, action["grouping"].as_str().unwrap_or("na"))
+        .map_err(|e| format!("msgpack encode str: {}", e))?;
 
     // Append nonce (8 bytes big-endian) + vault flag (0x00).
     buf.extend_from_slice(&nonce.to_be_bytes());
@@ -534,7 +549,9 @@ pub fn soulguard_trade_check(size: &str, price: &str, vault_balance: f64) -> Res
     } else {
         tracing::info!(
             "[SOULGUARD] ✅ position ${:.2} within 20% cap (${:.2}) — vault: ${:.2}",
-            notional, max_position, vault_balance
+            notional,
+            max_position,
+            vault_balance
         );
         Ok(())
     }
@@ -801,7 +818,10 @@ pub fn build_treasury_deposit_tx(
 
     tracing::info!(
         "[TREASURY] built deposit tx: {} tokens ({} raw) from {} → vault {}",
-        amount_tokens, amount_raw, from_ata, vault
+        amount_tokens,
+        amount_raw,
+        from_ata,
+        vault
     );
 
     Ok((b64, from_ata.to_string()))
@@ -887,7 +907,7 @@ pub fn load_devnet_keypair() -> Result<solana_sdk::signer::keypair::Keypair, Str
         .map_err(|e| format!("Failed to read keypair at {}: {}", path, e))?;
     let bytes: Vec<u8> = serde_json::from_str(&content)
         .map_err(|e| format!("Failed to parse keypair JSON at {}: {}", path, e))?;
-    solana_sdk::signer::keypair::Keypair::try_from(bytes.as_slice())
+    solana_sdk::signer::keypair::Keypair::from_bytes(&bytes)
         .map_err(|e| format!("Invalid keypair bytes: {}", e))
 }
 
@@ -1000,7 +1020,8 @@ pub fn deposit_yield_to_treasury(
     if let Ok(result) = call_phantom_signer(&tx_b64) {
         tracing::info!(
             "[TREASURY] yield deposited via Phantom KMS: {} tokens | {}",
-            amount_tokens, result
+            amount_tokens,
+            result
         );
         return Ok(result);
     }
@@ -1010,7 +1031,8 @@ pub fn deposit_yield_to_treasury(
         Ok(sig) => {
             tracing::info!(
                 "[TREASURY] yield deposited via demo keypair: {} tokens | sig: {}",
-                amount_tokens, sig
+                amount_tokens,
+                sig
             );
             tracing::info!(
                 "[TREASURY] explorer: https://explorer.solana.com/tx/{}?cluster=devnet",
@@ -1113,7 +1135,9 @@ pub fn deposit_sol_yield_to_treasury(
     if let Ok(result) = call_phantom_signer(&tx_b64) {
         tracing::info!(
             "[TREASURY] SOL yield deposited via Phantom KMS: {:.6} SOL ({:.4} USDC) | {}",
-            sol_amount, usdc_pnl, result
+            sol_amount,
+            usdc_pnl,
+            result
         );
         return Ok(result);
     }
@@ -1123,7 +1147,10 @@ pub fn deposit_sol_yield_to_treasury(
         Ok(sig) => {
             tracing::info!(
                 "[TREASURY] SOL yield deposited: {:.6} SOL ({} USDC → {} lamports) | sig: {}",
-                sol_amount, usdc_pnl, lamports, sig
+                sol_amount,
+                usdc_pnl,
+                lamports,
+                sig
             );
             tracing::info!(
                 "[TREASURY] explorer: https://explorer.solana.com/tx/{}?cluster=devnet",
@@ -1242,14 +1269,17 @@ pub fn mcp_bridge_flow_for_token(
     let hl_usdc = hl_usdc_raw / 100_000_000.0; // HL USDC has 8 decimals
     tracing::info!(
         "[MCP BRIDGE] Step 2 — HL deposit quote: {:.4} SOL → {:.6} USDC on HL (via {})",
-        sol_amount, hl_usdc, deposit.relay_id
+        sol_amount,
+        hl_usdc,
+        deposit.relay_id
     );
 
     // Step 3: Check HL account.
     let account = mcp.get_perps_account(di)?;
     tracing::info!(
         "[MCP BRIDGE] Step 3 — HL account: value={}, available={}",
-        account.account_value, account.available_balance
+        account.account_value,
+        account.available_balance
     );
 
     // Step 4: Check positions.
@@ -1513,7 +1543,10 @@ impl TradingWing {
                                     );
                                 }
                                 Err(e) => {
-                                    tracing::info!("[MCP BRIDGE] Swap quote failed (non-fatal): {}", e);
+                                    tracing::info!(
+                                        "[MCP BRIDGE] Swap quote failed (non-fatal): {}",
+                                        e
+                                    );
                                 }
                             }
 
@@ -1524,7 +1557,9 @@ impl TradingWing {
                                         dep.buy_amount_usdc.parse().unwrap_or(0.0) / 100_000_000.0;
                                     tracing::info!(
                                         "[MCP BRIDGE] HL deposit quote: {:.4} SOL → {:.4} USDC on HL (via {})",
-                                        mcp_sol, usdc, dep.relay_id
+                                        mcp_sol,
+                                        usdc,
+                                        dep.relay_id
                                     );
                                 }
                                 Err(e) => {
@@ -1540,7 +1575,8 @@ impl TradingWing {
                                 Ok(acct) => {
                                     tracing::info!(
                                         "[MCP BRIDGE] HL perps account: value={}, available={}",
-                                        acct.account_value, acct.available_balance
+                                        acct.account_value,
+                                        acct.available_balance
                                     );
                                 }
                                 Err(e) => {
@@ -1607,10 +1643,14 @@ impl TradingWing {
                                 match deposit_sol_yield_to_treasury(pnl, sol_price, None) {
                                     Ok(sig) => tracing::info!(
                                         "[TREASURY] SOL yield deposited: {} USDC → SOL | {}",
-                                        pnl, sig
+                                        pnl,
+                                        sig
                                     ),
                                     Err(e) => {
-                                        tracing::info!("[TREASURY] SOL deposit failed (non-fatal): {}", e)
+                                        tracing::info!(
+                                            "[TREASURY] SOL deposit failed (non-fatal): {}",
+                                            e
+                                        )
                                     }
                                 }
                             }
@@ -1967,7 +2007,11 @@ mod tests {
         // execution succeeds and count increments. If no data, falls
         // back to subprocess which fails and count stays 0.
         let count = wing.execution_count();
-        assert!(count == 0 || count == 1, "execution count should be 0 or 1, got {}", count);
+        assert!(
+            count == 0 || count == 1,
+            "execution count should be 0 or 1, got {}",
+            count
+        );
     }
 
     // Hyperliquid unit tests

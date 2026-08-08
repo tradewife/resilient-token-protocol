@@ -5,6 +5,7 @@
 
 pub mod candles;
 pub mod executor;
+pub mod gmtrade;
 pub mod indicators;
 pub mod strategy;
 
@@ -28,6 +29,9 @@ pub struct TraderConfig {
     pub dry_run: bool,
     pub state_path: PathBuf,
     pub rpc_url: String,
+    /// Execution venue: "flash" (legacy Flash Trade, default) or "gmtrade"
+    /// (GMTrade/gmx-solana keeper model). Selected via RTP_TRADER_VENUE.
+    pub venue: String,
 }
 
 impl TraderConfig {
@@ -64,6 +68,15 @@ impl TraderConfig {
         let rpc_url = std::env::var("RTP_TRADER_RPC_URL")
             .unwrap_or_else(|_| "https://api.mainnet-beta.solana.com".to_string());
 
+        let venue = std::env::var("RTP_TRADER_VENUE")
+            .unwrap_or_else(|_| "flash".to_string())
+            .to_lowercase();
+        if venue != "flash" && venue != "gmtrade" {
+            return Err(format!(
+                "Invalid RTP_TRADER_VENUE '{venue}' — expected 'flash' or 'gmtrade'"
+            ));
+        }
+
         Ok(Self {
             keypair_path: PathBuf::from(keypair_path),
             amount_sol,
@@ -73,6 +86,7 @@ impl TraderConfig {
             dry_run,
             state_path: PathBuf::from(state_path),
             rpc_url,
+            venue,
         })
     }
 }
@@ -313,6 +327,69 @@ async fn handle_status_request(
     Ok(())
 }
 
+// ---------------------------------------------------------------------------
+// Venue dispatch — route execution calls to Flash Trade (legacy) or GMTrade
+// based on TraderConfig.venue (RTP_TRADER_VENUE=flash|gmtrade). The strategy
+// layer is venue-agnostic; these wrappers are the ONLY place the venue is
+// branched on.
+// ---------------------------------------------------------------------------
+
+fn is_gm(venue: &str) -> bool {
+    venue == "gmtrade"
+}
+
+/// Venue-aware SOL price.
+async fn venue_get_sol_price(venue: &str) -> Result<f64, String> {
+    if is_gm(venue) {
+        gmtrade::get_sol_price().await
+    } else {
+        executor::get_sol_price().await
+    }
+}
+
+/// Venue-aware positions fetch.
+async fn venue_get_positions(
+    venue: &str,
+    wallet: &str,
+) -> Result<Vec<executor::PositionInfo>, String> {
+    if is_gm(venue) {
+        gmtrade::get_positions(wallet).await
+    } else {
+        executor::get_positions(wallet).await
+    }
+}
+
+/// Venue-aware open.
+async fn venue_open_position(
+    venue: &str,
+    keypair: &solana_sdk::signature::Keypair,
+    amount_sol: f64,
+    leverage: f64,
+    trade_type: &str,
+) -> Result<(String, f64, f64), String> {
+    if is_gm(venue) {
+        gmtrade::open_position(keypair, amount_sol, leverage, trade_type).await
+    } else {
+        executor::open_position(keypair, amount_sol, leverage, trade_type).await
+    }
+}
+
+/// Venue-aware close.
+async fn venue_close_position(
+    venue: &str,
+    keypair: &solana_sdk::signature::Keypair,
+    market_symbol: &str,
+    side: &str,
+    size_usd: &str,
+    withdraw_token: &str,
+) -> Result<(String, f64), String> {
+    if is_gm(venue) {
+        gmtrade::close_position(keypair, market_symbol, side, size_usd, withdraw_token).await
+    } else {
+        executor::close_position(keypair, market_symbol, side, size_usd, withdraw_token).await
+    }
+}
+
 /// Run the main trader loop.
 pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
     // Load keypair
@@ -320,7 +397,7 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
         .map_err(|e| format!("Read keypair {}: {}", config.keypair_path.display(), e))?;
     let keypair_bytes: Vec<u8> =
         serde_json::from_str(&keypair_data).map_err(|e| format!("Parse keypair: {}", e))?;
-    let keypair = solana_sdk::signature::Keypair::try_from(keypair_bytes.as_slice())
+    let keypair = solana_sdk::signature::Keypair::from_bytes(&keypair_bytes)
         .map_err(|e| format!("Invalid keypair: {}", e))?;
     let wallet = keypair.pubkey().to_string();
 
@@ -466,9 +543,11 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
     let http_state = state.clone();
     start_status_server(http_state, http_port);
 
-    // Optional: one-time Flash v2 wallet setup via Node SDK wrapper
+    // Optional: one-time wallet setup. Flash v2: Node SDK wrapper
     // (init-deposit-ledger → init-basket → init-trade-vault → depositDirect SOL
-    // → delegate-basket). Funds ops use Solana RPC; trading uses ER.
+    // → delegate-basket). GMTrade: no setup required (collateral deposits
+    // atomically with each order).
+    // Flash path notes: funds ops use Solana RPC; trading uses ER.
     // The deposit step is what actually matters for opens to succeed — the
     // basket.delegate field is deprecated per the new SDK and the explicit
     // delegateBasket-on-ER path surfaces Custom:27 (UnsupportedToken) on
@@ -479,8 +558,13 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
         .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
         .unwrap_or(false)
     {
-        tracing::info!("[V2_SETUP] Starting Flash v2 one-time setup (SOL deposit + delegate)");
-        match executor::v2_one_time_setup(&keypair).await {
+        tracing::info!("[V2_SETUP] Starting {} one-time setup", config.venue);
+        let setup_result = if is_gm(&config.venue) {
+            gmtrade::v2_one_time_setup(&keypair).await
+        } else {
+            executor::v2_one_time_setup(&keypair).await
+        };
+        match setup_result {
             Ok(sigs) => {
                 tracing::info!("[V2_SETUP] OK: {}", sigs.join(", "));
             }
@@ -527,7 +611,7 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
     {
         let mut s = state.lock().await;
         if s.open_position.is_none() {
-            match executor::get_positions(&wallet).await {
+            match venue_get_positions(&config.venue, &wallet).await {
                 Ok(positions) => {
                     // Look for both Long and Short SOL positions
                     if let Some(pos) = positions.iter().find(|p| {
@@ -575,7 +659,7 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
         s.open_position.is_some()
     };
     if stale_state {
-        match executor::get_positions(&wallet).await {
+        match venue_get_positions(&config.venue, &wallet).await {
             Ok(positions) => {
                 let side_upper = state
                     .lock()
@@ -629,7 +713,19 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
     // Main loop with watchdog — each cycle is wrapped in a timeout.
     // If a cycle hangs (e.g., HTTP request stalls), the watchdog kills it,
     // increments consecutive_errors, and retries after a backoff.
-    const CYCLE_TIMEOUT_SECS: u64 = 120; // max time for one trading cycle
+    //
+    // Venue-aware timeout: Flash ops are REST-fast (build → sign → confirm in
+    // seconds). GMTrade orders wait for keeper fills — measured 24.8–31.0s per
+    // fill, capped by RTP_GM_FILL_TIMEOUT_SECS (default 90s). A single cycle
+    // performs at most one order (entry XOR exit), so the GM budget is the fill
+    // wait plus RPC/price overhead, with headroom for a slow keeper.
+    const CYCLE_TIMEOUT_SECS_FLASH: u64 = 120; // max time for one Flash cycle
+    const CYCLE_TIMEOUT_SECS_GM: u64 = 300; // keeper fill wait + overhead
+    let cycle_timeout_secs: u64 = if is_gm(&config.venue) {
+        CYCLE_TIMEOUT_SECS_GM
+    } else {
+        CYCLE_TIMEOUT_SECS_FLASH
+    };
     const MAX_CONSECUTIVE_ERRORS: u32 = 10; // after this many, sleep longer
 
     // Slow-TF refresh schedule. After warmup, buffer_4h and buffer_1d are
@@ -645,7 +741,7 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
 
     tracing::info!(
         "[LOOP] Starting autonomous trading loop (watchdog: {}s cycle timeout)...",
-        CYCLE_TIMEOUT_SECS
+        cycle_timeout_secs
     );
     loop {
         let cycle_start = Utc::now();
@@ -655,7 +751,7 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
         }
 
         let cycle_result = tokio::time::timeout(
-            std::time::Duration::from_secs(CYCLE_TIMEOUT_SECS),
+            std::time::Duration::from_secs(cycle_timeout_secs),
             run_cycle(
                 &config,
                 &keypair,
@@ -694,8 +790,8 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
             Err(_) => {
                 // Cycle timed out — watchdog killed it
                 tracing::error!(
-                    "[WATCHDOG] Cycle timed out after {}s — likely HTTP hang",
-                    CYCLE_TIMEOUT_SECS
+                    "[WATCHDOG] Cycle timed out after {}s — likely HTTP/keeper hang",
+                    cycle_timeout_secs
                 );
                 let mut s = state.lock().await;
                 s.consecutive_errors += 1;
@@ -791,8 +887,8 @@ async fn run_cycle(
         }
     }
 
-    // 1. Fetch current SOL price from Flash Trade
-    let price = match executor::get_sol_price().await {
+    // 1. Fetch current SOL price from the venue price source
+    let price = match venue_get_sol_price(&config.venue).await {
         Ok(p) => p,
         Err(e) => {
             tracing::warn!("[POLL] Price fetch failed: {}", e);
@@ -873,14 +969,15 @@ async fn run_cycle(
 
             let mut close_succeeded = config.dry_run;
             if !config.dry_run {
-                match executor::get_positions(wallet).await {
+                match venue_get_positions(&config.venue, wallet).await {
                     Ok(positions) => {
                         let pos_side = pos_info.side();
                         if let Some(pos_api) = positions
                             .iter()
                             .find(|p| p.market_symbol == "SOL" && p.side_ui == pos_side)
                         {
-                            match executor::close_position(
+                            match venue_close_position(
+                                &config.venue,
                                 keypair,
                                 &pos_api.market_symbol,
                                 &pos_api.side_ui,
@@ -1088,8 +1185,14 @@ async fn run_cycle(
                             config.amount_sol
                         }
                     };
-                    match executor::open_position(keypair, amount_sol, config.leverage, trade_type)
-                        .await
+                    match venue_open_position(
+                        &config.venue,
+                        keypair,
+                        amount_sol,
+                        config.leverage,
+                        trade_type,
+                    )
+                    .await
                     {
                         Ok((sig, size_usd, entry_price)) => {
                             tracing::info!(
@@ -1100,7 +1203,7 @@ async fn run_cycle(
                             // open_position already waits for the position to be readable.
                             // Re-fetch key for state; refuse to set open if still missing.
                             let pos_side = side.to_string();
-                            match executor::get_positions(wallet).await {
+                            match venue_get_positions(&config.venue, wallet).await {
                                 Ok(positions) => {
                                     if let Some(p) = positions
                                         .into_iter()
