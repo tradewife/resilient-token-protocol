@@ -32,10 +32,14 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use gmsol_sdk::Client;
+use gmsol_sdk::builders::token::WrapNative;
 use gmsol_sdk::client::ops::ExchangeOps;
 use gmsol_sdk::solana_utils::cluster::Cluster;
+use gmsol_sdk::solana_utils::instruction_group::{ComputeBudgetOptions, GetInstructionsOptions};
+use gmsol_sdk::solana_utils::solana_sdk::instruction::Instruction;
 use gmsol_sdk::solana_utils::solana_sdk::pubkey::Pubkey as GmPubkey;
 use gmsol_sdk::solana_utils::solana_sdk::signature::{Keypair as GmKeypair, read_keypair_file};
+use gmsol_sdk::IntoAtomicGroup;
 use solana_sdk::signer::Signer;
 
 use crate::trader::executor::PositionInfo;
@@ -53,8 +57,11 @@ const USD_SCALE: f64 = 1e20;
 const DEFAULT_EXECUTION_FEE_LAMPORTS: u64 = 500_000;
 /// Max time to wait for a keeper fill before cancelling the order.
 const DEFAULT_FILL_TIMEOUT_SECS: u64 = 90;
-/// Keep ~2% of the USDC balance back so ATA rent / rounding never blocks a fill.
-const USDC_BALANCE_SAFETY: f64 = 0.98;
+/// Reserve below which we refuse to open (covers rent + a future close
+/// cycle's keeper fee + tx fees). Set to ~0.05 SOL.
+const MIN_NATIVE_SOL_RESERVE_LAMPORTS: u64 = 50_000_000;
+/// Keep 2% of the available balance back as additional headroom.
+const SOL_BALANCE_SAFETY: f64 = 0.98;
 
 type GmClient = Client<Arc<GmKeypair>>;
 type GmResult<T> = std::result::Result<T, String>;
@@ -246,14 +253,40 @@ fn spl_ata(owner: &GmPubkey, mint: &GmPubkey) -> GmResult<GmPubkey> {
     Ok(addr)
 }
 
-/// Read the USDC ATA balance for the owner (UI units).
-async fn usdc_balance(v: &Venue) -> GmResult<f64> {
-    let usdc = gm_pubkey(USDC_MINT)?;
-    let ata = spl_ata(&v.owner, &usdc)?;
-    match v.client.rpc().get_token_account_balance(&ata).await {
-        Ok(amt) => Ok(amt.ui_amount.unwrap_or(0.0)),
-        Err(e) => Err(format!("USDC ATA balance fetch failed: {e}")),
+/// Native SOL balance of the venue owner (in SOL units).
+async fn native_sol_balance(v: &Venue) -> GmResult<f64> {
+    let lamports = v
+        .client
+        .rpc()
+        .get_balance(&v.owner)
+        .await
+        .map_err(|e| format!("native SOL balance fetch failed: {e}"))?;
+    Ok(lamports as f64 / 1e9)
+}
+
+/// Build a WrapNative pre-instruction that transfers `lamports` of native SOL
+/// from the owner into the wSOL ATA and calls sync_native. Returns the raw
+/// system + token instructions ready to be passed to
+/// `TransactionBuilder::pre_instructions(.., false)`.
+fn wrap_native_ixs(owner: &GmPubkey, lamports: u64) -> GmResult<Vec<Instruction>> {
+    if lamports == 0 {
+        return Err("wrap_native_ixs: zero lamports".to_string());
     }
+    Ok(WrapNative::builder()
+        .owner(*owner)
+        .lamports(lamports)
+        .build()
+        .into_atomic_group(&false)
+        .map_err(|e| format!("WrapNative build failed: {e}"))?
+        .instructions_with_options(GetInstructionsOptions {
+            compute_budget: ComputeBudgetOptions {
+                without_compute_budget: true,
+                ..Default::default()
+            },
+            ..Default::default()
+        })
+        .map(|ix| (*ix).clone())
+        .collect())
 }
 
 /// Open positions on GMTrade for a wallet, shaped as Flash-style
@@ -309,7 +342,7 @@ pub async fn get_positions(wallet: &str) -> GmResult<Vec<PositionInfo>> {
                 "Short".to_string()
             },
             market_symbol: "SOL".to_string(),
-            collateral_symbol: "USDC".to_string(),
+            collateral_symbol: "SOL".to_string(),
             size_usd_ui: format!("{size_usd:.6}"),
             entry_price_ui: format!("{entry_price:.6}"),
             pnl_with_fee_usd_ui: "0".to_string(),
@@ -323,13 +356,19 @@ pub async fn get_positions(wallet: &str) -> GmResult<Vec<PositionInfo>> {
     Ok(out)
 }
 
-/// Open a position on GMTrade.
+/// Open a position on GMTrade with wSOL collateral.
 ///
-/// `amount_sol` is the SOL-denominated collateral budget (wallet balance ×
-/// position_fraction, same as the Flash path); it is valued at the current SOL
-/// price and drawn from the wallet's USDC ATA (capped at what is available).
-/// `size_usd = collateral_usd × leverage`. Returns (signature, size_usd,
-/// entry_price).
+/// `amount_sol` is the native SOL collateral budget (wallet balance ×
+/// position_fraction). The order transfers native SOL → wSOL ATA via a
+/// `WrapNative` pre-instruction and uses wSOL as collateral for the increase
+/// (`is_collateral_token_long = true`, since wSOL is the market's long token).
+///
+/// Safety floors:
+///   - reserve `MIN_NATIVE_SOL_RESERVE_LAMPORTS` for rent + future close fees
+///   - cap collateral at `SOL_BALANCE_SAFETY` × (balance - reserve)
+///   - refuse if available collateral < $1
+///
+/// Returns (signature, size_usd, entry_price).
 pub async fn open_position(
     keypair: &solana_sdk::signature::Keypair,
     amount_sol: f64,
@@ -340,39 +379,59 @@ pub async fn open_position(
     assert_owner(&v, keypair)?;
 
     let sol_price = get_sol_price().await?;
-    let collateral_budget_usd = amount_sol * sol_price;
-    let usdc_available = usdc_balance(&v).await? * USDC_BALANCE_SAFETY;
-    let collateral_usd = collateral_budget_usd.min(usdc_available);
+    let native_sol = native_sol_balance(&v).await?;
+
+    // Available native SOL after safety reserves.
+    let reserved = MIN_NATIVE_SOL_RESERVE_LAMPORTS as f64 / 1e9;
+    let available_sol = ((native_sol - reserved).max(0.0)) * SOL_BALANCE_SAFETY;
+    let collateral_sol = amount_sol.min(available_sol);
+
+    if collateral_sol < 0.001 {
+        return Err(format!(
+            "GM open refused: collateral budget {amount_sol:.4} SOL vs available \
+             {available_sol:.4} SOL (native wallet {native_sol:.4} minus reserve {reserved:.4})"
+        ));
+    }
+
+    let collateral_usd = collateral_sol * sol_price;
     if collateral_usd < 1.0 {
         return Err(format!(
-            "GM open refused: collateral budget ${collateral_budget_usd:.2} vs USDC \
-             available ${usdc_available:.2} — swap SOL→USDC before trading"
+            "GM open refused: ${collateral_usd:.2} collateral below $1 floor"
         ));
     }
     let size_usd = collateral_usd * leverage;
-    let collateral_units = (collateral_usd * 1e6) as u64;
+    let collateral_lamports = (collateral_sol * 1e9) as u64;
     let size_delta = (size_usd * USD_SCALE) as u128;
     let is_long = trade_type.eq_ignore_ascii_case("long");
 
     tracing::info!(
-        "[GM-OPEN] {} ${collateral_usd:.2} collateral @ {leverage}x → ${size_usd:.2} \
-         notional (SOL ${sol_price:.2})",
-        if is_long { "LONG" } else { "SHORT" }
+        "[GM-OPEN] {} {:.4} SOL collateral (${collateral_usd:.2}) @ {leverage}x → \
+         ${size_usd:.2} notional (SOL ${sol_price:.2}, native balance {native_sol:.4})",
+        if is_long { "LONG" } else { "SHORT" },
+        collateral_sol,
     );
+
+    // Pre-instruction: wrap native SOL → wSOL in the owner's wSOL ATA so the
+    // market_increase instruction can pull from it.
+    let wsol_ata = spl_ata(&v.owner, &gm_pubkey(WSOL_MINT)?)?;
+    let wrap_ixs = wrap_native_ixs(&v.owner, collateral_lamports)?;
 
     let mut builder = v.client.market_increase(
         &v.store,
         &v.market_token,
-        false, // USDC is the market's short token → collateral side
-        collateral_units,
+        true, // wSOL is the market's long token → collateral side
+        collateral_lamports,
         is_long,
         size_delta,
     );
-    builder.execution_fee(execution_fee());
+    builder
+        .execution_fee(execution_fee())
+        .initial_collateral_token(&gm_pubkey(WSOL_MINT)?, Some(&wsol_ata));
     let (rpc, order) = builder
         .build_with_address()
         .await
         .map_err(|e| format!("GM order build failed: {e}"))?;
+    let rpc = rpc.pre_instructions(wrap_ixs, false);
     tracing::info!("[GM-OPEN] order PDA: {order}");
 
     let sig = rpc
@@ -423,10 +482,11 @@ async fn wait_for_fill(
     }
 }
 
-/// Close a position on GMTrade. Reads the live position first (fresh size) and
-/// market-decreases the FULL size; all proceeds (collateral ± pnl) return to
-/// the USDC ATA. Returns (signature, pnl_usd) where pnl is the raw price PnL
-/// from the TradeEvent (fees are logged separately).
+/// Close a position on GMTrade. Reads the live position first (fresh size)
+/// and market-decreases the FULL size; all proceeds (collateral ± pnl) are
+/// unwrapped from wSOL back to native SOL and returned to the owner.
+/// Returns (signature, pnl_usd) where pnl is the raw price PnL from the
+/// TradeEvent (fees are logged separately).
 pub async fn close_position(
     keypair: &solana_sdk::signature::Keypair,
     _market_symbol: &str,
@@ -460,12 +520,14 @@ pub async fn close_position(
     let mut builder = v.client.market_decrease(
         &v.store,
         &v.market_token,
-        false, // collateral token (USDC) is the short token
-        0,     // withdraw no extra collateral; all proceeds return
+        true, // wSOL is the market's long token → collateral side
+        0,    // withdraw no extra collateral; all proceeds return
         is_long,
         size_units,
     );
-    builder.execution_fee(execution_fee());
+    builder
+        .execution_fee(execution_fee())
+        .should_unwrap_native_token(true);
     let (rpc, order) = builder
         .build_with_address()
         .await
