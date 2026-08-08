@@ -57,23 +57,31 @@ client, quality variance is brand risk — one client's engine blowing up is
 our headline. The validation gates, drawdown limits, and auto-suspension
 logic must be identical across every engagement.
 
-## Sequencing (agreed 2026-08-07)
+## Sequencing (agreed 2026-08-07, revised 2026-08-08 after Flash wind-down)
 
-1. **Get Survivor 2.69 healthy again.** Lost momentum to the Flash Trade v2
-   change. "Healthy" = positive cumulative SOL PnL is the bare minimum
-   (layman definition); we must strive for **impressive**. Definition must
-   be evidence-based (see Track 1c checkpoints), not vibes.
-2. **Website copy reframe — copy only, design untouched.** Happens AFTER
-   2.69 has clean post-v2 trades. Copy is reversible; strategy PnL is not.
-3. **First client = a close friend.** Real mandate, forgiving feedback
-   loop, case study without a formal sales process. Onboarding work can
-   proceed in parallel with 2.69 rehab. This mandate IS the S15 lineage —
-   it began in `perplexity-strat.md` (the marubozu idea).
+1. ~~**Get Survivor 2.69 healthy again.**~~ **SUPERSEDED** — Flash Trade is
+   winding down (announced Aug 7). Funds fully extracted Aug 8, trader
+   halted (`RTP_TRADER_DRY_RUN=1`). The 2.69 rehab track lost its venue;
+   the specimen now serves only as a pipeline demonstration.
+2. **Venue re-selection + re-forge.** The client's core ask — post SOL as
+   collateral and *accumulate more SOL* — defines the venue filter.
+   Jupiter Perps measured costs falsify the current engine config
+   (v8 verdict), so the immediate work is either (a) re-forge a family
+   on Jupiter's cost basis (overnight search), or (b) verify GMTrade's
+   reported 0.4–0.6 bps fees and SOL-collateral mechanics. Capital never
+   deploys until the gate suite passes on the venue's MEASURED fees.
+3. **Website copy reframe — copy only, design untouched.** DONE in draft
+   on `feat/mandate-diagnostic` (hero, §4, /diagnostic page, intake API).
+4. **First client = a close friend.** Real mandate, forgiving feedback
+   loop, case study without a formal sales process. Paper-first — capital
+   deployment waits on a cost-validated engine from step 2.
 
 Parallel de-risking: the friend engagement forces mandate definition,
-custody setup, and reporting into existence, while the 2.69 rehab tests
-whether the pipeline handles **regime change** (venue v1→v2) — the real
-capability an enterprise client is buying.
+custody setup, and reporting into existence, while the venue re-forge
+tests whether the pipeline handles **regime change** (venue death +
+re-validation on new cost basis) — the real capability an enterprise
+client is buying. Flash's wind-down turned this from hypothetical into
+the first live exam.
 
 ## The Falsifiable Claim
 
@@ -81,11 +89,16 @@ capability an enterprise client is buying.
 autonomously produces strategies beyond the hand-built one that clear the
 same gates. Sample size must grow past n=1.
 
-**Status (2026-08-07)**: S15 — the friend's engine — passed 10/10 gates
+**Status (2026-08-08)**: S15 — the friend's engine — passed 10/10 gates
 on 2-year data under measured Flash v2 fees
-(`research/missions/s15_final_verdict.md`). That is pipeline-produced
-strategy #2. The claim is now two-for-two in principle; live execution
-verification is the remaining step (limit-at-zone fills on Flash).
+(`research/missions/s15_final_verdict.md`). But Flash Trade announced
+wind-down on Aug 7, 2026, and the same config **fails 4/10 gates under
+Jupiter Perps' measured fees** (`research/missions/s15_v8_jupiter_verdict.md`:
+OOS −28.5%, short leg destroyed by USDC-collateral swap fees). The claim
+survives *in principle* but currently has **zero cost-valid deployment
+venues**. The measured-fee gate suite caught this before capital — that
+is the product working. The next step is a re-forge on the chosen venue's
+cost basis, not deployment of the existing config.
 
 ## Exit Criteria for the Scaling Conversation
 
@@ -107,10 +120,13 @@ Only when ALL four are true do we earn the right to ask how to scale:
 - **Revenue model**: setup fee + performance/AUM terms undecided —
   placeholder in `docs/mandate-intake-client1.md`, to be finalized with
   client #1.
-- **Execution-venue dependency**: engine is Flash Trade v2-native; venue
-  changes require re-validation (learned once already, Aug 2026). The
-  research pipeline's measured-fee re-check process is the institutional
-  answer.
+- **Execution-venue dependency — NOW ACTIVE (Aug 2026)**: Flash Trade is
+  winding down; the S15 config passes 10/10 on Flash's measured fees but
+  only 4/10 on Jupiter's. Venue selection is now part of every mandate's
+  engineering work, and no engine is deployable without a gate pass on
+  the chosen venue's measured cost basis. The measured-fee re-check
+  process (`s15_v7` → `s15_v8` pattern) is the institutional answer and
+  has been proven to catch venue-incompatibility before capital.
 
 ## Artifacts
 
