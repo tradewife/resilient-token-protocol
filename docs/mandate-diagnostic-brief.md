@@ -34,7 +34,9 @@ consult remains on the pre-live-engagement checklist (see STRATEGIC-DIRECTION.md
 2. Manufactured strategy configuration produced by the research pipeline
 3. Full run through the standardized gate suite (the same 10-gate battery
    used on the S15 client engine)
-4. Paper-traded performance package under measured Flash Trade v2 fees
+4. Paper-traded performance package under measured venue fees (read
+   on-chain from the chosen venue — never docs; venue chosen per the
+   multi-venue doctrine)
 5. Written verdict — pass / conditional / fail — with supporting analysis
 6. Machine-readable config + risk report (independently verifiable)
 7. 45–60 minute debrief call

@@ -383,10 +383,10 @@ export default function Home() {
               Shared strategies get crowded.{" "}<span className="hero-tagline-break">Yours is made for you.</span>
             </p>
             <p className="hero-subtitle">
-              State your mandate — risk budget, drawdown limit, horizon. RTP&apos;s research
-              pipeline manufactures a distinct strategy, validates it through a fixed gate
-              suite, and runs it on self-custodied rails on Solana. The factory is proven live
-              on mainnet. Your engine is next.<br />No RTP token. Pure infrastructure.
+              State your mandate — risk budget, drawdown limit, horizon. RTP manufactures
+              a distinct strategy against it, prices it at live venue fees measured on-chain,
+              validates it through a fixed gate suite, and runs it on self-custodied rails
+              on Solana. You keep the keys and the kill switch. We stay loyal to no one but you.
             </p>
           </div>
 
@@ -596,8 +596,56 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ════════ §2 TRUSTLESS BY DESIGN ════════ */}
-      <section className="sys2-section" id="trust">
+      {/* ════════ §2 THE SERVICE ════════ */}
+      <section className="sys2-section" id="service" style={{ marginTop: "var(--space-4xl)" }}>
+        <header className="sys2-sect-head">
+          <div>
+            <div className="sys2-sect-eyebrow">§2 · the service</div>
+            <h2 className="sys2-sect-title">You bring the mandate. We build the engine around it.</h2>
+            <p className="sys2-sect-lede">
+              This is not a product you configure — it is a service built to your specifics.
+              One client, one strategy, manufactured against your risk budget, drawdown limit,
+              accumulation target and horizon. Delivered with a written verdict, validated
+              against measured venue costs, and deployed only on rails where your custody never
+              leaves your hands.
+            </p>
+          </div>
+        </header>
+
+        <div className="arch2-layer-cells">
+          {[
+            { t: "Manufactured for you", d: "Your mandate defines the build: capital size, maximum drawdown, horizon, the assets you want to accumulate. The research pipeline manufactures a strategy against it. No shared templates, no crowded edges — what you receive, nobody else runs." },
+            { t: "Priced to reality, not docs", d: "Every engine is validated against live venue fees measured on-chain — open/close, borrow, funding. This ecosystem moves fast: venues change fee schedules, change mechanics, and shut down. We account for that. Costs are read from the chain before capital moves, and re-measured whenever a venue moves." },
+            { t: "The same gate suite for everyone", d: "Ten fixed gates: out-of-sample PnL, fold consistency, bidirectional attribution, sensitivity, latency, drawdown ≤ 25%, zero liquidations. If an engine cannot clear them at measured costs, it does not ship — even when the answer is no." },
+            { t: "Human where it counts", d: "Structured intake (~10 minutes), manufactured build, written verdict, 45–60 minute debrief. Three to four engagements at a time, never more — bespoke is the ceiling, not the pitch." },
+          ].map((c) => (
+            <div key={c.t} className="arch2-cell" style={{ borderLeft: "2px solid var(--coral-dim)" }}>
+              <div className="arch2-cell-title">{c.t}</div>
+              <div className="arch2-cell-sub">{c.d}</div>
+            </div>
+          ))}
+        </div>
+
+        <div className="arch2-coord" style={{ marginTop: "var(--space-xl)" }}>
+          <span className="arch2-coord-tag">LOYALTY</span>
+          We are loyal to no one but the client. No venue pays us to route you there. No token
+          rewards us for your trades. When we recommend an execution venue, it is because we
+          measured it against your mandate — and the measurement is yours to inspect.
+        </div>
+
+        <div className="arch2-coord" style={{ marginTop: "var(--space-md)" }}>
+          <span className="arch2-coord-tag">NOT ADVICE — THE ONBOARDING WE WISH WE HAD</span>
+          We do not manage your money and we do not tell you what to buy. When we first got into
+          the trenches, what we wished for was not a hot tip — it was someone who knew where the
+          traps were: venues that shut down overnight, fee schedules that silently eat edges,
+          custody mistakes that cost everything. That is what we build: a setup engineered around
+          those lessons. You keep custody. You keep the decisions. We build the rails and prove
+          the costs.
+        </div>
+      </section>
+
+      {/* ════════ §3 TRUSTLESS BY DESIGN ════════ */}
+      <section className="sys2-section" id="trust" style={{ marginTop: "var(--space-4xl)" }}>
         <header className="sys2-sect-head">
           <div>
             <div className="sys2-sect-eyebrow">§2 · trustless by design</div>
@@ -609,6 +657,23 @@ export default function Home() {
             </p>
           </div>
         </header>
+
+        <div className="cta2-card" style={{ marginBottom: "var(--space-2xl)" }}>
+          <div className="cta2-content">
+            <div className="sys2-sect-eyebrow">THE PDA, IN PLAIN ENGLISH</div>
+            <p className="cta2-lede" style={{ marginBottom: "var(--space-md)" }}>
+              A PDA — program-derived address — is a vault whose keys do not exist. It is
+              controlled by code, not by a person. Funds go in, the rules decide what happens,
+              and funds only ever move exactly as the rules allow.
+            </p>
+            <ul style={{ color: "var(--text-secondary)", lineHeight: 1.7, fontSize: "0.9375rem", textAlign: "left", maxWidth: "72ch", margin: "0 auto" }}>
+              <li><strong>No private key.</strong> There is no password to steal, phish, or leak. Not ours, not yours — nobody&apos;s.</li>
+              <li><strong>Rules enforced by code.</strong> Position limits, drawdown stops, emergency halt — enforced on-chain the same way for everyone.</li>
+              <li><strong>You keep the kill switch.</strong> Execution runs through permission you grant from your own wallet. Revoke it any time and the engine stops, instantly, without asking us.</li>
+              <li><strong>Everything auditable.</strong> Every open, close, and fee is a transaction you can open on Solana Explorer.</li>
+            </ul>
+          </div>
+        </div>
 
         <div className="arch2-layer-cells">
           {INVARIANTS.map((inv) => (
@@ -627,11 +692,11 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ════════ §3 SELF-IMPROVING RESEARCH ENGINE ════════ */}
+      {/* ════════ §4 SELF-IMPROVING RESEARCH ENGINE ════════ */}
       <section className="sys2-section" id="pipeline" style={{ marginTop: "var(--space-4xl)" }}>
         <header className="sys2-sect-head">
           <div>
-            <div className="sys2-sect-eyebrow">§3 · self-improving research engine</div>
+            <div className="sys2-sect-eyebrow">§4 · the factory</div>
             <h2 className="sys2-sect-title">30,000 hypotheses tested every night. Only the survivors reach the chain.</h2>
             <p className="sys2-sect-lede">
               The Night Shift runs exhaustive parameter search, validates through 9 independent time
@@ -731,18 +796,17 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ════════ §4 ENGAGE ════════ */}
+      {/* ════════ §5 ENGAGE ════════ */}
       <section className="sys2-section sys2-cta-section" id="integrate">
         <div className="cta2-card">
           <div className="cta2-content">
-            <div className="sys2-sect-eyebrow">§4 · engage</div>
+            <div className="sys2-sect-eyebrow">§5 · engage</div>
             <h2 className="cta2-title">One mandate. A strategy manufactured against it.</h2>
             <p className="cta2-lede">
-              No shared templates. No crowded edges. State your risk budget, drawdown limit, and
-              horizon — the research pipeline manufactures a distinct strategy, validates it
-              through the same gate suite behind the live specimen, and returns a paper-traded
-              verdict with the full configuration. Your custody throughout; nothing moves until
-              you say so.
+              A$4,500, one-time. Structured intake, manufactured strategy, ten-gate validation
+              at measured venue fees, written verdict, 45–60 minute debrief. Three to four
+              slots — when they&apos;re gone, they&apos;re gone. Your custody throughout;
+              nothing moves until you say so.
             </p>
             <div className="cta2-actions">
               <Link href="/diagnostic" className="sys2-cta-primary">
