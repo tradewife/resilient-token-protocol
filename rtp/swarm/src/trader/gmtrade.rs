@@ -440,32 +440,86 @@ pub async fn open_position(
         .map_err(|e| format!("GM open tx failed: {e}"))?;
     tracing::info!("[GM-OPEN] tx: {sig}");
 
-    let event = wait_for_fill(&v, &order).await?;
-    let Some(ev) = event else {
-        return Err(format!(
-            "GM open {sig} confirmed but no TradeEvent was recovered"
-        ));
+    // Prefer TradeEvent execution_price. If the keeper fills faster than the
+    // WS subscription can attach (common on mainnet — order PDA already gone
+    // within a few seconds), recover entry price from the on-chain Position.
+    let entry_price = match wait_for_fill(&v, &order).await? {
+        Some(ev) => {
+            let p = ev.execution_price as f64 / v.price_scale;
+            tracing::info!("[GM-OPEN] FILLED @ ${p:.4} (TradeEvent)");
+            p
+        }
+        None => match entry_price_from_open_position(&v, is_long).await? {
+            Some(p) => {
+                tracing::warn!(
+                    "[GM-OPEN] TradeEvent missed for {order}; recovered entry \
+                     ${p:.4} from on-chain Position (order filled)"
+                );
+                p
+            }
+            None => {
+                return Err(format!(
+                    "GM open {sig} confirmed but no TradeEvent was recovered \
+                     and no on-chain Position exists for this side"
+                ));
+            }
+        },
     };
-    let entry_price = ev.execution_price as f64 / v.price_scale;
-    tracing::info!("[GM-OPEN] FILLED @ ${entry_price:.4}");
     Ok((sig.to_string(), size_usd, entry_price))
 }
 
 /// Wait for a keeper fill with timeout. On timeout, cancel the order (best
 /// effort) and error so the cycle backoff kicks in — an unfilled order must
 /// never linger to fill unattended.
+///
+/// Fallback chain (when complete_order returns Ok(None)):
+///   1. SDK historical scan via last_order_events (order PDA already closed)
+///   2. Caller uses entry_price_from_open_position as the final recovery
 async fn wait_for_fill(
     v: &Venue,
     order: &GmPubkey,
 ) -> GmResult<Option<gmsol_sdk::programs::gmsol_store::events::TradeEvent>> {
+    use gmsol_sdk::decode::gmsol::programs::GMSOLCPIEvent;
+    use solana_sdk::commitment_config::CommitmentConfig;
+
     let timeout = fill_timeout();
     let client = v.client.clone();
-    match tokio::time::timeout(timeout, client.complete_order(order, None)).await {
-        Ok(Ok(trade)) => Ok(trade),
+    let order_addr = *order;
+    match tokio::time::timeout(timeout, client.complete_order(&order_addr, None)).await {
+        Ok(Ok(Some(t))) => Ok(Some(t)),
+        Ok(Ok(None)) => {
+            // Fill+cleanup was faster than the WS attachment. Scan historical
+            // signatures on the order PDA for a TradeEvent.
+            tracing::warn!(
+                "[GM] complete_order returned no TradeEvent for {order}; \
+                 trying historical event scan"
+            );
+            match client
+                .last_order_events(&order_addr, u64::MAX, CommitmentConfig::confirmed())
+                .await
+            {
+                Ok(events) => {
+                    let trade = events.into_iter().find_map(|ev| match ev {
+                        GMSOLCPIEvent::TradeEvent(t) => Some(t),
+                        _ => None,
+                    });
+                    if trade.is_some() {
+                        tracing::info!(
+                            "[GM] recovered TradeEvent from historical scan for {order}"
+                        );
+                    }
+                    Ok(trade)
+                }
+                Err(e) => {
+                    tracing::warn!("[GM] historical event scan failed: {e}");
+                    Ok(None)
+                }
+            }
+        }
         Ok(Err(e)) => Err(format!("GM fill watch error: {e}")),
         Err(_) => {
             tracing::warn!("[GM] fill timeout after {timeout:?}; cancelling order {order}");
-            match client.close_order(order) {
+            match client.close_order(&order_addr) {
                 Ok(mut builder) => match builder.build().await {
                     Ok(rpc) => match rpc.send().await {
                         Ok(sig) => tracing::info!("[GM] order cancelled: {sig}"),
@@ -477,9 +531,38 @@ async fn wait_for_fill(
                 },
                 Err(e) => tracing::warn!("[GM] cancel builder failed: {e}"),
             }
-            Err(format!("keeper did not fill within {timeout:?}"))
+            // Even after cancel attempt: if the order already filled, a
+            // Position may exist. Caller will recover via on-chain query.
+            Ok(None)
         }
     }
+}
+
+/// Recover average entry price from an on-chain GMTrade Position for our
+/// wallet + market + side. Used when TradeEvent recovery fails but the
+/// keeper already filled the increase order.
+async fn entry_price_from_open_position(v: &Venue, is_long: bool) -> GmResult<Option<f64>> {
+    let positions = v
+        .client
+        .positions(&v.store, Some(&v.owner), Some(&v.market_token))
+        .await
+        .map_err(|e| format!("on-chain position fallback failed: {e}"))?;
+
+    for (_addr, pos) in positions {
+        if pos.try_is_long().unwrap_or(true) != is_long {
+            continue;
+        }
+        if pos.state.size_in_usd == 0 || pos.state.size_in_tokens == 0 {
+            continue;
+        }
+        // Average execution price = size_usd / size_tokens, at unit-price scale.
+        let entry =
+            (pos.state.size_in_usd as f64 / pos.state.size_in_tokens as f64) / v.price_scale;
+        if entry > 0.0 {
+            return Ok(Some(entry));
+        }
+    }
+    Ok(None)
 }
 
 /// Close a position on GMTrade. Reads the live position first (fresh size)
