@@ -50,8 +50,10 @@ before fill). Current state of validation (updates as gates re-run):
   three borrow scenarios** (+52.8% to +58.7%, 3.30–3.57 SOL @5x)
 
 **Cost-validation gate is now CLEARED on GMTrade's live on-chain costs.**
-Remaining before capital: keeper-fill probe trades, account setup, and
-paper trading on the live venue.
+Note: Survivor 2.69 itself skips paper trading — it has years of live
+trading history and goes straight to GMTrade after keeper-fill probe
+trades + account setup. (RB's manufactured strategy, when built, gets
+its own validation path.)
 
 ## 4. Reporting & audit trail
 

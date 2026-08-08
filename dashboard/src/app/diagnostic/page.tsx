@@ -325,7 +325,7 @@ export default function DiagnosticPage() {
                 </div>
                 <div>
                   <label className="form-label" style={{ fontSize: "0.75rem" }}>Preferred chains / venues</label>
-                  <input className="form-input" value={form.venues} onChange={set("venues")} placeholder="e.g. Solana / Flash Trade" />
+                  <input className="form-input" value={form.venues} onChange={set("venues")} placeholder="e.g. Solana perps / GMTrade — or let us measure and choose" />
                 </div>
               </div>
               <div className="form-row">
@@ -411,8 +411,9 @@ export default function DiagnosticPage() {
             <h2 className="cta2-title">The engine on this dashboard is proof the factory works.</h2>
             <p className="cta2-lede">
               Survivor 2.69 is the reference specimen — validated through the same gate suite,
-              running real capital on mainnet, every position verifiable on Solana Explorer.
-              The diagnostic is the factory run once, against your mandate, on paper.
+              run on real capital since May 2026, every position verifiable on Solana Explorer.
+              When its venue wound down, the pipeline re-validated it on the next venue&apos;s
+              measured on-chain costs in a single session. That migration is the product working.
               Bespoke by construction: one strategy per mandate, no shared edges, nothing crowded.
             </p>
             <div className="cta2-actions">
