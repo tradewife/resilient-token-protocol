@@ -42,13 +42,16 @@ before fill). Current state of validation (updates as gates re-run):
   directions net positive
 - v7e (2-year data, measured Flash v2 fees): **10/10 DEPLOYABLE** —
   OOS +49.8%, 334 trades, 2.5→3.19 SOL @5x (`s15_final_verdict.md`)
-- v8 venue ranking (2026-08-08): **GMTrade docs-cost basis 10/10**, OOS
-  +59.9%, 2.5→3.63 SOL @5x, dd 18.5% — best venue tested
-  (`s15_v8_venue_ranking.md`)
+- v8 venue ranking (2026-08-08): **GMTrade 10/10**, HL-direct 10/10 —
+  best venues tested (`s15_v8_venue_ranking.md`)
+- v8e GMTrade **on-chain measured costs** (2026-08-08, commit
+  `103a408`): order fees confirmed 0.010–0.012%/side; borrow
+  skip-smaller-side, majority side 0.0036%/hr now. **10/10 in all
+  three borrow scenarios** (+52.8% to +58.7%, 3.30–3.57 SOL @5x)
 
-**Nothing ships until the gate suite passes on GMTrade's MEASURED live
-costs** (on-chain fee reads + probe trades). That is the anti-curve-fit,
-anti-docs-drift bar the specimen (Survivor 2.69) had to clear on Flash v2.
+**Cost-validation gate is now CLEARED on GMTrade's live on-chain costs.**
+Remaining before capital: keeper-fill probe trades, account setup, and
+paper trading on the live venue.
 
 ## 4. Reporting & audit trail
 

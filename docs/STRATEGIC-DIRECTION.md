@@ -73,10 +73,10 @@ logic must be identical across every engagement.
    validated fallback.
 3. **Rebuild Survivor 2.69 on GMTrade for RB (client #1).** Owner decision
    2026-08-08: rebuild, don't just port. Sequence: (a) live-cost
-   verification probe on GMTrade (on-chain fee parameter reads, SOL market
-   OI/depth, small probe trades) — capital never deploys on docs-based
-   costs alone; (b) GMTrade execution adapter; (c) re-run the gate suite
-   on MEASURED live costs; (d) paper → live on RB's wallet.
+   verification probe on GMTrade — **DONE (v8e, commit 103a408): fees
+   confirmed on-chain, 10/10 gates in all three borrow scenarios**;
+   (b) keeper-fill probe trades + account setup; (c) GMTrade execution
+   adapter; (d) paper → live on RB's wallet.
 4. **Website copy reframe — copy only, design untouched.** DONE in draft
    on `feat/mandate-diagnostic` (hero, §4, /diagnostic page, intake API).
 
@@ -116,13 +116,15 @@ on 2-year data under measured Flash v2 fees
 (`research/missions/s15_final_verdict.md`). Flash Trade announced
 wind-down on Aug 7, 2026; the same config failed 4/10 under Jupiter's
 measured fees, then the v8 venue ranking found it passes **10/10 on
-GMTrade (docs-based costs) and 10/10 on Hyperliquid-direct**
-(`research/missions/s15_v8_venue_ranking.md`). The claim survives *in
-principle* and now has a selected venue, but the deployment bar remains:
-the gate suite must pass on GMTrade's **MEASURED live costs** before RB
-capital deploys. The measured-fee gate suite caught venue-incompatibility
-before capital twice (Flash v1 model, then Jupiter) — that is the product
-working.
+GMTrade and 10/10 on Hyperliquid-direct**
+(`research/missions/s15_v8_venue_ranking.md`). GMTrade costs were then
+verified ON-CHAIN (v8e, commit `103a408`): order fees confirmed at
+0.010–0.012%/side; borrow fee is skip-smaller-side with the majority
+side paying 0.0036%/hr now (kink-max 0.0114%/hr). **All three borrow
+scenarios pass 10/10** (OOS +52.8% to +58.7%, 3.30–3.57 SOL @5x). The
+measured-fee gate suite caught venue-incompatibility before capital
+twice (Flash v1 model, then Jupiter) and confirmed GMTrade live — that
+is the product working.
 
 ## Exit Criteria for the Scaling Conversation
 
@@ -152,12 +154,13 @@ Only when ALL four are true do we earn the right to ask how to scale:
   basis. The measured-fee re-check process (`s15_v7` → `s15_v8` pattern)
   is the institutional answer and has been proven to catch
   venue-incompatibility before capital.
-- **GMTrade operational risk (RB venue)**: docs-based fee numbers pending
-  live verification; keeper-executed order fills must be probed (Flash
-  lesson: UI and API paths can diverge); SOL-market depth and ADL
-  thresholds unconfirmed; protocol age ~17 months vs Flash's wind-down
-  precedent — venue health monitoring (TVL, volume, team activity) joins
-  the per-client checklist.
+- **GMTrade operational risk (RB venue)**: costs verified on-chain
+  (v8e measured pass) but the WSOL-USDC market is thin ($48K long OI);
+  keeper-executed order fills must be probed with small trades (Flash
+  lesson: UI and API paths can diverge); ADL thresholds and oracle
+  quality still to confirm; protocol age ~17 months vs Flash's
+  wind-down precedent — venue health monitoring (TVL, volume, team
+  activity) joins the per-client checklist.
 
 ## Artifacts
 
@@ -168,5 +171,6 @@ Only when ALL four are true do we earn the right to ask how to scale:
 | Friend's engine machine config | `research/missions/s15_friend_engine_config.json` | Frozen pending leverage decision |
 | v2 cost post-mortem | `research/missions/v2_cost_postmortem.py` | Edge survives v2 |
 | Jupiter falsification | `research/missions/s15_v8_jupiter_verdict.md` | 4/10 — venue rejected |
-| Venue ranking verdict | `research/missions/s15_v8_venue_ranking.md` | GMTrade #1, HL #2 |
+| Venue ranking verdict | `research/missions/s15_v8_venue_ranking.md` | GMTrade #1 — MEASURED-COST VALIDATED (v8e) |
+| GMTrade on-chain probe | `research/missions/gmtrade_probe/` | Live fee/borrow reads (gmsol-sdk) |
 | Live specimen | rtp-trader on Railway | HALTED (DRY_RUN) since Flash wind-down |
