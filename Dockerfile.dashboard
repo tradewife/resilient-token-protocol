@@ -8,6 +8,10 @@ RUN cd dashboard && npm ci
 
 FROM node:20-slim AS builder
 WORKDIR /app
+# NEXT_PUBLIC_ vars must be present at build time for Next.js to inline
+# them. Railway injects env vars as build args.
+ARG NEXT_PUBLIC_RTP_DIAGNOSTIC_PAY_URL
+ENV NEXT_PUBLIC_RTP_DIAGNOSTIC_PAY_URL=${NEXT_PUBLIC_RTP_DIAGNOSTIC_PAY_URL}
 COPY --from=deps /app/dashboard/node_modules dashboard/node_modules
 COPY --from=deps /app/sdk sdk
 COPY dashboard/ dashboard/

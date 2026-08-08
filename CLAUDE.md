@@ -94,6 +94,7 @@ Fee-Payer Wallet (gas only, DONE)
 - **`StrategyPerformanceUpdated` event** now includes `recovery_counter` field for audit.
 
 ### Operational Notes (Lessons Learned)
+- **⚠️ Flash Trade is winding down (announced Aug 7, 2026)** — do NOT re-enable live trading on Flash. Trader is HALTED via `RTP_TRADER_DRY_RUN=1` on Railway (deploy `51add6e1`, Aug 8). All funds were extracted to wallet `HDQ79…` (native SOL + USDC + JitoSOL) on Aug 8. The deposit-ledger PDA may still read a stale SOL book figure — that is NOT withdrawable value. Next venue (likely Jupiter Perps) must be instrumented before any trading resumes; clearing `RTP_TRADER_DRY_RUN` is a deliberate decision, not a revert. Flash REST API is degrading (`/markets`, `/positions`, `/custodies` now 404).
 - **Never use `railway up` for redeployment** — it wipes custom domain registrations. Use Railway dashboard redeploy instead. If domains are lost, re-add via GraphQL `customDomainCreate` + `customDomainUpdate` to trigger verification.
 - **rtp-night-shift may lose GitHub repo connection** — if the service stops auto-deploying on push, reconnect the repo in Railway dashboard (Settings → Connect Repo → select `tradewife/resilient-token-protocol`). Root directory must be `/` (repo root), Dockerfile path stays `research/Dockerfile`.
 - **Dashboard RPC must match treasury network**: WalletProvider uses devnet RPC. The `/launch` page creates a separate mainnet connection for platform launches. Never mix networks — treasury balance reads from wrong RPC return 0.

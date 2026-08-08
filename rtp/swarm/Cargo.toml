@@ -31,9 +31,15 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "blo
 sha3 = "0.10"
 secp256k1 = { version = "0.29", features = ["recovery"] }
 rmp = "0.8"
-solana-sdk = "2"
+# Pinned to 2.1 to unify with gmsol-sdk's internal solana-sdk range
+# (>=2.1,<2.2). The swarm only uses basic SDK APIs (signer, pubkey,
+# system_program, transactions) which are identical across 2.x.
+solana-sdk = "2.1"
 bincode = "1"
 base64 = "0.22"
+# GMTrade execution venue (gmx-solana). Pinned at the commit validated by the
+# keeper-fill probe (research/missions/gmtrade_probe/TRADE-PROBE-RESULTS.md).
+gmsol-sdk = { git = "https://github.com/gmsol-labs/gmx-solana", rev = "3175cda304748ef24cbf96156021a320dbf1f061", default-features = false, features = ["client", "decode"] }
 
 [dev-dependencies]
 tokio-test = "0.4"

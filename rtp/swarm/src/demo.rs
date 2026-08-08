@@ -94,7 +94,14 @@ pub async fn run_demo_loop() -> DemoResult {
 
     steps.push(DemoStep {
         name: "register_wings".to_string(),
-        status: if coordinator.lifecycle().active_count() == 6 { StepStatus::Passed } else { StepStatus::Failed(format!("Expected 6 wings, got {}", coordinator.lifecycle().active_count())) },
+        status: if coordinator.lifecycle().active_count() == 6 {
+            StepStatus::Passed
+        } else {
+            StepStatus::Failed(format!(
+                "Expected 6 wings, got {}",
+                coordinator.lifecycle().active_count()
+            ))
+        },
         detail: format!(
             "Registered {} wings",
             coordinator.lifecycle().active_count()
@@ -131,7 +138,11 @@ pub async fn run_demo_loop() -> DemoResult {
     let proposal_routed = matches!(result, crate::ProcessingResult::Routed { .. });
     steps.push(DemoStep {
         name: "trading_proposes".to_string(),
-        status: if proposal_routed { StepStatus::Passed } else { StepStatus::Failed("Proposal not routed".to_string()) },
+        status: if proposal_routed {
+            StepStatus::Passed
+        } else {
+            StepStatus::Failed("Proposal not routed".to_string())
+        },
         detail: format!("Proposal routed: {}", proposal_routed),
     });
 
@@ -144,7 +155,14 @@ pub async fn run_demo_loop() -> DemoResult {
                     let is_safe = severity == RiskLevel::Low || severity == RiskLevel::None;
                     steps.push(DemoStep {
                         name: "security_check".to_string(),
-                        status: if is_safe { StepStatus::Passed } else { StepStatus::Failed(format!("Security threat: {} ({})", threat, severity)) },
+                        status: if is_safe {
+                            StepStatus::Passed
+                        } else {
+                            StepStatus::Failed(format!(
+                                "Security threat: {} ({})",
+                                threat, severity
+                            ))
+                        },
                         detail: format!("Security: {} ({})", threat, severity),
                     });
                 }
@@ -167,7 +185,9 @@ pub async fn run_demo_loop() -> DemoResult {
     } else {
         steps.push(DemoStep {
             name: "security_check".to_string(),
-            status: StepStatus::Skipped("Security wing not in routing path for proposals".to_string()),
+            status: StepStatus::Skipped(
+                "Security wing not in routing path for proposals".to_string(),
+            ),
             detail: "Security: no message received (not routed to security)".to_string(),
         });
     }
@@ -182,7 +202,11 @@ pub async fn run_demo_loop() -> DemoResult {
 
     steps.push(DemoStep {
         name: "audit_receives_proposal".to_string(),
-        status: if audit_received { StepStatus::Passed } else { StepStatus::Failed("Audit Wing did not receive proposal".to_string()) },
+        status: if audit_received {
+            StepStatus::Passed
+        } else {
+            StepStatus::Failed("Audit Wing did not receive proposal".to_string())
+        },
         detail: format!(
             "Audit Wing received proposal: {}",
             if audit_received { "yes" } else { "no" }
@@ -202,7 +226,11 @@ pub async fn run_demo_loop() -> DemoResult {
 
     steps.push(DemoStep {
         name: "audit_tribunal".to_string(),
-        status: if audit_approved { StepStatus::Passed } else { StepStatus::Failed("Tribunal rejected proposal".to_string()) },
+        status: if audit_approved {
+            StepStatus::Passed
+        } else {
+            StepStatus::Failed("Tribunal rejected proposal".to_string())
+        },
         detail: format!(
             "Tribunal verdict: {}",
             if audit_approved {
@@ -241,7 +269,11 @@ pub async fn run_demo_loop() -> DemoResult {
     let audit_routed = matches!(result, crate::ProcessingResult::Routed { .. });
     steps.push(DemoStep {
         name: "audit_result_routed".to_string(),
-        status: if audit_routed { StepStatus::Passed } else { StepStatus::Failed("Audit result not routed".to_string()) },
+        status: if audit_routed {
+            StepStatus::Passed
+        } else {
+            StepStatus::Failed("Audit result not routed".to_string())
+        },
         detail: format!("Audit result routed to Trading: {}", audit_routed),
     });
 
@@ -265,11 +297,17 @@ pub async fn run_demo_loop() -> DemoResult {
         status: if soulguard_blocked {
             StepStatus::Passed
         } else {
-            StepStatus::Failed("Soulguard should have rejected Trading Wing EvolveProposal".to_string())
+            StepStatus::Failed(
+                "Soulguard should have rejected Trading Wing EvolveProposal".to_string(),
+            )
         },
         detail: format!(
             "Soulguard {} Trading Wing's EvolveProposal (constitutional governance enforced)",
-            if soulguard_blocked { "BLOCKED" } else { "ACCEPTED (unexpected)" }
+            if soulguard_blocked {
+                "BLOCKED"
+            } else {
+                "ACCEPTED (unexpected)"
+            }
         ),
     });
 
@@ -282,7 +320,11 @@ pub async fn run_demo_loop() -> DemoResult {
 
     steps.push(DemoStep {
         name: "trading_receives_permit".to_string(),
-        status: if permit_received { StepStatus::Passed } else { StepStatus::Failed("Trading Wing did not receive ExecutePermit".to_string()) },
+        status: if permit_received {
+            StepStatus::Passed
+        } else {
+            StepStatus::Failed("Trading Wing did not receive ExecutePermit".to_string())
+        },
         detail: format!(
             "Trading Wing received ExecutePermit: {}",
             if permit_received { "yes" } else { "no" }
@@ -343,7 +385,13 @@ pub async fn run_demo_loop() -> DemoResult {
 
                         steps.push(DemoStep {
                             name: "knowledge_stores_yield".to_string(),
-                            status: if knowledge_works { StepStatus::Passed } else { StepStatus::Failed("Knowledge query returned no results".to_string()) },
+                            status: if knowledge_works {
+                                StepStatus::Passed
+                            } else {
+                                StepStatus::Failed(
+                                    "Knowledge query returned no results".to_string(),
+                                )
+                            },
                             detail: format!(
                                 "Knowledge query returned results: {}",
                                 knowledge_works
@@ -355,7 +403,10 @@ pub async fn run_demo_loop() -> DemoResult {
                         // Marked as SKIP, not PASS — the step was not genuinely exercised.
                         steps.push(DemoStep {
                             name: "strategy_assessment".to_string(),
-                            status: StepStatus::Skipped(format!("Bridge not available (expected in test): {}", reason)),
+                            status: StepStatus::Skipped(format!(
+                                "Bridge not available (expected in test): {}",
+                                reason
+                            )),
                             detail: format!("Bridge not available (expected in test): {}", reason),
                         });
                         steps.push(DemoStep {
@@ -367,7 +418,10 @@ pub async fn run_demo_loop() -> DemoResult {
                     _ => {
                         steps.push(DemoStep {
                             name: "strategy_assessment".to_string(),
-                            status: StepStatus::Failed(format!("Unexpected payload: {:?}", resp.payload)),
+                            status: StepStatus::Failed(format!(
+                                "Unexpected payload: {:?}",
+                                resp.payload
+                            )),
                             detail: format!("Unexpected payload: {:?}", resp.payload),
                         });
                         success = false;
@@ -377,7 +431,9 @@ pub async fn run_demo_loop() -> DemoResult {
             None => {
                 steps.push(DemoStep {
                     name: "strategy_assessment".to_string(),
-                    status: StepStatus::Failed("Trading Wing returned None (should not happen)".to_string()),
+                    status: StepStatus::Failed(
+                        "Trading Wing returned None (should not happen)".to_string(),
+                    ),
                     detail: "Trading Wing returned None (should not happen)".to_string(),
                 });
                 success = false;
@@ -410,21 +466,30 @@ pub async fn run_demo_loop() -> DemoResult {
 
     steps.push(DemoStep {
         name: "futureproof_heartbeat".to_string(),
-        status: if fp_healthy { StepStatus::Passed } else { StepStatus::Failed("Futureproof Wing heartbeat failed".to_string()) },
+        status: if fp_healthy {
+            StepStatus::Passed
+        } else {
+            StepStatus::Failed("Futureproof Wing heartbeat failed".to_string())
+        },
         detail: format!("Futureproof Wing heartbeat: {}", fp_healthy),
     });
 
     // Step 9: Live autonomous trader status.
-    let trader_detail = match crate::trader::TraderState::load(std::path::Path::new("data/trader-state.json")) {
-        Some(state) => {
-            let pos = if state.open_position.is_some() { "OPEN" } else { "FLAT" };
-            format!(
-                "Live Trader: {} trades, {:.4} SOL PnL, {} candles, pos={}",
-                state.total_trades, state.total_pnl_sol, state.candle_count, pos
-            )
-        }
-        None => "Live Trader: state file not found (trader may not have run yet)".to_string(),
-    };
+    let trader_detail =
+        match crate::trader::TraderState::load(std::path::Path::new("data/trader-state.json")) {
+            Some(state) => {
+                let pos = if state.open_position.is_some() {
+                    "OPEN"
+                } else {
+                    "FLAT"
+                };
+                format!(
+                    "Live Trader: {} trades, {:.4} SOL PnL, {} candles, pos={}",
+                    state.total_trades, state.total_pnl_sol, state.candle_count, pos
+                )
+            }
+            None => "Live Trader: state file not found (trader may not have run yet)".to_string(),
+        };
     steps.push(DemoStep {
         name: "live_trader_status".to_string(),
         status: StepStatus::Passed,
@@ -572,7 +637,8 @@ pub fn run_hl_round_trip() -> HlRoundTripResult {
                 Ok(sig) => {
                     tracing::info!(
                         "[HL ROUND-TRIP] Step 4: Treasury deposit submitted: {} USDC → sig: {}",
-                        pnl_val, sig
+                        pnl_val,
+                        sig
                     );
                     Some(sig)
                 }
@@ -642,7 +708,9 @@ pub fn run_flash_trade_demo() -> Result<serde_json::Value, String> {
                 if pool.pool.contains("Crypto") {
                     tracing::info!(
                         "[FLASH DEMO]   Pool: {} — AUM: ${}, Utilization: {}%",
-                        pool.pool, pool.aum_usd, pool.utilization
+                        pool.pool,
+                        pool.aum_usd,
+                        pool.utilization
                     );
                 }
             }
@@ -667,7 +735,9 @@ pub fn run_flash_trade_demo() -> Result<serde_json::Value, String> {
     tracing::info!("[FLASH DEMO]   Trading Wing → open_flash_position ix");
     tracing::info!("[FLASH DEMO]   rtp-treasury validates constraints → invoke_signed");
     tracing::info!("[FLASH DEMO]   Flash Trade Perpetuals program: open_position");
-    tracing::info!("[FLASH DEMO]   Position PDA: [\"position\", treasury_pda, pool, custody, side]");
+    tracing::info!(
+        "[FLASH DEMO]   Position PDA: [\"position\", treasury_pda, pool, custody, side]"
+    );
     tracing::info!("[FLASH DEMO]   NO human keypair — PDA signs via invoke_signed");
 
     // Step 5: Show Flash Trade program details
@@ -783,9 +853,10 @@ pub async fn prove_constraint_rejection() -> Result<String, String> {
 
     let ix = solana_sdk::instruction::Instruction {
         program_id: program_pubkey,
-        accounts: vec![
-            solana_sdk::instruction::AccountMeta::new(treasury_pubkey, false),
-        ],
+        accounts: vec![solana_sdk::instruction::AccountMeta::new(
+            treasury_pubkey,
+            false,
+        )],
         data: ix_data,
     };
 
@@ -793,11 +864,11 @@ pub async fn prove_constraint_rejection() -> Result<String, String> {
     let payer = solana_sdk::signer::keypair::Keypair::new();
     let blockhash = fetch_blockhash(rpc_url).await?;
 
-    let msg = solana_sdk::message::Message::new(&[ix], Some(&solana_sdk::signer::Signer::pubkey(&payer)));
+    let msg =
+        solana_sdk::message::Message::new(&[ix], Some(&solana_sdk::signer::Signer::pubkey(&payer)));
     let signed = solana_sdk::transaction::Transaction::new(&[&payer], msg, blockhash);
 
-    let serialized = bincode::serialize(&signed)
-        .map_err(|e| format!("Serialize error: {}", e))?;
+    let serialized = bincode::serialize(&signed).map_err(|e| format!("Serialize error: {}", e))?;
     let encoded = base64::engine::general_purpose::STANDARD.encode(&serialized);
 
     let client = reqwest::Client::new();
@@ -813,7 +884,9 @@ pub async fn prove_constraint_rejection() -> Result<String, String> {
         .await
         .map_err(|e| format!("RPC request failed: {}", e))?;
 
-    let json: serde_json::Value = resp.json().await
+    let json: serde_json::Value = resp
+        .json()
+        .await
         .map_err(|e| format!("Parse error: {}", e))?;
 
     let explorer = format!(
@@ -877,8 +950,7 @@ async fn fetch_blockhash(rpc_url: &str) -> Result<solana_sdk::hash::Hash, String
         .ok_or("No blockhash in RPC response")?;
 
     use std::str::FromStr;
-    solana_sdk::hash::Hash::from_str(bh)
-        .map_err(|e| format!("Invalid blockhash '{}': {}", bh, e))
+    solana_sdk::hash::Hash::from_str(bh).map_err(|e| format!("Invalid blockhash '{}': {}", bh, e))
 }
 
 /// Result of the two-cycle demo covering all 5 judge points.
@@ -1091,7 +1163,9 @@ pub fn print_two_cycle_demo(result: &TwoCycleDemoResult) {
     tracing::info!("=== CONSTRAINT CHECK (on-chain) ===");
     if result.constraint_rejected {
         tracing::info!("[ANCHOR] ❌ evolve_phase REJECTED: BelowThreshold");
-        tracing::info!("[ANCHOR]    treasury vault: 10,000 tokens < 50B cap (Sustenance→Ecosystem)");
+        tracing::info!(
+            "[ANCHOR]    treasury vault: 10,000 tokens < 50B cap (Sustenance→Ecosystem)"
+        );
         tracing::info!("[ANCHOR]    constraint enforced by deployed program 4LvsHb... on devnet");
         tracing::info!("[ANCHOR]    redistribution tx (70/20/10 split enforced):");
         tracing::info!(
@@ -1127,7 +1201,8 @@ pub fn print_two_cycle_demo(result: &TwoCycleDemoResult) {
     if result.memory_persisted {
         tracing::info!(
             "[MEMORY] cycle 1 persisted: yield=0.175 USDC, sharpe=3.96 ({} working, {} project)",
-            result.memory_working_count, result.memory_project_count
+            result.memory_working_count,
+            result.memory_project_count
         );
         let mem_path = "data/swarm-memory/project";
         tracing::info!("[MEMORY] files written to: {}", mem_path);

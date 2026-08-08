@@ -8,8 +8,8 @@
 use rtp_swarm::bridge::{self, NightShiftCandidate, NightShiftSummary};
 use rtp_swarm::chain_client;
 use rtp_swarm::chain_client::{
-    build_close_flash_position_ix, build_open_flash_position_ix,
     ChainConfig, ExecutionMode, FlashMarketAccounts, FlashSide, OraclePrice,
+    build_close_flash_position_ix, build_open_flash_position_ix,
 };
 use rtp_swarm::demo;
 use rtp_swarm::wings::knowledge::KnowledgeWing;
@@ -20,7 +20,11 @@ use tempfile::TempDir;
 async fn full_demo_loop_completes_without_panic() {
     let result = demo::run_demo_loop().await;
     assert!(result.steps.iter().any(|s| s.name == "register_wings"));
-    assert!(result.steps.len() >= 5, "Demo should have >= 5 steps, got {}", result.steps.len());
+    assert!(
+        result.steps.len() >= 5,
+        "Demo should have >= 5 steps, got {}",
+        result.steps.len()
+    );
 }
 
 #[tokio::test]
@@ -114,28 +118,45 @@ async fn night_shift_summary_to_promotion_dry_run() {
 
     // Write summary FIRST (before env var is set)
     std::fs::create_dir_all(&date_dir).unwrap();
-    std::fs::write(date_dir.join("summary.json"), serde_json::to_string_pretty(&summary).unwrap()).unwrap();
+    std::fs::write(
+        date_dir.join("summary.json"),
+        serde_json::to_string_pretty(&summary).unwrap(),
+    )
+    .unwrap();
 
     // Set env var so bridge.rs reads from our temp dir
-    unsafe { std::env::set_var("NIGHT_RESULTS_DIR", night_dir.to_str().unwrap()); }
+    unsafe {
+        std::env::set_var("NIGHT_RESULTS_DIR", night_dir.to_str().unwrap());
+    }
 
     // Read back from the same dir
-    let result = bridge::read_latest_night_results().expect("read_latest_night_results should succeed");
+    let result =
+        bridge::read_latest_night_results().expect("read_latest_night_results should succeed");
     let best = bridge::best_night_shift_candidate().expect("should find a candidate");
 
     // Assert on locally-captured values (not dependent on env var state)
     assert_eq!(result.summary.run_at, "2026-04-28T06:00:00Z");
     assert_eq!(result.summary.top_candidates.len(), 2);
     assert_eq!(best.symbol, "SOL/USDT");
-    assert!((best.survivor_score - 2.69).abs() < 0.001, "SOL survivor={}", best.survivor_score);
-    assert!((best.oos_sharpe - 3.96).abs() < 0.01, "SOL sharpe={}", best.oos_sharpe);
+    assert!(
+        (best.survivor_score - 2.69).abs() < 0.001,
+        "SOL survivor={}",
+        best.survivor_score
+    );
+    assert!(
+        (best.oos_sharpe - 3.96).abs() < 0.01,
+        "SOL sharpe={}",
+        best.oos_sharpe
+    );
 
     let response = best.to_bridge_response();
     assert!(response.strategy.contains("SOL"));
     assert_eq!(response.params["signal_threshold"], 0.3);
     assert_eq!(response.params["take_profit_atr"], 3.0);
 
-    unsafe { std::env::remove_var("NIGHT_RESULTS_DIR"); }
+    unsafe {
+        std::env::remove_var("NIGHT_RESULTS_DIR");
+    }
 }
 
 /// Promotion gate helper for P1.2 Test 2.
@@ -149,17 +170,30 @@ struct TestGate {
 impl TestGate {
     fn eval(&self, c: &NightShiftCandidate) -> (bool, Vec<String>) {
         if c.rejected {
-            return (false, vec![format!("rejected: {}", c.rejection_reason.as_deref().unwrap_or("?"))]);
+            return (
+                false,
+                vec![format!(
+                    "rejected: {}",
+                    c.rejection_reason.as_deref().unwrap_or("?")
+                )],
+            );
         }
         let mut reasons = Vec::new();
         if c.oos_sharpe < self.min_sharpe {
             reasons.push(format!("Sharpe {:.2}<{:.1}", c.oos_sharpe, self.min_sharpe));
         }
         if c.oos_consistency < self.min_consistency {
-            reasons.push(format!("Cons {:.0}%<{:.0}%", c.oos_consistency * 100.0, self.min_consistency * 100.0));
+            reasons.push(format!(
+                "Cons {:.0}%<{:.0}%",
+                c.oos_consistency * 100.0,
+                self.min_consistency * 100.0
+            ));
         }
         if c.oos_avg_trades_per_fold < self.min_trades {
-            reasons.push(format!("Trades {:.1}<{:.0}", c.oos_avg_trades_per_fold, self.min_trades));
+            reasons.push(format!(
+                "Trades {:.1}<{:.0}",
+                c.oos_avg_trades_per_fold, self.min_trades
+            ));
         }
         if c.fragility > self.max_fragility {
             reasons.push(format!("Frag {:.3}>{:.2}", c.fragility, self.max_fragility));
@@ -171,21 +205,40 @@ impl TestGate {
 /// P1.2 Test 2: Promotion gate evaluation.
 #[tokio::test]
 async fn promotion_gate_filters_candidates_correctly() {
-    let gate = TestGate { min_sharpe: 2.5, min_consistency: 0.70, min_trades: 15.0, max_fragility: 0.40 };
+    let gate = TestGate {
+        min_sharpe: 2.5,
+        min_consistency: 0.70,
+        min_trades: 15.0,
+        max_fragility: 0.40,
+    };
     let sol = NightShiftCandidate {
-        symbol: "SOL/USDT".to_string(), params: serde_json::json!({}),
-        survivor_score: 2.69, oos_sharpe: 3.96, oos_consistency: 1.0,
-        oos_max_dd: 0.08, overfitting_score: 0.29, fragility: 0.29,
-        oos_avg_trades_per_fold: 47.0, rejected: false, rejection_reason: None,
+        symbol: "SOL/USDT".to_string(),
+        params: serde_json::json!({}),
+        survivor_score: 2.69,
+        oos_sharpe: 3.96,
+        oos_consistency: 1.0,
+        oos_max_dd: 0.08,
+        overfitting_score: 0.29,
+        fragility: 0.29,
+        oos_avg_trades_per_fold: 47.0,
+        rejected: false,
+        rejection_reason: None,
     };
     let (p, r) = gate.eval(&sol);
     assert!(p, "SOL should pass: {:?}", r);
 
     let btc = NightShiftCandidate {
-        symbol: "BTC/USDT".to_string(), params: serde_json::json!({}),
-        survivor_score: 1.52, oos_sharpe: 1.2, oos_consistency: 0.78,
-        oos_max_dd: 0.12, overfitting_score: 0.57, fragility: 0.65,
-        oos_avg_trades_per_fold: 22.0, rejected: false, rejection_reason: None,
+        symbol: "BTC/USDT".to_string(),
+        params: serde_json::json!({}),
+        survivor_score: 1.52,
+        oos_sharpe: 1.2,
+        oos_consistency: 0.78,
+        oos_max_dd: 0.12,
+        overfitting_score: 0.57,
+        fragility: 0.65,
+        oos_avg_trades_per_fold: 22.0,
+        rejected: false,
+        rejection_reason: None,
     };
     let (p, r) = gate.eval(&btc);
     assert!(!p, "BTC should fail");
@@ -203,13 +256,25 @@ async fn daemon_simulates_open_position() {
     let market = FlashMarketAccounts::sol_long_default();
     let funding = solana_sdk::pubkey::Pubkey::new_unique();
     let ix = build_open_flash_position_ix(
-        &cfg, &authority.pubkey(), &funding, &market,
-        FlashSide::Long, 10_000_000, 10_000, 500,
-        OraclePrice { price: 170_000_000_000, exponent: -8 },
+        &cfg,
+        &authority.pubkey(),
+        &funding,
+        &market,
+        FlashSide::Long,
+        10_000_000,
+        10_000,
+        500,
+        OraclePrice {
+            price: 170_000_000_000,
+            exponent: -8,
+        },
         "SOL_2.69",
     );
     assert!(ix.accounts.len() >= 16);
-    assert_eq!(&ix.data[..8], &rtp_swarm::chain_client::OPEN_FLASH_POSITION_DISC);
+    assert_eq!(
+        &ix.data[..8],
+        &rtp_swarm::chain_client::OPEN_FLASH_POSITION_DISC
+    );
     // submit_or_simulate uses blocking reqwest — call from blocking thread to avoid
     // "Cannot drop a runtime in a context where blocking is not allowed" panic.
     let inner_result: Result<String, String> = tokio::task::spawn_blocking({
@@ -217,7 +282,9 @@ async fn daemon_simulates_open_position() {
         let authority = authority.insecure_clone();
         let ix = ix.clone();
         move || chain_client::submit_or_simulate(&cfg, vec![ix], &authority)
-    }).await.unwrap();
+    })
+    .await
+    .unwrap();
     assert!(inner_result.is_err(), "unreachable RPC should fail");
 }
 
@@ -231,16 +298,37 @@ async fn stale_position_triggers_close_simulation() {
     let market = FlashMarketAccounts::sol_long_default();
 
     let close_ix = build_close_flash_position_ix(
-        &cfg, &authority.pubkey(), &cfg.vault_pda, &market,
-        FlashSide::Long, OraclePrice { price: 160_000_000_000, exponent: -8 }, 500, 0,
+        &cfg,
+        &authority.pubkey(),
+        &cfg.vault_pda,
+        &market,
+        FlashSide::Long,
+        OraclePrice {
+            price: 160_000_000_000,
+            exponent: -8,
+        },
+        500,
+        0,
     );
     assert!(close_ix.accounts.len() >= 12);
-    assert_eq!(&close_ix.data[..8], &rtp_swarm::chain_client::CLOSE_FLASH_POSITION_DISC);
+    assert_eq!(
+        &close_ix.data[..8],
+        &rtp_swarm::chain_client::CLOSE_FLASH_POSITION_DISC
+    );
 
     let open_ix = build_open_flash_position_ix(
-        &cfg, &authority.pubkey(), &cfg.vault_pda, &market,
-        FlashSide::Long, 10_000_000, 10_000, 500,
-        OraclePrice { price: 170_000_000_000, exponent: -8 },
+        &cfg,
+        &authority.pubkey(),
+        &cfg.vault_pda,
+        &market,
+        FlashSide::Long,
+        10_000_000,
+        10_000,
+        500,
+        OraclePrice {
+            price: 170_000_000_000,
+            exponent: -8,
+        },
         "SOL_2.69",
     );
     assert_ne!(&open_ix.data[..8], &close_ix.data[..8]);
@@ -251,7 +339,9 @@ async fn stale_position_triggers_close_simulation() {
         let authority = authority.insecure_clone();
         let close_ix = close_ix.clone();
         move || chain_client::submit_or_simulate(&cfg, vec![close_ix], &authority)
-    }).await.unwrap();
+    })
+    .await
+    .unwrap();
     assert!(inner_result.is_err(), "unreachable RPC should fail");
 }
 
@@ -272,15 +362,27 @@ async fn night_shift_to_daemon_config() {
         top_candidates: vec![NightShiftCandidate {
             symbol: "SOL/USDT".to_string(),
             params: serde_json::json!({"signal_threshold": 0.3, "take_profit_atr": 3.0, "stop_loss_atr": 1.5, "max_hold_hours": 36.0, "trailing_stop_atr": 0.5}),
-            survivor_score: 2.69, oos_sharpe: 3.96, oos_consistency: 1.0,
-            oos_max_dd: 0.08, overfitting_score: 0.29, fragility: 0.29,
-            oos_avg_trades_per_fold: 47.0, rejected: false, rejection_reason: None,
+            survivor_score: 2.69,
+            oos_sharpe: 3.96,
+            oos_consistency: 1.0,
+            oos_max_dd: 0.08,
+            overfitting_score: 0.29,
+            fragility: 0.29,
+            oos_avg_trades_per_fold: 47.0,
+            rejected: false,
+            rejection_reason: None,
         }],
     };
 
-    std::fs::write(date_dir.join("summary.json"), serde_json::to_string_pretty(&summary).unwrap()).unwrap();
+    std::fs::write(
+        date_dir.join("summary.json"),
+        serde_json::to_string_pretty(&summary).unwrap(),
+    )
+    .unwrap();
 
-    unsafe { std::env::set_var("NIGHT_RESULTS_DIR", night_dir.to_str().unwrap()); }
+    unsafe {
+        std::env::set_var("NIGHT_RESULTS_DIR", night_dir.to_str().unwrap());
+    }
     let best = bridge::best_night_shift_candidate().expect("should find candidate");
     assert_eq!(best.params["signal_threshold"], 0.3);
     assert_eq!(best.params["take_profit_atr"], 3.0);
@@ -289,7 +391,9 @@ async fn night_shift_to_daemon_config() {
     let stale = 36.0_f64 * 1.1;
     assert!((stale - 39.6).abs() < 0.001);
 
-    unsafe { std::env::remove_var("NIGHT_RESULTS_DIR"); }
+    unsafe {
+        std::env::remove_var("NIGHT_RESULTS_DIR");
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -300,7 +404,9 @@ async fn night_shift_to_daemon_config() {
 #[tokio::test]
 async fn knowledge_wing_persists_with_daemon_path() {
     let dir = TempDir::new().unwrap();
-    let path = dir.path().join("data/swarm-memory/knowledge/wing-state.json");
+    let path = dir
+        .path()
+        .join("data/swarm-memory/knowledge/wing-state.json");
     {
         let wing = KnowledgeWing::new_with_persistence(path.clone());
         wing.put("daemon_cycle", "cycle_id=2026-04-29T14_health=Healthy");
@@ -314,7 +420,10 @@ async fn knowledge_wing_persists_with_daemon_path() {
         let msg = rtp_swarm::types::Message::new(
             rtp_swarm::types::WingId::Coordinator,
             rtp_swarm::types::WingId::Knowledge,
-            rtp_swarm::types::Payload::KnowledgeQuery { query: "daemon_cycle".to_string(), context: None },
+            rtp_swarm::types::Payload::KnowledgeQuery {
+                query: "daemon_cycle".to_string(),
+                context: None,
+            },
         );
         let resp = wing.handle_message(&msg).unwrap();
         if let rtp_swarm::types::Payload::KnowledgeResult { results } = &resp.payload {
@@ -330,13 +439,18 @@ async fn knowledge_wing_persists_with_daemon_path() {
 async fn knowledge_wing_respects_rtp_knowledge_path_env() {
     let dir = TempDir::new().unwrap();
     let path = dir.path().join("knowledge.json");
-    unsafe { std::env::set_var("RTP_KNOWLEDGE_PATH", path.to_str().unwrap()); }
+    unsafe {
+        std::env::set_var("RTP_KNOWLEDGE_PATH", path.to_str().unwrap());
+    }
 
-    let wing = KnowledgeWing::new_with_persistence(std::path::PathBuf::from(path.to_str().unwrap()));
+    let wing =
+        KnowledgeWing::new_with_persistence(std::path::PathBuf::from(path.to_str().unwrap()));
     wing.put("test_from_env", "value123");
     assert!(path.exists());
 
-    unsafe { std::env::remove_var("RTP_KNOWLEDGE_PATH"); }
+    unsafe {
+        std::env::remove_var("RTP_KNOWLEDGE_PATH");
+    }
 
     let wing2 = KnowledgeWing::new_with_persistence(path.clone());
     assert_eq!(wing2.store_size(), 1);

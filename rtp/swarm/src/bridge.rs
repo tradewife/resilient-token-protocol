@@ -129,9 +129,8 @@ pub fn read_latest_night_results() -> Result<NightShiftResult, BridgeError> {
     for entry in std::fs::read_dir(&night_dir).map_err(|e| {
         BridgeError::NightResultsReadError(format!("read_dir({}): {}", night_dir.display(), e))
     })? {
-        let entry = entry.map_err(|e| {
-            BridgeError::NightResultsReadError(format!("dir entry: {}", e))
-        })?;
+        let entry =
+            entry.map_err(|e| BridgeError::NightResultsReadError(format!("dir entry: {}", e)))?;
         let name = entry.file_name().to_string_lossy().to_string();
         if !name.chars().all(|c| c.is_ascii_digit() || c == '-') || name.len() != 10 {
             continue; // skip non-date directories
@@ -185,7 +184,11 @@ pub fn best_night_shift_candidate() -> Option<NightShiftCandidate> {
         .top_candidates
         .iter()
         .filter(|c| !c.rejected)
-        .max_by(|a, b| a.survivor_score.partial_cmp(&b.survivor_score).unwrap_or(std::cmp::Ordering::Equal))
+        .max_by(|a, b| {
+            a.survivor_score
+                .partial_cmp(&b.survivor_score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })
         .cloned()
 }
 

@@ -1,6 +1,14 @@
-ARG RUST_VERSION=1.88-slim
+# rustc 1.90+ required: gmsol-sdk's dep chain pulls ruint 1.20 which has
+# rust-version 1.90. Match the dev toolchain (1.94).
+ARG RUST_VERSION=1.94-slim
 FROM rust:${RUST_VERSION} AS builder
-RUN apt-get update && apt-get install -y pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*
+# git + ca-certificates: cargo fetches gmsol-sdk from a public git repo.
+# make + perl: fallback for the vendored-OpenSSL path (solana-secp256r1-program
+# -> openssl). Prefer linking system OpenSSL via OPENSSL_NO_VENDOR below.
+RUN apt-get update && apt-get install -y pkg-config libssl-dev git ca-certificates make perl && rm -rf /var/lib/apt/lists/*
+# Link against system OpenSSL (libssl-dev) instead of building the vendored
+# copy from source (10-20 min slower per build).
+ENV OPENSSL_NO_VENDOR=1
 WORKDIR /build
 
 # Force cache bust on every build
@@ -21,10 +29,11 @@ COPY cli/package.json cli/package-lock.json ./
 COPY cli/flash-sdk-wrapper.mjs ./
 RUN npm ci --omit=dev --no-audit --no-fund
 
-# Runtime: debian for the Rust binary + Node 20 binary from the official image.
-# Do NOT use Debian's `nodejs` package (v18) — the wrapper needs Node 20, and
-# `node --input-type=module file.mjs` is invalid on Node 18.
-FROM debian:bookworm-slim
+# Runtime: must match the builder's Debian release — rust:1.94-slim is
+# trixie-based (glibc >= 2.39); a bookworm runtime crashes with
+# "GLIBC_2.39 not found". Node 20 is copied from the bookworm wrapper stage —
+# glibc is forward-compatible so it runs fine on trixie.
+FROM debian:trixie-slim
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates libssl3 \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /build/target/release/rtp-trader /usr/local/bin/
@@ -36,7 +45,9 @@ COPY data/trader-strategy-config.json /app/config/strategy.json
 
 # Copy the prepared wrapper + node_modules from the wrapper stage
 COPY --from=wrapper /wrapper /app/wrapper
-# Node 20 binary from the same image that built the wrapper (matches bookworm libc)
+# Node 20 binary from the wrapper stage (built on bookworm; runs on trixie —
+# glibc is forward-compatible). Do NOT use Debian's `nodejs` package (v18) —
+# the wrapper needs Node 20.
 COPY --from=wrapper /usr/local/bin/node /usr/local/bin/node
 
 ENV RTP_TRADER_KEYPAIR=/app/keys/trader.json

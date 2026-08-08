@@ -135,7 +135,7 @@ const INVARIANTS = [
   { title: "Per-Token Isolation", desc: "Each mint gets its own Treasury PDA and vault. One token's exploit cannot affect another's reserves. No shared pool, no honeypot." },
   { title: "Emergency Freeze", desc: "Authority-gated halt. All 15 state-mutating instructions check the frozen flag. Unfreeze requires multisig approval." },
   { title: "Strategy Lifecycle", desc: "Hard stops auto-suspend: 10% drawdown, 5 consecutive losses. Soft decay auto-retires after 3 strikes. Recovery needs 3 consecutive positive updates." },
-  { title: "CPI-Only Execution", desc: "All trading via Flash Trade CPI on Solana. invoke_signed with Treasury PDA seeds. Funds never leave the chain." },
+  { title: "CPI-Only Execution", desc: "All trading stays on Solana. Treasury PDA signs via invoke_signed — no human keypair exists. The venue layer is measured and replaceable: proven live by the Flash → GMTrade migration." },
   { title: "Phase Irreversible", desc: "Sustenance \u2192 Ecosystem \u2192 Humanity. On-chain transitions with no downgrade path. The protocol grows up, never down." },
 ] as const;
 
@@ -366,11 +366,9 @@ export default function Home() {
 
         <div className="hero-content">
           <div className="hero-copy">
-            <span className="hero-label">SOLANA-NATIVE · AUTONOMOUS TREASURY · SELF-FUNDING</span>
+            <span className="hero-label">BESPOKE TREASURY INFRASTRUCTURE · CRYPTO-NATIVE CAPITAL · SELF-CUSTODY</span>
             <h1 className="hero-title">
-              Every token gets a
-              <br />
-              program-enforced treasury
+              A trading engine built for one account: yours.
             </h1>
             <p className="hero-tagline" style={{
               fontSize: "1.25rem",
@@ -380,16 +378,19 @@ export default function Home() {
               margin: "0.5rem 0 0.75rem",
               lineHeight: 1.4,
             }}>
-              No one wants to hold anymore.{" "}<span className="hero-tagline-break">RTP gives them a reason.</span>
+              Shared strategies get crowded.{" "}<span className="hero-tagline-break">Yours is cut to your measurements.</span>
             </p>
             <p className="hero-subtitle">
-              Token projects route trading fees to RTP → the swarm generates returns via on-chain perps → SOL flows back to holders. 70/20/10 split, enforced on-chain. No RTP token.<br />Pure infrastructure.
+              Tell us your terms — risk budget, drawdown limit, horizon. We engineer a distinct
+              strategy around them, price it at live venue fees measured on-chain, and put it
+              through a fixed gate suite before anything runs on your capital. You keep the keys
+              and the kill switch. We stay loyal to no one but you.
             </p>
           </div>
 
           <div className="sys2-hero-cta-row" style={{ marginBottom: "var(--space-lg)" }}>
-            <Link href="/launch" className="sys2-cta-primary">
-              Launch a token <span className="cta-badge-devnet">DEVNET</span>
+            <Link href="/diagnostic" className="sys2-cta-primary">
+              Run the Paper Engine diagnostic
             </Link>
             <Link href="/docs" className="sys2-cta-secondary">Read the docs →</Link>
           </div>
@@ -451,19 +452,20 @@ export default function Home() {
         <header className="sys2-sect-head">
           <div>
             <div className="sys2-sect-eyebrow">§1 · proven on mainnet</div>
-            <h2 className="sys2-sect-title">The yield engine is running. With real capital.</h2>
+            <h2 className="sys2-sect-title">The blueprint is running. With real capital.</h2>
             <p className="sys2-sect-lede">
-              Beta testing with skin in the game — real capital on mainnet, proving it before we
-              open the doors. A Rust agent executes validated strategies on-chain
-              via Flash Trade CPI, signed by the Treasury PDA. No human keypair exists. Every
-              position is an on-chain transaction verifiable on Solana Explorer.
+              Beta testing with skin in the game — real capital on mainnet since May 12, every
+              position verifiable on Solana Explorer. A Rust agent executes validated strategies
+              on Solana perps, signed autonomously. When the original venue (Flash Trade)
+              announced its wind-down in August 2026, the pipeline measured GMTrade&apos;s live
+              on-chain costs and re-validated the engine: 10/10 gates. Migration underway.
             </p>
           </div>
           <div className="sys2-sect-side">
             <span className={`sys2-status-pill ${traderStatus}`}>
               <span className="sys2-status-dot" />
               {traderStatus === "in_position" ? "Position open on mainnet" :
-               traderStatus === "watching" ? "Flat, watching the tape" : "Connecting…"}
+               traderStatus === "watching" ? "Flat · venue migration to GMTrade" : "Connecting…"}
             </span>
           </div>
         </header>
@@ -493,7 +495,7 @@ export default function Home() {
               <>
                 <div className="console-big console-muted">Flat</div>
                 <div className="console-empty-text">
-                  Survivor 2.69 enters LONG when score &gt; 0.3 or SHORT when score &lt; -0.3, with 3+ aligned timeframes. 20% capital, 9× leverage. Stop-loss 2.5× ATR, take-profit 6.0× ATR, trailing 1.0× ATR.
+                  Survivor 2.69 enters LONG when score &gt; 0.3 or SHORT when score &lt; -0.3, with 2+ aligned timeframes. 20% capital, 9× leverage. Stop-loss 2.5× ATR, take-profit 6.0× ATR, trailing 1.0× ATR.
                 </div>
               </>
             )}
@@ -592,8 +594,56 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ════════ §2 TRUSTLESS BY DESIGN ════════ */}
-      <section className="sys2-section" id="trust">
+      {/* ════════ §2 THE SERVICE ════════ */}
+      <section className="sys2-section" id="service" style={{ marginTop: "var(--space-4xl)" }}>
+        <header className="sys2-sect-head">
+          <div>
+            <div className="sys2-sect-eyebrow">§2 · the service</div>
+            <h2 className="sys2-sect-title">Bring us your terms. We build the engine to fit them.</h2>
+            <p className="sys2-sect-lede">
+              Not a SaaS product you configure. Not a shared strategy you rent. The research
+              + validation pipeline is the actual product — it takes your specifics (capital
+              size, risk budget, drawdown limits, horizon) and engineers a distinct,
+              on-chain-verifiable strategy that runs on self-custodied rails. Each engagement
+              is high-touch and deliberately limited, so your edge never gets crowded.
+            </p>
+          </div>
+        </header>
+
+        <div className="arch2-layer-cells">
+          {[
+            { t: "Cut to your measurements", d: "Your terms define the build: capital size, maximum drawdown, horizon, the assets you want to accumulate. We engineer a strategy around them — not from a shelf. No shared templates, no crowded edges. What you receive, nobody else runs. Ever." },
+            { t: "Priced to reality, not brochures", d: "This ecosystem is fast: venues change fee schedules, change mechanics, and shut down — often inside a single market cycle. Every engine is validated against live fees measured on-chain: open/close, borrow, funding. When a venue moves, we re-measure. Stale numbers never touch your capital." },
+            { t: "The same gate suite for everyone", d: "Ten fixed gates: out-of-sample PnL, fold consistency, bidirectional attribution, sensitivity, latency, drawdown ≤ 25%, zero liquidations. If an engine can&apos;t clear them at measured costs, it does not ship — even when the honest answer is no." },
+            { t: "High-touch by design", d: "Structured intake (~10 minutes), engineered build, written verdict, 45–60 minute debrief — a human walks you through every line. Three to four engagements at a time, deliberately: crowding an edge destroys it. Access to us is part of what you&apos;re buying." },
+          ].map((c) => (
+            <div key={c.t} className="arch2-cell" style={{ borderLeft: "2px solid var(--coral-dim)" }}>
+              <div className="arch2-cell-title">{c.t}</div>
+              <div className="arch2-cell-sub">{c.d}</div>
+            </div>
+          ))}
+        </div>
+
+        <div className="arch2-coord" style={{ marginTop: "var(--space-xl)" }}>
+          <span className="arch2-coord-tag">LOYALTY</span>
+          We are loyal to no one but the client. No venue pays us to route you there. No token
+          rewards us for your trades. No referral fee colors our verdict. When we recommend an
+          execution venue, it is because we measured it against your terms — and the measurement
+          is yours to inspect, line by line.
+        </div>
+
+        <div className="arch2-coord" style={{ marginTop: "var(--space-md)" }}>
+          <span className="arch2-coord-tag">NOT ADVICE — THE ONBOARDING WE WISH WE HAD</span>
+          We do not manage your money and we do not tell you what to buy. When we first got into
+          the trenches, what we wished for was not a hot tip — it was someone who knew where the
+          traps were: venues that vanish overnight, fee schedules that silently eat edges, custody
+          mistakes that cost everything. That is what we build: a setup engineered around those
+          lessons. You keep custody. You keep the decisions. We build the rails and prove the costs.
+        </div>
+      </section>
+
+      {/* ════════ §3 TRUSTLESS BY DESIGN ════════ */}
+      <section className="sys2-section" id="trust" style={{ marginTop: "var(--space-4xl)" }}>
         <header className="sys2-sect-head">
           <div>
             <div className="sys2-sect-eyebrow">§2 · trustless by design</div>
@@ -605,6 +655,23 @@ export default function Home() {
             </p>
           </div>
         </header>
+
+        <div className="cta2-card" style={{ marginBottom: "var(--space-2xl)" }}>
+          <div className="cta2-content">
+            <div className="sys2-sect-eyebrow">THE PDA, IN PLAIN ENGLISH</div>
+            <p className="cta2-lede" style={{ marginBottom: "var(--space-md)" }}>
+              A PDA — program-derived address — is a vault whose keys do not exist. It is
+              controlled by code, not by a person. Funds go in, the rules decide what happens,
+              and funds only ever move exactly as the rules allow.
+            </p>
+            <ul style={{ color: "var(--text-secondary)", lineHeight: 1.7, fontSize: "0.9375rem", textAlign: "left", maxWidth: "72ch", margin: "0 auto" }}>
+              <li><strong>No private key.</strong> There is no password to steal, phish, or leak. Not ours, not yours — nobody&apos;s.</li>
+              <li><strong>Rules enforced by code.</strong> Position limits, drawdown stops, emergency halt — enforced on-chain the same way for everyone.</li>
+              <li><strong>You keep the kill switch.</strong> Execution runs through permission you grant from your own wallet. Revoke it any time and the engine stops, instantly, without asking us.</li>
+              <li><strong>Everything auditable.</strong> Every open, close, and fee is a transaction you can open on Solana Explorer.</li>
+            </ul>
+          </div>
+        </div>
 
         <div className="arch2-layer-cells">
           {INVARIANTS.map((inv) => (
@@ -623,11 +690,11 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ════════ §3 SELF-IMPROVING RESEARCH ENGINE ════════ */}
+      {/* ════════ §4 SELF-IMPROVING RESEARCH ENGINE ════════ */}
       <section className="sys2-section" id="pipeline" style={{ marginTop: "var(--space-4xl)" }}>
         <header className="sys2-sect-head">
           <div>
-            <div className="sys2-sect-eyebrow">§3 · self-improving research engine</div>
+            <div className="sys2-sect-eyebrow">§4 · the engine room</div>
             <h2 className="sys2-sect-title">30,000 hypotheses tested every night. Only the survivors reach the chain.</h2>
             <p className="sys2-sect-lede">
               The Night Shift runs exhaustive parameter search, validates through 9 independent time
@@ -690,7 +757,7 @@ export default function Home() {
             <div className="intel-active-name">SOL/USDT · Survivor 2.69</div>
             <div className="intel-active-type">Multi-timeframe trend following · 9× leverage</div>
             <div className="intel-chips">
-              {[["signal_threshold","0.3"],["tp_atr","6.0"],["sl_atr","2.5"],["trail_atr","1.0"],["min_alignment","3"],["max_hold","96h"]].map(([k, v]) => (
+              {[["signal_threshold","0.3"],["tp_atr","6.0"],["sl_atr","2.5"],["trail_atr","1.0"],["min_alignment","2"],["max_hold","96h"]].map(([k, v]) => (
                 <span key={k} className="intel-chip"><span className="dim">{k}</span>={v}</span>
               ))}
             </div>
@@ -707,7 +774,7 @@ export default function Home() {
             </header>
             <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
               {[
-                { name: "Trading", desc: "Flash Trade CPI · REST · PnL", live: true },
+                { name: "Trading", desc: "Venue execution · REST · PnL", live: true },
                 { name: "Evolve", desc: "LLM proposer · gates · rollback", live: true },
                 { name: "Audit", desc: "3-agent tribunal · consensus" },
                 { name: "Security", desc: "Threats · rate limits · alerts" },
@@ -727,27 +794,21 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ════════ §4 INTEGRATE ════════ */}
+      {/* ════════ §5 ENGAGE ════════ */}
       <section className="sys2-section sys2-cta-section" id="integrate">
         <div className="cta2-card">
           <div className="cta2-content">
-            <div className="sys2-sect-eyebrow">§4 · integrate</div>
-            <h2 className="cta2-title">One function call. A program-enforced treasury for any token.</h2>
+            <div className="sys2-sect-eyebrow">§5 · engage</div>
+            <h2 className="cta2-title">Your terms in. A bespoke engine out.</h2>
             <p className="cta2-lede">
-              No RTP token. No custody. No new wallet. The SDK registers a Token-2022 mint with its own
-              Treasury PDA in a single call. Trading fees flow in. SOL flows out 70/20/10. The program is
-              the only thing that can sign, by design.
+              A$4,500, one-time. Structured intake, engineered strategy, ten-gate validation
+              at measured venue fees, written verdict, 45–60 minute debrief. Three to four
+              slots at a time — deliberately, because crowding an edge destroys it.
+              No live capital moves. Full client custody throughout.
             </p>
-            <pre className="cta2-code"><code>{`import { registerWithRTP } from "@resilient-protocol/sdk";
-
-const result = await registerWithRTP(connection, payer, {
-  authority: payer.publicKey,
-});
-
-// result.treasuryPDA → program-owned, no human can sign for it`}</code></pre>
             <div className="cta2-actions">
-              <Link href="/launch" className="sys2-cta-primary">
-                Launch a token <span className="cta-badge-devnet">DEVNET</span>
+              <Link href="/diagnostic" className="sys2-cta-primary">
+                Run the Paper Engine diagnostic
               </Link>
               <Link href="/docs" className="sys2-cta-secondary">Read the docs →</Link>
             </div>

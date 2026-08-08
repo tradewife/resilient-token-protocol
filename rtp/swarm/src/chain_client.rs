@@ -19,7 +19,7 @@ use solana_sdk::system_program;
 use solana_sdk::{
     instruction::{AccountMeta, Instruction},
     pubkey::Pubkey,
-    signature::{read_keypair_file, Keypair, Signer},
+    signature::{Keypair, Signer, read_keypair_file},
     transaction::Transaction,
 };
 use std::str::FromStr;
@@ -121,7 +121,10 @@ impl ChainConfig {
         // Accept RTP_MINT as legacy alias so existing Railway configs keep working.
         let authority_str = std::env::var("RTP_AUTHORITY")
             .or_else(|_| std::env::var("RTP_MINT"))
-            .map_err(|_| "RTP_AUTHORITY (or legacy RTP_MINT) not set — cannot derive treasury PDA".to_string())?;
+            .map_err(|_| {
+                "RTP_AUTHORITY (or legacy RTP_MINT) not set — cannot derive treasury PDA"
+                    .to_string()
+            })?;
         let authority = Pubkey::from_str(&authority_str)
             .map_err(|e| format!("RTP_AUTHORITY invalid: {}", e))?;
 
@@ -332,25 +335,25 @@ pub fn build_open_flash_position_ix(
     let position_pda = market.position_pda(&cfg.treasury_pda, &cfg.flash_program_id);
     let sysvar_ix = pk(SYSVAR_INSTRUCTIONS_STR);
     let remaining = [
-        cfg.treasury_pda,             // 0  owner (PDA signer via invoke_signed)
-        *authority,                   // 1  fee_payer (writable signer)
-        *funding_account,             // 2  funding_account (writable)
-        market.transfer_authority,    // 3
-        market.perpetuals_pda,        // 4
-        market.pool,                  // 5  writable
-        position_pda,                 // 6  writable
-        market.market,                // 7  writable
-        market.target_custody,        // 8
-        market.target_oracle,         // 9
-        market.collateral_custody,    // 10 writable
-        market.collateral_oracle,     // 11
+        cfg.treasury_pda,                        // 0  owner (PDA signer via invoke_signed)
+        *authority,                              // 1  fee_payer (writable signer)
+        *funding_account,                        // 2  funding_account (writable)
+        market.transfer_authority,               // 3
+        market.perpetuals_pda,                   // 4
+        market.pool,                             // 5  writable
+        position_pda,                            // 6  writable
+        market.market,                           // 7  writable
+        market.target_custody,                   // 8
+        market.target_oracle,                    // 9
+        market.collateral_custody,               // 10 writable
+        market.collateral_oracle,                // 11
         market.collateral_custody_token_account, // 12 writable
-        system_program::ID,           // 13
-        market.funding_token_program, // 14
-        market.event_authority,       // 15
-        cfg.flash_program_id,         // 16
-        sysvar_ix,                    // 17
-        market.funding_mint,          // 18
+        system_program::ID,                      // 13
+        market.funding_token_program,            // 14
+        market.event_authority,                  // 15
+        cfg.flash_program_id,                    // 16
+        sysvar_ix,                               // 17
+        market.funding_mint,                     // 18
     ];
 
     let writable_idx = [2usize, 5, 6, 7, 10, 12];
@@ -386,8 +389,7 @@ pub fn build_close_flash_position_ix(
     slippage_bps: u16,
     committed_sol_lamports_delta: u64,
 ) -> Instruction {
-    let mut data: Vec<u8> =
-        Vec::with_capacity(8 + 1 + 8 + 4 + 2 + 8);
+    let mut data: Vec<u8> = Vec::with_capacity(8 + 1 + 8 + 4 + 2 + 8);
     data.extend_from_slice(&CLOSE_FLASH_POSITION_DISC);
     data.push(side.discriminant());
     data.extend_from_slice(&oracle_price.price.to_le_bytes());
@@ -405,24 +407,24 @@ pub fn build_close_flash_position_ix(
     let sysvar_ix = pk(SYSVAR_INSTRUCTIONS_STR);
     // Close layout (18 accounts) — see lib.rs:1369.
     let remaining = [
-        cfg.treasury_pda,             // 0  owner (PDA signer)
-        *authority,                   // 1  fee_payer
-        *receiving_account,           // 2  receiving_account (writable)
-        market.transfer_authority,    // 3
-        market.perpetuals_pda,        // 4
-        market.pool,                  // 5  writable
-        position_pda,                 // 6  writable
-        market.market,                // 7  writable
-        market.target_custody,        // 8
-        market.target_oracle,         // 9
-        market.collateral_custody,    // 10 writable
-        market.collateral_oracle,     // 11
+        cfg.treasury_pda,                        // 0  owner (PDA signer)
+        *authority,                              // 1  fee_payer
+        *receiving_account,                      // 2  receiving_account (writable)
+        market.transfer_authority,               // 3
+        market.perpetuals_pda,                   // 4
+        market.pool,                             // 5  writable
+        position_pda,                            // 6  writable
+        market.market,                           // 7  writable
+        market.target_custody,                   // 8
+        market.target_oracle,                    // 9
+        market.collateral_custody,               // 10 writable
+        market.collateral_oracle,                // 11
         market.collateral_custody_token_account, // 12 writable
-        market.funding_token_program, // 13 token_program
-        market.event_authority,       // 14
-        cfg.flash_program_id,         // 15
-        sysvar_ix,                    // 16
-        market.funding_mint,          // 17 collateral_mint
+        market.funding_token_program,            // 13 token_program
+        market.event_authority,                  // 14
+        cfg.flash_program_id,                    // 15
+        sysvar_ix,                               // 16
+        market.funding_mint,                     // 17 collateral_mint
     ];
 
     let writable_idx = [2usize, 5, 6, 7, 10, 12];
@@ -453,15 +455,12 @@ pub fn submit_or_simulate(
     let blockhash = fetch_blockhash(&cfg.rpc_url)?;
     let mut tx = Transaction::new_with_payer(&ixs, Some(&authority.pubkey()));
     tx.sign(&[authority], blockhash);
-    let serialized =
-        bincode::serialize(&tx).map_err(|e| format!("serialize tx: {}", e))?;
+    let serialized = bincode::serialize(&tx).map_err(|e| format!("serialize tx: {}", e))?;
     let b64 = base64::engine::general_purpose::STANDARD.encode(&serialized);
 
     match cfg.mode {
         ExecutionMode::Simulate => rpc_simulate_transaction(&cfg.rpc_url, &b64),
-        ExecutionMode::Devnet | ExecutionMode::Mainnet => {
-            rpc_send_transaction(&cfg.rpc_url, &b64)
-        }
+        ExecutionMode::Devnet | ExecutionMode::Mainnet => rpc_send_transaction(&cfg.rpc_url, &b64),
     }
 }
 
@@ -477,8 +476,7 @@ fn fetch_blockhash(rpc_url: &str) -> Result<solana_sdk::hash::Hash, String> {
         }))
         .send()
         .map_err(|e| format!("blockhash request: {}", e))?;
-    let json: serde_json::Value =
-        resp.json().map_err(|e| format!("blockhash parse: {}", e))?;
+    let json: serde_json::Value = resp.json().map_err(|e| format!("blockhash parse: {}", e))?;
     let bh_str = json
         .get("result")
         .and_then(|r| r.get("value"))
@@ -502,8 +500,7 @@ fn rpc_simulate_transaction(rpc_url: &str, b64_tx: &str) -> Result<String, Strin
         }))
         .send()
         .map_err(|e| format!("simulate request: {}", e))?;
-    let json: serde_json::Value =
-        resp.json().map_err(|e| format!("simulate parse: {}", e))?;
+    let json: serde_json::Value = resp.json().map_err(|e| format!("simulate parse: {}", e))?;
     Ok(json.to_string())
 }
 
@@ -523,8 +520,7 @@ fn rpc_send_transaction(rpc_url: &str, b64_tx: &str) -> Result<String, String> {
             .send();
         match resp {
             Ok(r) => {
-                let json: serde_json::Value =
-                    r.json().map_err(|e| format!("send parse: {}", e))?;
+                let json: serde_json::Value = r.json().map_err(|e| format!("send parse: {}", e))?;
                 if let Some(sig) = json.get("result").and_then(|s| s.as_str()) {
                     return Ok(sig.to_string());
                 }

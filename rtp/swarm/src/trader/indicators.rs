@@ -148,10 +148,7 @@ pub fn timeframe_signal(closes: &[f64], lookback: usize) -> Option<TrendSignal> 
     // volatility) were permanently 0.0 in production (off-by-one).
     let returns: Vec<f64> = closes.windows(2).map(|w| (w[1] - w[0]) / w[0]).collect();
     let momentum = if returns.len() >= lookback {
-        returns[returns.len() - lookback..]
-            .iter()
-            .sum::<f64>()
-            / lookback as f64
+        returns[returns.len() - lookback..].iter().sum::<f64>() / lookback as f64
     } else {
         0.0
     };

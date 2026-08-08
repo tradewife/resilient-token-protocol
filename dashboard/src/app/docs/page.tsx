@@ -71,61 +71,44 @@ const DOC_GROUPS: DocGroup[] = [
         title: "What is RTP?",
         content: (
           <>
-            <p>RTP (Resilient Token Protocol) gives every token a program-enforced treasury vault on Solana. Trading fees accumulate in the vault, the Treasury PDA executes yield strategies via Flash Trade CPI on Solana, and yield flows back to holders, developers, and ecosystem (70/20/10 split, enforced on-chain). Forever.</p>
-            <p>There is no RTP token. RTP is infrastructure.</p>
+            <p>RTP (Resilient Token Protocol) builds <strong>bespoke trading engines</strong> on Solana. One client, one strategy, engineered around your specifics — risk budget, drawdown limit, accumulation target, horizon — and run on self-custodied, on-chain-verifiable rails. There is no RTP token. RTP is a service backed by infrastructure.</p>
 
-            <h3>Why This Is Different</h3>
+            <h3>What We Are Not</h3>
             <ul>
-              <li><strong>Constitutional governance:</strong> soulcontract enforced in Rust AND on-chain (Anchor program). No one (not even the team) can override the rules. This is not a promise; it&apos;s a <code>require!</code> constraint.</li>
-              <li><strong>Per-token isolation:</strong> every token gets its own Treasury PDA and vault. No shared pool means no honeypot. One token&apos;s bad trade cannot affect another&apos;s reserves. The swarm copy-trades the same validated strategy across all tokens with isolated capital.</li>
-              <li><strong>Self-funding economics:</strong> treasury generates its own yield via Flash Trade on-chain perps (Solana CPI), with irreversible phase evolution (Sustenance → Ecosystem → Humanity). No VC dependency.</li>
-              <li><strong>Proven research engine:</strong> 30,000 strategy configs tested per night, 9-fold walk-forward validation, Darwinian evolution. Not a backtest screenshot; out-of-sample results across 9 independent time windows.</li>
-              <li><strong>Real execution:</strong> Treasury PDA signs via invoke_signed, positions open/close on Flash Trade (on-chain Solana perps). Mainnet CPI proofs: Open TX 2bLg1Fu..., Close TX dFqkoP2.... SOL never leaves Solana.</li>
-              <li><strong>325 Rust tests, 0 failures:</strong> 6-wing swarm architecture with Security, Audit, Evolve, Knowledge, and Futureproof wings. Not a wrapper around an API; a real multi-agent system.</li>
+              <li><strong>Not investment advice.</strong> We do not manage your money and we do not tell you what to buy. We deliver research output, validated configurations, and execution rails. You keep custody and every decision.</li>
+              <li><strong>Not a fund or vault product.</strong> Your capital never touches ours. It stays in your wallet; the engine trades through scoped permission you can revoke instantly.</li>
+              <li><strong>Not loyal to any venue.</strong> No venue pays us. Every engine is priced at fees we measure on-chain ourselves, and we migrate venues when measurement says so.</li>
             </ul>
 
-            <h3>How It Works</h3>
+            <Callout type="tip" title="The onboarding we wish we had">
+              <p>When we first got into the trenches, nobody told us where the traps were: venues that shut down overnight, fee schedules that silently eat edges, custody mistakes that cost everything. RTP is that onboarding, built as a service — engineered around lessons paid for in the market.</p>
+            </Callout>
+
+            <h3>The Service</h3>
             <ol>
-              <li><strong>Fees arrive:</strong> creator fees (SOL) from the token flow to its own per-token treasury PDA, isolated from every other token</li>
-              <li><strong>Swarm trades:</strong> the Treasury PDA executes validated strategies via Flash Trade CPI (on-chain Solana perps, invoke_signed), or the live autonomous trader executes directly via REST API. No cross-chain bridge. Each token&apos;s capital is traded independently.</li>
-              <li><strong>Yield returns:</strong> generated yield flows back to that token&apos;s own treasury PDA</li>
-              <li><strong>Redistribution:</strong> 70% to holders, 20% to project dev, 10% to ecosystem (enforced on-chain)</li>
+              <li><strong>Intake:</strong> you state capital size, max drawdown (hard limit), horizon, constraints — ten minutes, structured</li>
+              <li><strong>Build:</strong> the research pipeline engineers a strategy around your terms — not from a template library</li>
+              <li><strong>Validate:</strong> ten fixed gates, identical for every client, run at venue fees measured on-chain — never docs, never assumptions</li>
+              <li><strong>Verdict:</strong> written pass / conditional / fail with full configuration, machine-readable and independently verifiable</li>
+              <li><strong>Debrief:</strong> 45–60 minutes walking through the verdict and the risk envelope</li>
             </ol>
 
-            <h3>Architecture</h3>
-            <div style={{
-              background: "var(--surface-0)", border: "1px solid var(--border)", borderRadius: 8,
-              padding: "var(--space-lg)", fontFamily: "var(--font-mono)", fontSize: "0.75rem",
-              lineHeight: 1.7, color: "var(--text-secondary)", overflowX: "auto",
-            }}>
-              <pre style={{ margin: 0, whiteSpace: "pre" }}>{`┌──────────────────────────────────────────────────────┐
-│              ON-CHAIN (Solana / Anchor)               │
-│  Treasury PDA: fees → yield → redistribute           │
-│  19 instructions · PDA-owned · CPI-only transfers     │
-├──────────────────────────────────────────────────────┤
-│              SWARM RUNTIME (Rust · 325+5 tests)        │
-│  Coordinator → message bus → 6 wings                  │
-│  Trading → Flash Trade CPI → on-chain perps → SOL     │
-│  Security · Evolve · Knowledge · Audit · Futureproof  │
-├──────────────────────────────────────────────────────┤
-│              RESEARCH LAYER (Python)                   │
-│  Night Shift: 30K configs → WFA → Darwinian           │
-│  Validated: SOL/USDT Calmar 44.89, +554% at 9x, 100% consistency │
-└──────────────────────────────────────────────────────┘
-  Signing: Treasury PDA (invoke_signed, no private key)
-  Capital: SOL → Treasury PDA → Flash Trade CPI → SOL yield → PDA`}</pre>
-            </div>
+            <h3>Built For A Fast-Moving Ecosystem</h3>
+            <p>Solana perps venues change fee schedules, mechanics, and even existence on short notice. In August 2026 our execution venue (Flash Trade) announced a wind-down — our response was a same-session re-validation of the live engine on the replacement venue&apos;s on-chain-measured costs, passing all ten gates. That loop — measure, validate, migrate, document — is the product. The ecosystem evolves; the engine keeps its edge because the cost basis is always current.</p>
+
+            <h3>The PDA System, In Plain Terms</h3>
+            <p>Client capital sits behind a <strong>PDA</strong> — a program-derived address. A vault with no keys. It is controlled by code, not people: no password to steal, no insider with access, no signature that can be forged. Funds only move when the on-chain rules allow it, and those rules — position limits, drawdown stops, emergency halt — are enforced the same way for everyone. You retain custody of your wallet and hold the kill switch: execution runs through permission you grant, and revoking it stops the engine instantly.</p>
 
             <h3>Why RTP, Not a Multisig or Yield Aggregator?</h3>
             <Table
               headers={["Dimension", "Squads Multisig", "Yield Aggregator", "RTP"]}
               rows={[
-                ["Who controls funds?", "Multi-sig signers (humans)", "Smart contract (immutable)", "PDA + constitutional agent swarm"],
-                ["Can funds be rug-pulled?", "Yes: signers can approve any tx", "No: but no active yield either", "No: PDA has no private key, agents bounded by on-chain constraints"],
-                ["Who executes yield?", "Manual / no one", "Preset AMM logic", "Autonomous 6-wing swarm with validated strategies"],
-                ["Exploit blast radius?", "All funds in one wallet", "All funds in one contract", "Per-token isolated PDA: one exploit cannot drain all adopters"],
-                ["Trust model", "Trust the signers", "Trust the contract", "Trust the program + audit the agent trail"],
-                ["Adaptation", "None", "None", "Nightly research (30K configs), LLM evolution, memory persistence"],
+                ["Who controls funds?", "Multi-sig signers (humans)", "Smart contract (immutable)", "You — self-custody with scoped execution permission"],
+                ["Strategy", "Manual / none", "Preset, shared by all users", "Engineered per client; no shared edges"],
+                ["Cost model", "None", "Assumed", "Measured on-chain per venue, re-verified on migration"],
+                ["Venue risk", "None (no yield)", "Protocol risk", "Measured + migration-capable; venue health monitored"],
+                ["Trust model", "Trust the signers", "Trust the contract", "Trust the program + audit every transaction"],
+                ["Adaptation", "None", "None", "Nightly research (30K configs), LLM evolution, memory"],
               ]}
             />
 
@@ -133,26 +116,63 @@ const DOC_GROUPS: DocGroup[] = [
             <Table
               headers={["Component", "Status", "Detail"]}
               rows={[
-                ["Anchor treasury program", "✅ Deployed (devnet)", "Per-token isolation, 19 instructions, redistribution verified"],
+                ["Live blueprint", "✅ Real capital since May 2026", "SOL/USDT Survivor 2.69 — the specimen engine, every trade on-chain"],
+                ["Venue migration", "✅ Proven live (Aug 2026)", "Flash wind-down → GMTrade re-validation on measured on-chain costs, 10/10 gates"],
+                ["Research pipeline", "✅ Nightly", "30K configs/night, 9-fold walk-forward, Darwinian evolution"],
+                ["Gate suite", "✅ Fixed across clients", "10 gates at measured costs; the standard every engine clears"],
                 ["Rust swarm runtime", "✅ 325 tests passing", "6 wings: Trading, Security, Evolve, Knowledge, Audit, Futureproof"],
-                ["Flash Trade CPI execution", "✅ Mainnet proofs", "Treasury PDA invoke_signed, positions open/close on-chain (Open TX 2bLg1Fu..., Close TX dFqkoP2...)"],
-                ["Live autonomous trader", "✅ Running 24/7", "rtp-trader on Railway, 9x Calmar-optimized strategy, REST API trading, HTTP status server on port 8080"],
-                ["Treasury yield deposit", "✅ On-chain confirmed", "USDC yield → SOL → treasury PDA via CPI transfer"],
-                ["Autonomous daemon", "✅ 7 cycles completed", "6h cron, LLM-driven strategy evolution, auditable trail"],
-                ["SDK", "✅ Shipped", "<code>@resilient-protocol/sdk</code>: one function call to register any token"],
-                ["Dashboard", "✅ Live", "<a href='https://resilientprotocol.xyz' style='color: var(--coral)'>resilientprotocol.xyz</a>: live treasury state, wallet connect"],
+                ["Anchor treasury program", "✅ Deployed", "PDA-owned vault, 19 instructions, constitutional constraints on-chain"],
+                ["Token treasury heritage", "✅ Shipped", "Per-token PDAs + SDK for token projects (below)"],
+                ["Dashboard", "✅ Live", "<a href='https://resilientprotocol.xyz' style='color: var(--coral)'>resilientprotocol.xyz</a>: live engine state, wallet connect"],
               ]}
             />
 
-            <Callout type="tip" title="Token Creator or Platform?">
-              <p>If your launchpad supports RTP, enabling the treasury takes one click. See <a href="#getting-started-creators" style={{ color: "var(--coral)" }}>Getting Started for Token Creators</a>. If you&apos;re a platform integrating RTP as a feature, see <a href="#getting-started-platforms" style={{ color: "var(--coral)" }}>Getting Started for Platforms</a>.</p>
+            <Callout type="info" title="Token project or platform?">
+              <p>RTP began as token-treasury infrastructure and that path remains open: per-token PDAs, fee routing from launchpads, SDK integration. See <a href="#getting-started-creators" style={{ color: "var(--coral)" }}>Getting Started — Token Projects</a> and <a href="#getting-started-platforms" style={{ color: "var(--coral)" }}>Getting Started — Platforms</a>.</p>
             </Callout>
           </>
         ),
       },
       {
+        slug: "diagnostic",
+        title: "The Diagnostic (Paper Engine)",
+        content: (
+          <>
+            <p>The <strong>RTP Paper Engine Diagnostic</strong> is the entry point to the service: a structured research engagement that engineers a strategy around your terms and delivers a validated verdict — on paper. The research + validation pipeline is the actual product; each engagement is high-touch and deliberately limited so edges don&apos;t get crowded. No live capital moves, full client custody throughout.</p>
+
+            <h3>What You Receive</h3>
+            <ul>
+              <li>A bespoke strategy configuration built around your terms</li>
+              <li>Full ten-gate validation at current, on-chain-measured venue fees</li>
+              <li>Written verdict — pass / conditional / fail — with supporting analysis</li>
+              <li>Machine-readable config and risk report you can verify independently</li>
+              <li>45–60 minute debrief call</li>
+            </ul>
+
+            <h3>Terms</h3>
+            <Table
+              headers={["Term", "Value"]}
+              rows={[
+                ["Price", "A$4,500 one-time"],
+                ["Slots", "3–4 at any time, strictly limited"],
+                ["Turnaround", "Typically 5–8 business days after intake"],
+                ["Capital", "None — paper verdict only"],
+                ["Custody", "100% yours, throughout"],
+                ["Advisory", "None — research and infrastructure output only"],
+              ]}
+            />
+
+            <Callout type="info" title="Regulatory framing">
+              <p>This is research and infrastructure output — not discretionary management and not financial advice. Live deployment, if a client wants it, is a separate conversation after the paper verdict is accepted.</p>
+            </Callout>
+
+            <p><a href="/diagnostic" style={{ color: "var(--coral)" }}>Reserve a slot on the diagnostic page →</a></p>
+          </>
+        ),
+      },
+      {
         slug: "getting-started-creators",
-        title: "Getting Started — Token Creators",
+        title: "Getting Started — Token Projects",
         content: (
           <>
             <p>Two ways to get an RTP treasury for your token: launch from our site, or register an existing token.</p>
@@ -182,7 +202,7 @@ const result = await registerWithRTP(connection, wallet, {
             <h3>After Registration: What Happens</h3>
             <ol>
               <li><strong>Fees accumulate:</strong> trading fees flow into your treasury PDA as native SOL</li>
-              <li><strong>Swarm activates:</strong> Treasury PDA executes validated strategies via Flash Trade CPI (on-chain Solana perps, invoke_signed)</li>
+              <li><strong>Swarm activates:</strong> Treasury PDA executes validated strategies on Solana-native perps (invoke_signed)</li>
               <li><strong>Yield returns:</strong> generated yield flows back to the treasury PDA</li>
               <li><strong>Redistribution:</strong> 70% to holders, 20% to project dev, 10% to ecosystem (enforced on-chain)</li>
             </ol>
@@ -523,7 +543,7 @@ RTP_MAINNET_RPC // "https://api.mainnet-beta.solana.com"`}</CodeBlock>
   phase: "Sustenance" | "Ecosystem" | "Humanity";
   isFrozen: boolean;
   solBalance: number;          // native SOL lamports
-  committedSolLamports: number; // committed to open Flash positions
+  committedSolLamports: number; // committed to open perp positions
   availableSolLamports: number; // solBalance - committed - rent_exempt
   totalFeesWithdrawn: number;
   totalDistributedHolders: number;
@@ -639,7 +659,7 @@ PublicKey.findProgramAddressSync(
             </ul>
 
             <Callout type="tip" title="Why Per-Token Isolation Matters">
-              <p>Aggregating many tokens&apos; fees into a shared pool creates a high-value target. Per-token PDAs mean each treasury is independently secured. The swarm copy-trades the same validated strategy across all tokens with isolated capital, same alpha, zero cross-contamination.</p>
+              <p>Aggregating many tokens&apos; fees into a shared pool creates a high-value target. Per-token PDAs mean each treasury is independently secured — one token&apos;s activity can never drain another&apos;s vault. Zero cross-contamination, by construction.</p>
             </Callout>
 
             <h3>Trust Model</h3>
@@ -683,9 +703,9 @@ PublicKey.findProgramAddressSync(
 
             <h3>Yield Generation from Fees</h3>
             <ol>
-              <li><strong>Commit SOL via CPI:</strong> Treasury PDA commits SOL via invoke_signed → Flash Trade CPI opens position</li>
-              <li><strong>Execute strategy:</strong> on-chain Flash Trade perps position opened via CPI (Treasury PDA signs)</li>
-              <li><strong>Collect yield:</strong> SOL returned when position closes via Flash Trade CPI</li>
+              <li><strong>Commit SOL via CPI:</strong> Treasury PDA commits SOL via invoke_signed → venue CPI opens position</li>
+              <li><strong>Execute strategy:</strong> on-chain Solana perps position opened via venue CPI (Treasury PDA signs)</li>
+              <li><strong>Collect yield:</strong> SOL returned when position closes via venue CPI</li>
               <li><strong>Return to treasury:</strong> SOL yield deposited back to the treasury PDA (single chain)</li>
               <li><strong>Deposit to treasury:</strong> SOL returned to the treasury PDA</li>
             </ol>
@@ -693,7 +713,7 @@ PublicKey.findProgramAddressSync(
             <h3>Capital Safety</h3>
             <ul>
               <li><strong>Per-token isolation:</strong> each token&apos;s fees and yield are in a separate PDA. No cross-contamination between tokens.</li>
-              <li><strong>SOL throughout:</strong> positions opened with SOL via Flash Trade CPI. No USDC conversion, no cross-chain bridge.</li>
+              <li><strong>SOL throughout:</strong> positions opened with SOL via venue CPI. No cross-chain bridge.</li>
               <li><strong>Max 20% position size:</strong> no single trade risks more than 20% of treasury reserves</li>
               <li><strong>Fee-only capital:</strong> the swarm only trades with fee revenue, never with user deposits</li>
             </ul>
@@ -711,7 +731,7 @@ PublicKey.findProgramAddressSync(
             <ol>
               <li><strong>Receive strategy:</strong> Coordinator delivers validated config from research layer</li>
               <li><strong>Build instruction:</strong> Constructs Anchor instruction for open_flash_position (Treasury PDA signer)</li>
-              <li><strong>Submit:</strong> invoke_signed via Treasury PDA → Flash Trade CPI (on-chain Solana perps)</li>
+              <li><strong>Submit:</strong> invoke_signed via Treasury PDA → venue CPI (on-chain Solana perps)</li>
               <li><strong>Track position:</strong> Monitors fills, computes PnL on close</li>
               <li><strong>Return yield:</strong> close_flash_position returns SOL to treasury PDA (single chain)</li>
             </ol>
@@ -720,7 +740,7 @@ PublicKey.findProgramAddressSync(
             <Table
               headers={["Wing", "Purpose"]}
               rows={[
-                ["Trading", "Yield generation + Flash Trade CPI execution"],
+                ["Trading", "Yield generation + venue execution (CPI/API)"],
                 ["Security", "Threat detection, rate-limiting"],
                 ["Evolve", "Self-modification, adaptation, rollback"],
                 ["Knowledge", "Persistent knowledge store (file-backed)"],
