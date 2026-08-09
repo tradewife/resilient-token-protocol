@@ -164,7 +164,7 @@ const QUESTIONS = [
     options: [
       {
         value: "advisory",
-        label: "Bespoke Engineering Build · A$4,500",
+        label: "Bespoke Strategy Build · A$4,500",
         desc: "Structured intake, dedicated build, ten-gate validation, paper report, up to 4× implementation calls.",
       },
       {
@@ -734,17 +734,17 @@ export default function DiagnosticPage() {
               <aside className="compat-fork">
                 {isAdvisory ? (
                   <>
-                    <div className="sys2-sect-eyebrow">ADVISORY PATH</div>
+                    <div className="sys2-sect-eyebrow">BESPOKE STRATEGY BUILD</div>
                     <h2 className="compat-fork-title">
-                      Reserve your bespoke engineering build
+                      Reserve your Bespoke Strategy Build
                     </h2>
                     <p className="compat-fork-lede">
                       Your check qualifies you for a limited cohort slot. Pay once,
-                      lay out your terms, and we map them to a paper-validated engine —
+                      lay out your terms, and we map them to a paper-validated strategy —
                       with up to four 1-on-1 implementation calls included.
                     </p>
                     <ul className="compat-checks">
-                      <li>Fixed build: A$4,500, one-time</li>
+                      <li>Bespoke Strategy Build: A$4,500, one-time</li>
                       <li>Paper report at measured venue fees + full config</li>
                       <li>Ten-gate verification on historical data</li>
                       <li>Up to 4× 45–60 min implementation consultations</li>
@@ -806,7 +806,7 @@ export default function DiagnosticPage() {
                         target="_blank"
                         rel="noopener noreferrer"
                       >
-                        Advisory slots remain open at A$4,500
+                        Bespoke Strategy Build slots remain open at A$4,500
                       </a>
                       .
                     </p>

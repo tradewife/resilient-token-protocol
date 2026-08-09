@@ -142,11 +142,11 @@ const DOC_GROUPS: DocGroup[] = [
 
             <h3>Two paths after the check</h3>
             <ul>
-              <li><strong>Advisory build (A$4,500 one-time).</strong> Structured intake, dedicated engine around your terms, ten-gate validation at measured venue fees, paper-traded report + full config, and up to 4× 45–60 min implementation consultations. Limited to 3–4 concurrent engagements so edges stay uncrowded.</li>
+              <li><strong>Bespoke Strategy Build (A$4,500 one-time).</strong> Structured intake, dedicated strategy around your terms, ten-gate validation at measured venue fees, paper-traded report + full config, and up to 4× 45–60 min implementation consultations. Limited to 3–4 concurrent engagements so edges stay uncrowded.</li>
               <li><strong>Self-serve developer docs.</strong> Open specifications, explorer wallet ledger, and the live specimen dashboard — no engagement required.</li>
             </ul>
 
-            <h3>Advisory deliverables</h3>
+            <h3>Bespoke Strategy Build deliverables</h3>
             <ul>
               <li>Bespoke strategy configuration built around your terms</li>
               <li>Full ten-gate validation at current, on-chain-measured venue fees</li>
@@ -155,7 +155,7 @@ const DOC_GROUPS: DocGroup[] = [
               <li>Up to 4× 45–60 minute 1-on-1 implementation consultations</li>
             </ul>
 
-            <h3>Advisory terms</h3>
+            <h3>Bespoke Strategy Build terms</h3>
             <Table
               headers={["Term", "Value"]}
               rows={[

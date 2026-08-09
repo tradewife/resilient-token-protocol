@@ -786,10 +786,11 @@ export default function Home() {
         <div className="cta2-card">
           <div className="cta2-content">
             <div className="sys2-sect-eyebrow">§5 · high-touch engagement & pricing</div>
-            <h2 className="cta2-title">A$4,500 One-Time. Simple. Sovereign</h2>
+            <h2 className="cta2-title">Bespoke Strategy Build · A$4,500</h2>
             <p className="cta2-lede">
-              We do not charge ongoing asset management fees or performance cuts. You pay once
-              for high-end custom engineering, and the infrastructure is yours to run.
+              One-time. No ongoing asset management fees or performance cuts. You pay once
+              for a paper-validated strategy mapped to your terms — report, config, and up to
+              four implementation consultations included.
         </p>
             <div className="cta2-actions">
               <Link href="/diagnostic" className="sys2-cta-primary">
