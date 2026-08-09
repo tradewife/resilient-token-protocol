@@ -11,7 +11,7 @@ const NAV_ITEMS = [
   { href: "/#live", label: "Live Console", key: "dashboard" },
   { href: "/#trust", label: "Architecture", key: "architecture" },
   { href: "/#pipeline", label: "Research Pipeline", key: "pipeline" },
-  { href: "/diagnostic", label: "Diagnostic", key: "diagnostic" },
+  { href: "/diagnostic", label: "Compatibility", key: "diagnostic" },
   { href: "/docs", label: "Docs", key: "docs" },
 ] as const;
 

@@ -390,7 +390,7 @@ export default function Home() {
 
           <div className="sys2-hero-cta-row" style={{ marginBottom: "var(--space-lg)" }}>
             <Link href="/diagnostic" className="sys2-cta-primary">
-              Run the Paper Engine diagnostic
+              Start Compatibility Check →
             </Link>
             <Link href="/docs" className="sys2-cta-secondary">Read the docs →</Link>
           </div>
@@ -807,7 +807,7 @@ export default function Home() {
         </p>
             <div className="cta2-actions">
               <Link href="/diagnostic" className="sys2-cta-primary">
-                Run the Paper Engine diagnostic
+                Start Compatibility Check →
               </Link>
               <Link href="/docs" className="sys2-cta-secondary">Read the docs →</Link>
             </div>

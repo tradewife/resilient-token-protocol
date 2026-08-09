@@ -4,89 +4,361 @@ import React, { useState } from "react";
 import Link from "next/link";
 import Topbar from "../Topbar";
 
-/* ── Intake form model ── */
+/* ── Scorecard model (v5 Compatibility Check) ── */
 
-interface IntakeForm {
-  // Contact
+type Step = "splash" | "questions" | "gate" | "results";
+
+interface ScorecardForm {
+  currentSituation: string;
+  desiredOutcome: string;
+  patienceMindset: string;
+  expectedHorizon: string;
+  solutionModel: string;
   name: string;
   email: string;
-  // A. Capital & objectives
+}
+
+const EMPTY_SCORECARD: ScorecardForm = {
+  currentSituation: "",
+  desiredOutcome: "",
+  patienceMindset: "",
+  expectedHorizon: "",
+  solutionModel: "",
+  name: "",
+  email: "",
+};
+
+const FIELD_KEYS: (keyof ScorecardForm)[] = [
+  "currentSituation",
+  "desiredOutcome",
+  "patienceMindset",
+  "expectedHorizon",
+  "solutionModel",
+];
+
+const QUESTIONS = [
+  {
+    id: 1,
+    title: "Where are your active crypto assets currently managed?",
+    description:
+      "Helps us assess exposure to centralized custody risk or unoptimized wallet setups.",
+    options: [
+      {
+        value: "cex",
+        label: "Centralized Exchanges (CEX)",
+        desc: "Coinbase, Binance, Kraken, and similar venues.",
+      },
+      {
+        value: "cold",
+        label: "Cold Storage / Hardware Wallet",
+        desc: "Ledger, Trezor, or keys held offline.",
+      },
+      {
+        value: "hot_unsecured",
+        label: "Active Web3 Hot Wallets",
+        desc: "Phantom, Backpack, Solflare with manual on-chain activity.",
+      },
+      {
+        value: "none",
+        label: "New to Crypto Assets",
+        desc: "No active holdings yet; establishing a secure start.",
+      },
+    ],
+  },
+  {
+    id: 2,
+    title: "What is your primary focus when deploying capital on-chain?",
+    description:
+      "Defines the guardrails and objective targets for a bespoke system.",
+    options: [
+      {
+        value: "safety",
+        label: "Absolute Capital Preservation",
+        desc: "Accumulate with minimal drawdown exposure.",
+      },
+      {
+        value: "custom",
+        label: "Bespoke Automated Execution",
+        desc: "Systematic strategies matched to personal risk parameters.",
+      },
+      {
+        value: "yield",
+        label: "Passive Yield & Liquidity",
+        desc: "Lending, staking, or providing liquidity securely.",
+      },
+      {
+        value: "education",
+        label: "Systematic Learning",
+        desc: "Venue mechanics, cost realities, and on-chain safety.",
+      },
+    ],
+  },
+  {
+    id: 3,
+    title: "How do you view systematic patience and market volatility?",
+    description:
+      "On-chain edge often means waiting for high-probability setups.",
+    options: [
+      {
+        value: "flat_edge",
+        label: 'Patience and sitting "Flat"',
+        desc: "Preserve capital through noise; wait for structural alignment.",
+      },
+      {
+        value: "active_trade",
+        label: "High frequency / active trades",
+        desc: "Accept higher costs and slippage for constant exposure.",
+      },
+      {
+        value: "unsure",
+        label: "No defined execution timeframe",
+        desc: "Want guardrails that enforce patience programmatically.",
+      },
+    ],
+  },
+  {
+    id: 4,
+    title: "What horizon do you use to measure systematic success?",
+    description:
+      "Sophisticated systems are engineered for longevity, not short-term noise.",
+    options: [
+      {
+        value: "long_term",
+        label: "Multi-Year / Full Market Cycles",
+        desc: "Capital survival and compounding over years.",
+      },
+      {
+        value: "medium_term",
+        label: "Quarterly to Semi-Annual",
+        desc: "Structural out-of-sample metrics over 3–6 months.",
+      },
+      {
+        value: "short_term",
+        label: "Weekly to Monthly PnL",
+        desc: "High-turnover targets and rapid feedback loops.",
+      },
+    ],
+  },
+  {
+    id: 5,
+    title: "Which development path fits your resources?",
+    description:
+      "We run 3–4 advisory builds at a time so edges stay uncrowded.",
+    options: [
+      {
+        value: "advisory",
+        label: "Bespoke Engineering Build · A$4,500",
+        desc: "Structured intake, dedicated build, ten-gate validation, 1-on-1 debrief.",
+      },
+      {
+        value: "developer",
+        label: "Self-Serve Developer Docs",
+        desc: "Open-source specifications; build on your own infrastructure.",
+      },
+    ],
+  },
+] as const;
+
+/* ── Detailed paid intake (preserved secondary path) ── */
+
+interface IntakeForm {
+  name: string;
+  email: string;
   capitalBand: string;
   objective: string;
   horizon: string;
   hardTarget: string;
-  // B. Risk parameters
   maxDrawdown: string;
   riskBudget: string;
   constraints: string;
   lossTolerance: string;
-  // C. Operational & custody
   venues: string;
   custody: string;
   reporting: string;
   cadence: string;
-  // D. Style & context (optional)
   existingStyles: string;
   regimes: string;
   otherContext: string;
-  // E. Logistics
   delivery: string;
   contact: string;
   deadline: string;
 }
 
-const EMPTY: IntakeForm = {
-  name: "", email: "",
-  capitalBand: "", objective: "", horizon: "", hardTarget: "",
-  maxDrawdown: "", riskBudget: "", constraints: "", lossTolerance: "",
-  venues: "", custody: "", reporting: "", cadence: "",
-  existingStyles: "", regimes: "", otherContext: "",
-  delivery: "", contact: "", deadline: "",
+const EMPTY_INTAKE: IntakeForm = {
+  name: "",
+  email: "",
+  capitalBand: "",
+  objective: "",
+  horizon: "",
+  hardTarget: "",
+  maxDrawdown: "",
+  riskBudget: "",
+  constraints: "",
+  lossTolerance: "",
+  venues: "",
+  custody: "",
+  reporting: "",
+  cadence: "",
+  existingStyles: "",
+  regimes: "",
+  otherContext: "",
+  delivery: "",
+  contact: "",
+  deadline: "",
 };
 
-const DELIVERABLES = [
-  { v: "01", l: "Structured intake", d: "Ten minutes of your specifics: capital band, risk budget, drawdown limit, horizon, hard constraints." },
-  { v: "02", l: "Bespoke engine", d: "A strategy engineered around your terms — not pulled from a template library." },
-  { v: "03", l: "10-gate validation", d: "The same battery every engine must clear: OOS PnL, consistency, attribution, sensitivity, latency, drawdown, zero liquidations." },
-  { v: "04", l: "Measured fee basis", d: "Paper performance priced at real, current venue costs — measured from the execution venue, not assumed from its brochure." },
-  { v: "05", l: "Written verdict", d: "Pass / conditional / fail with supporting analysis, plus a machine-readable config you can verify independently." },
-  { v: "06", l: "Debrief", d: "45–60 minutes walking through the verdict, the risk envelope, and what deployment would require." },
-] as const;
+const TRADER_WALLET =
+  process.env.NEXT_PUBLIC_RTP_TRADER_WALLET_PUBKEY ||
+  "HDQ79fQ1YbL9CenS1DzfHizEWGrJdnmo99fgAWmdhuy5";
 
-const PROCESS = [
-  { n: "01", t: "Reserve a slot", d: "One-time payment below. Limited to 3–4 engagements — deliberately, because crowding an edge destroys it. Your slot is held the moment payment clears." },
-  { n: "02", t: "Lay out your terms", d: "The intake form below. Ten minutes. You keep a copy." },
-  { n: "03", t: "We build", d: "The research pipeline engineers a strategy around your terms and runs the full gate suite on two years of historical data." },
-  { n: "04", t: "Paper verdict", d: "A complete paper-traded package under measured venue fees. Nothing live, nothing moves." },
-  { n: "05", t: "Debrief", d: "You receive the verdict, the config, and the risk report — and decide what happens next. If nothing, the engagement simply ends." },
-] as const;
+const PAYMENT_LINK =
+  process.env.NEXT_PUBLIC_RTP_DIAGNOSTIC_PAY_URL ||
+  "https://buy.stripe.com/8x2bIU7GH0AFbAQ6qVd7q00";
 
-// Sandbox Payment Link (test mode). Swap for the live link when the
-// account moves to production — see .secrets/stripe-sandbox-resources.
-const PAYMENT_LINK = process.env.NEXT_PUBLIC_RTP_DIAGNOSTIC_PAY_URL ||
-  "https://buy.stripe.com/test_8x2cN6dajgfm0JK33S57W00";
+const CALENDLY_LINK =
+  process.env.NEXT_PUBLIC_RTP_DIAGNOSTIC_CALENDLY_URL ||
+  "https://calendly.com/resilient-protocol/debrief";
+
+const EXPLORER_URL = `https://explorer.solana.com/address/${TRADER_WALLET}`;
+
+function horizonLabel(h: string): string {
+  if (h === "long_term") return "long-term market cycles";
+  if (h === "medium_term") return "structural multi-month review windows";
+  return "shorter feedback loops with tighter operational discipline";
+}
 
 export default function DiagnosticPage() {
-  const [form, setForm] = useState<IntakeForm>(EMPTY);
-  const [status, setStatus] = useState<"idle" | "submitting" | "done" | "error">("idle");
+  const [step, setStep] = useState<Step>("splash");
+  const [currentQ, setCurrentQ] = useState(1);
+  const [scorecard, setScorecard] = useState<ScorecardForm>(EMPTY_SCORECARD);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
-  const set = (k: keyof IntakeForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
-    setForm((f) => ({ ...f, [k]: e.target.value }));
+  const [intake, setIntake] = useState<IntakeForm>(EMPTY_INTAKE);
+  const [intakeStatus, setIntakeStatus] = useState<
+    "idle" | "submitting" | "done" | "error"
+  >("idle");
 
-  const submit = async (e: React.FormEvent) => {
+  const totalQuestions = QUESTIONS.length;
+  const isAdvisory = scorecard.solutionModel === "advisory";
+
+  const selectOption = (field: keyof ScorecardForm, value: string) => {
+    setScorecard((prev) => ({ ...prev, [field]: value }));
+    if (currentQ < totalQuestions) {
+      setCurrentQ((q) => q + 1);
+      if (typeof window !== "undefined") {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+    } else {
+      setStep("gate");
+      if (typeof window !== "undefined") {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+    }
+  };
+
+  const goBack = () => {
+    if (step === "gate") {
+      setStep("questions");
+      setCurrentQ(totalQuestions);
+      return;
+    }
+    if (currentQ > 1) {
+      setCurrentQ((q) => q - 1);
+    } else {
+      setStep("splash");
+    }
+  };
+
+  const submitScorecard = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name.trim() || !form.email.trim()) return;
-    setStatus("submitting");
+    if (!scorecard.name.trim() || !scorecard.email.trim()) return;
+    setIsSubmitting(true);
+    setSubmitError(null);
     try {
       const res = await fetch("/api/diagnostic-intake/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          kind: "compatibility_v5",
+          name: scorecard.name,
+          email: scorecard.email,
+          currentSituation: scorecard.currentSituation,
+          desiredOutcome: scorecard.desiredOutcome,
+          patienceMindset: scorecard.patienceMindset,
+          expectedHorizon: scorecard.expectedHorizon,
+          solutionModel: scorecard.solutionModel,
+          objective: scorecard.desiredOutcome,
+          horizon: scorecard.expectedHorizon,
+          custody: scorecard.currentSituation,
+        }),
       });
       if (!res.ok) throw new Error("submit failed");
-      setStatus("done");
+      setIntake((prev) => ({
+        ...prev,
+        name: scorecard.name,
+        email: scorecard.email,
+        objective:
+          scorecard.desiredOutcome === "safety"
+            ? "Capital accumulation (grow the stack)"
+            : scorecard.desiredOutcome === "custom"
+              ? "Absolute return"
+              : scorecard.desiredOutcome === "yield"
+                ? "Income generation"
+                : prev.objective,
+        horizon:
+          scorecard.expectedHorizon === "long_term"
+            ? "3+ years"
+            : scorecard.expectedHorizon === "medium_term"
+              ? "6–12 months"
+              : scorecard.expectedHorizon === "short_term"
+                ? "3–6 months"
+                : prev.horizon,
+        custody:
+          scorecard.currentSituation === "cold"
+            ? "Self-custody (hardware wallet)"
+            : scorecard.currentSituation === "hot_unsecured"
+              ? "Self-custody (software wallet)"
+              : scorecard.currentSituation === "cex"
+                ? "Exchange / custodian"
+                : prev.custody,
+      }));
+      setStep("results");
+      if (typeof window !== "undefined") {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
     } catch {
-      setStatus("error");
+      setSubmitError(
+        "Submission failed. Email hello@resilientprotocol.xyz with your answers instead."
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const setIntakeField =
+    (k: keyof IntakeForm) =>
+    (
+      e: React.ChangeEvent<
+        HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+      >
+    ) =>
+      setIntake((f) => ({ ...f, [k]: e.target.value }));
+
+  const submitIntake = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!intake.name.trim() || !intake.email.trim()) return;
+    setIntakeStatus("submitting");
+    try {
+      const res = await fetch("/api/diagnostic-intake/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind: "mandate_intake", ...intake }),
+      });
+      if (!res.ok) throw new Error("submit failed");
+      setIntakeStatus("done");
+    } catch {
+      setIntakeStatus("error");
     }
   };
 
@@ -94,337 +366,737 @@ export default function DiagnosticPage() {
     <div className="page">
       <Topbar activePage="diagnostic" />
 
-      {/* ════════ HERO ════════ */}
-      <section className="sys2-section" style={{ marginTop: "var(--space-xl)" }}>
-        <header className="sys2-sect-head">
-          <div>
-            <div className="sys2-sect-eyebrow">RTP PAPER ENGINE DIAGNOSTIC</div>
-            <h1 className="hero-title" style={{ fontSize: "clamp(2rem, 4.5vw, 3.5rem)" }}>
-              Your terms in.
-              <br />
-              A bespoke engine out.
-            </h1>
-            <p className="sys2-sect-lede" style={{ marginTop: "var(--space-md)" }}>
-              A structured research engagement: tell us your risk budget, drawdown limit, and
-              horizon — we engineer a strategy around them, put it through a fixed gate suite
-              on two years of historical data, and hand you a paper-traded verdict with the
-              full configuration. You keep full custody and control at every stage. No live
-              capital moves. This is research and infrastructure output — not discretionary
-              management.
-            </p>
+      {/* ════════ SPLASH ════════ */}
+      {step === "splash" && (
+        <section className="compat-shell compat-shell--wide">
+          <header className="compat-hero">
+            <div className="compat-hero-copy">
+              <div className="sys2-sect-eyebrow">ON-CHAIN COMPATIBILITY CHECK</div>
+              <h1 className="compat-title">
+                Interested in on-chain trading, but put off by complex, opaque
+                setups?
+              </h1>
+              <p className="compat-lede">
+                Most sovereign capital allocators want secure, customized market
+                execution without custodian risk, technical friction, or crowded
+                templates. A 90-second check maps your structural needs and
+                generates a compatibility blueprint.
+              </p>
+              <div className="compat-hero-meta">
+                <span className="sys2-status-pill watching">
+                  <span className="sys2-status-dot" />
+                  Systematic onboarding · v5
+                </span>
+                <span className="compat-meta-note">5 questions · ~90 seconds</span>
+              </div>
+            </div>
+          </header>
+
+          <div className="compat-pillars">
+            <div className="compat-pillar">
+              <div className="compat-pillar-kicker">01</div>
+              <div className="compat-pillar-title">Sovereign Custody</div>
+              <div className="compat-pillar-body">
+                Zero-custody setups via on-chain program vaults, with no private
+                keys held by operators.
+              </div>
+            </div>
+            <div className="compat-pillar">
+              <div className="compat-pillar-kicker">02</div>
+              <div className="compat-pillar-title">Execution Safety</div>
+              <div className="compat-pillar-body">
+                Guardrails against latency, venue failure, and fee-decay traps
+                measured on live rails.
+              </div>
+            </div>
+            <div className="compat-pillar">
+              <div className="compat-pillar-kicker">03</div>
+              <div className="compat-pillar-title">Bespoke Alignment</div>
+              <div className="compat-pillar-body">
+                Parameters built around your risk budget, not a shared template
+                edge.
+              </div>
+            </div>
           </div>
-          <div className="sys2-sect-side">
-            <span className="sys2-status-pill watching">
-              <span className="sys2-status-dot" />
-              Deliberately limited · 3–4 engagements
+
+          <div className="compat-actions">
+            <button
+              type="button"
+              className="sys2-cta-primary"
+              onClick={() => {
+                setStep("questions");
+                setCurrentQ(1);
+              }}
+            >
+              Start Compatibility Check →
+            </button>
+            <span className="compat-meta-note">
+              No account required until the blueprint.
             </span>
           </div>
-        </header>
+        </section>
+      )}
 
-        <div style={{ marginTop: "var(--space-lg)", display: "flex", gap: "var(--space-md)", alignItems: "center", flexWrap: "wrap" }}>
-          <a href={PAYMENT_LINK} target="_blank" rel="noopener noreferrer" className="sys2-cta-primary">
-            Reserve a slot · A$4,500
-          </a>
-          <a href="#intake" className="sys2-cta-secondary">Already paid? Lay out your terms →</a>
-        </div>
-
-        <div className="validated-card" style={{ marginTop: "var(--space-xl)" }}>
-          <div className="validated-head">
-            <span className="validated-tag">ENGAGEMENT</span>
-            <span className="validated-title">A$4,500 · one-time · paper only</span>
-          </div>
-          <div className="validated-grid">
-            {[
-              { v: "A$4,500", l: "One-time, all deliverables" },
-              { v: "3–4", l: "Slots — limited so edges stay uncrowded" },
-              { v: "10", l: "Validation gates applied" },
-              { v: "0", l: "Live capital at risk — paper only" },
-              { v: "100%", l: "Your custody, throughout" },
-              { v: "1", l: "Distinct strategy per client" },
-            ].map((m) => (
-              <div key={m.l} className="validated-cell">
-                <span className="validated-val">{m.v}</span>
-                <span className="validated-lab">{m.l}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ════════ DELIVERABLES ════════ */}
-      <section className="sys2-section" style={{ marginTop: "var(--space-3xl)" }}>
-        <header className="sys2-sect-head">
-          <div>
-            <div className="sys2-sect-eyebrow">WHAT YOU RECEIVE</div>
-            <h2 className="sys2-sect-title">Six deliverables. One verdict.</h2>
-          </div>
-        </header>
-        <div className="arch2-layer-cells">
-          {DELIVERABLES.map((d) => (
-            <div key={d.v} className="arch2-cell" style={{ borderLeft: "2px solid var(--emerald-dim)" }}>
-              <div className="arch2-cell-title">{d.v} · {d.l}</div>
-              <div className="arch2-cell-sub">{d.d}</div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* ════════ PROCESS ════════ */}
-      <section className="sys2-section" style={{ marginTop: "var(--space-4xl)" }}>
-        <header className="sys2-sect-head">
-          <div>
-            <div className="sys2-sect-eyebrow">HOW IT RUNS</div>
-            <h2 className="sys2-sect-title">One build. Your measurements.</h2>
-            <p className="sys2-sect-lede">
-              The same research pipeline that produced the live specimen on this dashboard —
-              validated under measured venue fees, gated by the same battery, delivered as a
-              paper verdict. The specimen is proof the pipeline delivers. Your terms are the
-              next build.
-            </p>
-          </div>
-        </header>
-        <ol className="pipe2-steps">
-          {PROCESS.map((s, i) => (
-            <li key={s.n} className="pipe2-step">
-              <div className="pipe2-num">{s.n}</div>
-              <div className="pipe2-body">
-                <div className="pipe2-title">{s.t}</div>
-                <div className="pipe2-desc">{s.d}</div>
-              </div>
-              {i < PROCESS.length - 1 && <div className="pipe2-tick">▾</div>}
-            </li>
-          ))}
-        </ol>
-      </section>
-
-      {/* ════════ INTAKE FORM ════════ */}
-      <section className="sys2-section" id="intake" style={{ marginTop: "var(--space-4xl)" }}>
-        <header className="sys2-sect-head">
-          <div>
-            <div className="sys2-sect-eyebrow">INTAKE</div>
-            <h2 className="sys2-sect-title">Lay out your terms.</h2>
-            <p className="sys2-sect-lede">
-              Ten minutes. The more precise the risk parameters, the sharper the verdict.
-              Submission reaches RTP directly — no third parties, nothing stored beyond this engagement.
-            </p>
-          </div>
-        </header>
-
-        {status === "done" ? (
-          <div className="cta2-card">
-            <div className="cta2-content" style={{ textAlign: "center" }}>
-              <div className="sys2-sect-eyebrow">RECEIVED</div>
-              <h2 className="cta2-title">Terms received.</h2>
-              <p className="cta2-lede">
-                RTP will review your terms and reply by email with scope confirmation and
-                payment instructions. Nothing proceeds until you agree to terms in writing.
-              </p>
-            </div>
-          </div>
-        ) : (
-          <form className="launch-form" onSubmit={submit} style={{ maxWidth: "860px" }}>
-            <div className="form-group">
-              <label className="form-label">A · Capital & Objectives</label>
-              <div className="form-row">
-                <div>
-                  <label className="form-label" style={{ fontSize: "0.75rem" }}>Name *</label>
-                  <input className="form-input" required value={form.name} onChange={set("name")} placeholder="Your name" />
-                </div>
-                <div>
-                  <label className="form-label" style={{ fontSize: "0.75rem" }}>Email *</label>
-                  <input className="form-input" type="email" required value={form.email} onChange={set("email")} placeholder="you@example.com" />
-                </div>
-              </div>
-              <div className="form-row">
-                <div>
-                  <label className="form-label" style={{ fontSize: "0.75rem" }}>Approximate capital (band)</label>
-                  <select className="form-input" value={form.capitalBand} onChange={set("capitalBand")}>
-                    <option value="">Select…</option>
-                    <option>Under 10 SOL</option>
-                    <option>10–50 SOL</option>
-                    <option>50–250 SOL</option>
-                    <option>250–1,000 SOL</option>
-                    <option>1,000+ SOL</option>
-                    <option>Prefer to discuss</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="form-label" style={{ fontSize: "0.75rem" }}>Primary objective</label>
-                  <select className="form-input" value={form.objective} onChange={set("objective")}>
-                    <option value="">Select…</option>
-                    <option>Capital accumulation (grow the stack)</option>
-                    <option>Absolute return</option>
-                    <option>Income generation</option>
-                    <option>Other</option>
-                  </select>
-                </div>
-              </div>
-              <div className="form-row">
-                <div>
-                  <label className="form-label" style={{ fontSize: "0.75rem" }}>Time horizon</label>
-                  <select className="form-input" value={form.horizon} onChange={set("horizon")}>
-                    <option value="">Select…</option>
-                    <option>3–6 months</option>
-                    <option>6–12 months</option>
-                    <option>1–3 years</option>
-                    <option>3+ years</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="form-label" style={{ fontSize: "0.75rem" }}>Hard target (optional)</label>
-                  <input className="form-input" value={form.hardTarget} onChange={set("hardTarget")} placeholder="e.g. +25% SOL terms" />
-                </div>
-              </div>
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">B · Risk Parameters</label>
-              <div className="form-row">
-                <div>
-                  <label className="form-label" style={{ fontSize: "0.75rem" }}>Max drawdown (hard limit) *</label>
-                  <select className="form-input" required value={form.maxDrawdown} onChange={set("maxDrawdown")}>
-                    <option value="">Select…</option>
-                    <option>5%</option>
-                    <option>10%</option>
-                    <option>15%</option>
-                    <option>20%</option>
-                    <option>25%</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="form-label" style={{ fontSize: "0.75rem" }}>Loss tolerance</label>
-                  <select className="form-input" value={form.lossTolerance} onChange={set("lossTolerance")}>
-                    <option value="">Select…</option>
-                    <option>Temporary unrealised losses acceptable</option>
-                    <option>Prefer to realise losses quickly</option>
-                    <option>Discuss</option>
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label className="form-label" style={{ fontSize: "0.75rem" }}>Risk budget description</label>
-                <textarea className="form-input" rows={2} value={form.riskBudget} onChange={set("riskBudget")} placeholder="How much volatility can this capital absorb, and for how long?" />
-              </div>
-              <div>
-                <label className="form-label" style={{ fontSize: "0.75rem" }}>Absolute constraints</label>
-                <textarea className="form-input" rows={2} value={form.constraints} onChange={set("constraints")} placeholder="e.g. no leverage above 3x, max position size, excluded assets, liquidity requirements" />
-              </div>
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">C · Operational & Custody</label>
-              <div className="form-row">
-                <div>
-                  <label className="form-label" style={{ fontSize: "0.75rem" }}>Current custody setup</label>
-                  <select className="form-input" value={form.custody} onChange={set("custody")}>
-                    <option value="">Select…</option>
-                    <option>Self-custody (hardware wallet)</option>
-                    <option>Self-custody (software wallet)</option>
-                    <option>Multisig</option>
-                    <option>Exchange / custodian</option>
-                    <option>Other</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="form-label" style={{ fontSize: "0.75rem" }}>Preferred chains / venues</label>
-                  <input className="form-input" value={form.venues} onChange={set("venues")} placeholder="e.g. Solana perps / GMTrade — or let us measure and choose" />
-                </div>
-              </div>
-              <div className="form-row">
-                <div>
-                  <label className="form-label" style={{ fontSize: "0.75rem" }}>Reporting requirements</label>
-                  <input className="form-input" value={form.reporting} onChange={set("reporting")} placeholder="e.g. weekly summary, on-chain proofs" />
-                </div>
-                <div>
-                  <label className="form-label" style={{ fontSize: "0.75rem" }}>Communication cadence</label>
-                  <select className="form-input" value={form.cadence} onChange={set("cadence")}>
-                    <option value="">Select…</option>
-                    <option>Async only (email)</option>
-                    <option>Weekly check-in</option>
-                    <option>Milestones only</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">D · Style & Context (optional)</label>
-              <div>
-                <label className="form-label" style={{ fontSize: "0.75rem" }}>Existing strategies or styles</label>
-                <textarea className="form-input" rows={2} value={form.existingStyles} onChange={set("existingStyles")} placeholder="Anything you already run, or have ruled out" />
-              </div>
-              <div className="form-row">
-                <div>
-                  <label className="form-label" style={{ fontSize: "0.75rem" }}>Regimes you must survive</label>
-                  <input className="form-input" value={form.regimes} onChange={set("regimes")} placeholder="e.g. extended ranges, trend reversals" />
-                </div>
-                <div>
-                  <label className="form-label" style={{ fontSize: "0.75rem" }}>Anything else</label>
-                  <input className="form-input" value={form.otherContext} onChange={set("otherContext")} placeholder="Context the research wing should know" />
-                </div>
-              </div>
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">E · Logistics</label>
-              <div className="form-row">
-                <div>
-                  <label className="form-label" style={{ fontSize: "0.75rem" }}>Preferred delivery format</label>
-                  <select className="form-input" value={form.delivery} onChange={set("delivery")}>
-                    <option value="">Select…</option>
-                    <option>PDF report + config files</option>
-                    <option>Notion / shared doc</option>
-                    <option>Call walkthrough only</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="form-label" style={{ fontSize: "0.75rem" }}>Hard deadline (optional)</label>
-                  <input className="form-input" value={form.deadline} onChange={set("deadline")} placeholder="e.g. before end of quarter" />
-                </div>
-              </div>
-              <div>
-                <label className="form-label" style={{ fontSize: "0.75rem" }}>Best contact method & timezone</label>
-                <input className="form-input" value={form.contact} onChange={set("contact")} placeholder="e.g. email, AEST" />
-              </div>
-            </div>
-
-            <div style={{ marginTop: "var(--space-lg)", display: "flex", gap: "var(--space-md)", alignItems: "center", flexWrap: "wrap" }}>
-              <button type="submit" className="sys2-cta-primary" disabled={status === "submitting"}>
-                {status === "submitting" ? "Submitting…" : "Submit your terms"}
-              </button>
-              <span style={{ fontSize: "0.8125rem", color: "var(--text-tertiary)" }}>
-                Research and infrastructure output only. No capital moves. No discretionary management.
+      {/* ════════ QUESTIONS ════════ */}
+      {step === "questions" && (
+        <section className="compat-shell compat-shell--stage">
+          <div className="compat-stepbar">
+            <button type="button" onClick={goBack} className="compat-back">
+              ← Back
+            </button>
+            <div className="compat-step-meta">
+              <span className="compat-step-count">
+                Step {currentQ} of {totalQuestions}
               </span>
-            </div>
-            {status === "error" && (
-              <div style={{ color: "var(--coral)", fontSize: "0.8125rem", marginTop: "var(--space-sm)" }}>
-                Submission failed — email your terms to hello@resilientprotocol.xyz instead.
+              <div className="compat-progress" aria-hidden>
+                <div
+                  className="compat-progress-fill"
+                  style={{ width: `${(currentQ / totalQuestions) * 100}%` }}
+                />
               </div>
-            )}
-          </form>
-        )}
-      </section>
-
-      {/* ════════ CLOSING ════════ */}
-      <section className="sys2-section sys2-cta-section" style={{ marginTop: "var(--space-4xl)" }}>
-        <div className="cta2-card">
-          <div className="cta2-content">
-            <div className="sys2-sect-eyebrow">THE SPECIMEN</div>
-            <h2 className="cta2-title">The engine on this dashboard is proof the pipeline delivers.</h2>
-            <p className="cta2-lede">
-              Survivor 2.69 is the reference specimen — validated through the same gate suite,
-              run on real capital since May 2026, every position verifiable on Solana Explorer.
-              When its venue wound down, the pipeline re-validated it on the next venue&apos;s
-              measured on-chain costs in a single session. That migration is the product working.
-              Bespoke by construction: one strategy per client, no shared edges, nothing crowded.
-            </p>
-            <div className="cta2-actions">
-              <a href="#intake" className="sys2-cta-primary">Lay out your terms</a>
-              <Link href="/docs" className="sys2-cta-secondary">Read the docs →</Link>
             </div>
           </div>
-        </div>
-      </section>
+
+          {QUESTIONS.map((q) => {
+            if (q.id !== currentQ) return null;
+            const fieldKey = FIELD_KEYS[q.id - 1];
+            return (
+              <div key={q.id} className="compat-q">
+                <div className="sys2-sect-eyebrow">COMPATIBILITY · Q{q.id}</div>
+                <h2 className="compat-q-title">{q.title}</h2>
+                <p className="compat-q-desc">{q.description}</p>
+
+                <div className="compat-options" role="listbox" aria-label={q.title}>
+                  {q.options.map((opt) => {
+                    const selected = scorecard[fieldKey] === opt.value;
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        role="option"
+                        aria-selected={selected}
+                        onClick={() => selectOption(fieldKey, opt.value)}
+                        className={`compat-option${selected ? " is-selected" : ""}`}
+                      >
+                        <span className="compat-option-radio" aria-hidden />
+                        <span className="compat-option-copy">
+                          <span className="compat-option-label">{opt.label}</span>
+                          <span className="compat-option-desc">{opt.desc}</span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </section>
+      )}
+
+      {/* ════════ EMAIL GATE ════════ */}
+      {step === "gate" && (
+        <section className="compat-shell compat-shell--narrow compat-shell--stage">
+          <div className="compat-stepbar">
+            <button type="button" onClick={goBack} className="compat-back">
+              ← Back
+            </button>
+            <span className="compat-step-count">Blueprint gate</span>
+          </div>
+
+          <div className="compat-gate-card">
+            <div className="sys2-sect-eyebrow">PROFILE READY</div>
+            <h2 className="compat-gate-title">Your compatibility profile is ready</h2>
+            <p className="compat-gate-lede">
+              Enter contact details to unlock your systematic setup
+              recommendations. One blueprint, then silence unless you choose a
+              path.
+            </p>
+
+            <form onSubmit={submitScorecard} className="compat-gate-form">
+              <div className="form-group">
+                <label className="form-label" htmlFor="compat-name">
+                  Your name
+                </label>
+                <input
+                  id="compat-name"
+                  className="form-input"
+                  required
+                  value={scorecard.name}
+                  onChange={(e) =>
+                    setScorecard((p) => ({ ...p, name: e.target.value }))
+                  }
+                  placeholder="Enter your name"
+                  autoComplete="name"
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label" htmlFor="compat-email">
+                  Corporate or primary email
+                </label>
+                <input
+                  id="compat-email"
+                  className="form-input"
+                  type="email"
+                  required
+                  value={scorecard.email}
+                  onChange={(e) =>
+                    setScorecard((p) => ({ ...p, email: e.target.value }))
+                  }
+                  placeholder="name@company.com"
+                  autoComplete="email"
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="sys2-cta-primary compat-full-cta"
+                disabled={isSubmitting}
+              >
+                {isSubmitting
+                  ? "Generating blueprint…"
+                  : "Generate Compatibility Blueprint →"}
+              </button>
+
+              {submitError && <div className="compat-error">{submitError}</div>}
+            </form>
+          </div>
+        </section>
+      )}
+
+      {/* ════════ RESULTS ════════ */}
+      {step === "results" && (
+        <>
+          <section className="compat-shell compat-shell--wide">
+            <header className="compat-hero">
+              <div className="compat-hero-copy">
+                <div className="sys2-sect-eyebrow">DYNAMIC ANALYSIS VERDICT</div>
+                <h1 className="compat-title compat-title--result">
+                  {isAdvisory
+                    ? "Sovereign Build Candidate"
+                    : "Developer-Guided Setup"}
+                </h1>
+                <p className="compat-lede">
+                  Based on your preferences, you need a system that values{" "}
+                  {horizonLabel(scorecard.expectedHorizon)} with custody
+                  architectures built on trustless-by-design principles.
+                </p>
+              </div>
+              <div className="compat-hero-side">
+                <span className="sys2-status-pill watching">
+                  <span className="sys2-status-dot" />
+                  Cohort · 3/4 slots booked
+                </span>
+              </div>
+            </header>
+
+            <div className="compat-results-grid">
+              <div className="compat-results-main">
+                <div className="compat-specimen">
+                  <div className="compat-specimen-head">
+                    <span className="validated-tag">LIVE SPECIMEN</span>
+                    <span className="compat-specimen-title">
+                      SOL/USDT Survivor 2.69 · waiting for alignment
+                    </span>
+                  </div>
+                  <div className="compat-metrics">
+                    <div className="compat-metric">
+                      <span className="compat-metric-val">FLAT</span>
+                      <span className="compat-metric-lab">Status</span>
+                    </div>
+                    <div className="compat-metric">
+                      <span className="compat-metric-val">−2.56%</span>
+                      <span className="compat-metric-lab">Net mainnet PnL</span>
+                    </div>
+                    <div className="compat-metric">
+                      <span className="compat-metric-val">117</span>
+                      <span className="compat-metric-lab">Closed trades</span>
+                    </div>
+                    <div className="compat-metric">
+                      <span className="compat-metric-val">44.89</span>
+                      <span className="compat-metric-lab">Calmar (research)</span>
+                    </div>
+                  </div>
+                  <p className="compat-specimen-note">
+                    Flat is a feature. The system sits out noise until multiple
+                    clean timeframes align: capital preservation over forced
+                    activity.
+                  </p>
+                </div>
+
+                <div className="compat-insight">
+                  <div className="compat-insight-title">
+                    Sovereign custody (program-derived addresses)
+                  </div>
+                  <div className="compat-insight-body">
+                    No human holds private keys to the treasury. The program is
+                    the sole authority; your wallet retains an on-chain
+                    kill-switch to freeze trading instantly.
+                  </div>
+                </div>
+                <div className="compat-insight">
+                  <div className="compat-insight-title">
+                    Out-of-sample walk-forward validation
+                  </div>
+                  <div className="compat-insight-body">
+                    Engines clear walk-forward folds on isolated history before
+                    touching live Solana capital. Protection against overfitted
+                    backtests, not a marketing chart.
+                  </div>
+                </div>
+              </div>
+
+              <aside className="compat-fork">
+                {isAdvisory ? (
+                  <>
+                    <div className="sys2-sect-eyebrow">ADVISORY PATH</div>
+                    <h2 className="compat-fork-title">
+                      Book your 1-on-1 systematic debrief
+                    </h2>
+                    <p className="compat-fork-lede">
+                      Your check qualifies you for a bespoke engineering intake.
+                      Secure a cohort slot, then lay out risk terms below.
+                    </p>
+                    <ul className="compat-checks">
+                      <li>Fixed build: A$4,500, one-time</li>
+                      <li>Zero continuous management fees</li>
+                      <li>Ten-gate verification at live venue fees</li>
+                      <li>Paper verdict only; no capital moves until you decide</li>
+                    </ul>
+                    <div className="compat-fork-actions">
+                      <a
+                        href={PAYMENT_LINK}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="sys2-cta-primary"
+                      >
+                        Reserve slot · A$4,500
+                      </a>
+                      <a
+                        href={CALENDLY_LINK}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="sys2-cta-secondary"
+                      >
+                        Schedule debrief
+                      </a>
+                      <a href="#intake" className="sys2-cta-secondary">
+                        Already paid? Lay out your terms →
+                      </a>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="sys2-sect-eyebrow">DEVELOPER PATH</div>
+                    <h2 className="compat-fork-title">
+                      Access open-source specifications
+                    </h2>
+                    <p className="compat-fork-lede">
+                      Self-directed configuration starts with the core docs and
+                      the live wallet ledger on Solana Explorer.
+                    </p>
+                    <div className="compat-fork-actions">
+                      <Link href="/docs" className="sys2-cta-primary">
+                        Technical documentation →
+                      </Link>
+                      <a
+                        href={EXPLORER_URL}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="sys2-cta-secondary"
+                      >
+                        Solana Explorer wallet ledger ↗
+                      </a>
+                      <Link href="/" className="sys2-cta-secondary">
+                        Main dashboard
+                      </Link>
+                    </div>
+                    <p className="compat-fork-aside">
+                      Prefer a manufactured build later?{" "}
+                      <a
+                        href={PAYMENT_LINK}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        Advisory slots remain open at A$4,500
+                      </a>
+                      .
+                    </p>
+                  </>
+                )}
+
+                <div className="compat-fork-foot">
+                  <span>RTP-COMPAT-V5</span>
+                  <button
+                    type="button"
+                    className="compat-retake"
+                    onClick={() => {
+                      setStep("splash");
+                      setCurrentQ(1);
+                      setScorecard(EMPTY_SCORECARD);
+                      setSubmitError(null);
+                    }}
+                  >
+                    Retake check
+                  </button>
+                </div>
+              </aside>
+            </div>
+          </section>
+
+          {isAdvisory && (
+            <section className="compat-shell compat-shell--wide" id="intake">
+              <header className="compat-hero">
+                <div className="compat-hero-copy">
+                  <div className="sys2-sect-eyebrow">MANDATE INTAKE</div>
+                  <h2 className="compat-title compat-title--result">
+                    Lay out your terms.
+                  </h2>
+                  <p className="compat-lede">
+                    After payment clears, complete this form so the research wing
+                    can engineer around your risk budget. Ten minutes. Precision
+                    sharpens the verdict.
+                  </p>
+                </div>
+              </header>
+
+              {intakeStatus === "done" ? (
+                <div className="compat-gate-card">
+                  <div className="sys2-sect-eyebrow">RECEIVED</div>
+                  <h2 className="compat-gate-title">Terms received.</h2>
+                  <p className="compat-gate-lede">
+                    RTP will review and reply by email with scope confirmation.
+                    Nothing proceeds until you agree to terms in writing.
+                  </p>
+                </div>
+              ) : (
+                <form className="launch-form compat-intake" onSubmit={submitIntake}>
+                  <div className="form-group">
+                    <label className="form-label">A · Capital & Objectives</label>
+                    <div className="form-row">
+                      <div>
+                        <label className="form-label form-label--sm">Name *</label>
+                        <input
+                          className="form-input"
+                          required
+                          value={intake.name}
+                          onChange={setIntakeField("name")}
+                          placeholder="Your name"
+                        />
+                      </div>
+                      <div>
+                        <label className="form-label form-label--sm">Email *</label>
+                        <input
+                          className="form-input"
+                          type="email"
+                          required
+                          value={intake.email}
+                          onChange={setIntakeField("email")}
+                          placeholder="you@example.com"
+                        />
+                      </div>
+                    </div>
+                    <div className="form-row">
+                      <div>
+                        <label className="form-label form-label--sm">
+                          Approximate capital (band)
+                        </label>
+                        <select
+                          className="form-input"
+                          value={intake.capitalBand}
+                          onChange={setIntakeField("capitalBand")}
+                        >
+                          <option value="">Select…</option>
+                          <option>Under 10 SOL</option>
+                          <option>10–50 SOL</option>
+                          <option>50–250 SOL</option>
+                          <option>250–1,000 SOL</option>
+                          <option>1,000+ SOL</option>
+                          <option>Prefer to discuss</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="form-label form-label--sm">
+                          Primary objective
+                        </label>
+                        <select
+                          className="form-input"
+                          value={intake.objective}
+                          onChange={setIntakeField("objective")}
+                        >
+                          <option value="">Select…</option>
+                          <option>Capital accumulation (grow the stack)</option>
+                          <option>Absolute return</option>
+                          <option>Income generation</option>
+                          <option>Other</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div className="form-row">
+                      <div>
+                        <label className="form-label form-label--sm">
+                          Time horizon
+                        </label>
+                        <select
+                          className="form-input"
+                          value={intake.horizon}
+                          onChange={setIntakeField("horizon")}
+                        >
+                          <option value="">Select…</option>
+                          <option>3–6 months</option>
+                          <option>6–12 months</option>
+                          <option>1–3 years</option>
+                          <option>3+ years</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="form-label form-label--sm">
+                          Hard target (optional)
+                        </label>
+                        <input
+                          className="form-input"
+                          value={intake.hardTarget}
+                          onChange={setIntakeField("hardTarget")}
+                          placeholder="e.g. +25% SOL terms"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">B · Risk Parameters</label>
+                    <div className="form-row">
+                      <div>
+                        <label className="form-label form-label--sm">
+                          Max drawdown (hard limit) *
+                        </label>
+                        <select
+                          className="form-input"
+                          required
+                          value={intake.maxDrawdown}
+                          onChange={setIntakeField("maxDrawdown")}
+                        >
+                          <option value="">Select…</option>
+                          <option>5%</option>
+                          <option>10%</option>
+                          <option>15%</option>
+                          <option>20%</option>
+                          <option>25%</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="form-label form-label--sm">
+                          Loss tolerance
+                        </label>
+                        <select
+                          className="form-input"
+                          value={intake.lossTolerance}
+                          onChange={setIntakeField("lossTolerance")}
+                        >
+                          <option value="">Select…</option>
+                          <option>Temporary unrealised losses acceptable</option>
+                          <option>Prefer to realise losses quickly</option>
+                          <option>Discuss</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="form-label form-label--sm">
+                        Risk budget description
+                      </label>
+                      <textarea
+                        className="form-input"
+                        rows={2}
+                        value={intake.riskBudget}
+                        onChange={setIntakeField("riskBudget")}
+                        placeholder="How much volatility can this capital absorb, and for how long?"
+                      />
+                    </div>
+                    <div>
+                      <label className="form-label form-label--sm">
+                        Absolute constraints
+                      </label>
+                      <textarea
+                        className="form-input"
+                        rows={2}
+                        value={intake.constraints}
+                        onChange={setIntakeField("constraints")}
+                        placeholder="e.g. no leverage above 3x, max position size, excluded assets"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">C · Operational & Custody</label>
+                    <div className="form-row">
+                      <div>
+                        <label className="form-label form-label--sm">
+                          Current custody setup
+                        </label>
+                        <select
+                          className="form-input"
+                          value={intake.custody}
+                          onChange={setIntakeField("custody")}
+                        >
+                          <option value="">Select…</option>
+                          <option>Self-custody (hardware wallet)</option>
+                          <option>Self-custody (software wallet)</option>
+                          <option>Multisig</option>
+                          <option>Exchange / custodian</option>
+                          <option>Other</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="form-label form-label--sm">
+                          Preferred chains / venues
+                        </label>
+                        <input
+                          className="form-input"
+                          value={intake.venues}
+                          onChange={setIntakeField("venues")}
+                          placeholder="e.g. Solana perps / GMTrade, or let us measure and choose"
+                        />
+                      </div>
+                    </div>
+                    <div className="form-row">
+                      <div>
+                        <label className="form-label form-label--sm">
+                          Reporting requirements
+                        </label>
+                        <input
+                          className="form-input"
+                          value={intake.reporting}
+                          onChange={setIntakeField("reporting")}
+                          placeholder="e.g. weekly summary, on-chain proofs"
+                        />
+                      </div>
+                      <div>
+                        <label className="form-label form-label--sm">
+                          Communication cadence
+                        </label>
+                        <select
+                          className="form-input"
+                          value={intake.cadence}
+                          onChange={setIntakeField("cadence")}
+                        >
+                          <option value="">Select…</option>
+                          <option>Async only (email)</option>
+                          <option>Weekly check-in</option>
+                          <option>Milestones only</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">D · Style & Context (optional)</label>
+                    <div>
+                      <label className="form-label form-label--sm">
+                        Existing strategies or styles
+                      </label>
+                      <textarea
+                        className="form-input"
+                        rows={2}
+                        value={intake.existingStyles}
+                        onChange={setIntakeField("existingStyles")}
+                        placeholder="Anything you already run, or have ruled out"
+                      />
+                    </div>
+                    <div className="form-row">
+                      <div>
+                        <label className="form-label form-label--sm">
+                          Regimes you must survive
+                        </label>
+                        <input
+                          className="form-input"
+                          value={intake.regimes}
+                          onChange={setIntakeField("regimes")}
+                          placeholder="e.g. extended ranges, trend reversals"
+                        />
+                      </div>
+                      <div>
+                        <label className="form-label form-label--sm">
+                          Anything else
+                        </label>
+                        <input
+                          className="form-input"
+                          value={intake.otherContext}
+                          onChange={setIntakeField("otherContext")}
+                          placeholder="Context the research wing should know"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">E · Logistics</label>
+                    <div className="form-row">
+                      <div>
+                        <label className="form-label form-label--sm">
+                          Preferred delivery format
+                        </label>
+                        <select
+                          className="form-input"
+                          value={intake.delivery}
+                          onChange={setIntakeField("delivery")}
+                        >
+                          <option value="">Select…</option>
+                          <option>PDF report + config files</option>
+                          <option>Notion / shared doc</option>
+                          <option>Call walkthrough only</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="form-label form-label--sm">
+                          Hard deadline (optional)
+                        </label>
+                        <input
+                          className="form-input"
+                          value={intake.deadline}
+                          onChange={setIntakeField("deadline")}
+                          placeholder="e.g. before end of quarter"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="form-label form-label--sm">
+                        Best contact method & timezone
+                      </label>
+                      <input
+                        className="form-input"
+                        value={intake.contact}
+                        onChange={setIntakeField("contact")}
+                        placeholder="e.g. email, AEST"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="compat-actions">
+                    <button
+                      type="submit"
+                      className="sys2-cta-primary"
+                      disabled={intakeStatus === "submitting"}
+                    >
+                      {intakeStatus === "submitting"
+                        ? "Submitting…"
+                        : "Submit your terms"}
+                    </button>
+                    <span className="compat-meta-note">
+                      Research output only. No capital moves. No discretionary
+                      management.
+                    </span>
+                  </div>
+                  {intakeStatus === "error" && (
+                    <div className="compat-error">
+                      Submission failed. Email your terms to
+                      hello@resilientprotocol.xyz instead.
+                    </div>
+                  )}
+                </form>
+              )}
+            </section>
+          )}
+        </>
+      )}
     </div>
   );
 }

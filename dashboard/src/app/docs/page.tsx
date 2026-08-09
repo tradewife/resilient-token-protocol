@@ -135,21 +135,27 @@ const DOC_GROUPS: DocGroup[] = [
       },
       {
         slug: "diagnostic",
-        title: "The Diagnostic (Paper Engine)",
+        title: "On-Chain Compatibility Check",
         content: (
           <>
-            <p>The <strong>RTP Paper Engine Diagnostic</strong> is the entry point to the service: a structured research engagement that engineers a strategy around your terms and delivers a validated verdict — on paper. The research + validation pipeline is the actual product; each engagement is high-touch and deliberately limited so edges don&apos;t get crowded. No live capital moves, full client custody throughout.</p>
+            <p>The <strong>On-Chain Compatibility Check</strong> is the entry point: a 90-second scorecard that maps custody posture, patience, horizon, and build path, then forks you to the right next step.</p>
 
-            <h3>What You Receive</h3>
+            <h3>Two paths after the check</h3>
             <ul>
-              <li>A bespoke strategy configuration built around your terms</li>
+              <li><strong>Advisory build (A$4,500 one-time).</strong> Structured intake, dedicated engine around your terms, ten-gate validation at live venue fees, written paper verdict, 1-on-1 debrief. Limited to 3–4 concurrent engagements so edges stay uncrowded.</li>
+              <li><strong>Self-serve developer docs.</strong> Open specifications, explorer wallet ledger, and the live specimen dashboard — no engagement required.</li>
+            </ul>
+
+            <h3>Advisory deliverables</h3>
+            <ul>
+              <li>Bespoke strategy configuration built around your terms</li>
               <li>Full ten-gate validation at current, on-chain-measured venue fees</li>
-              <li>Written verdict — pass / conditional / fail — with supporting analysis</li>
+              <li>Written verdict (pass / conditional / fail) with supporting analysis</li>
               <li>Machine-readable config and risk report you can verify independently</li>
               <li>45–60 minute debrief call</li>
             </ul>
 
-            <h3>Terms</h3>
+            <h3>Advisory terms</h3>
             <Table
               headers={["Term", "Value"]}
               rows={[
@@ -166,7 +172,7 @@ const DOC_GROUPS: DocGroup[] = [
               <p>This is research and infrastructure output — not discretionary management and not financial advice. Live deployment, if a client wants it, is a separate conversation after the paper verdict is accepted.</p>
             </Callout>
 
-            <p><a href="/diagnostic" style={{ color: "var(--coral)" }}>Reserve a slot on the diagnostic page →</a></p>
+            <p><a href="/diagnostic" style={{ color: "var(--coral)" }}>Start the Compatibility Check →</a></p>
           </>
         ),
       },

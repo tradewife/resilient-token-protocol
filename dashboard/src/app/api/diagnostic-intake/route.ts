@@ -5,7 +5,11 @@ import path from "path";
 /**
  * Mandate Diagnostic intake endpoint.
  *
- * POST /api/diagnostic-intake — receives a mandate form submission.
+ * POST /api/diagnostic-intake — receives either:
+ *   - kind: "compatibility_v5"  — scorecard funnel lead (5 Qs + email)
+ *   - kind: "mandate_intake"     — full paid Paper Engine terms form
+ *   - (omitted / legacy)        — treated as mandate_intake
+ *
  * Persists to a JSONL file (dashboard container fs) AND emits one
  * structured log line per submission so Railway deploy logs keep a
  * durable record. Container fs is ephemeral; the log line is the
@@ -20,26 +24,34 @@ const STORE_FILE = path.join(STORE_DIR, "mandate-submissions.jsonl");
 const ACCESS_SECRET = process.env.RTP_INTAKE_SECRET || null;
 
 interface IntakePayload {
+  kind?: string;
   name: string;
   email: string;
-  capitalBand: string;
-  objective: string;
-  horizon: string;
-  hardTarget: string;
-  maxDrawdown: string;
-  riskBudget: string;
-  constraints: string;
-  lossTolerance: string;
-  venues: string;
-  custody: string;
-  reporting: string;
-  cadence: string;
-  existingStyles: string;
-  regimes: string;
-  otherContext: string;
-  delivery: string;
-  contact: string;
-  deadline: string;
+  // Compatibility scorecard (v5)
+  currentSituation?: string;
+  desiredOutcome?: string;
+  patienceMindset?: string;
+  expectedHorizon?: string;
+  solutionModel?: string;
+  // Full mandate intake
+  capitalBand?: string;
+  objective?: string;
+  horizon?: string;
+  hardTarget?: string;
+  maxDrawdown?: string;
+  riskBudget?: string;
+  constraints?: string;
+  lossTolerance?: string;
+  venues?: string;
+  custody?: string;
+  reporting?: string;
+  cadence?: string;
+  existingStyles?: string;
+  regimes?: string;
+  otherContext?: string;
+  delivery?: string;
+  contact?: string;
+  deadline?: string;
 }
 
 function sanitize(s: unknown): string {
@@ -60,10 +72,24 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "name and valid email required" }, { status: 400 });
   }
 
+  const kindRaw = sanitize(body.kind).trim().toLowerCase();
+  const kind =
+    kindRaw === "compatibility_v5" || kindRaw === "compat_v5" || kindRaw === "scorecard"
+      ? "compatibility_v5"
+      : "mandate_intake";
+
   const record = {
     received_at: new Date().toISOString(),
+    kind,
     name,
     email,
+    // Scorecard fields
+    current_situation: sanitize(body.currentSituation),
+    desired_outcome: sanitize(body.desiredOutcome),
+    patience_mindset: sanitize(body.patienceMindset),
+    expected_horizon: sanitize(body.expectedHorizon),
+    solution_model: sanitize(body.solutionModel),
+    // Mandate fields
     capital_band: sanitize(body.capitalBand),
     objective: sanitize(body.objective),
     horizon: sanitize(body.horizon),
@@ -97,7 +123,7 @@ export async function POST(request: Request) {
     console.error(`[DIAGNOSTIC-INTAKE] file write failed: ${err}`);
   }
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, kind });
 }
 
 export async function GET(request: Request) {
