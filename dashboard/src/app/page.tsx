@@ -7,6 +7,11 @@ import Link from "next/link";
 import Topbar from "./Topbar";
 import { fetchTreasuryState } from "../lib/sdk";
 import { inferTradeSide, tradeSideCssClass } from "../lib/tradeSide";
+import {
+  formatPnlPct,
+  netTradePnlPct,
+  summarizeTradePnl,
+} from "../lib/tradePnl";
 
 /* ── Constants ── */
 
@@ -74,18 +79,7 @@ interface NightData {
 
 function PnlSparkline({ trades }: { trades: TraderState["trade_history"] }) {
   const W = 720, H = 180, PAD_X = 14, PAD_Y = 22;
-  const series = useMemo(() => {
-    if (!trades || trades.length === 0) return [] as number[];
-    const out: number[] = [0];
-    let acc = 0;
-    for (const t of trades) {
-      const holdHours = Math.max(0, (t.exit_time - t.entry_time)) / 3600;
-      const feeDrag = 0.12 + 0.0042 * holdHours;
-      acc += t.pnl_pct - feeDrag;
-      out.push(acc);
-    }
-    return out;
-  }, [trades]);
+  const series = useMemo(() => summarizeTradePnl(trades).cumulativeNet, [trades]);
 
   if (series.length < 2) {
     return (
@@ -316,21 +310,13 @@ export default function Home() {
 
   /* ── Derived ── */
 
-  const netPnl = useMemo(() => {
-    if (!trader?.trade_history) return { total: 0, trades: [] as number[] };
-    const trades = trader.trade_history.map((t) => {
-      const holdHours = Math.max(0, (t.exit_time - t.entry_time)) / 3600;
-      const feeDrag = 0.12 + 0.0042 * holdHours;
-      return t.pnl_pct - feeDrag;
-    });
-    return { total: trades.reduce((a, b) => a + b, 0), trades };
-  }, [trader]);
+  const pnl = useMemo(
+    () => summarizeTradePnl(trader?.trade_history),
+    [trader]
+  );
 
-  const totalPnlPct = netPnl.total;
-  const winRate = useMemo(() => {
-    if (!netPnl.trades.length) return null;
-    return (netPnl.trades.filter((p) => p > 0).length / netPnl.trades.length) * 100;
-  }, [netPnl]);
+  const totalPnlPct = pnl.totalNetPct;
+  const winRate = pnl.winRatePct;
 
   const daysRunning = useMemo(() => {
     const deployedAt = new Date("2026-05-12T04:20:00Z").getTime();
@@ -413,9 +399,11 @@ export default function Home() {
           <div className="sys2-vital">
             <div className="sys2-vital-label">Cumulative PnL</div>
             <div className={`sys2-vital-value ${totalPnlPct >= 0 ? "pos" : "neg"}`}>
-              {totalPnlPct >= 0 ? "+" : ""}{totalPnlPct.toFixed(2)}%
+              {formatPnlPct(totalPnlPct)}
             </div>
-            <div className="sys2-vital-sub">{trader?.total_trades ?? 0} closed trades</div>
+            <div className="sys2-vital-sub">
+              {pnl.tradeCount} closed · net of measured GMTrade fees
+            </div>
           </div>
           <div className="sys2-vital">
             <div className="sys2-vital-label">Days Active</div>
@@ -514,9 +502,9 @@ export default function Home() {
               </div>
               <div className="chart-stat">
                 <span className={`chart-stat-val ${totalPnlPct >= 0 ? "pos" : "neg"}`}>
-                  {totalPnlPct >= 0 ? "+" : ""}{totalPnlPct.toFixed(2)}%
+                  {formatPnlPct(totalPnlPct)}
                 </span>
-                <span className="chart-stat-lab">cumulative</span>
+                <span className="chart-stat-lab">net cumulative</span>
               </div>
               <div className="chart-stat">
                 <span className="chart-stat-val">{winRate == null ? "—" : `${winRate.toFixed(0)}%`}</span>
@@ -539,9 +527,7 @@ export default function Home() {
             </div>
             <div className="trade-tape-rows">
               {[...(trader?.trade_history ?? [])].slice(-8).reverse().map((t, i) => {
-                const holdHours = Math.max(0, (t.exit_time - t.entry_time)) / 3600;
-                const feeDrag = 0.12 + 0.0042 * holdHours;
-                const net = t.pnl_pct - feeDrag;
+                const net = netTradePnlPct(t);
                 const side = inferTradeSide(t);
                 return (
                 <div key={i} className={`trade-row ${net >= 0 ? "pos" : "neg"}`}>
@@ -550,7 +536,7 @@ export default function Home() {
                   <span className="trade-reason">{t.exit_reason}</span>
                   <span className={`trade-side ${tradeSideCssClass(side)}`}>{side.toUpperCase()}</span>
                   <span className={`mono trade-pnl ${net >= 0 ? "pos" : "neg"}`}>
-                    {net >= 0 ? "+" : ""}{net.toFixed(2)}%
+                    {formatPnlPct(net)}
                   </span>
                 </div>
               );

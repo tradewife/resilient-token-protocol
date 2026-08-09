@@ -1,8 +1,25 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Topbar from "../Topbar";
+import { formatPnlPct, summarizeTradePnl } from "../../lib/tradePnl";
+
+type SpecimenTrade = {
+  entry_price: number;
+  exit_price: number;
+  entry_time: number;
+  exit_time: number;
+  pnl_pct: number;
+  size_usd?: number;
+  side?: string;
+};
+
+type SpecimenState = {
+  open_position: { side?: string; entry_price?: number; size_usd?: number } | null;
+  trade_history: SpecimenTrade[];
+  total_trades?: number;
+};
 
 /* ── Scorecard model (v5 Compatibility Check) ── */
 
@@ -238,9 +255,45 @@ export default function DiagnosticPage() {
   const [intakeStatus, setIntakeStatus] = useState<
     "idle" | "submitting" | "done" | "error"
   >("idle");
+  const [specimen, setSpecimen] = useState<SpecimenState | null>(null);
 
   const totalQuestions = QUESTIONS.length;
   const isAdvisory = scorecard.solutionModel === "advisory";
+
+  useEffect(() => {
+    let alive = true;
+    const load = async () => {
+      try {
+        const res = await fetch("/api/trader-status/", { cache: "no-store" });
+        if (!res.ok) return;
+        const data = (await res.json()) as SpecimenState;
+        if (alive) setSpecimen(data);
+      } catch {
+        /* keep prior / empty specimen */
+      }
+    };
+    load();
+    const id = setInterval(load, 30_000);
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
+  }, []);
+
+  const specimenPnl = useMemo(
+    () => summarizeTradePnl(specimen?.trade_history),
+    [specimen]
+  );
+  const specimenOpen = Boolean(specimen?.open_position);
+  const specimenStatusLabel = specimenOpen
+    ? `${(specimen?.open_position?.side || "Long").toUpperCase()}`
+    : "FLAT";
+  const specimenStatusSub = specimenOpen
+    ? "In position · managing exits"
+    : "Waiting for multi-TF alignment";
+  const specimenTitle = specimenOpen
+    ? "SOL/USDT Survivor 2.69 · live position open"
+    : "SOL/USDT Survivor 2.69 · waiting for alignment";
 
   const selectOption = (field: keyof ScorecardForm, value: string) => {
     setScorecard((prev) => ({ ...prev, [field]: value }));
@@ -594,21 +647,37 @@ export default function DiagnosticPage() {
                 <div className="compat-specimen">
                   <div className="compat-specimen-head">
                     <span className="validated-tag">LIVE SPECIMEN</span>
-                    <span className="compat-specimen-title">
-                      SOL/USDT Survivor 2.69 · waiting for alignment
-                    </span>
+                    <span className="compat-specimen-title">{specimenTitle}</span>
                   </div>
                   <div className="compat-metrics">
                     <div className="compat-metric">
-                      <span className="compat-metric-val">FLAT</span>
-                      <span className="compat-metric-lab">Status</span>
+                      <span className="compat-metric-val">{specimenStatusLabel}</span>
+                      <span className="compat-metric-lab">{specimenStatusSub}</span>
                     </div>
                     <div className="compat-metric">
-                      <span className="compat-metric-val">−2.56%</span>
-                      <span className="compat-metric-lab">Net mainnet PnL</span>
+                      <span
+                        className="compat-metric-val"
+                        style={{
+                          color:
+                            specimenPnl.tradeCount === 0
+                              ? undefined
+                              : specimenPnl.totalNetPct >= 0
+                                ? "var(--emerald)"
+                                : "var(--coral)",
+                        }}
+                      >
+                        {specimenPnl.tradeCount === 0
+                          ? "—"
+                          : formatPnlPct(specimenPnl.totalNetPct)}
+                      </span>
+                      <span className="compat-metric-lab">
+                        Net closed PnL · measured fees
+                      </span>
                     </div>
                     <div className="compat-metric">
-                      <span className="compat-metric-val">117</span>
+                      <span className="compat-metric-val">
+                        {specimenPnl.tradeCount || specimen?.total_trades || "—"}
+                      </span>
                       <span className="compat-metric-lab">Closed trades</span>
                     </div>
                     <div className="compat-metric">
@@ -617,9 +686,9 @@ export default function DiagnosticPage() {
                     </div>
                   </div>
                   <p className="compat-specimen-note">
-                    Flat is a feature. The system sits out noise until multiple
-                    clean timeframes align: capital preservation over forced
-                    activity.
+                    {specimenOpen
+                      ? "Live mainnet specimen on GMTrade. Closed-trade PnL is net of measured venue round-trip fees (0.022%); open mark-to-market is managed by the exit stack, not forced activity."
+                      : "Flat is a feature. The system sits out noise until multiple clean timeframes align: capital preservation over forced activity. Closed-trade PnL is net of measured GMTrade fees."}
                   </p>
                 </div>
 
