@@ -11,8 +11,9 @@
 //!   The client needs NO oracle access. `execution_fee` (lamports, floor 300k)
 //!   pays the keeper.
 //! - No LP deposit is needed for trading: `market_increase` deposits collateral
-//!   into the position atomically. We use USDC collateral (6dp); the trader
-//!   wallet's USDC ATA needs no extra setup.
+//!   into the position atomically. Production targets SOL/USD[WSOL-WSOL]
+//!   (`G96vsSW5…`) with native SOL wrapped to wSOL as collateral (long token).
+//!   Override market via `RTP_GM_MARKET` (market account pubkey).
 //! - Fill detection: `Client::complete_order(order)` polls CPI events until the
 //!   order PDA is removed and returns the `TradeEvent` (execution price, pnl,
 //!   fees). Wrapped in a timeout + cancel so an unfilled order cannot hang a
@@ -47,6 +48,9 @@ use crate::trader::executor::PositionInfo;
 const USDC_MINT: &str = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 const WSOL_MINT: &str = "So11111111111111111111111111111111111111112";
 const SOL_INDEX_MINT: &str = "So1Zu7vPQQxrguzUehKAyVLpjcc769zxgBuDAsxTUMH";
+/// Default GMTrade market: SOL/USD[WSOL-WSOL] — pure wSOL pool, SOL collateral.
+/// WSOL-USDC (`3M4v…`) hit long OI reserve saturation; do not silently revert.
+const DEFAULT_GM_MARKET: &str = "G96vsSW5KXvostjyBT7rZwSVZpbL8r3mdVjAP5zwCRbn";
 const TOKEN_PROGRAM: &str = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
 const ATA_PROGRAM: &str = "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL";
 
@@ -87,6 +91,11 @@ struct Venue {
     /// Market account address (not the market token mint).
     market: GmPubkey,
     market_token: GmPubkey,
+    /// True when long_token_mint == short_token_mint (e.g. WSOL-WSOL pure pool).
+    /// Pure pools store total in long_token_amount; model long/short amounts are half.
+    is_pure: bool,
+    /// Short token is USDC (6dp). False for pure WSOL-WSOL.
+    short_is_usdc: bool,
     /// 10^(20 - index_token_decimals); 1e11 for the 9-dp SOL index.
     price_scale: f64,
     /// Owner (trader wallet) the client signs with.
@@ -128,8 +137,8 @@ fn gm_pubkey(s: &str) -> GmResult<GmPubkey> {
     s.parse().map_err(|e| format!("bad pubkey {s}: {e}"))
 }
 
-/// Connect once: load the signer keypair, locate the default store and the
-/// SOL/USD[WSOL-USDC] market, and compute the unit-price scale.
+/// Connect once: load the signer keypair, locate the GMTrade store and SOL
+/// market (default SOL/USD[WSOL-WSOL]), and compute the unit-price scale.
 async fn init_venue() -> GmResult<Venue> {
     let path = std::env::var("RTP_TRADER_KEYPAIR")
         .map_err(|_| "RTP_TRADER_KEYPAIR not set (GM venue needs the signer)".to_string())?;
@@ -147,25 +156,62 @@ async fn init_venue() -> GmResult<Venue> {
     let store = client.find_store_address("");
     tracing::info!("[GM] store: {store}");
 
-    // Locate SOL/USD[WSOL-USDC].
+    let wsol = gm_pubkey(WSOL_MINT)?;
+    let usdc = gm_pubkey(USDC_MINT)?;
+    let sol_index = gm_pubkey(SOL_INDEX_MINT)?;
+
+    // Market selection:
+    //   1. RTP_GM_MARKET = market account pubkey (explicit override)
+    //   2. else default G96 SOL/USD[WSOL-WSOL]
+    //   3. else discover SOL index + WSOL + WSOL from store
+    let override_market = std::env::var("RTP_GM_MARKET")
+        .ok()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty());
+    let target = override_market.unwrap_or_else(|| DEFAULT_GM_MARKET.to_string());
+
     let markets = client
         .markets(&store)
         .await
         .map_err(|e| format!("GM markets fetch failed: {e}"))?;
-    let wsol = gm_pubkey(WSOL_MINT)?;
-    let usdc = gm_pubkey(USDC_MINT)?;
-    let sol_index = gm_pubkey(SOL_INDEX_MINT)?;
-    let mut found = None;
+
+    let mut found: Option<(String, String, bool, bool)> = None; // addr, token, is_pure, short_is_usdc
+    // Prefer exact pubkey match first.
     for (addr, market) in &markets {
-        if market.meta.index_token_mint == sol_index
-            && market.meta.long_token_mint == wsol
-            && market.meta.short_token_mint == usdc
-        {
-            found = Some((addr.to_string(), market.meta.market_token_mint.to_string()));
+        if addr.to_string() == target {
+            let is_pure = market.meta.long_token_mint == market.meta.short_token_mint;
+            let short_is_usdc = market.meta.short_token_mint == usdc;
+            found = Some((
+                addr.to_string(),
+                market.meta.market_token_mint.to_string(),
+                is_pure,
+                short_is_usdc,
+            ));
+            break;
         }
     }
-    let (market_str, market_token_str) =
-        found.ok_or("SOL/USD[WSOL-USDC] market not found in GMTrade store")?;
+    // Discover WSOL-WSOL if target was default but pubkey listing used different key form.
+    if found.is_none() {
+        for (addr, market) in &markets {
+            if market.meta.index_token_mint == sol_index
+                && market.meta.long_token_mint == wsol
+                && market.meta.short_token_mint == wsol
+            {
+                found = Some((
+                    addr.to_string(),
+                    market.meta.market_token_mint.to_string(),
+                    true,
+                    false,
+                ));
+                break;
+            }
+        }
+    }
+    let (market_str, market_token_str, is_pure, short_is_usdc) = found.ok_or_else(|| {
+        format!(
+            "GM market not found (wanted {target}; expected SOL/USD[WSOL-WSOL] or RTP_GM_MARKET)"
+        )
+    })?;
     let market = gm_pubkey(&market_str)?;
     let market_token = gm_pubkey(&market_token_str)?;
 
@@ -179,15 +225,35 @@ async fn init_venue() -> GmResult<Venue> {
         .market(&market)
         .await
         .map_err(|e| format!("GM market fetch failed: {e}"))?;
+    // Sanity: index must be SOL; collateral path expects wSOL long token.
+    if market_account.meta.index_token_mint != sol_index {
+        return Err(format!(
+            "GM market {market} index is {}, expected SOL index {SOL_INDEX_MINT}",
+            market_account.meta.index_token_mint
+        ));
+    }
+    if market_account.meta.long_token_mint != wsol {
+        return Err(format!(
+            "GM market {market} long token is {}, expected wSOL (adapter wraps native SOL)",
+            market_account.meta.long_token_mint
+        ));
+    }
     let index_decimals = token_map
         .get(&market_account.meta.index_token_mint)
         .map(|c| c.token_decimals)
         .unwrap_or(9);
     let price_scale = 10f64.powi(20 - index_decimals as i32);
 
+    let label = if is_pure {
+        "SOL/USD[WSOL-WSOL]"
+    } else if short_is_usdc {
+        "SOL/USD[WSOL-USDC]"
+    } else {
+        "SOL/USD[?]"
+    };
     tracing::info!(
-        "[GM] venue ready — market: {market} market_token: {market_token} \
-         index_decimals: {index_decimals} price_scale: {price_scale:e} owner: {owner}"
+        "[GM] venue ready — {label} market: {market} market_token: {market_token} \
+         pure={is_pure} index_decimals: {index_decimals} price_scale: {price_scale:e} owner: {owner}"
     );
 
     Ok(Venue {
@@ -195,6 +261,8 @@ async fn init_venue() -> GmResult<Venue> {
         store,
         market,
         market_token,
+        is_pure,
+        short_is_usdc,
         price_scale,
         owner,
     })
@@ -211,8 +279,9 @@ async fn init_venue() -> GmResult<Venue> {
 /// Keeper validation runs *after* the new size is added to OI, so callers must
 /// still reserve room for the proposed notional on top of this figure.
 ///
-/// Note: live `open_interest_reserve_factor` can be > 1.0 (observed 3.75 on
-/// SOL/USD[WSOL-USDC]). Do not clamp it to [0,1].
+/// Note: live `open_interest_reserve_factor` can be > 1.0 (observed 3.75).
+/// Do not clamp it to [0,1]. Pure pools (WSOL-WSOL) use half of primary
+/// `long_token_amount` per side (`div_ceil` long / `div` short).
 ///
 /// Returns Ok(headroom_usd). Negative means the side is already over capacity.
 async fn oi_headroom_usd(v: &Venue, is_long: bool, sol_price: f64) -> GmResult<f64> {
@@ -231,9 +300,7 @@ async fn oi_headroom_usd(v: &Venue, is_long: bool, sol_price: f64) -> GmResult<f
         ));
     }
 
-    // Pool amounts: primary is non-pure on WSOL-USDC (long=wSOL 9dp, short=USDC 6dp).
-    // OI-in-tokens / OI pools store side amounts in long_token_amount + short_token_amount;
-    // gmsol Merged/Balance long_amount sums both legs of the side's pool.
+    // OI-in-tokens / OI pools: gmsol Merged/Balance long_amount sums both legs.
     let pool_amount = |long_raw: u128, short_raw: u128| -> u128 {
         long_raw.saturating_add(short_raw)
     };
@@ -242,15 +309,32 @@ async fn oi_headroom_usd(v: &Venue, is_long: bool, sol_price: f64) -> GmResult<f
     let pool_px = sol_price * (1.0 - OI_PRICE_BAND);
     let index_max_px = sol_price * (1.0 + OI_PRICE_BAND);
 
+    let primary_long_raw = pools.primary.pool.long_token_amount;
+    let primary_short_raw = pools.primary.pool.short_token_amount;
+
+    // Pure pool model: long_amount = div_ceil(total/2), short_amount = total/2.
+    let (side_pool_raw, side_decimals_is_sol) = if is_long {
+        let raw = if v.is_pure {
+            primary_long_raw.saturating_add(1) / 2
+        } else {
+            primary_long_raw
+        };
+        (raw, true) // long token is wSOL
+    } else if v.is_pure {
+        (primary_long_raw / 2, true) // short side also wSOL
+    } else if v.short_is_usdc {
+        (primary_short_raw, false) // USDC 6dp
+    } else {
+        (primary_short_raw, true)
+    };
+
     let (pool_value_usd, reserved_usd, oi_usd) = if is_long {
-        let pool_tokens = pools.primary.pool.long_token_amount as f64 / 1e9;
-        // pool_value_without_pnl(..., maximize=false) → min long-token price.
+        let pool_tokens = side_pool_raw as f64 / 1e9;
         let pool_value = pool_tokens * pool_px;
         let oi_tok_raw = pool_amount(
             pools.open_interest_in_tokens_for_long.pool.long_token_amount,
             pools.open_interest_in_tokens_for_long.pool.short_token_amount,
         );
-        // reserved_value(long) = OI_in_tokens * index max price.
         let reserved = (oi_tok_raw as f64 / 1e9) * index_max_px;
         let oi = pool_amount(
             pools.open_interest_for_long.pool.long_token_amount,
@@ -259,14 +343,18 @@ async fn oi_headroom_usd(v: &Venue, is_long: bool, sol_price: f64) -> GmResult<f
             / USD_SCALE;
         (pool_value, reserved, oi)
     } else {
-        // Short pool is USDC — no SOL band on pool value. Reserved = OI USD.
-        let pool_usdc = pools.primary.pool.short_token_amount as f64 / 1e6;
         let oi = pool_amount(
             pools.open_interest_for_short.pool.long_token_amount,
             pools.open_interest_for_short.pool.short_token_amount,
         ) as f64
             / USD_SCALE;
-        (pool_usdc, oi, oi)
+        // Short reserved = OI USD. Pool value: USDC face value or wSOL*min_px.
+        let pool_value = if side_decimals_is_sol {
+            (side_pool_raw as f64 / 1e9) * pool_px
+        } else {
+            side_pool_raw as f64 / 1e6
+        };
+        (pool_value, oi, oi)
     };
 
     let max_reserved = pool_value_usd * reserve_factor;
@@ -275,14 +363,13 @@ async fn oi_headroom_usd(v: &Venue, is_long: bool, sol_price: f64) -> GmResult<f
     } else {
         cfg.max_open_interest_for_short as f64 / USD_SCALE
     };
-    // Liquidity ceiling is the tighter of reserve-factor cap and max OI.
     let headroom_reserve = max_reserved - reserved_usd;
     let headroom_oi_cap = max_oi - oi_usd;
     let headroom = headroom_reserve.min(headroom_oi_cap);
 
     tracing::info!(
         "[GM] capacity {} headroom=${:.2} (reserve_max=${:.2} reserved=${:.2} \
-         oi=${:.2}/{:.0} factor={:.4} band={:.2}%)",
+         oi=${:.2}/{:.0} factor={:.4} band={:.2}% pure={} market={})",
         if is_long { "LONG" } else { "SHORT" },
         headroom,
         max_reserved,
@@ -290,7 +377,9 @@ async fn oi_headroom_usd(v: &Venue, is_long: bool, sol_price: f64) -> GmResult<f
         oi_usd,
         max_oi,
         reserve_factor,
-        OI_PRICE_BAND * 100.0
+        OI_PRICE_BAND * 100.0,
+        v.is_pure,
+        v.market
     );
     Ok(headroom)
 }
