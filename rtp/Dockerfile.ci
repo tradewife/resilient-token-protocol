@@ -1,4 +1,5 @@
-ARG RUST_VERSION=1.88-slim
+# rustc 1.90+ required: dep chain pulls ruint 1.20 (rust-version 1.90).
+ARG RUST_VERSION=1.94-slim
 FROM rust:${RUST_VERSION} AS builder
 WORKDIR /app
 # Install Solana CLI and Anchor
