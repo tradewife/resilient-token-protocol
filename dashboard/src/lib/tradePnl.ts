@@ -1,7 +1,7 @@
 /**
  * Live trade PnL helpers.
  *
- * Historical bug: the dashboard subtracted Flash v1 brochure fees
+ * Historical bug: the dashboard subtracted Flash v1 documented/listed fees
  *   feeDrag = 0.12 + 0.0042 * hold_hours
  * from every closed trade. That model is ~5× too expensive vs measured
  * venue costs and produced a fake "net mainnet" figure around −2.56%.

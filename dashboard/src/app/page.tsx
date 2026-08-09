@@ -440,7 +440,7 @@ export default function Home() {
         <header className="sys2-sect-head">
           <div>
             <div className="sys2-sect-eyebrow">§1 · verifiable mainnet performance</div>
-            <h2 className="sys2-sect-title">Trust is built on public state, not marketing brochures</h2>
+            <h2 className="sys2-sect-title">Trust is built on public state you can verify</h2>
             <p className="sys2-sect-lede">
               Beta testing with skin in the game — real capital on mainnet since May 12, 2026,
               every position verifiable on Solana Explorer. A Rust agent executes validated
@@ -597,7 +597,7 @@ export default function Home() {
         <div className="arch2-layer-cells">
           {[
             { t: "Cut to your measurements", d: "Your terms define the build: capital size, maximum drawdown, horizon, the assets you want to accumulate. We engineer a strategy around them — not from a shelf. No shared templates, no crowded edges. What you receive, nobody else runs. Ever." },
-            { t: "Priced to reality, not brochures", d: "This ecosystem is fast: venues change fee schedules, change mechanics, and shut down — often inside a single market cycle. Every engine is validated against live fees measured on-chain: open/close, borrow, funding. When a venue moves, we re-measure. Stale numbers never touch your capital." },
+            { t: "Measured fees, not assumed ones", d: "This ecosystem is fast: venues change fee schedules, change mechanics, and shut down — often inside a single market cycle. Every engine is validated against live fees measured on-chain: open/close, borrow, funding. When a venue moves, we re-measure. Stale numbers never touch your capital." },
             { t: "The same gate suite for everyone", d: "Ten fixed gates: out-of-sample PnL, fold consistency, bidirectional attribution, sensitivity, latency, drawdown ≤ 25%, zero liquidations. If an engine can&apos;t clear them at measured costs, it does not ship — even when the honest answer is no." },
             { t: "High-touch by design", d: "Structured intake (~10 minutes), engineered build, paper report at measured venue fees, and up to four 45–60 minute implementation consultations. Three to four engagements at a time, deliberately: crowding an edge destroys it. Access to us is part of what you&apos;re buying." },
           ].map((c) => (

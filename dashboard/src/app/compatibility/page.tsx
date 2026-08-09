@@ -448,10 +448,10 @@ export default function DiagnosticPage() {
                 touches capital.
               </h1>
               <p className="compat-lede">
-                Shared strategies get crowded. Generic templates ignore your
-                limits. This ninety-second check maps what you actually need so
-                a Bespoke Strategy Build — if it fits — is cut to your terms,
-                not a brochure.
+                Most sovereign capital allocators want secure, customized market
+                execution without custodian risk, technical friction, or crowded
+                templates. A 90-second check maps your structural needs and
+                generates a compatibility blueprint.
               </p>
               <div className="compat-hero-meta">
                 <span className="sys2-status-pill watching">
