@@ -4,12 +4,12 @@ import React, { useState } from "react";
 import Link from "next/link";
 
 interface TopbarProps {
-  activePage?: "dashboard" | "architecture" | "pipeline" | "compatibility" | "diagnostic" | "launch" | "docs" | "research";
+  activePage?: "dashboard" | "offer" | "architecture" | "pipeline" | "compatibility" | "diagnostic" | "launch" | "docs" | "research";
 }
 
 const NAV_ITEMS = [
   { href: "/#live", label: "Live Console", key: "dashboard" },
-  { href: "/#trust", label: "Architecture", key: "architecture" },
+  { href: "/#offer", label: "The Offer", key: "offer" },
   { href: "/#pipeline", label: "Research Pipeline", key: "pipeline" },
   { href: "/compatibility", label: "Compatibility", key: "compatibility" },
   { href: "/docs", label: "Docs", key: "docs" },

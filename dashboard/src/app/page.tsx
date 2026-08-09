@@ -124,11 +124,7 @@ function PnlSparkline({ trades }: { trades: TraderState["trade_history"] }) {
 
 /* ── Invariant data ── */
 
-const NON_NEGOTIABLES = [
-  { title: "You keep custody", desc: "You keep custody and the kill switch." },
-  { title: "Code is the authority", desc: "The treasury is controlled by code, not by a person." },
-  { title: "On-chain audit trail", desc: "Every material action is auditable on-chain." },
-] as const;
+
 
 /* ── Main Page ── */
 
@@ -577,96 +573,30 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ════════ §2 THE SERVICE ════════ */}
-      <section className="sys2-section" id="service" style={{ marginTop: "var(--space-4xl)" }}>
+      {/* ════════ §2 THE OFFER ════════ */}
+      <section className="sys2-section" id="offer" style={{ marginTop: "var(--space-4xl)" }}>
         <header className="sys2-sect-head">
           <div>
-            <div className="sys2-sect-eyebrow">§2 · engineered treasury infrastructure</div>
-            <h2 className="sys2-sect-title">Not another indicator.</h2>
+            <div className="sys2-sect-eyebrow">§2 · the offer</div>
+            <h2 className="sys2-sect-title">
+              One strategy. Built for your account. Capital stays yours.
+            </h2>
             <p className="sys2-sect-lede">
-              Not a shared vault or staking protocol.
+              Not another indicator. Not a shared vault. We take your constraints —
+              capital, drawdown, horizon, what you want to accumulate — and engineer a
+              distinct strategy nobody else runs. You keep custody and the kill switch.
+              We ship only what clears measured on-chain fees and a fixed ten-gate suite.
+              Three to four builds at a time, on purpose: crowding an edge destroys it.
             </p>
           </div>
         </header>
-
-        <div className="arch2-layer-cells">
-          {[
-            {
-              t: "Cut to your constraints",
-              d: "We take your exact constraints — capital size, maximum drawdown, horizon, the assets you want to accumulate — and engineer a distinct, isolated strategy for one destination: your account. No shared edges. What you receive, nobody else runs.",
-            },
-            {
-              t: "Measured fees, not assumed ones",
-              d: "Every engine is priced and validated against live on-chain fees (open/close, borrow, funding). When a venue changes its schedule, we re-measure. Stale numbers never touch your capital.",
-            },
-            {
-              t: "Ten fixed gates",
-              d: "Out-of-sample PnL, fold consistency, bidirectional attribution, sensitivity, latency, drawdown ≤ 25%, zero liquidations. If it can’t clear them at measured costs, it does not ship.",
-            },
-            {
-              t: "High-touch by design",
-              d: "Structured intake, paper report at live fees, and up to four 45–60 minute implementation sessions. We deliberately run only three to four engagements at a time. Crowding an edge destroys it.",
-            },
-          ].map((c) => (
-            <div key={c.t} className="arch2-cell" style={{ borderLeft: "2px solid var(--coral-dim)" }}>
-              <div className="arch2-cell-title">{c.t}</div>
-              <div className="arch2-cell-sub">{c.d}</div>
-            </div>
-          ))}
-        </div>
-
-        <div className="arch2-coord" style={{ marginTop: "var(--space-xl)" }}>
-          <span className="arch2-coord-tag">LOYALTY</span>
-          We are loyal to no one but the client. No venue pays us. No token rewards us. No
-          referral fee colors the verdict. When we recommend a venue, the measurement is yours
-          to inspect line by line.
-        </div>
       </section>
 
-      {/* ════════ §3 TRUSTLESS BY DESIGN ════════ */}
-      <section className="sys2-section" id="trust" style={{ marginTop: "var(--space-4xl)" }}>
-        <header className="sys2-sect-head">
-          <div>
-            <div className="sys2-sect-eyebrow">§3 · trustless by design</div>
-            <h2 className="sys2-sect-title">Cryptographic security without custody handovers</h2>
-            <p className="sys2-sect-lede">
-              We do not manage your capital and we do not hold your funds. The engine runs on
-              self-custodied rails. No human can sign for the treasury. No human can override
-              the rules once they are set — not even us.
-            </p>
-          </div>
-        </header>
-
-        <div className="arch2-layer-cells">
-          {NON_NEGOTIABLES.map((inv) => (
-            <div key={inv.title} className="arch2-cell" style={{ borderLeft: "2px solid var(--emerald-dim)" }}>
-              <div className="arch2-cell-title">{inv.title}</div>
-              <div className="arch2-cell-sub">{inv.desc}</div>
-            </div>
-          ))}
-        </div>
-
-        <div className="arch2-coord" style={{ marginTop: "var(--space-xl)" }}>
-          <span className="arch2-coord-tag">ENGINEERED WITH YOU</span>
-          Risk parameters, position limits, drawdown stops, isolation model, emergency controls,
-          and strategy lifecycle are defined against your constraints. Venue selection is
-          measured to your terms. Privacy-first execution is available when required. We work
-          knowledgeably across chain ecosystems; the architecture is not locked to a single
-          network.
-        </div>
-
-        <div className="arch2-coord" style={{ marginTop: "var(--space-md)" }}>
-          <span className="arch2-coord-tag">ON SOLANA</span>
-          Implemented with Program-Derived Addresses (PDAs) — vaults whose keys do not exist.
-          The same principle (code as the only authority) is applied wherever we deploy.
-        </div>
-      </section>
-
-      {/* ════════ §4 SELF-IMPROVING RESEARCH ENGINE ════════ */}
+      {/* ════════ §3 SELF-IMPROVING RESEARCH ENGINE ════════ */}
       <section className="sys2-section" id="pipeline" style={{ marginTop: "var(--space-4xl)" }}>
         <header className="sys2-sect-head">
           <div>
-            <div className="sys2-sect-eyebrow">§4 · the engine room</div>
+            <div className="sys2-sect-eyebrow">§3 · the engine room</div>
             <h2 className="sys2-sect-title">Exhaustive mathematical search to isolate true mathematical survivors</h2>
             <p className="sys2-sect-lede">
               We do not guess strategy parameters. Every night, our offline validation pipeline —
@@ -770,7 +700,7 @@ export default function Home() {
       <section className="sys2-section sys2-cta-section" id="integrate">
         <div className="cta2-card">
           <div className="cta2-content">
-            <div className="sys2-sect-eyebrow">§5 · high-touch engagement & pricing</div>
+            <div className="sys2-sect-eyebrow">§4 · high-touch engagement & pricing</div>
             <h2 className="cta2-title">Bespoke Strategy Build · A$4,500</h2>
             <p className="cta2-lede">
               One-time. No ongoing asset management fees or performance cuts. You pay once
