@@ -173,7 +173,7 @@ const DOC_GROUPS: DocGroup[] = [
               <p>This is research and infrastructure output — not discretionary management and not financial advice. Live deployment, if a client wants it, is a separate conversation after the paper verdict is accepted.</p>
             </Callout>
 
-            <p><a href="/diagnostic" style={{ color: "var(--coral)" }}>Start the Compatibility Check →</a></p>
+            <p><a href="/compatibility" style={{ color: "var(--coral)" }}>Start the Compatibility Check →</a></p>
           </>
         ),
       },

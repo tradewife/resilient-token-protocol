@@ -12,6 +12,20 @@ const nextConfig: NextConfig = {
   // external so the standalone server can require it at runtime.
   serverExternalPackages: ["node:sqlite"],
   transpilePackages: ["@coral-xyz/anchor", "@solana/spl-token", "@resilient-protocol/sdk"],
+  async redirects() {
+    return [
+      {
+        source: "/diagnostic",
+        destination: "/compatibility",
+        permanent: true,
+      },
+      {
+        source: "/diagnostic/",
+        destination: "/compatibility/",
+        permanent: true,
+      },
+    ];
+  },
   turbopack: {
     root: path.resolve(__dirname),
   },

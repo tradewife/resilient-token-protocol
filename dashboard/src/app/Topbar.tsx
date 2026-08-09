@@ -4,14 +4,14 @@ import React, { useState } from "react";
 import Link from "next/link";
 
 interface TopbarProps {
-  activePage?: "dashboard" | "architecture" | "pipeline" | "diagnostic" | "launch" | "docs" | "research";
+  activePage?: "dashboard" | "architecture" | "pipeline" | "compatibility" | "diagnostic" | "launch" | "docs" | "research";
 }
 
 const NAV_ITEMS = [
   { href: "/#live", label: "Live Console", key: "dashboard" },
   { href: "/#trust", label: "Architecture", key: "architecture" },
   { href: "/#pipeline", label: "Research Pipeline", key: "pipeline" },
-  { href: "/diagnostic", label: "Compatibility", key: "diagnostic" },
+  { href: "/compatibility", label: "Compatibility", key: "compatibility" },
   { href: "/docs", label: "Docs", key: "docs" },
 ] as const;
 

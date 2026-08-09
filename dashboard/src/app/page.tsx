@@ -375,7 +375,7 @@ export default function Home() {
           </div>
 
           <div className="sys2-hero-cta-row" style={{ marginBottom: "var(--space-lg)" }}>
-            <Link href="/diagnostic" className="sys2-cta-primary">
+            <Link href="/compatibility" className="sys2-cta-primary">
               Start Compatibility Check →
             </Link>
             <Link href="/docs" className="sys2-cta-secondary">Read the docs →</Link>
@@ -793,7 +793,7 @@ export default function Home() {
               four implementation consultations included.
         </p>
             <div className="cta2-actions">
-              <Link href="/diagnostic" className="sys2-cta-primary">
+              <Link href="/compatibility" className="sys2-cta-primary">
                 Start Compatibility Check →
               </Link>
               <Link href="/docs" className="sys2-cta-secondary">Read the docs →</Link>
