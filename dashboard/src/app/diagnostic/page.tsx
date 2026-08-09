@@ -165,7 +165,7 @@ const QUESTIONS = [
       {
         value: "advisory",
         label: "Bespoke Engineering Build · A$4,500",
-        desc: "Structured intake, dedicated build, ten-gate validation, 1-on-1 debrief.",
+        desc: "Structured intake, dedicated build, ten-gate validation, paper report, up to 4× implementation calls.",
       },
       {
         value: "developer",
@@ -232,9 +232,10 @@ const PAYMENT_LINK =
   process.env.NEXT_PUBLIC_RTP_DIAGNOSTIC_PAY_URL ||
   "https://buy.stripe.com/8x2bIU7GH0AFbAQ6qVd7q00";
 
-const CALENDLY_LINK =
-  process.env.NEXT_PUBLIC_RTP_DIAGNOSTIC_CALENDLY_URL ||
-  "https://calendly.com/resilient-protocol/debrief";
+// Public Cal.com booking URL (30-min fit / kickoff). API keys stay server-side only.
+const CAL_BOOK_URL =
+  process.env.NEXT_PUBLIC_RTP_DIAGNOSTIC_CAL_URL ||
+  "https://cal.com/kate-cooper/30min";
 
 const EXPLORER_URL = `https://explorer.solana.com/address/${TRADER_WALLET}`;
 
@@ -242,6 +243,22 @@ function horizonLabel(h: string): string {
   if (h === "long_term") return "long-term market cycles";
   if (h === "medium_term") return "structural multi-month review windows";
   return "shorter feedback loops with tighter operational discipline";
+}
+
+/** Prefill Cal.com booker with scorecard / intake contact details. */
+function calBookHref(name?: string, email?: string): string {
+  try {
+    const url = new URL(CAL_BOOK_URL);
+    const n = (name || "").trim();
+    const e = (email || "").trim();
+    if (n) url.searchParams.set("name", n);
+    if (e) url.searchParams.set("email", e);
+    // Keep notes short — helps you spot Compatibility leads in the calendar.
+    url.searchParams.set("notes", "RTP Compatibility Check · advisory path");
+    return url.toString();
+  } catch {
+    return CAL_BOOK_URL;
+  }
 }
 
 export default function DiagnosticPage() {
@@ -719,17 +736,20 @@ export default function DiagnosticPage() {
                   <>
                     <div className="sys2-sect-eyebrow">ADVISORY PATH</div>
                     <h2 className="compat-fork-title">
-                      Book your 1-on-1 systematic debrief
+                      Reserve your bespoke engineering build
                     </h2>
                     <p className="compat-fork-lede">
-                      Your check qualifies you for a bespoke engineering intake.
-                      Secure a cohort slot, then lay out risk terms below.
+                      Your check qualifies you for a limited cohort slot. Pay once,
+                      lay out your terms, and we map them to a paper-validated engine —
+                      with up to four 1-on-1 implementation calls included.
                     </p>
                     <ul className="compat-checks">
                       <li>Fixed build: A$4,500, one-time</li>
-                      <li>Zero continuous management fees</li>
-                      <li>Ten-gate verification at live venue fees</li>
-                      <li>Paper verdict only; no capital moves until you decide</li>
+                      <li>Paper report at measured venue fees + full config</li>
+                      <li>Ten-gate verification on historical data</li>
+                      <li>Up to 4× 45–60 min implementation consultations</li>
+                      <li>Your custody throughout · no capital moves</li>
+                      <li>Initial report 5–8 business days after intake</li>
                     </ul>
                     <div className="compat-fork-actions">
                       <a
@@ -741,12 +761,12 @@ export default function DiagnosticPage() {
                         Reserve slot · A$4,500
                       </a>
                       <a
-                        href={CALENDLY_LINK}
+                        href={calBookHref(scorecard.name, scorecard.email)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="sys2-cta-secondary"
                       >
-                        Schedule debrief
+                        Book a 30-min fit call
                       </a>
                       <a href="#intake" className="sys2-cta-secondary">
                         Already paid? Lay out your terms →
@@ -834,8 +854,19 @@ export default function DiagnosticPage() {
                   <h2 className="compat-gate-title">Terms received.</h2>
                   <p className="compat-gate-lede">
                     RTP will review and reply by email with scope confirmation.
+                    Initial report typically ships 5–8 business days after intake.
                     Nothing proceeds until you agree to terms in writing.
                   </p>
+                  <div className="compat-fork-actions" style={{ marginTop: "var(--space-md)" }}>
+                    <a
+                      href={calBookHref(intake.name || scorecard.name, intake.email || scorecard.email)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="sys2-cta-primary"
+                    >
+                      Book kickoff call · 30 min
+                    </a>
+                  </div>
                 </div>
               ) : (
                 <form className="launch-form compat-intake" onSubmit={submitIntake}>

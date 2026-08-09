@@ -142,7 +142,7 @@ const DOC_GROUPS: DocGroup[] = [
 
             <h3>Two paths after the check</h3>
             <ul>
-              <li><strong>Advisory build (A$4,500 one-time).</strong> Structured intake, dedicated engine around your terms, ten-gate validation at live venue fees, written paper verdict, 1-on-1 debrief. Limited to 3–4 concurrent engagements so edges stay uncrowded.</li>
+              <li><strong>Advisory build (A$4,500 one-time).</strong> Structured intake, dedicated engine around your terms, ten-gate validation at measured venue fees, paper-traded report + full config, and up to 4× 45–60 min implementation consultations. Limited to 3–4 concurrent engagements so edges stay uncrowded.</li>
               <li><strong>Self-serve developer docs.</strong> Open specifications, explorer wallet ledger, and the live specimen dashboard — no engagement required.</li>
             </ul>
 
@@ -152,7 +152,7 @@ const DOC_GROUPS: DocGroup[] = [
               <li>Full ten-gate validation at current, on-chain-measured venue fees</li>
               <li>Written verdict (pass / conditional / fail) with supporting analysis</li>
               <li>Machine-readable config and risk report you can verify independently</li>
-              <li>45–60 minute debrief call</li>
+              <li>Up to 4× 45–60 minute 1-on-1 implementation consultations</li>
             </ul>
 
             <h3>Advisory terms</h3>
@@ -161,7 +161,8 @@ const DOC_GROUPS: DocGroup[] = [
               rows={[
                 ["Price", "A$4,500 one-time"],
                 ["Slots", "3–4 at any time, strictly limited"],
-                ["Turnaround", "Typically 5–8 business days after intake"],
+                ["Turnaround", "Initial report typically 5–8 business days after intake"],
+                ["Consultations", "Up to 4 × 45–60 min included"],
                 ["Capital", "None — paper verdict only"],
                 ["Custody", "100% yours, throughout"],
                 ["Advisory", "None — research and infrastructure output only"],
