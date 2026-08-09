@@ -579,15 +579,35 @@ export default function Home() {
           <div>
             <div className="sys2-sect-eyebrow">§2 · the offer</div>
             <h2 className="sys2-sect-title">
-              One strategy. Built for your account. Capital stays yours.
+              An autonomous system engineered for one account.
             </h2>
-            <p className="sys2-sect-lede">
-              Not another indicator. Not a shared vault. We take your constraints —
-              capital, drawdown, horizon, what you want to accumulate — and engineer a
-              distinct strategy nobody else runs. You keep custody and the kill switch.
-              We ship only what clears measured on-chain fees and a fixed ten-gate suite.
-              Three to four builds at a time, on purpose: crowding an edge destroys it.
-            </p>
+            <div className="sys2-sect-lede" style={{ display: "grid", gap: "var(--space-md)" }}>
+              <p style={{ margin: 0 }}>
+                Not another indicator.
+                <br />
+                Not a shared vault or staking protocol.
+              </p>
+              <p style={{ margin: 0 }}>
+                We take your exact constraints — capital size, maximum drawdown, horizon,
+                the assets you want to accumulate — and engineer a distinct strategy for
+                one destination: your account. No shared edges. What you receive, nobody
+                else runs.
+              </p>
+              <p style={{ margin: 0 }}>
+                Every engine is priced against live on-chain fees and must clear a fixed
+                gate suite (out-of-sample performance, fold consistency, drawdown, zero
+                liquidations). If it can’t clear them at real costs, it does not ship.
+              </p>
+              <p style={{ margin: 0 }}>
+                You keep custody and the kill switch. The treasury is controlled by code,
+                not by a person. We never hold your funds and we take no cut of your
+                trades. When we recommend a venue, the measurement is yours to inspect.
+              </p>
+              <p style={{ margin: 0 }}>
+                High-touch by design. We deliberately run only a few engagements at a
+                time.
+              </p>
+            </div>
           </div>
         </header>
       </section>
