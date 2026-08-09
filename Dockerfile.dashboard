@@ -1,4 +1,5 @@
-FROM node:20-slim AS deps
+# Node 22+ required for built-in node:sqlite (intake lead store).
+FROM node:22-slim AS deps
 WORKDIR /app
 COPY sdk/package.json sdk/package.json
 COPY sdk/idl.ts sdk/idl.ts
@@ -6,7 +7,7 @@ COPY sdk/README.md sdk/README.md
 COPY dashboard/package.json dashboard/package-lock.json dashboard/
 RUN cd dashboard && npm ci
 
-FROM node:20-slim AS builder
+FROM node:22-slim AS builder
 WORKDIR /app
 # NEXT_PUBLIC_ vars must be present at build time for Next.js to inline
 # them. Railway injects env vars as build args.
@@ -17,12 +18,15 @@ COPY --from=deps /app/sdk sdk
 COPY dashboard/ dashboard/
 RUN cd dashboard && npm run build
 
-FROM node:20-slim AS runner
-# v2: fixed static asset paths (.next/static not dashboard/.next/static)
+FROM node:22-slim AS runner
+# v3: Node 22 for node:sqlite; intake DB on Railway volume at /data
 WORKDIR /app
 ENV NODE_ENV=production
 ENV HOSTNAME="0.0.0.0"
 ENV PORT=3000
+# Default SQLite path — override with RTP_INTAKE_DB_PATH if needed.
+# Mount a Railway volume at /data so this survives redeploys.
+ENV RTP_INTAKE_DB_PATH=/data/intake.sqlite
 COPY --from=builder /app/dashboard/.next/standalone ./
 COPY --from=builder /app/dashboard/.next/static .next/static
 COPY --from=builder /app/dashboard/public ./public

@@ -8,6 +8,9 @@ const nextConfig: NextConfig = {
   images: {
     unoptimized: true,
   },
+  // node:sqlite is a Node built-in (experimental in Node 22+). Keep it
+  // external so the standalone server can require it at runtime.
+  serverExternalPackages: ["node:sqlite"],
   transpilePackages: ["@coral-xyz/anchor", "@solana/spl-token", "@resilient-protocol/sdk"],
   turbopack: {
     root: path.resolve(__dirname),

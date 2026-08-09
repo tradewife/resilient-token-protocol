@@ -1,67 +1,39 @@
 import { NextResponse } from "next/server";
-import { promises as fs } from "fs";
-import path from "path";
+import {
+  dbPathInUse,
+  insertLead,
+  leadCount,
+  listLeads,
+  type IntakeKind,
+} from "@/lib/intake-store";
+import { notifyConfigSummary, notifyLead } from "@/lib/intake-notify";
 
 /**
- * Mandate Diagnostic intake endpoint.
+ * Mandate / Compatibility intake endpoint.
  *
  * POST /api/diagnostic-intake — receives either:
  *   - kind: "compatibility_v5"  — scorecard funnel lead (5 Qs + email)
- *   - kind: "mandate_intake"     — full paid Paper Engine terms form
+ *   - kind: "mandate_intake"     — full paid advisory terms form
  *   - (omitted / legacy)        — treated as mandate_intake
  *
- * Persists to a JSONL file (dashboard container fs) AND emits one
- * structured log line per submission so Railway deploy logs keep a
- * durable record. Container fs is ephemeral; the log line is the
- * backup of record until Stripe Payment Links front the flow.
+ * Persistence:
+ *   1. SQLite on Railway volume (RTP_INTAKE_DB_PATH, default /data/intake.sqlite)
+ *   2. Structured log line [DIAGNOSTIC-INTAKE] for Railway deploy logs
+ *   3. Email notify to katejcooper.atelier@gmail.com via Resend (RESEND_API_KEY)
  *
- * GET /api/diagnostic-intake — owner-facing list (guarded by a shared
- * secret header to keep client mandates out of public responses).
+ * GET /api/diagnostic-intake — owner-facing list (Bearer RTP_INTAKE_SECRET).
  */
 
-const STORE_DIR = process.env.RTP_INTAKE_DIR || "/tmp/rtp-intake";
-const STORE_FILE = path.join(STORE_DIR, "mandate-submissions.jsonl");
 const ACCESS_SECRET = process.env.RTP_INTAKE_SECRET || null;
-
-interface IntakePayload {
-  kind?: string;
-  name: string;
-  email: string;
-  // Compatibility scorecard (v5)
-  currentSituation?: string;
-  desiredOutcome?: string;
-  patienceMindset?: string;
-  expectedHorizon?: string;
-  solutionModel?: string;
-  // Full mandate intake
-  capitalBand?: string;
-  objective?: string;
-  horizon?: string;
-  hardTarget?: string;
-  maxDrawdown?: string;
-  riskBudget?: string;
-  constraints?: string;
-  lossTolerance?: string;
-  venues?: string;
-  custody?: string;
-  reporting?: string;
-  cadence?: string;
-  existingStyles?: string;
-  regimes?: string;
-  otherContext?: string;
-  delivery?: string;
-  contact?: string;
-  deadline?: string;
-}
 
 function sanitize(s: unknown): string {
   return typeof s === "string" ? s.slice(0, 2000).replace(/\r?\n/g, " ") : "";
 }
 
 export async function POST(request: Request) {
-  let body: Partial<IntakePayload>;
+  let body: Record<string, unknown>;
   try {
-    body = await request.json();
+    body = (await request.json()) as Record<string, unknown>;
   } catch {
     return NextResponse.json({ error: "invalid JSON" }, { status: 400 });
   }
@@ -69,27 +41,27 @@ export async function POST(request: Request) {
   const name = sanitize(body.name).trim();
   const email = sanitize(body.email).trim();
   if (!name || !email || !email.includes("@")) {
-    return NextResponse.json({ error: "name and valid email required" }, { status: 400 });
+    return NextResponse.json(
+      { error: "name and valid email required" },
+      { status: 400 }
+    );
   }
 
   const kindRaw = sanitize(body.kind).trim().toLowerCase();
-  const kind =
-    kindRaw === "compatibility_v5" || kindRaw === "compat_v5" || kindRaw === "scorecard"
+  const kind: IntakeKind =
+    kindRaw === "compatibility_v5" ||
+    kindRaw === "compat_v5" ||
+    kindRaw === "scorecard"
       ? "compatibility_v5"
       : "mandate_intake";
 
-  const record = {
-    received_at: new Date().toISOString(),
-    kind,
-    name,
-    email,
-    // Scorecard fields
+  // Flatten known fields into a stable payload map (snake_case keys).
+  const payload: Record<string, string> = {
     current_situation: sanitize(body.currentSituation),
     desired_outcome: sanitize(body.desiredOutcome),
     patience_mindset: sanitize(body.patienceMindset),
     expected_horizon: sanitize(body.expectedHorizon),
     solution_model: sanitize(body.solutionModel),
-    // Mandate fields
     capital_band: sanitize(body.capitalBand),
     objective: sanitize(body.objective),
     horizon: sanitize(body.horizon),
@@ -110,25 +82,55 @@ export async function POST(request: Request) {
     deadline: sanitize(body.deadline),
   };
 
-  const line = JSON.stringify(record);
-
-  // Durable-in-logs record (Railway deploy logs)
-  console.log(`[DIAGNOSTIC-INTAKE] ${line}`);
-
-  // Best-effort file persistence (ephemeral container fs)
+  let lead;
   try {
-    await fs.mkdir(STORE_DIR, { recursive: true });
-    await fs.appendFile(STORE_FILE, line + "\n", "utf8");
+    lead = insertLead({ kind, name, email, payload });
   } catch (err) {
-    console.error(`[DIAGNOSTIC-INTAKE] file write failed: ${err}`);
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`[DIAGNOSTIC-INTAKE] sqlite insert failed: ${msg}`);
+    // Still emit the log line so the lead is not totally lost.
+    console.log(
+      `[DIAGNOSTIC-INTAKE] ${JSON.stringify({
+        received_at: new Date().toISOString(),
+        kind,
+        name,
+        email,
+        ...payload,
+        persist_error: msg,
+      })}`
+    );
+    return NextResponse.json(
+      { error: "failed to persist lead" },
+      { status: 500 }
+    );
   }
 
-  return NextResponse.json({ ok: true, kind });
+  // Durable-in-logs backup (Railway deploy logs)
+  console.log(
+    `[DIAGNOSTIC-INTAKE] ${JSON.stringify({
+      id: lead.id,
+      received_at: lead.received_at,
+      kind: lead.kind,
+      name: lead.name,
+      email: lead.email,
+      ...lead.payload,
+      db: dbPathInUse(),
+    })}`
+  );
+
+  // Email Kate — best-effort; never fails the request after durable write.
+  const notify = await notifyLead(lead);
+
+  return NextResponse.json({
+    ok: true,
+    kind: lead.kind,
+    id: lead.id,
+    notified: notify.ok,
+  });
 }
 
 export async function GET(request: Request) {
-  // Fail closed: mandates contain sensitive client data. The list endpoint
-  // requires RTP_INTAKE_SECRET to be configured and presented.
+  // Fail closed: leads contain personal data.
   if (!ACCESS_SECRET) {
     return NextResponse.json({ error: "not configured" }, { status: 403 });
   }
@@ -136,22 +138,21 @@ export async function GET(request: Request) {
   if (auth !== `Bearer ${ACCESS_SECRET}`) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
+
   try {
-    const raw = await fs.readFile(STORE_FILE, "utf8");
-    const submissions = raw
-      .trim()
-      .split("\n")
-      .filter(Boolean)
-      .map((l) => {
-        try {
-          return JSON.parse(l);
-        } catch {
-          return null;
-        }
-      })
-      .filter(Boolean);
-    return NextResponse.json({ count: submissions.length, submissions });
-  } catch {
-    return NextResponse.json({ count: 0, submissions: [] });
+    const url = new URL(request.url);
+    const limit = Number(url.searchParams.get("limit") || "200");
+    const submissions = listLeads(limit);
+    const notify = notifyConfigSummary();
+    return NextResponse.json({
+      count: leadCount(),
+      db: dbPathInUse(),
+      notify,
+      submissions,
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`[DIAGNOSTIC-INTAKE] list failed: ${msg}`);
+    return NextResponse.json({ error: "list failed", detail: msg }, { status: 500 });
   }
 }
