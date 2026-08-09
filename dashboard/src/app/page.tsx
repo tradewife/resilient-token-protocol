@@ -5,6 +5,7 @@ import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { PublicKey, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import Link from "next/link";
 import Topbar from "./Topbar";
+import OfferArchitecture from "./OfferArchitecture";
 import { fetchTreasuryState } from "../lib/sdk";
 import { inferTradeSide, tradeSideCssClass } from "../lib/tradeSide";
 import {
@@ -575,41 +576,44 @@ export default function Home() {
 
       {/* ════════ §2 THE OFFER ════════ */}
       <section className="sys2-section" id="offer" style={{ marginTop: "var(--space-4xl)" }}>
-        <header className="sys2-sect-head">
-          <div>
+        <div className="offer-layout">
+          <div className="offer-visual" aria-hidden={false}>
+            <OfferArchitecture />
+          </div>
+          <div className="offer-copy">
             <div className="sys2-sect-eyebrow">§2 · the offer</div>
-            <h2 className="sys2-sect-title">
+            <h2 className="sys2-sect-title offer-title">
               An autonomous system engineered for one account.
             </h2>
-            <div className="sys2-sect-lede" style={{ display: "grid", gap: "var(--space-md)" }}>
-              <p style={{ margin: 0 }}>
+            <div className="offer-lede">
+              <p>
                 Not another indicator.
                 <br />
                 Not a shared vault or staking protocol.
               </p>
-              <p style={{ margin: 0 }}>
+              <p>
                 We take your exact constraints — capital size, maximum drawdown, horizon,
                 the assets you want to accumulate — and engineer a distinct strategy for
                 one destination: your account. No shared edges. What you receive, nobody
                 else runs.
               </p>
-              <p style={{ margin: 0 }}>
+              <p>
                 Every engine is priced against live on-chain fees and must clear a fixed
                 gate suite (out-of-sample performance, fold consistency, drawdown, zero
                 liquidations). If it can’t clear them at real costs, it does not ship.
               </p>
-              <p style={{ margin: 0 }}>
+              <p>
                 You keep custody and the kill switch. The treasury is controlled by code,
                 not by a person. We never hold your funds and we take no cut of your
                 trades. When we recommend a venue, the measurement is yours to inspect.
               </p>
-              <p style={{ margin: 0 }}>
+              <p>
                 High-touch by design. We deliberately run only a few engagements at a
                 time.
               </p>
             </div>
           </div>
-        </header>
+        </div>
       </section>
 
       {/* ════════ §3 SELF-IMPROVING RESEARCH ENGINE ════════ */}

@@ -2288,6 +2288,239 @@ button.sys2-cta-secondary:disabled {
 .trade-pnl.pos { color: var(--emerald); }
 .trade-pnl.neg { color: var(--coral); }
 
+/* ────────── §2 THE OFFER · axonometric plate ────────── */
+.offer-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.95fr) minmax(300px, 1.05fr);
+  gap: clamp(var(--space-xl), 4vw, var(--space-3xl));
+  align-items: center;
+}
+.offer-visual {
+  position: relative;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.offer-copy {
+  min-width: 0;
+  max-width: 40rem;
+}
+.offer-title {
+  max-width: 16ch;
+}
+.offer-lede {
+  display: grid;
+  gap: var(--space-md);
+  font-size: 0.9375rem;
+  line-height: 1.65;
+  color: var(--text-secondary);
+  max-width: 54ch;
+}
+.offer-lede p {
+  margin: 0;
+}
+
+.offer-arch {
+  margin: 0;
+  width: 100%;
+  max-width: 460px;
+}
+.offer-arch-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+/* Faces — quiet emerald massing, no glow */
+.oa-face {
+  stroke: oklch(48% 0.05 160 / 0.55);
+  stroke-width: 1;
+  stroke-linejoin: miter;
+}
+.oa-face-left {
+  fill: oklch(17.5% 0.024 160);
+}
+.oa-face-right {
+  fill: oklch(13% 0.02 160);
+}
+.oa-face-top {
+  fill: oklch(21% 0.026 160);
+}
+.oa-face-plinth {
+  fill: oklch(15.5% 0.018 160);
+}
+.oa-face-gates {
+  fill: oklch(24% 0.032 160);
+}
+.oa-face-mandate {
+  fill: oklch(28% 0.038 160);
+  stroke: oklch(58% 0.08 160 / 0.5);
+}
+
+.oa-ground {
+  fill: url(#offer-grid);
+  opacity: 0.9;
+}
+.oa-ground-edge {
+  fill: none;
+  stroke: oklch(40% 0.04 160 / 0.28);
+  stroke-width: 0.8;
+}
+.oa-shadow {
+  fill: oklch(6% 0.02 160 / 0.45);
+}
+
+.oa-hatch {
+  pointer-events: none;
+}
+.oa-seam {
+  fill: none;
+  stroke: oklch(55% 0.06 160 / 0.22);
+  stroke-width: 0.7;
+}
+.oa-inset {
+  fill: oklch(11% 0.018 160);
+  stroke: oklch(45% 0.05 160 / 0.4);
+  stroke-width: 0.7;
+}
+.oa-tick {
+  fill: none;
+  stroke: oklch(55% 0.08 160 / 0.55);
+  stroke-width: 1;
+  stroke-linecap: square;
+}
+.oa-gate-slat {
+  fill: none;
+  stroke: oklch(55% 0.09 160 / 0.35);
+  stroke-width: 0.85;
+}
+.oa-notch {
+  fill: none;
+  stroke: oklch(70% 0.06 160 / 0.4);
+  stroke-width: 1.1;
+  stroke-linecap: square;
+}
+.oa-spine {
+  fill: none;
+  stroke: oklch(55% 0.1 160 / 0.55);
+  stroke-width: 1;
+  stroke-dasharray: 3 3.5;
+}
+.oa-probe {
+  fill: none;
+  stroke: oklch(55% 0.08 160 / 0.55);
+  stroke-width: 0.9;
+}
+.oa-probe-dot {
+  fill: oklch(55% 0.1 160 / 0.85);
+  stroke: none;
+}
+.oa-leader {
+  fill: none;
+  stroke: oklch(48% 0.04 160 / 0.4);
+  stroke-width: 0.7;
+}
+
+/* Coral is reserved for the kill switch — the one client-held control */
+.oa-riser,
+.oa-riser-arm {
+  fill: none;
+  stroke: oklch(75% 0.12 30 / 0.85);
+  stroke-width: 1.35;
+  stroke-linecap: square;
+}
+.oa-lever {
+  fill: oklch(75% 0.12 30 / 0.9);
+  stroke: oklch(70% 0.1 30 / 0.7);
+  stroke-width: 0.6;
+}
+.oa-tether {
+  fill: none;
+  stroke: oklch(75% 0.12 30 / 0.45);
+  stroke-width: 0.9;
+  stroke-dasharray: 2.5 3;
+}
+
+.oa-label-k {
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  fill: oklch(62% 0.04 160);
+}
+.oa-label-k-em {
+  fill: oklch(72% 0.05 160);
+}
+.oa-label-v {
+  font-family: var(--font-body);
+  font-size: 9.5px;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  fill: oklch(52% 0.03 160);
+}
+.oa-label-coral .oa-label-k {
+  fill: oklch(75% 0.1 30 / 0.9);
+}
+.oa-label-coral .oa-label-v {
+  fill: oklch(68% 0.07 30 / 0.75);
+}
+
+.oa-reg path {
+  fill: none;
+  stroke: oklch(40% 0.03 160 / 0.35);
+  stroke-width: 0.7;
+}
+.oa-plate-id {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 0.16em;
+  fill: oklch(42% 0.025 160 / 0.7);
+}
+
+@media (max-width: 960px) {
+  .offer-layout {
+    grid-template-columns: 1fr;
+    gap: var(--space-xl);
+  }
+  .offer-arch {
+    max-width: 360px;
+    margin-inline: auto;
+  }
+  .offer-copy {
+    max-width: none;
+  }
+  .offer-title {
+    max-width: 18ch;
+  }
+}
+
+@media (max-width: 720px) {
+  .offer-arch {
+    max-width: 300px;
+  }
+  .oa-label-v {
+    font-size: 8.5px;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .offer-arch-svg {
+    animation: offerPlateIn 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+}
+@keyframes offerPlateIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 /* ────────── §2 CLOSED LOOP ────────── */
 .loop-stage {
   display: flex;
