@@ -124,13 +124,10 @@ function PnlSparkline({ trades }: { trades: TraderState["trade_history"] }) {
 
 /* ── Invariant data ── */
 
-const INVARIANTS = [
-  { title: "PDA Ownership", desc: "The treasury is controlled by a program-derived address. No private key exists. The program IS the only authority." },
-  { title: "Per-Token Isolation", desc: "Each mint gets its own Treasury PDA and vault. One token's exploit cannot affect another's reserves. No shared pool, no honeypot." },
-  { title: "Emergency Freeze", desc: "Authority-gated halt. All 15 state-mutating instructions check the frozen flag. Unfreeze requires multisig approval." },
-  { title: "Strategy Lifecycle", desc: "Hard stops auto-suspend: 10% drawdown, 5 consecutive losses. Soft decay auto-retires after 3 strikes. Recovery needs 3 consecutive positive updates." },
-  { title: "CPI-Only Execution", desc: "All trading stays on Solana. Treasury PDA signs via invoke_signed — no human keypair exists. The venue layer is measured and replaceable: proven live by the Flash → GMTrade migration." },
-  { title: "Phase Irreversible", desc: "Sustenance \u2192 Ecosystem \u2192 Humanity. On-chain transitions with no downgrade path. The protocol grows up, never down." },
+const NON_NEGOTIABLES = [
+  { title: "You keep custody", desc: "You keep custody and the kill switch." },
+  { title: "Code is the authority", desc: "The treasury is controlled by code, not by a person." },
+  { title: "On-chain audit trail", desc: "Every material action is auditable on-chain." },
 ] as const;
 
 /* ── Main Page ── */
@@ -585,21 +582,31 @@ export default function Home() {
         <header className="sys2-sect-head">
           <div>
             <div className="sys2-sect-eyebrow">§2 · engineered treasury infrastructure</div>
-            <h2 className="sys2-sect-title">Not a SaaS product. Not a shared template</h2>
+            <h2 className="sys2-sect-title">Not another indicator.</h2>
             <p className="sys2-sect-lede">
-              Resilient Token Protocol is an engineering-first pipeline built to solve execution
-              decay. We take your exact constraints and write a distinct, isolated trading
-              strategy built for one destination: your account.
-        </p>
+              Not a shared vault or staking protocol.
+            </p>
           </div>
         </header>
 
         <div className="arch2-layer-cells">
           {[
-            { t: "Cut to your measurements", d: "Your terms define the build: capital size, maximum drawdown, horizon, the assets you want to accumulate. We engineer a strategy around them — not from a shelf. No shared templates, no crowded edges. What you receive, nobody else runs. Ever." },
-            { t: "Measured fees, not assumed ones", d: "This ecosystem is fast: venues change fee schedules, change mechanics, and shut down — often inside a single market cycle. Every engine is validated against live fees measured on-chain: open/close, borrow, funding. When a venue moves, we re-measure. Stale numbers never touch your capital." },
-            { t: "The same gate suite for everyone", d: "Ten fixed gates: out-of-sample PnL, fold consistency, bidirectional attribution, sensitivity, latency, drawdown ≤ 25%, zero liquidations. If an engine can&apos;t clear them at measured costs, it does not ship — even when the honest answer is no." },
-            { t: "High-touch by design", d: "Structured intake (~10 minutes), engineered build, paper report at measured venue fees, and up to four 45–60 minute implementation consultations. Three to four engagements at a time, deliberately: crowding an edge destroys it. Access to us is part of what you&apos;re buying." },
+            {
+              t: "Cut to your constraints",
+              d: "We take your exact constraints — capital size, maximum drawdown, horizon, the assets you want to accumulate — and engineer a distinct, isolated strategy for one destination: your account. No shared edges. What you receive, nobody else runs.",
+            },
+            {
+              t: "Measured fees, not assumed ones",
+              d: "Every engine is priced and validated against live on-chain fees (open/close, borrow, funding). When a venue changes its schedule, we re-measure. Stale numbers never touch your capital.",
+            },
+            {
+              t: "Ten fixed gates",
+              d: "Out-of-sample PnL, fold consistency, bidirectional attribution, sensitivity, latency, drawdown ≤ 25%, zero liquidations. If it can’t clear them at measured costs, it does not ship.",
+            },
+            {
+              t: "High-touch by design",
+              d: "Structured intake, paper report at live fees, and up to four 45–60 minute implementation sessions. We deliberately run only three to four engagements at a time. Crowding an edge destroys it.",
+            },
           ].map((c) => (
             <div key={c.t} className="arch2-cell" style={{ borderLeft: "2px solid var(--coral-dim)" }}>
               <div className="arch2-cell-title">{c.t}</div>
@@ -610,19 +617,9 @@ export default function Home() {
 
         <div className="arch2-coord" style={{ marginTop: "var(--space-xl)" }}>
           <span className="arch2-coord-tag">LOYALTY</span>
-          We are loyal to no one but the client. No venue pays us to route you there. No token
-          rewards us for your trades. No referral fee colors our verdict. When we recommend an
-          execution venue, it is because we measured it against your terms — and the measurement
-          is yours to inspect, line by line.
-        </div>
-
-        <div className="arch2-coord" style={{ marginTop: "var(--space-md)" }}>
-          <span className="arch2-coord-tag">NOT ADVICE — THE ONBOARDING WE WISH WE HAD</span>
-          We do not manage your money and we do not tell you what to buy. When we first got into
-          the trenches, what we wished for was not a hot tip — it was someone who knew where the
-          traps were: venues that vanish overnight, fee schedules that silently eat edges, custody
-          mistakes that cost everything. That is what we build: a setup engineered around those
-          lessons. You keep custody. You keep the decisions. We build the rails and prove the costs.
+          We are loyal to no one but the client. No venue pays us. No token rewards us. No
+          referral fee colors the verdict. When we recommend a venue, the measurement is yours
+          to inspect line by line.
         </div>
       </section>
 
@@ -633,35 +630,15 @@ export default function Home() {
             <div className="sys2-sect-eyebrow">§3 · trustless by design</div>
             <h2 className="sys2-sect-title">Cryptographic security without custody handovers</h2>
             <p className="sys2-sect-lede">
-              We do not manage your capital, and we do not hold your funds. Your trading engine
-              runs on self-custodied rails using Solana Program-Derived Addresses (PDAs). 16
-              constitutional invariants are enforced in both the Rust runtime
-              (<code className="inline-code">soulguard.rs</code>) and the on-chain Anchor program.
-              No human can sign for the treasury. No human can override the rules, not even the
-              authority. The program is the only authority.
-        </p>
+              We do not manage your capital and we do not hold your funds. The engine runs on
+              self-custodied rails. No human can sign for the treasury. No human can override
+              the rules once they are set — not even us.
+            </p>
           </div>
         </header>
 
-        <div className="cta2-card" style={{ marginBottom: "var(--space-2xl)" }}>
-          <div className="cta2-content">
-            <div className="sys2-sect-eyebrow">THE PDA, IN PLAIN ENGLISH</div>
-            <p className="cta2-lede" style={{ marginBottom: "var(--space-md)" }}>
-              A PDA — program-derived address — is a vault whose keys do not exist. It is
-              controlled by code, not by a person. Funds go in, the rules decide what happens,
-              and funds only ever move exactly as the rules allow.
-            </p>
-            <ul style={{ color: "var(--text-secondary)", lineHeight: 1.7, fontSize: "0.9375rem", textAlign: "left", maxWidth: "72ch", margin: "0 auto" }}>
-              <li><strong>No private key.</strong> There is no password to steal, phish, or leak. Not ours, not yours — nobody&apos;s.</li>
-              <li><strong>Rules enforced by code.</strong> Position limits, drawdown stops, emergency halt — enforced on-chain the same way for everyone.</li>
-              <li><strong>You keep the kill switch.</strong> Execution runs through permission you grant from your own wallet. Revoke it any time and the engine stops, instantly, without asking us.</li>
-              <li><strong>Everything auditable.</strong> Every open, close, and fee is a transaction you can open on Solana Explorer.</li>
-            </ul>
-          </div>
-        </div>
-
         <div className="arch2-layer-cells">
-          {INVARIANTS.map((inv) => (
+          {NON_NEGOTIABLES.map((inv) => (
             <div key={inv.title} className="arch2-cell" style={{ borderLeft: "2px solid var(--emerald-dim)" }}>
               <div className="arch2-cell-title">{inv.title}</div>
               <div className="arch2-cell-sub">{inv.desc}</div>
@@ -670,10 +647,18 @@ export default function Home() {
         </div>
 
         <div className="arch2-coord" style={{ marginTop: "var(--space-xl)" }}>
-          <span className="arch2-coord-tag">ENFORCEMENT</span>
-          Every message between wings is validated against the constitutional governance layer by soulguard.rs.
-          The on-chain program adds a second enforcement layer: PDA seed constraints, authority gates,
-          strategy lifecycle gates, and overflow-safe math. 362 unit + 5 integration tests verify both layers.
+          <span className="arch2-coord-tag">ENGINEERED WITH YOU</span>
+          Risk parameters, position limits, drawdown stops, isolation model, emergency controls,
+          and strategy lifecycle are defined against your constraints. Venue selection is
+          measured to your terms. Privacy-first execution is available when required. We work
+          knowledgeably across chain ecosystems; the architecture is not locked to a single
+          network.
+        </div>
+
+        <div className="arch2-coord" style={{ marginTop: "var(--space-md)" }}>
+          <span className="arch2-coord-tag">ON SOLANA</span>
+          Implemented with Program-Derived Addresses (PDAs) — vaults whose keys do not exist.
+          The same principle (code as the only authority) is applied wherever we deploy.
         </div>
       </section>
 
