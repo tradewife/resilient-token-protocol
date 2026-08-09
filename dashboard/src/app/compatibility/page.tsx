@@ -158,19 +158,19 @@ const QUESTIONS = [
   },
   {
     id: 5,
-    title: "Which development path fits your resources?",
+    title: "What are you looking for from this conversation?",
     description:
-      "We run 3–4 advisory builds at a time so edges stay uncrowded.",
+      "We take on a small number of builds at a time so edges stay uncrowded.",
     options: [
       {
         value: "advisory",
-        label: "Bespoke Strategy Build · A$4,500",
-        desc: "Structured intake, dedicated build, ten-gate validation, paper report, up to 4× implementation calls.",
+        label: "A Bespoke Strategy Build",
+        desc: "Structured intake, dedicated strategy, ten-gate validation, paper report, up to 4× implementation calls · A$4,500.",
       },
       {
-        value: "developer",
-        label: "Self-Serve Developer Docs",
-        desc: "Open-source specifications; build on your own infrastructure.",
+        value: "explore",
+        label: "Still weighing the fit",
+        desc: "I want a clear read first — happy to book a short call or keep reading before I commit.",
       },
     ],
   },
@@ -275,7 +275,8 @@ export default function DiagnosticPage() {
   const [specimen, setSpecimen] = useState<SpecimenState | null>(null);
 
   const totalQuestions = QUESTIONS.length;
-  const isAdvisory = scorecard.solutionModel === "advisory";
+  // Both answers still lead toward the paid build; "explore" is a softer CTA stack.
+  const isAdvisory = scorecard.solutionModel !== "explore";
 
   useEffect(() => {
     let alive = true;
@@ -443,14 +444,14 @@ export default function DiagnosticPage() {
             <div className="compat-hero-copy">
               <div className="sys2-sect-eyebrow">ON-CHAIN COMPATIBILITY CHECK</div>
               <h1 className="compat-title">
-                Map your custody, horizon, and risk posture before anything
+                Map your custody, horizon, and risk profile before anything
                 touches capital.
               </h1>
               <p className="compat-lede">
-                Five questions. Ninety seconds. A blueprint that forks you to a
-                Bespoke Strategy Build or the open specs — no hype, no
-                hand-holding, measured against how institutional on-chain
-                execution actually runs.
+                Shared strategies get crowded. Generic templates ignore your
+                limits. This ninety-second check maps what you actually need so
+                a Bespoke Strategy Build — if it fits — is cut to your terms,
+                not a brochure.
               </p>
               <div className="compat-hero-meta">
                 <span className="sys2-status-pill watching">
@@ -642,13 +643,14 @@ export default function DiagnosticPage() {
                 <div className="sys2-sect-eyebrow">DYNAMIC ANALYSIS VERDICT</div>
                 <h1 className="compat-title compat-title--result">
                   {isAdvisory
-                    ? "Sovereign Build Candidate"
-                    : "Developer-Guided Setup"}
+                    ? "Bespoke Strategy Build — fit"
+                    : "Worth a closer look"}
                 </h1>
                 <p className="compat-lede">
-                  Based on your preferences, you need a system that values{" "}
-                  {horizonLabel(scorecard.expectedHorizon)} with custody
-                  architectures built on trustless-by-design principles.
+                  Based on your answers, you need a system that values{" "}
+                  {horizonLabel(scorecard.expectedHorizon)} with custody that
+                  stays yours — and a strategy engineered around your risk
+                  profile, not a shared template.
                 </p>
               </div>
               <div className="compat-hero-side">
@@ -775,41 +777,42 @@ export default function DiagnosticPage() {
                   </>
                 ) : (
                   <>
-                    <div className="sys2-sect-eyebrow">DEVELOPER PATH</div>
+                    <div className="sys2-sect-eyebrow">NEXT STEP</div>
                     <h2 className="compat-fork-title">
-                      Access open-source specifications
+                      Take the next step when you are ready
                     </h2>
                     <p className="compat-fork-lede">
-                      Self-directed configuration starts with the core docs and
-                      the live wallet ledger on Solana Explorer.
+                      No rush. When the fit is clear, the Bespoke Strategy Build
+                      is the path: your terms in, a paper-validated strategy out,
+                      with implementation calls included.
                     </p>
+                    <ul className="compat-checks">
+                      <li>Bespoke Strategy Build: A$4,500, one-time</li>
+                      <li>Paper report at measured venue fees + full config</li>
+                      <li>Up to 4× 45–60 min implementation consultations</li>
+                      <li>Your custody throughout · no capital moves</li>
+                    </ul>
                     <div className="compat-fork-actions">
-                      <Link href="/docs" className="sys2-cta-primary">
-                        Technical documentation →
-                      </Link>
                       <a
-                        href={EXPLORER_URL}
+                        href={calBookHref(scorecard.name, scorecard.email)}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="sys2-cta-secondary"
+                        className="sys2-cta-primary"
                       >
-                        Solana Explorer wallet ledger ↗
+                        Book a 30-min fit call
                       </a>
-                      <Link href="/" className="sys2-cta-secondary">
-                        Main dashboard
-                      </Link>
-                    </div>
-                    <p className="compat-fork-aside">
-                      Prefer a manufactured build later?{" "}
                       <a
                         href={PAYMENT_LINK}
                         target="_blank"
                         rel="noopener noreferrer"
+                        className="sys2-cta-secondary"
                       >
-                        Bespoke Strategy Build slots remain open at A$4,500
+                        Reserve slot · A$4,500
                       </a>
-                      .
-                    </p>
+                      <Link href="/" className="sys2-cta-secondary">
+                        View the live specimen
+                      </Link>
+                    </div>
                   </>
                 )}
 

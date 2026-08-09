@@ -21,9 +21,10 @@ function subjectFor(lead: IntakeRecord): string {
   if (lead.kind === "compatibility_v5") {
     const path =
       lead.payload.solution_model === "advisory"
-        ? "Advisory"
-        : lead.payload.solution_model === "developer"
-          ? "Developer"
+        ? "Build"
+        : lead.payload.solution_model === "explore" ||
+            lead.payload.solution_model === "developer"
+          ? "Exploring"
           : "Scorecard";
     return `[RTP Lead] Compatibility · ${path} · ${lead.name}`;
   }

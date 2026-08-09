@@ -138,12 +138,12 @@ const DOC_GROUPS: DocGroup[] = [
         title: "On-Chain Compatibility Check",
         content: (
           <>
-            <p>The <strong>On-Chain Compatibility Check</strong> is the entry point: a 90-second scorecard that maps custody posture, patience, horizon, and build path, then forks you to the right next step.</p>
+            <p>The <strong>On-Chain Compatibility Check</strong> is the entry point: a 90-second scorecard that maps custody, patience, horizon, and risk profile, then shows whether a Bespoke Strategy Build fits — and how to take the next step.</p>
 
             <h3>Two paths after the check</h3>
             <ul>
               <li><strong>Bespoke Strategy Build (A$4,500 one-time).</strong> Structured intake, dedicated strategy around your terms, ten-gate validation at measured venue fees, paper-traded report + full config, and up to 4× 45–60 min implementation consultations. Limited to 3–4 concurrent engagements so edges stay uncrowded.</li>
-              <li><strong>Self-serve developer docs.</strong> Open specifications, explorer wallet ledger, and the live specimen dashboard — no engagement required.</li>
+              <li><strong>Still weighing the fit.</strong> Book a short call, review the live specimen, or reserve a Bespoke Strategy Build slot when ready — no pressure to commit from the check alone.</li>
             </ul>
 
             <h3>Bespoke Strategy Build deliverables</h3>
