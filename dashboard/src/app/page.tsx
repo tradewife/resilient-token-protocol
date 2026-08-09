@@ -577,9 +577,6 @@ export default function Home() {
       {/* ════════ §2 THE OFFER ════════ */}
       <section className="sys2-section" id="offer" style={{ marginTop: "var(--space-4xl)" }}>
         <div className="offer-layout">
-          <div className="offer-visual" aria-hidden={false}>
-            <OfferArchitecture />
-          </div>
           <div className="offer-copy">
             <div className="sys2-sect-eyebrow">§2 · the offer</div>
             <h2 className="sys2-sect-title offer-title">
@@ -612,6 +609,14 @@ export default function Home() {
                 time.
               </p>
             </div>
+            <div className="offer-actions">
+              <Link href="/compatibility" className="sys2-cta-primary">
+                Start Compatibility Check →
+              </Link>
+            </div>
+          </div>
+          <div className="offer-visual">
+            <OfferArchitecture />
           </div>
         </div>
       </section>
