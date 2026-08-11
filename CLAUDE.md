@@ -4,638 +4,295 @@ This file provides guidance to Claude Code when working with this repository.
 
 ## Project Overview
 
-**RTP (Resilient Token Protocol)** — a Solana-native, self-funding treasury governed by a modular Rust swarm. Any token project adopts RTP — their trading fees route to the swarm, which autonomously researches, validates, and executes yield strategies — returning yield back to the project and its holders. The swarm executes validated strategies as **on-chain perpetuals via Flash Trade CPI**, signed by the **Treasury PDA via `invoke_signed`** (no human keypair). All execution stays on Solana — no cross-chain bridge, no off-chain signing.
+**RTP (Resilient Token Protocol)** is a high-value bespoke treasury service.
+Each client gets one manufactured strategy — engineered to their mandate
+(capital, drawdown, horizon, accumulation target), validated against a fixed
+ten-gate suite at measured on-chain costs, and deployed on self-custodied,
+on-chain-verifiable rails.
 
-**Hackathon**: SWARMs / Canteen × Colosseum, deadline May 11, 2026.
+**Specimen (proof asset)**: SOL/USDT Survivor 2.69 — runs live on GMTrade
+as the blueprint that proves the factory works. Not a product; mass-deploying
+it would crowd the trade.
+
+**Pipeline is the product**: client mandate → research wing manufactures
+strategy → fixed gate suite qualifies it → it deploys on self-custodied
+rails with on-chain enforcement.
+
+**Strategic direction (canonical)**: `docs/STRATEGIC-DIRECTION.md`. Bespoke
+first, scale later. Client #1 is a close friend; their mandate is the S15
+lineage (`research/missions/s15_final_verdict.md`). Consult that doc
+before any product / positioning / copy work.
+
 **License**: BSL 1.1 (converts to Apache 2.0 on 2030-05-11)
 
-**Strategic direction (canonical)**: `docs/STRATEGIC-DIRECTION.md`. RTP is pivoting to **bespoke treasury infrastructure** — one manufactured strategy per client, self-custody, on-chain-verifiable. Survivor 2.69 is the *specimen* proving the factory; the pipeline is the product. Bespoke-first, scale-later (only after the exit criteria in that doc are met). Sequencing: (1) get 2.69 healthy/impressive, (2) website copy reframe after clean post-v2 trades, (3) client #1 = close friend (their mandate is the S15 lineage, `research/missions/s15_final_verdict.md`). Consult that doc before any product/positioning/copy work.
+---
+
+## What lives in this repo
+
+| Path | Status | Purpose |
+|---|---|---|
+| `dashboard/` | **Live** | The product — bespoke landing, Compatibility Check, docs |
+| `rtp/swarm/` | **Live** | Live trader (`rtp-trader`) + daemon + wings |
+| `research/` | **Live** | Night Shift factory, WFA, full-sim validation |
+| `scripts/railway-*.mjs` | **Live** | Operator helpers (logs, overrides, redeploy) |
+| `scripts/redistribute.ts` `promote-strategy.ts` | **Live** | Required by Railway Dockerfiles |
+| `sdk/` | **Live** | Solana program SDK (fetchTreasuryState) |
+| `cli/flash-sdk-wrapper.mjs` + `cli/package.json` | **Live** | Required by `rtp/swarm/Dockerfile.trader` |
+| `data/ohlcv/` | **Live** | Night Shift input data |
+| `data/night_results/` (latest 2 days) | **Live** | Baked into promote-strategy image |
+| `rtp/programs/` | **Reference** | Anchor program source (proves CPI architecture) |
+| `archive/` | **Archived** | Token-onboarding era, Flash-era, hackathon-era. Preserved for portfolio context — `archive/README.md` lists what's there and why |
+
+`SOULCONTRACT.md` is constitutional governance; it overrides everything.
 
 ---
 
-## Execution Venue — Complete (Flash Trade CPI)
+## Execution Venue — GMTrade (Solana)
 
-The Flash Trade on-chain CPI execution path is fully implemented (M0–M5). PDA-signed position open/close confirmed on mainnet. The Hyperliquid/Phantom MCP path is archived behind `#[cfg(feature = "hyperliquid")]`.
+Trader target venue is **GMTrade** (replacing Flash Trade which wound
+down Aug 2026 — see `archive/flash-trade/` for the historical venue docs).
 
 ```
-Night Shift (Python, DONE)
-  └── validated strategy: SOL/USDT Survivor 2.69, signal_threshold=0.3, tp_atr=6.0, sl_atr=2.5, trailing_stop_atr=1.0, max_hold_hours=96, score_flip_delay_hrs=2, min_alignment=2
+Night Shift (Python, LIVE)
+  └── validated strategy: SOL/USDT Survivor 2.69
         │
         ▼ bridge.rs (DONE)
-Trading Wing (Rust, DONE)
-  └── ExecutePermit payload → reads on-chain state, builds Anchor instruction
+Trading Wing / rtp-trader (Rust, LIVE)
+  └── StrategyParams → entry/exit math → position sizing
         │
-        ▼ RTP Treasury Program (on-chain, DONE)
-           open_flash_position: validates frozen, strategy Live, runway floor
-           invoke_signed with Treasury PDA seeds → Flash Trade Perpetuals CPI
+        ▼ GMTrade REST API (transaction-builder, live on mainnet)
         │
-        ▼ Flash Trade Perpetuals Program (on-chain CPI)
-           FLASH6Lo6h3iasJKWDs2F8TkW2UKf3s15C8PMGuVfgBn (mainnet)
-           Position opened/closed on Solana, fully auditable on Explorer
+        ▼ open_position / close_position → SOL perp position
         │
-        ▼ close_flash_position (invoke_signed) → SOL returned to treasury vault
-        │
-        ▼ check_redistribute on-chain (DONE)
-           70% holders / 20% project dev / 10% ecosystem
-        │
-        ▼ Devnet loop daemon (DONE)
-           6h cron, LLM-driven strategy evolution, auditable trail
-
-Fee-Payer Wallet (gas only, DONE)
-  └── Funded keypair pays Solana transaction gas (< 0.001 SOL/tx)
-        │
-        ▼ No authority over treasury funds — cannot sign for Treasury PDA
-        ▼ Losing this key means losing gas money, not treasury funds
+        ▼ SOL returned to trader wallet (HDQ79…) on close
 ```
 
-### Integration Resources
-| Resource | URL |
-|----------|-----|
-| Flash Trade REST API | https://flashapi.trade |
-| Flash Trade SKILL.md | `flash-trade/SKILL.md` (in repo) |
-| Flash Trade TransactionFlow | `flash-trade/TransactionFlow.md` (in repo) |
-| Flash Trade ProtocolConcepts | `flash-trade/ProtocolConcepts.md` (in repo) |
-| Flash Trade SDK (TypeScript) | `flash-sdk` (NPM) |
-| Flash Trade Program (mainnet) | `FLASH6Lo6h3iasJKWDs2F8TkW2UKf3s15C8PMGuVfgBn` |
-| Flash Trade Program (devnet) | `FTPP4jEWW1n8s2FEccwVfS9KCPjpndaswg7Nkkuz4ER4` |
-| Composability Program (mainnet) | `FSWAPViR8ny5K96hezav8jynVubP2dJ2L7SbKzds2hwm` |
-| Solana Wallet Adapter | Browser wallet for dashboard (`@solana/wallet-adapter-react`). Supports Phantom, Solflare, Backpack, and any Solana wallet. |
-
-**Legacy (archived behind `#[cfg(feature = "hyperliquid")]`):**
-| Resource | URL |
-|----------|-----|
-| Hyperliquid API docs | https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api |
-| Hyperliquid Python SDK | https://github.com/hyperliquid-dex/hyperliquid-python-sdk |
-| Testnet endpoint | https://api.hyperliquid-testnet.xyz/exchange |
-
-### Signing Architecture
-- **Flash Trade CPI signing**: Treasury PDA `invoke_signed` — no private key exists. The program IS the only authority.
-- **Fee-payer wallet**: Funded keypair for Solana gas fees only — has zero authority over treasury funds
-- **Dashboard signing**: `@solana/wallet-adapter-react` for browser wallet ops (freeze/unfreeze, multisig status). Supports Phantom, Solflare, Backpack, and any Solana wallet.
-- **Phantom MCP** (archived): `phantom_mcp.rs` gated behind `#[cfg(feature = "hyperliquid")]`. Not compiled in default build. Available for legacy reference.
-
-### Security Hardening (v1.1 → v1.2)
-
-**v1.1 (Apr 26):**
-- **Zero-address guard**: `Pubkey::default()` rejected on all critical fields in `initialize`.
-- **Emergency freeze/unfreeze**: authority-gated. 15 state-mutating instructions check frozen flag. Events emitted for audit.
-- **Emergency reset of position counters**: `emergency_close_all_positions` — zeroes `open_position_count` and `committed_sol_lamports`, emits `EmergencyPositionsReset`.
-- **PDA seed validation on all treasury accounts**: `RecordFeeDeposit.treasury` and `RegisterAdopter.treasury` have `seeds` constraints.
-- **FlashSide::None rejected for open/close**: positions must have a direction.
-- **size_amount overflow guard**: `open_flash_position` checks `size_amount <= u64::MAX as u128` before truncation.
-- **Soft decay strike recovery**: strikes reset after 3 consecutive positive updates (`recovery_counter >= MIN_RECOVERY_TRADES`).
-
-**v1.2 — Colosseum Audit Remediation (Apr 29):**
-- **`update_strategy_performance` authority check** (CRITICAL): now requires `treasury.authority`. Previously any signer could write arbitrary metrics and keep bad strategies Live.
-- **`AdopterRecord.treasury` back-reference**: links adopter records to their treasury for cross-validation.
-- **Anchor `constraint` on all authority-gated instructions**: `end_beta`, `register_strategy`, `force_retire_strategy`, `update_strategy_performance` use account-level constraints, not manual handler `require!`.
-- **Open handler remaining accounts validation**: `open_flash_position` validates Flash Trade program ID at `remaining[15]` and treasury PDA at `remaining[0]`.
-- **Recovery counter on `StrategyRecord`**: `recovery_counter: u8` requires 3 consecutive positive updates before strike reset. Single lucky trade cannot clear strikes.
-- **`StrategyPerformanceUpdated` event** now includes `recovery_counter` field for audit.
-
-### Operational Notes (Lessons Learned)
-- **⚠️ Flash Trade is winding down (announced Aug 7, 2026)** — do NOT re-enable live trading on Flash. Trader is HALTED via `RTP_TRADER_DRY_RUN=1` on Railway (deploy `51add6e1`, Aug 8). All funds were extracted to wallet `HDQ79…` (native SOL + USDC + JitoSOL) on Aug 8. The deposit-ledger PDA may still read a stale SOL book figure — that is NOT withdrawable value. Next venue (likely Jupiter Perps) must be instrumented before any trading resumes; clearing `RTP_TRADER_DRY_RUN` is a deliberate decision, not a revert. Flash REST API is degrading (`/markets`, `/positions`, `/custodies` now 404).
-- **Never use `railway up` for redeployment** — it wipes custom domain registrations. Use Railway dashboard redeploy instead. If domains are lost, re-add via GraphQL `customDomainCreate` + `customDomainUpdate` to trigger verification.
-- **rtp-night-shift may lose GitHub repo connection** — if the service stops auto-deploying on push, reconnect the repo in Railway dashboard (Settings → Connect Repo → select `tradewife/resilient-token-protocol`). Root directory must be `/` (repo root), Dockerfile path stays `research/Dockerfile`.
-- **Dashboard RPC must match treasury network**: WalletProvider uses devnet RPC. The `/launch` page creates a separate mainnet connection for platform launches. Never mix networks — treasury balance reads from wrong RPC return 0.
-- **Frozen state must use SDK decoder**: Never read on-chain frozen field via hardcoded byte offsets — the Anchor account layout can change. Use `fetchTreasuryState()` from the SDK which uses Borsh decoding.
-- **FlashTradeClient is async**: The REST client uses async `reqwest` with retry (3 attempts, exponential backoff). Synchronous callers use `_blocking()` wrappers that create a tokio current-thread runtime.
-- **No `.unwrap()` in production paths**: All msgpack encoding, ATA derivation, daemon serialization, and evolve proposals use proper error handling (`map_err`, `unwrap_or_else`, `ok_or`). Never re-introduce `.unwrap()` on code that handles external input.
-- **Trader config loads from validated file** — `Dockerfile.trader` copies `data/trader-strategy-config.json` into container and sets `RTP_STRATEGY_CONFIG`. If config file is missing or invalid, falls back to hardcoded defaults with a warning log. The validated config (trail=1.0, tp=6.0, sl=2.5, hold=96h, decay=48h, flip_delay=2h) must NOT be silently replaced with defaults — check Railway logs for the startup param line.
-- **Trader has loosening-only env overrides** — `RTP_TRADER_MIN_ALIGNMENT_OVERRIDE` and `RTP_TRADER_SIGNAL_THRESHOLD_OVERRIDE` let the operator relax strict-WFA confluence params on Railway without rebuilding the binary. Override values >= configured are silently ignored (one-way loosening); missing env = validated config. Application logs a `[OVERRIDE]` WARN line on every applied override. Use `node scripts/railway-trader-override.mjs set --min-alignment 2 --signal-threshold 0.2` then `node scripts/railway-redeploy-trader.mjs` to apply. Set values tighter than config = silent no-op (designed to prevent accidental overrides that would re-introduce riskier-than-baseline behavior).
-- **Real multi-TF only (Jul 28, 2026)** — `compute_signal` must receive **independent** 1h / 4h / 1d close series from Binance (`interval=1h|4h|1d`). Never slice a single 1h buffer at 20/80/200 lookbacks; that made all three TFs lock together and blocked opposite-side entries for days. Warmup uses `tokio::join!` of three fetches; poll line shows `1h=N 4h=N 1d=N`.
-- **Slow-TF buffers MUST be refreshed (Aug 5, 2026)** — after Binance warmup, `run_cycle` only calls `buffer_1h.append_tick()`. The 4h and 1d `CandleBuffer`s stay frozen at the warmup snapshot unless periodically refetched, so `tf_4h.trend`/`tf_1d.trend` compare a stale close vs a stale SMA and bullish/bearish counts can never flip with the market. Now fixed: 4h refreshes every 2h, 1d every 6h from Binance (`last_4h_refresh`/`last_1d_refresh` in `run_cycle`, logs `[REFRESH]`). This was bug A/B of the "trader blocked" root cause (`311457f`).
-- **Entry gates on score only, NOT alignment count (Aug 5, 2026)** — the Rust entry adds an extra `bullish_count >= min_alignment` AND-gate that the Python Survivor 2.69 reference (`run_backtest_r2.py` line ~257) does NOT have. The alignment count is already baked into the score as the trend weight (0.4 × bull/3), so the extra gate double-counts it and caps the score at 0.267 in sideways markets (momentum/MR/BB don't fire). This was bug C of the "trader blocked" root cause (`311457f`). Long = `score > threshold`, Short = `score < -threshold`.
-- **min_alignment=2 (Aug 4, 2026)** — `data/trader-strategy-config.json` uses `min_alignment: 2`, matching the Python reference (`research/simulation/run_backtest_r2.py`). The old `min_alignment=3` was a stale inheritance from the fake-multi-TF era (when bull/bear always showed 3/3 together) and was **never WFA-validated** — it is absent from `data/sensitivity_sol_survivor_2_69_lev3.csv`. Do NOT "fix" this back to 3; re-verify against the WFA sweep before touching it. This was a necessary but insufficient fix (see the two Aug 5 notes above for the rest of the story).
-- **Flash MinCollateral / 0x1792** — on-chain `custom program error: 0x1792` is **6034 MinCollateral**, not basket.delegate. Collateral must clear Flash's ~$11–12 floor. Production sizing: `RTP_TRADER_POSITION_FRACTION=0.20` and `RTP_TRADER_MIN_OPEN_COLLATERAL_LAMPORTS=150000000` on ~0.9 SOL wallet. 1% fraction produced ~$0.66 notionals that always failed open.
-- **Trader supports both LONG and SHORT positions** — entry conditions: LONG when score > threshold AND bullish_count >= min_alignment; SHORT when score < -threshold AND bearish_count >= min_alignment. Exit math (PnL, trailing, SL/TP) is inverted for SHORT positions. OpenPosition has a `side` field ("Long"/"Short").
-- **Score flip delay** — `score_flip_delay_hrs` (default 0.0, set to 2.0 in validated config) provides a grace period before ScoreFlip exit. Timer starts from `first_negative_score_time` (tracked in OpenPosition), resets when score goes positive.
-- **/health endpoint returns 503 when unhealthy** — consecutive_errors >= 5 OR last_healthy > 30 minutes ago. Not a static "ok" anymore.
-- **/state returns active_config** — TraderState now includes the loaded StrategyParams so config drift is visible from the dashboard.
-
-### Flash SDK v2 Migration (Jul 7, 2026) + Deposit Fix (Jul 23, 2026) + USDC-Input Fix (Aug 7, 2026)
-
-- **USDC-input collateral fix (Aug 7, 2026) — the real blocker after the Flash v2 API update**: after the `feat/funded-pool-accounting` API build (Jul 30), every open built with `inputTokenSymbol: "SOL"` (SOL units in `inputAmountUi`) fails on-chain with **CustodyAmountLimit (6024 / 0x1788)** at `open_position_er.rs:245` — for BOTH sides, ALL sizes, ALL leverages. This was NOT pool capacity (Crypto.1 was at ~1% SOL utilization). The only passing form is `inputTokenSymbol: "USDC"` with a USD-denominated `inputAmountUi` (`collateral_sol × SOL price`); the program draws collateral from the deposit ledger and converts it internally. Verified via unsigned ER `simulateTransaction` matrix, then with real minimal open/close cycles on both directions (LONG sig `4Zk19z4...`, SHORT sig `61xLdve...`, both flat after close). **`open_position` in `executor.rs` is now REST-first** using the USDC form; the SDK wrapper path is a last-resort fallback only (known-degraded). Do NOT revert to SOL-input or SDK-first ordering.
-- **Wrapper unit fix**: `cli/flash-sdk-wrapper.mjs` previously passed raw SOL lamports (9-decimals) as the collateral `amountIn` for a USDC (6-decimal) quote — a ~13.5× size inflation. `collateralToLockUnits()` now converts lamports → USDC base units via the Flash REST SOL price.
-
-- **Migration scope**: `rtp/swarm/src/trader/executor.rs::open_position` / `close_position` now attempt the REST transaction-builder path first (USDC-input); the Flash SDK v2 wrapper is the fallback. Strategy rules (TP/SL/trail/time-decay/score-flip-delay/MR-target), risk management (priority ordering, side-correct PnL math), and position sizing (computed in `trader/mod.rs`, forwarded as `amount_sol`) are **unchanged**. All 87 trader tests pass.
-- **Wrapper**: `cli/flash-sdk-wrapper.mjs` is a thin stdio JSON-RPC bridge loaded by `rtp/swarm/src/trader/executor.rs::FlashSdkClient`. It uses `@flash_trade/flash-sdk-v2@1.0.46` (pinned in `cli/package.json`), `Side`/`isVariant`/`PoolConfig.fromIdsByName("Crypto.1","mainnet-beta")` per the SDK's trader-interactions guide. Collateral resolved from the market PDA — never hardcoded — to avoid `Custom 2006` (ConstraintSeeds). `sizeAmount` derived from `getOpenPositionQuoteEr` to avoid `Custom 6021/6023`. The wrapper loads the keypair exclusively from `RTP_TRADER_KEYPAIR_JSON` (env), never argv.
-- **Deposit fix (Jul 23, 2026)**: The Flash program's Squads upgrade at slot 434407053 (~2026-07-22T00:33Z) removed the bare `deposit_direct` on-chain instruction. The SDK's `c.depositDirect()` calls that instruction directly and gets `InstructionFallbackNotFound (101)`. Without a funded deposit ledger, every `openPositionEr` fails with `CustodyAmountLimit (6024)`. **Fix**: `doSetup()` in `cli/flash-sdk-wrapper.mjs` now calls the Flash REST API's `POST /transaction-builder/deposit` endpoint instead, which builds a composite 4-instruction tx (system + token + flash + token) that bundles all missing setup (basket, deposit ledger, delegation, trade vault) and works with the deployed binary. Verified on mainnet: deposit 0.5 SOL confirmed, open + close cycle verified (open sig `2gkCXg...`, close sig `2kwwEh...`). The recovery script `scripts/flash-fund-and-open-sol.mjs` was also updated to use this API path.
-- **Idempotent setup**: The wrapper's `setup` skips the deposit step when `fetchUserDepositLedger` reports an already-funded SOL balance (>= 0.05 SOL). Previously called `depositDirect`; now calls the API `/deposit` one-shot.
-- **Production trader wallet**: `HDQ79fQ1YbL9CenS1DzfHizEWGrJdnmo99fgAWmdhuy5` (keypair at `~/.config/solana/rtp-trader.json`). Do NOT use the local default `id.json` (`Driyi8Sw2622yCefU34zrjBsQynrDoGD31tBecXrEF6R`) — that is a different wallet. The MCP `sign_and_send` tool can silently load `id.json` if `KEYPAIR_PATH` is not injected; prefer local Node signing with `rtp-trader.json` until MCP env injection is fixed.
-- **Respawn lifecycle**: `FlashSdkState` tracks spawn attempts in a rolling 60s window. After 3 spawn failures, the cell returns `node unavailable (respawn budget exceeded)` so callers fall back to REST. Child process deaths detected by `is_sdk_dead_error` patterns on the response error strings.
-- **Docker**: `rtp/swarm/Dockerfile.trader` now has a `node:20-bookworm-slim` intermediate stage that runs `npm ci` against `cli/package.json` and bakes the wrapper + node_modules into `/app/wrapper/`. Runtime stage installs `nodejs` + sets `RTP_TRADER_WRAPPER_PATH=/app/wrapper/flash-sdk-wrapper.mjs`, `RTP_TRADER_ER_RPC=https://flash.magicblock.xyz`, `RTP_SOLANA_RPC_URL=https://api.mainnet-beta.solana.com` (the first three have defaults baked in but remain env-overridable for dev). Node is required: removing it from the image forces the trader to rely on REST.
-- **Env**: `RTP_TRADER_KEYPAIR_JSON` is read directly from the wrapper (env-only, never CLI args). It's already set on Railway's `rtp-trader` service. No change needed to existing Railway env vars.
-- **Flash V2 API field reference**: Open uses `inputTokenSymbol`, `outputTokenSymbol`, `inputAmountUi`, `leverage` (numeric), `tradeType` (LONG/SHORT), `owner`, `orderType` (MARKET/LIMIT), `slippagePercentage`. Close uses `marketSymbol`, `side` (LONG/SHORT), `inputUsdUi`, `closeAll` (boolean), `withdrawTokenSymbol`, `owner`, `slippagePercentage`. Deposit uses `owner`, `tokenSymbol` (SOL/USDC), `amount` (UI units). All trading txs submit to ER (`https://flash.magicblock.xyz`); funds/setup txs submit to Solana mainnet RPC. API returns partially signed txs — wallet adds owner signature only, never mutates blockhash.
-- **Memory**: This migration lives next to the existing "Operational Notes (Lessons Learned)" — keep the wrapper path in sync. Spec at `/home/kt/.factory/specs/2026-07-07-spec-corrected-replace-rest-api-calls-with-flash-sdk-v2-via-node-js-child-proces.md`.
+**Signing**: There is no human key for treasury/trading. The trading
+wallet (`HDQ79fQ1YbL9CenS1DzfHizEWGrJdnmo99fgAWmdhuy5`, keypair at
+`~/.config/solana/rtp-trader.json`) is funded and pays gas. The Anchor
+program (`rtp-treasury`) uses Treasury PDA `invoke_signed` for on-chain
+program interactions.
 
 ---
 
-## Repo Layout
+## Trader Operational Notes (lessons learned)
 
-This repo has three layers:
-1. **Proven Python fractal-swarm** (shipping) — backtesting, optimization, paper trading
-2. **Rust swarm + Solana treasury** (built, 362 unit + 5 integration tests) — 6-wing architecture, Coordinator, soulcontract, Flash Trade CPI execution, emergency freeze, zero-address guard
-3. **Flash Trade CPI execution** (done — mainnet verified) — Trading Wing → Treasury PDA invoke_signed → Flash Trade Perpetuals CPI → on-chain positions → SOL yield → treasury PDA
-
----
-
-## Quick Setup
-
-```bash
-# Python environment (fractal-swarm)
-python -m venv .venv && source .venv/bin/activate
-pip install pandas numpy ccxt pyarrow redis
-
-# Night shift (30K configs/night, 9-fold WFA)
-python -m research.orchestration.night_shift --skip-fetch
-
-# Paper trading (live Binance)
-PYTHONUNBUFFERED=1 python -m research.live.paper_trader
-
-# Full-sim validation
-python -m research.validation.validate_night_shift --production
-
-# Self-correction
-python -m research.optimization.evaluator_calibration --samples 20
-python -m research.validation.discrepancy_detector
-
-# Rust (swarm runtime)
-cd rtp/swarm && cargo build
-cd rtp/programs/rtp-treasury && anchor build
-```
-
----
-
-## Commands
-
-### Python (Yield Brain)
-
-```bash
-python -m research.orchestration.night_shift
-python -m research.orchestration.night_shift --skip-fetch
-python -m research.orchestration.night_shift --symbols SOL/USDT
-python -m research.live.paper_trader
-python -m research.validation.validate_night_shift --production
-python -m research.validation.validate_night_shift --symbol SOL/USDT --top 3
-python -m research.optimization.evaluator_calibration --samples 20
-python -m research.validation.discrepancy_detector
-python -m research.data.download_ohlcv
-```
-
-### Rust (Swarm Runtime)
-
-```bash
-cd rtp/swarm && cargo build --release
-cd rtp/swarm && cargo test
-cd rtp/swarm && cargo run --bin rtp-daemon    # single devnet cycle
-cd rtp/swarm && cargo run --bin rtp-demo      # full 8-step demo + Flash Trade CPI
-cd rtp/swarm && cargo run --bin rtp-trader   # live autonomous trader (REST API + HTTP status server)
-cd rtp/swarm && cargo test --lib trading::tests
-cd rtp/swarm && cargo test --lib trading::flash_trade_client::tests  # Flash Trade REST client
-cd rtp/swarm && cargo test --lib audit::tests
-cd rtp/swarm && cargo test --test coordinator_integration
-```
-
-### Solana (Treasury Program)
-
-```bash
-cd rtp/programs/rtp-treasury && anchor build
-cd rtp/programs/rtp-treasury && anchor test --provider.cluster devnet
-cd rtp/programs/rtp-treasury && anchor deploy --provider.cluster devnet
-```
-
-### Flash Trade (Demo + Account Derivation)
-
-```bash
-# Derive all Flash Trade PDAs offline
-npx tsx cli/bin/rtp.ts accounts derive --mint <MINT_PUBKEY>
-
-# Flash Trade CPI demo (mainnet simulation)
-# NOTE: scripts/flash-trade-demo.ts archived to scripts/archive/ — use rtp demo instead
-npx tsx cli/bin/rtp.ts demo
-
-# Derive PDAs (legacy script — prefer rtp CLI)
-npx tsx scripts/derive_flash_accounts.ts
-```
-
-### Operator CLI (`cli/`)
-
-The `rtp` CLI consolidates all operational scripts into a single Commander.js tool. It is the ops interface for whoever deploys, monitors, and controls the protocol.
-
-```bash
-# Interactive onboarding wizard
-npx tsx cli/bin/rtp.ts init
-
-# Deploy treasury PDA for a new token
-npx tsx cli/bin/rtp.ts deploy treasury --mint <PUBKEY> --authority <KEYPAIR>
-
-# Sweep fees into treasury vault
-npx tsx cli/bin/rtp.ts crank fees --mint <PUBKEY>
-
-# Trigger 70/20/10 redistribution
-npx tsx cli/bin/rtp.ts crank redistribute --mint <PUBKEY> --dry-run
-
-# Emergency freeze (authority-gated, --yes required)
-npx tsx cli/bin/rtp.ts freeze --mint <PUBKEY> --authority <KEYPAIR> --yes
-
-# Derive all PDAs offline (no RPC needed)
-npx tsx cli/bin/rtp.ts accounts derive --mint <PUBKEY>
-
-# Fetch live treasury state
-npx tsx cli/bin/rtp.ts accounts show --mint <PUBKEY>
-
-# Protocol health overview
-npx tsx cli/bin/rtp.ts status --mint <PUBKEY>
-
-# Railway service status
-npx tsx cli/bin/rtp.ts status services
-
-# Full 8-step demo (replaces demo.sh)
-npx tsx cli/bin/rtp.ts demo                    # dry-run (default)
-npx tsx cli/bin/rtp.ts demo --execute          # actually send transactions
-
-# Promote validated strategy to Live
-npx tsx cli/bin/rtp.ts strategy promote --id <STRATEGY_ID> --authority <KEYPAIR>
-
-# Force-retire a strategy (destructive, --yes required)
-npx tsx cli/bin/rtp.ts strategy retire --id <STRATEGY_ID> --authority <KEYPAIR> --yes
-```
-
-All commands support `--json` (machine-readable), `--quiet` (errors only), `--cluster <devnet|mainnet>`.
-
-**Implementation:** `cli/` with Commander.js, TypeScript, chalk, inquirer, ora, cli-table3. Imports from `sdk/` and refactored exports in `scripts/`. See `cli/README.md` for full command reference.
-
-**Script refactoring:** `fee-crank.ts`, `promote-strategy.ts`, `emergency-freeze.ts`, `derive_flash_accounts.ts` now export async functions (`exportSweepFees`, `exportPromoteStrategy`, `exportFreezeTreasury`/`exportUnfreezeTreasury`, `exportDeriveAccounts`) with guarded `main()` calls (only run when executed directly, not when imported). Railway Dockerfiles call the scripts directly and remain unchanged.
-
-**Archived:** `demo.sh` and `scripts/flash-trade-demo.ts` moved to `scripts/archive/`. Use `rtp demo` instead.
-
-### Railway Operator Helpers (`scripts/`)
-
-Lightweight Node-based GraphQL helpers for the rtp-trader service. Read `RAILWAY_TOKEN` from env or `.secrets/railway-workspace-token`. They do NOT trigger a deploy by themselves.
-
-```bash
-# View current rtp-trader env vars (filter for override block)
-node scripts/railway-trader-override.mjs show
-
-# Loosen strict-WFA confluence params on the fly (deploy after to apply)
-node scripts/railway-trader-override.mjs set --min-alignment 2 --signal-threshold 0.2
-node scripts/railway-redeploy-trader.mjs
-
-# Revert to validated config (one-shot — both vars go away)
-node scripts/railway-trader-override.mjs unset
-node scripts/railway-redeploy-trader.mjs
-```
-
-**Override semantics:** see "Trader has loosening-only env overrides" in Operational Notes below. The script silently no-ops on values >= configured (one-way loosening is enforced in Rust, not the helper — the helper just sets whatever the operator passes).
+- **Real multi-TF only** — `compute_signal` must receive **independent**
+  1h / 4h / 1d close series from Binance (`interval=1h|4h|1d`). Never slice
+  a single buffer at multiple lookbacks; the TFs lock together and block
+  opposite-side entries. Warmup uses `tokio::join!`; poll line shows
+  `1h=N 4h=N 1d=N`.
+- **Slow-TF buffers MUST be refreshed** — 4h every 2h, 1d every 6h from
+  Binance (`last_4h_refresh` / `last_1d_refresh` in `run_cycle`, logs
+  `[REFRESH]`). Without this, `tf_4h.trend` / `tf_1d.trend` compare
+  stale close vs stale SMA and bullish/bearish counts never flip.
+- **Entry gates on score only, NOT alignment count** — Long = `score >
+  threshold`, Short = `score < -threshold`. The alignment count is already
+  baked into the score (0.4 × bull/3); an extra `bull_count >=
+  min_alignment` gate double-counts and caps the score at 0.267 in
+  sideways markets.
+- **`min_alignment=2`** — matches the Python reference
+  (`research/simulation/run_backtest_r2.py`). The old `min_alignment=3`
+  is a stale inheritance from the fake-multi-TF era, **never WFA-validated**,
+  absent from `data/sensitivity_sol_survivor_2_69_lev3.csv`. Do NOT
+  revert to 3 without re-verifying against the WFA sweep.
+- **Trader config loads from validated file** — `rtp/swarm/Dockerfile.trader`
+  copies `data/trader-strategy-config.json` into the container and sets
+  `RTP_STRATEGY_CONFIG`. If missing/invalid, falls back to hardcoded
+  defaults with a warning log. **Validated config: trail=1.0, tp=6.0,
+  sl=2.5, hold=96h, decay=48h, flip_delay=2h** — must NOT be silently
+  replaced with defaults; check Railway logs for the startup param line.
+- **Loosening-only env overrides** —
+  `RTP_TRADER_MIN_ALIGNMENT_OVERRIDE` and
+  `RTP_TRADER_SIGNAL_THRESHOLD_OVERRIDE` relax strict-WFA confluence
+  params on Railway without rebuilding. Override values >= configured are
+  silently ignored (one-way loosening); missing env = validated config.
+  Application logs `[OVERRIDE]` WARN on every applied override. Use
+  `node scripts/railway-trader-override.mjs set …` then
+  `node scripts/railway-redeploy-trader.mjs` to apply. Tighter values =
+  silent no-op (designed to prevent accidental riskier-than-baseline).
+- **Score flip delay** — `score_flip_delay_hrs` (default 0.0, set to 2.0
+  in validated config) gives a grace period before ScoreFlip exit. Timer
+  starts from `first_negative_score_time`, resets when score goes positive.
+- **Both sides supported** — Long when score > threshold AND bullish_count
+  >= min_alignment; Short when score < -threshold AND bearish_count >=
+  min_alignment. Exit math (PnL, trailing, SL/TP) is inverted for Short.
+- **`/health` returns 503 when unhealthy** — `consecutive_errors >= 5` OR
+  `last_healthy > 30 min`. Not a static "ok".
+- **`/state` returns `active_config`** — TraderState includes loaded
+  StrategyParams so config drift is visible from the dashboard.
+- **Watchdog** — `tokio::time::timeout(120s)` per cycle; exponential
+  backoff on repeated failures; 5-min sleep after 10 consecutive.
+  All HTTP clients have 30s timeouts.
+- **GMTrade position sizing** — keep `RTP_TRADER_POSITION_FRACTION=0.20`
+  and a collateral floor (`RTP_TRADER_MIN_OPEN_COLLATERAL_LAMPORTS`) that
+  clears the venue's minimum-notional requirement.
 
 ---
 
-## Architecture
+## Research fee model + fold artifact (critical)
 
-### Three-Layer Stack
+1. **Never judge a strategy on the v1-era fee model** (open 0.06% + close
+   0.06% + borrow 0.0042%/hr shorts-only ≈ 0.32%/trip). Measured Flash
+   v2 costs were ≈ **0.06%/trip — ~5× cheaper**. The v6 S15
+   "falsification" was entirely this artifact. Import `net_pnl_v2` from
+   `research/missions/s15_v7_v2fee_recheck.py`.
+2. **`create_folds()` absorbs all leftover bars into the LAST fold** when
+   data is longer than `num_folds × test_window` — on multi-year data
+   one mega-fold dominates the headline stats. Use explicit equal
+   anchored windows (`equal_folds()` in `s15_v7e_corrected_folds.py`)
+   for multi-year WFA.
+3. **Latency absorber finding**: confirmation entries (close_reassert)
+   pay detection latency at the fill (47% retention under +1-bar stress).
+   Blind touch / limit-at-zone (`confirm_mode=none`) absorbs it via the
+   order book (105% retention). `confirm_bars=2` is NOT an absorber
+   (−88%).
+4. **Momentum off-by-one — FIXED (Aug 7, `b178da7`)**: `timeframe_signal()`
+   computed returns over the lookback-close slice (lookback−1 returns),
+   so momentum/volatility were permanently 0.0 in production. Fixed to
+   match the Python reference (`returns.rolling(lookback).mean()` over
+   the full series). Do NOT reintroduce a window-slice returns
+   computation here.
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    ON-CHAIN (Solana / Anchor)                    │
-│  Treasury PDA: fees → yield → redistribute → self-hydrate       │
-│  Flash Trade CPI: invoke_signed → open/close positions          │
-│  Phase evolution: Sustenance → Ecosystem → Humanity Fund        │
-├─────────────────────────────────────────────────────────────────┤
-│                    SWARM RUNTIME (Rust)                          │
-│  Coordinator → message bus → 6 wings (trading, security,        │
-│  evolve, knowledge, audit, futureproof)                          │
-│  Trading Wing → Flash Trade CPI → on-chain perps → SOL yield    │
-│  Signed by Treasury PDA via invoke_signed (no human key)         │
-├─────────────────────────────────────────────────────────────────┤
-│                    RESEARCH LAYER (Python)                       │
-│  Night Shift: 30K configs → WFA → Darwinian → full-sim validate │
-│  Paper Trader: live Binance → state persistence → degradation   │
-└─────────────────────────────────────────────────────────────────┘
-```
+### Fast sim ↔ full sim calibration
 
-### Key Files
-
-#### Python (Yield Brain)
-
-| File | Purpose |
-|------|---------|
-| `research/orchestration/night_shift.py` | Main pipeline: grid search → WFA → Darwinian → report → validation |
-| `research/optimization/per_symbol_optimizer.py` | Fast simulator: `compute_indicators()`, `simulate_trades()`, `_compute_score()` |
-| `research/live/paper_trader.py` | Live paper trader: polls Binance, ADX filter, per-symbol configs |
-| `research/validation/validate_night_shift.py` | Bridges fast sim → full sim for candidate validation |
-| `research/simulation/run_backtest_r2.py` | Production `MultiTFStrategy` class + `timeframe_signal()` helper |
-| `research/optimization/evaluator_calibration.py` | Compares fast vs full sim on random configs |
-| `research/validation/discrepancy_detector.py` | Post-night-shift check, flags fast/full sim divergences |
-| `research/simulation/future_blind_simulator.py` | `FutureBlindSimulator`: 0.1% fees, 10bps slippage, max 20% position |
-
-#### Rust (Swarm Runtime)
-
-| File | Purpose |
-|------|---------|
-| `rtp/swarm/src/types.rs` | Message, Payload, WingId, Priority — all swarm types |
-| `rtp/swarm/src/bridge.rs` | Python ↔ Rust typed subprocess interface |
-| `rtp/swarm/src/demo.rs` | End-to-end demo loop (8-step pipeline) |
-| `rtp/swarm/src/coordinator/mod.rs` | Multi-stage quality gate (soulguard → router → audit) |
-| `rtp/swarm/src/coordinator/soulguard.rs` | Enforce soulcontract on every message |
-| `rtp/swarm/src/coordinator/soulcontract_spec.rs` | Parse SOULCONTRACT.md → structured constraints + drift detection |
-| `rtp/swarm/src/coordinator/lifecycle.rs` | Wing spawn, health-check, retire |
-| `rtp/swarm/src/wings/trading/mod.rs` | **Trading Wing — Flash Trade CPI execution, PnL tracking, apply_mutations** |
-| `rtp/swarm/src/wings/trading/types.rs` | Trading types — StrategyConfig, PositionState, TradingState |
-| `rtp/swarm/src/wings/trading/flash_trade_client.rs` | **Flash Trade REST API client — markets, prices, positions, pool data queries** |
-| `rtp/swarm/src/wings/trading/phantom_mcp.rs` | **[ARCHIVED]** Phantom MCP client — gated behind `#[cfg(feature = "hyperliquid")]`, not compiled by default |
-| `rtp/swarm/src/bin/rtp-daemon.rs` | **Devnet loop daemon — real chain execution via chain_client, stale position close, single-cycle (Railway cron) or watchdog mode (RTP_WATCHDOG=1)** |
-| `rtp/swarm/src/chain_client.rs` | **On-chain client — ChainConfig from env, ExecutionMode simulate/devnet/mainnet, PDA derivation, open/close instruction builders, submit/simulate with retry** |
-| `rtp/swarm/src/trader/mod.rs` | **Live autonomous trader — REST API trading via Flash Trade, LONG + SHORT positions, score flip delay, health monitoring (503 on stale/error), Arc<Mutex<TraderState>> with active_config, HTTP status server on configurable port, watchdog (120s cycle timeout, consecutive error tracking, exponential backoff)** |
-| `rtp/swarm/src/wings/security/mod.rs` | Threat detection, rate-limiting, suspicious-proposal detection |
-| `rtp/swarm/src/wings/evolve/` | Assessor, proposer, rollback (complete, tested) |
-| `rtp/swarm/src/wings/knowledge/mod.rs` | Persistent knowledge store (JSON file-backed), cross-wing queries |
-| `rtp/swarm/src/wings/audit/mod.rs` | 3-agent tribunal (Skeptic/UserProxy/Optimizer), Byzantine consensus |
-| `rtp/swarm/src/wings/futureproof/mod.rs` | Deprecation monitoring, heartbeat |
-
-#### Solana (Treasury Program)
-
-| File | Purpose |
-|------|---------|
-| `rtp/programs/rtp-treasury/` | Anchor: withdraw_fees, check_redistribute, hydrate_swarm, evolve_phase, **open_flash_position, close_flash_position, emergency_close_all_positions** |
-
-#### Operator CLI
-
-| File | Purpose |
-|------|---------|
-| `cli/bin/rtp.ts` | Entry point — `npx tsx cli/bin/rtp.ts <command>` |
-| `cli/src/index.ts` | Commander program setup, register all commands |
-| `cli/src/commands/init.ts` | `rtp init` — interactive onboarding wizard |
-| `cli/src/commands/demo.ts` | `rtp demo` — full 8-step demo pipeline (replaces demo.sh) |
-| `cli/src/commands/freeze.ts` | `rtp freeze` / `rtp unfreeze` — emergency halt/resume |
-| `cli/src/commands/crank.ts` | `rtp crank fees` / `rtp crank redistribute` |
-| `cli/src/commands/accounts.ts` | `rtp accounts derive` / `rtp accounts show` |
-| `cli/src/commands/status.ts` | `rtp status` / `rtp status services` (Railway) |
-| `cli/src/commands/strategy.ts` | `rtp strategy list` / `promote` / `retire` |
-| `cli/src/commands/deploy.ts` | `rtp deploy treasury` / `rtp deploy program` |
-| `cli/src/config.ts` | Config loading (`~/.rtp/config.json`), resolution order |
-| `cli/src/keypair.ts` | Keypair loading, pubkey truncation, SOL formatting |
-| `cli/src/format.ts` | Output formatting (human/JSON/quiet) |
-| `cli/src/errors.ts` | Error types with actionable hints |
-| `cli/src/lib/railway.ts` | Railway GraphQL API client |
-| `cli/src/lib/safety.ts` | Confirmation prompts, hot-wallet warnings |
-
-#### Governance
-
-| File | Purpose |
-|------|---------|
-| `SOULCONTRACT.md` | Constitutional governance — invariants, execution constraints, key links |
-| `SESSION-CONTEXT.md` | Compressed project memory — paste into every fresh session |
-| `docs/RESOURCES.md` | All hackathon links, SDK links, sponsor links |
-| `docs/SECURITY_AUDIT_2026-04-07.md` | Full security audit — 18 findings |
-| `docs/CODEREVIEW.md` | Code review protocol |
-| `docs/demo-flow.md` | 3-minute hackathon demo script |
-| `cli/README.md` | Operator CLI command reference |
-
----
-
-## Devnet Limitations
-
-### Flash Trade — Pyth Oracle Mainnet-Only
-
-Flash Trade uses **Pyth Network** oracles for pricing. Pyth prices are **mainnet only** — devnet returns stale/zero prices, causing `StaleOraclePrice` (error 6007) on all position operations.
-
-**Impact on RTP:** Flash Trade CPI execution (open/close positions) cannot work on devnet. Constraint logic tests (frozen, strategy gate, position limits) run on local validator without invoking actual Flash Trade CPI.
-
-**Mainnet CPI proofs (M1):**
-- Open position: TX `2bLg1Fu...` — 99,214 CU consumed, confirmed on mainnet
-- Close position: TX `dFqkoP2...` — confirmed on mainnet
-
-**Testing strategy:**
-| Environment | Purpose | Works |
-|---|---|---|
-| Mainnet | Full CPI with real prices | Yes — micro positions (~$11-12 USDC minimum) |
-| Local validator | Constraint logic (frozen, runway, strategy gate) without CPI | Yes — 9/9 tests passing |
-| Devnet | Account derivation only (no fills) | Partial — stale oracle prices |
-
-**Flash Trade devnet program:** `FTPP4jEWW1n8s2FEccwVfS9KCPjpndaswg7Nkkuz4ER4` (available but limited by oracle)
-
-```bash
-# Run Flash Trade CPI tests (local validator):
-cd rtp/programs/rtp-treasury && anchor test
-
-# Run Rust swarm tests (325 tests):
-cd rtp/swarm && cargo test --lib
-```
-
----
-
-## Key Invariants (enforced on-chain)
-
-1. **PDA owns treasury** — no private key risk
-2. **Per-token isolation** — each mint gets its own Treasury PDA + vault, no shared pool, no honeypot
-3. **SPL TransferFeeConfig immutable from mint** — fee percentage and withdraw authority cannot be revoked. Platform-level fee routing varies (Pump.fun: one-time, Bags.fm: anytime, Raydium: manual).
-4. **CPI-only transfers** — atomic, verifiable
-5. **No SOL liquidation** — SOL committed as Flash Trade input via Composability swap-and-open; positions are on-chain on Solana, no cross-chain risk
-6. **Flash Trade CPI-only execution** — Treasury PDA signs via `invoke_signed`, no human keypair involved in trading
-7. **Phase transitions irreversible** — Sustenance → Ecosystem → Humanity
-8. **Auto-rollback if performance degrades > 5% post-amendment**
-9. **Self-hydration only if sustenance bucket > 90-day runway**
-10. **Research code remains reviewable while collaboration is active**
-11. **Emergency freeze** — authority-gated halt, all 15 state-mutating instructions check frozen flag. Unfreeze also authority-gated.
-12. **Zero-address rejection** — `Pubkey::default()` rejected on all critical fields
-13. **FlashSide::None rejection** — open/close require Long or Short direction, None is rejected with `InvalidFlashSide` error
-14. **size_amount bounds check** — `u128` to `u64` truncation guarded by `require!(size_amount <= u64::MAX as u128)`
-15. **Soft decay recovery** — strikes reset to 0 after 3 consecutive positive updates (`recovery_counter >= MIN_RECOVERY_TRADES`). Single lucky trade cannot clear strikes.
-16. **PDA seed validation** — `RecordFeeDeposit.treasury` and `RegisterAdopter.treasury` have seeds constraints, preventing cross-treasury corruption
-17. **AdopterRecord.treasury cross-validation** — `HydrateSwarm`, `RecordFeeDeposit`, and `EndBeta` enforce `adopter_record.treasury == treasury.key()`. Cross-treasury adopter records rejected with `AdopterTreasuryMismatch`.
-18. **Fee attribution authority-gated** — `record_fee_deposit` requires `authority.key() == treasury.authority`. Random signers cannot inflate adopter contributions.
-
-## Trust Model — Permissionless Recording, Authority-Gated Actions
-
-The on-chain program separates instructions into two categories:
-
-**Authority-gated (treasury.authority required):**
-- `initialize` — creates treasury, sets authority/wallets/runway
-- `evolve_phase` — irreversible phase transitions, authority checked via Anchor constraint
-- `register_strategy` — promotes strategy to Live status
-- `force_retire_strategy` — emergency strategy retirement
-- `end_beta` — manual beta adopter sunset
-- `freeze_treasury` — emergency halt, sets frozen=true, no time lock (emergency speed)
-- `unfreeze_treasury` — resume operations, authority-gated. Post-launch: Squads 2-of-3 + 24h time lock
-- `open_flash_position` — open Flash Trade perps position via CPI (invoke_signed)
-- `close_flash_position` — close position, SOL returned to treasury vault
-- `emergency_close_all_positions` — authority-gated, closes all open positions during freeze
-- `update_strategy_performance` — authority-gated (v1.2). Only treasury.authority can write strategy metrics. Prevents arbitrary metric manipulation.
-
-**Permissionless (any signer can call):**
-- `withdraw_fees` — anyone can pull TransferFeeConfig fees INTO the PDA vault (not out)
-- `check_redistribute` — anyone can trigger 70/20/10 split (deterministic, no discretion)
-- `create_swarm_vault` — anyone can pay to create the hydration vault (no authority check)
-- `hydrate_swarm` — anyone can propose hydration (gated by strategy Live status + beta check + runway invariant)
-- `register_adopter` / `register_adopter_beta` — anyone can create an adopter record (caller pays rent)
-- `record_fee_deposit` — authority-gated (v1.3). Only treasury.authority can record fee accounting. Prevents arbitrary metric inflation. AdopterRecord.treasury cross-validated against treasury.
-- `verify_adoption` — read-only verification
-
-**Flash Trade CPI instructions (fee-payer submits, Treasury PDA signs via invoke_signed):**
-- `open_flash_position` — any fee-payer can submit, PDA signs the CPI. Validates: not frozen, strategy Live, position count < 3, runway floor, position size ≤ 20% vault.
-- `close_flash_position` — any fee-payer can submit. Permitted even if strategy Suspended (exiting is always safe).
-- `emergency_close_all_positions` — authority-gated. Closes up to 3 positions. Used with freeze_treasury for emergency halts.
-
-**Why this is safe:** Permissionless instructions either move funds INTO the PDA (never out) or record accounting state (no fund movement). All strategy metric writes require treasury.authority. The PDA owns all treasury assets — no private key can sign them away. Cumulative counters use `saturating_add` (never panics, never overflows to wrong values).
-
-**Known mainnet considerations (accepted for launch, post-launch improvements):**
-- `evolve_phase` thresholds checked against raw vault balance, not oracle-denominated USD. Authority manually verifies reserves before calling. Post-launch: integrate Pyth/Switchboard oracle.
-- `check_redistribute` emits a `Redistribution` event for auditability (added Apr 2026).
-- `freeze_treasury` / `unfreeze_treasury` events (`TreasuryFrozen`, `TreasuryUnfrozen`) emitted for audit (added Apr 2026).
-- All 15 state-mutating instructions check `treasury.frozen` flag before executing (12 original + 3 Flash Trade CPI, added Apr 2026).
-- `reject_zero_address` guard on `initialize` for all critical fields (added Apr 2026).
-
----
-
-## Hackathon Resources
-
-| Resource | Use in RTP | Link |
-|---------|-----------|------|
-| Flash Trade Perpetuals | **Execution venue**. On-chain Solana perps DEX. CPI via `invoke_signed` from Treasury PDA. REST API for queries (prices, positions, markets). Pool-to-peer model, up to 100x leverage, Pyth oracle pricing. | `flash-trade/SKILL.md` (in repo), https://flashapi.trade |
-| Solana Wallet Adapter | **Browser wallet**. `@solana/wallet-adapter-react` wired to dashboard (/, /launch, /docs). Supports Phantom, Solflare, Backpack, and any Solana wallet. Wallet connect + live token launch flow operational on devnet. | https://github.com/solana-labs/wallet-adapter |
-| CASH stablecoin | Third-party resource (not currently used) | https://phantom.app/cash |
-| Squads Multisig | Post-launch: `treasury.authority` rotation to Squads PDA for 2-of-3 multisig governance | https://docs.squads.so |
-| Swig | Programmable smart wallets for wing message bus | https://docs.swig.fi |
-| MoonPay Agents | Agent money movement infrastructure | https://www.moonpay.com/developers/agents |
-| Solana MCP | AI dev assistant for Anchor | https://github.com/solana-developers/solana-mcp |
-| Arcium | Encrypted computation (stretch) | https://docs.arcium.com |
-
----
-
-## Critical: Fast Sim Calibration
-
-The fast simulator (`per_symbol_optimizer`) MUST match the full simulator exactly. Three invariants:
+The fast simulator (`per_symbol_optimizer`) MUST match the full
+simulator exactly:
 
 1. **ATR formula**: `std(returns, 20h) × price` — NOT True Range
-2. **MR entry condition**: `rsi < 35 and daily_trend == bullish` — NOT `bull_count >= min_alignment`
-3. **Sharpe annualization**: `sqrt(n_trades / total_hours × 8760)` — NOT `sqrt(24 × 365)`
+2. **MR entry**: `rsi < 35 and daily_trend == bullish` — NOT
+   `bull_count >= min_alignment`
+3. **Sharpe annualization**: `sqrt(n_trades / total_hours × 8760)` —
+   NOT `sqrt(24 × 365)`
 
-If you change anything in `_compute_score()` or `simulate_trades()`, run `evaluator_calibration.py` to verify directional agreement.
-
-## Critical: Research Fee Model + Fold Artifact (Aug 7, 2026)
-
-1. **Never judge a strategy on the v1-era fee model** (open 0.06% + close 0.06% + borrow 0.0042%/hr shorts-only ≈ 0.32%/trip). Measured Flash **v2** costs (2026-08-07, via `/preview/limit-order-fees` + `/preview/exit-fee` + live accrual): open 0.02% + close 0.02% + spread ~0.01%/side + borrow 0.0004%/hr **both sides** ≈ **0.06%/trip — ~5× cheaper**. The v6 S15 "falsification" was entirely this artifact. New missions: import `net_pnl_v2` from `research/missions/s15_v7_v2fee_recheck.py`.
-2. **`create_folds()` absorbs all leftover bars into the LAST fold** when data is longer than `num_folds × test_window` — on multi-year data one mega-fold dominates the headline stats and the min-trades gate becomes meaningless. Use explicit equal anchored windows (`equal_folds()` in `s15_v7e_corrected_folds.py`) for multi-year WFA.
-3. **Latency absorber finding**: confirmation entries (close_reassert) pay detection latency at the fill (47% retention under +1-bar stress). Blind touch / limit-at-zone (`confirm_mode=none`) absorbs it via the order book (105% retention). `confirm_bars=2` is NOT an absorber (−88%).
-4. **Friend's engine config**: `research/missions/s15_friend_engine_config.json` (DEPLOYABLE 10/10, verdict in `s15_final_verdict.md`). Open prerequisite before client capital: verify live LIMIT order placement on Flash (order support + fill rate at zone price).
-5. **Momentum off-by-one — FIXED (Aug 7, `b178da7`)**: `timeframe_signal()` computed returns over the lookback-close slice (lookback−1 returns), so momentum/volatility were permanently 0.0 in production. Fixed to match the Python reference (`returns.rolling(lookback).mean()` over the full series). Do NOT reintroduce a window-slice returns computation here. Live semantics match the WFA record since deploy `188e006e`.
+If you change anything in `_compute_score()` or `simulate_trades()`, run
+`evaluator_calibration.py` to verify directional agreement.
 
 ---
 
-## Yield Brain Results
+## Key on-chain invariants
 
-| Symbol | Production PnL | Optimized PnL | Consistency | Trades |
-|--------|---------------|--------------|-------------|--------|
-| SOL/USDT | +36.9% | **+118.3%** | 78% → **100%** (optimized) | 429 |
-| BNB/USDT | +49.6% | — | 67% | 178 |
-| ETH/USDT | +48.1% | — | 78% | 155 |
-| BTC/USDT | +17.5% | — | 67% | 153 |
+The Anchor program (`rtp/programs/rtp-treasury/`) enforces these
+on-chain. Full history is in `archive/COLOSSEUM-AUDIT.md` (v1.1 + v1.2
+remediation). The current invariants:
 
-Active symbols: BTC/USDT, ETH/USDT, SOL/USDT, BNB/USDT. XRP dropped (net negative).
+1. **PDA owns treasury** — no private key risk
+2. **Per-token isolation** — each mint gets its own Treasury PDA + vault
+3. **CPI-only transfers** — atomic, verifiable
+4. **No cross-chain** — execution stays on Solana
+5. **Emergency freeze** — authority-gated halt; all 15 state-mutating
+   instructions check the frozen flag
+6. **Zero-address rejection** — `Pubkey::default()` rejected on all
+   critical fields
+7. **PDA seed validation** — cross-treasury corruption rejected
+8. **Fee attribution authority-gated** — only `treasury.authority` can
+   write strategy metrics
+9. **Soft decay recovery** — strikes reset only after 3 consecutive
+   positive updates (single lucky trade cannot clear strikes)
 
-**Top live candidate (Apr 9 Night Shift):**
-SOL/USDT Survivor 2.69 — signal_threshold=0.3, tp_atr=6.0, sl_atr=2.5, max_hold=96h, trailing_stop_atr=1.0, time_decay_hours=48, score_flip_delay_hrs=2, min_alignment=2
-This is the config the Trading Wing targets on Flash Trade (via on-chain CPI).
+Trust model: **permissionless inbound** (anyone can pull fees into the
+PDA, anyone can trigger the deterministic redistribution check), but
+**authority-gated outbound + metric writes**. The PDA owns everything;
+no private key exists for treasury funds.
 
 ---
 
-## CI/CD
+## Railway Project: `resilient-token-protocol`
 
-All CI/CD runs on **Railway** (migrated from GitHub Actions to conserve Actions minutes).
-
-### Railway Project: `resilient-token-protocol`
+**Account**: katejcooper.atelier@gmail.com  
+**Project**: https://railway.com/project/11004852-2ba7-46d9-aeb5-ab9558e965a0  
+**Environment**: production (`986bee12-1028-4016-aa42-ba0a174233b4`)
 
 | Service | Type | Dockerfile | Schedule | URL |
-|---------|------|-----------|----------|-----|
-| **rtp-dashboard** | Always-on SSR | `Dockerfile.dashboard` | — | https://rtp-dashboard-production.up.railway.app |
-| **rtp-devnet-loop** | Cron (one-shot) | `rtp/swarm/Dockerfile.daemon` | `0 */6 * * *` (every 6h) | https://rtp-devnet-loop-production.up.railway.app |
-| **rtp-night-shift** | Cron (one-shot) | `research/Dockerfile` | `0 14 * * *` (daily 14:00 UTC) | https://rtp-night-shift-production.up.railway.app |
-| **rtp-swarm-ci** | Manual trigger | `rtp/Dockerfile.ci` | Manual redeploy only | https://rtp-swarm-ci-production.up.railway.app |
-| **rtp-fee-crank** | Cron (one-shot) | `scripts/Dockerfile.crank` | `0 * * * *` (hourly) | — |
-| **rtp-promote-strategy** | Cron (one-shot) | `scripts/Dockerfile.promote` | `30 14 * * *` | — |
-| **rtp-trader** | Always-on | `rtp/swarm/Dockerfile.trader` | — | HTTP status server on port 8080 (Railway private networking). Config loaded from `data/trader-strategy-config.json` via `RTP_STRATEGY_CONFIG` env var. |
+|---|---|---|---|---|
+| **rtp-dashboard** | Always-on SSR | `Dockerfile.dashboard` (repo root) | — | https://rtp-dashboard-production.up.railway.app |
+| **rtp-trader** | Always-on Rust | `rtp/swarm/Dockerfile.trader` | — | HTTP status server on port 8080 (Railway private networking) |
+| **rtp-devnet-loop** | Cron | `rtp/swarm/Dockerfile.daemon` | `0 */6 * * *` | (dev only) |
+| **rtp-night-shift** | Cron | `research/Dockerfile` | `0 14 * * *` UTC | (writes results back to repo) |
+| **rtp-fee-crank** | Cron | `scripts/Dockerfile.crank` | `0 * * * *` | (dev only) |
+| **rtp-promote-strategy** | Cron | `scripts/Dockerfile.promote` | `30 14 * * *` UTC | (uses last 2 days of night_results) |
+| **rtp-swarm-ci** | Manual | `rtp/Dockerfile.ci` | manual | (cargo/anchor build + test) |
 
-**Railway account:** katejcooper.atelier@gmail.com
-**Project dashboard:** https://railway.com/project/11004852-2ba7-46d9-aeb5-ab9558e965a0
-**Region:** Southeast Asia (asia-southeast1-eqsg3a)
-**Environment:** production (`986bee12-1028-4016-aa42-ba0a174233b4`)
+### Critical Railway gotchas
 
-### Service Details
+- **Root Directory must be `/`** for every service — all Dockerfiles use
+  repo-root-relative paths. Setting `/dashboard` breaks the build
+  (`sdk/` is outside).
+- **`RAILPACK_DOCKERFILE_PATH=Dockerfile.dashboard`** on rtp-dashboard
+  so Railway uses our Dockerfile, not Nixpacks.
+- **Never `railway up`** — it wipes custom domain registrations. Use
+  Railway dashboard redeploy or `railway redeploy --yes`. If domains are
+  lost, re-add via GraphQL `customDomainCreate` + `customDomainUpdate`.
+- **`rtp-night-shift` may lose GitHub repo connection** — reconnect via
+  Settings → Connect Repo → `tradewife/resilient-token-protocol` if it
+  stops auto-deploying.
+- **Workspace API token** is in `.secrets/railway-workspace-token`
+  (gitignored). Use `RAILWAY_TOKEN=$(cat .secrets/railway-workspace-token)`
+  for GraphQL mutations. Regenerate at `railway.com/account/tokens` if
+  missing.
+- **Droid-Shield blocks AI-agent pushes** (false positives on Solana
+  pubkeys). Manual push required after large commits.
 
-- **rtp-dashboard**: SSR Next.js (`output: "standalone"` in `next.config.ts`). Multi-stage Docker build from `Dockerfile.dashboard` at repo root. Auto-deploys from connected GitHub repo on push to main. **Railway config: Root Directory must be `/` (repo root), NOT `/dashboard`** — the Dockerfile needs access to both `sdk/` and `dashboard/`. Env var `RAILPACK_DOCKERFILE_PATH=Dockerfile.dashboard` tells Railway to use our Dockerfile instead of Nixpacks. The standalone build copies static assets to `.next/static` (not `dashboard/.next/static`) relative to `server.js`.
-- **rtp-devnet-loop**: Rust `rtp-daemon` binary. Dockerfile uses `rust:1.88-slim` builder + `debian:bookworm-slim` runner. Connected to GitHub repo (`tradewife/resilient-token-protocol`), auto-deploys on push. Build context is repo root — COPY paths in Dockerfile use `rtp/swarm/` prefix. Needs env vars: `LLM_API_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`.
-- **rtp-night-shift**: Python 3.12, installs from `requirements-ci.txt`, runs `night_shift --skip-fetch`. One-shot: runs to completion and exits. OHLCV data in `data/ohlcv/` included via `.railwayignore` exclusion.
-- **rtp-swarm-ci**: Rust builder with Solana CLI + Anchor. Runs `cargo build`, `cargo test`, `cargo clippy`, `cargo fmt --check`, `anchor build`. One-shot CI validation.
-- **rtp-trader**: Always-on Rust binary (`rtp-trader`). Runs Survivor 2.69 strategy autonomously, polls Flash Trade every 5 minutes, executes SOL LONG and SHORT positions when signal conditions met. HTTP status server on port 8080 serves `GET /state` (live TraderState JSON) and `GET /health` (returns 503 when consecutive_errors >= 5 or last_healthy stale > 30min). State shared via `Arc<Mutex<TraderState>>` between trading loop and HTTP handler. Dashboard fetches via Railway private networking (`http://rtp-trader.railway.internal:8080/state`). Dockerfile: `rtp/swarm/Dockerfile.trader`. Env var `RTP_TRADER_HTTP_PORT` (default 8080). **Watchdog:** cycle wrapped in `tokio::time::timeout(120s)` — kills hung cycles (e.g., stalled HTTP). Tracks `consecutive_errors` + `last_healthy` in TraderState. Exponential backoff on repeated failures, 5-min sleep after 10 consecutive. All HTTP clients have 30s timeouts (Flash Trade API, Solana RPC).
-
-### Cron Schedule Configuration
-
-Cron schedules are set via Railway's GraphQL API (`serviceInstanceUpdate` mutation) — not via CLI. Requires a workspace-level API token. The workspace token is stored locally at `.secrets/railway-workspace-token` (gitignored, never committed).
+### Operator helpers
 
 ```bash
-# Railway workspace token (local only, gitignored)
-RAILWAY_TOKEN=$(cat .secrets/railway-workspace-token)
-
-# Example: Set cron schedule
-curl -s -X POST https://backboard.railway.com/graphql/v2 \
-  -H "Authorization: Bearer $RAILWAY_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"query":"mutation($sid:String!,$eid:String!,$input:ServiceInstanceUpdateInput!){serviceInstanceUpdate(serviceId:$sid,environmentId:$eid,input:$input)}","variables":{"sid":"<SERVICE_ID>","eid":"986bee12-1028-4016-aa42-ba0a174233b4","input":{"cronSchedule":"0 */6 * * *"}}}'
-
-# Example: Update service config (root directory, dockerfile, etc.)
-curl -s -X POST https://backboard.railway.com/graphql/v2 \
-  -H "Authorization: Bearer $RAILWAY_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"query":"mutation($sid:String!,$eid:String!,$input:ServiceInstanceUpdateInput!){serviceInstanceUpdate(serviceId:$sid,environmentId:$eid,input:$input)}","variables":{"sid":"<SERVICE_ID>","eid":"986bee12-1028-4016-aa42-ba0a174233b4","input":{"rootDirectory":"/","dockerfilePath":"Dockerfile.dashboard"}}}'
-
-# Example: Trigger deploy
-curl -s -X POST https://backboard.railway.com/graphql/v2 \
-  -H "Authorization: Bearer $RAILWAY_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"query":"mutation($sid:String!,$eid:String!){serviceInstanceDeployV2(serviceId:$sid,environmentId:$eid)}","variables":{"sid":"<SERVICE_ID>","eid":"986bee12-1028-4016-aa42-ba0a174233b4"}}'
-
-# Service IDs:
-# rtp-dashboard:        f44e64aa-81d0-429d-b3e5-605d72ef2778
-# rtp-devnet-loop:      (check via CLI: railway service list)
-# rtp-night-shift:      (check via CLI: railway service list)
-# rtp-fee-crank:        (check via CLI: railway service list)
-# rtp-promote-strategy: (check via CLI: railway service list)
+node scripts/railway-logs.mjs --service rtp-trader --last 200
+node scripts/railway-trader-override.mjs show
+node scripts/railway-trader-override.mjs set --min-alignment 2 --signal-threshold 0.2
+node scripts/railway-redeploy-trader.mjs
+node scripts/check-railway-services.ts
 ```
 
-### Legacy GitHub Actions (paused)
+These read `RAILWAY_TOKEN` from env or `.secrets/railway-workspace-token`.
+They do NOT trigger deploys by themselves — run `redeploy-trader.mjs`
+after override changes.
 
-All 4 GitHub Actions workflows have push/PR triggers commented out (`workflow_dispatch` only):
-- `swarm-ci.yml` — cargo build + test + clippy + fmt + anchor build
-- `deploy-dashboard.yml` — was GitHub Pages deploy (now superseded by Railway SSR)
-- `night_shift.yml` — cron at 14:00 UTC (now runs on Railway)
-- `devnet-loop.yml` — cron every 6h (now runs on Railway)
+---
 
-### Key Notes
+## Quick setup
 
-- **Binance geo-blocked on GitHub runners** — OHLCV data in `data/ohlcv/`, fetch defaults to `false`. Same constraint applies on Railway (night-shift uses `--skip-fetch`).
-- **Droid-Shield** blocks pushes from AI agents (false positives on Solana pubkeys). Manual push required after commits.
-- **Railway dashboard root directory must be `/`** — all Dockerfiles reference paths relative to repo root. Setting root to `/dashboard` breaks the build because `sdk/` is outside `dashboard/`.
-- **Railway workspace API token** — stored locally at `.secrets/railway-workspace-token` (gitignored). Use `RAILWAY_TOKEN=$(cat .secrets/railway-workspace-token)` for GraphQL mutations. If missing, regenerate at `railway.com/account/tokens`.
-- **Never use `railway up` for redeployment** — it wipes custom domain registrations. Use `railway redeploy --yes` or Railway dashboard redeploy instead.
+```bash
+# Dashboard
+cd dashboard && npm ci && npm run dev      # http://127.0.0.1:3000
+
+# Night Shift (dry run; --skip-fetch uses data/ohlcv)
+python -m research.orchestration.night_shift --skip-fetch
+
+# Rust swarm (full test suite)
+cd rtp/swarm && cargo test --lib
+
+# Anchor program
+cd rtp/programs/rtp-treasury && anchor test --provider.cluster devnet
+```
 
 ---
 
 ## GitHub
 
 - **This repo**: `git@github.com:tradewife/resilient-token-protocol.git`
-- **Source repo**: `git@github.com:tradewife/fractal-swarm.git` (Python fractal-swarm origin)
-- **Research repo**: `git@github.com:tradewife/rtp-skills-research.git`
+- Research archives: `git@github.com:tradewife/fractal-swarm.git` (Python origin), `git@github.com:tradewife/rtp-skills-research.git`
 
 ---
 
-## Design Decisions
+## Design decisions (current)
 
-- **Flash Trade for execution**: on-chain Solana perps DEX, CPI via invoke_signed, no cross-chain bridge, no human keypair, fully auditable on Explorer
-- **Treasury PDA for signing**: invoke_signed with PDA seeds — the program IS the only authority, no private key exists
-- **Hyperliquid (archived)**: legacy execution path gated behind `#[cfg(feature = "hyperliquid")]`, not compiled by default
-- **Median OOS Sharpe** (not mean) — prevents single-fold outliers dominating
-- **Per-fold Sharpe winsorized at ±100** — prevents tiny-sample extremes
-- **Fragility is a penalty, not rejection** — `survivor *= 1/(1+fragility)`
-- **Wings never modify each other directly** — all cross-wing communication via Coordinator
-- **Python ↔ Rust interface is typed JSON** — any wing can propose, any wing can act
+- **Self-custody + kill switch** — every Bespoke Strategy Build deploys
+  via scoped permission the client revokes. Capital never touches an
+  RTP-controlled wallet.
+- **Measured on-chain fees, not assumed** — venue costs are measured via
+  the venue's `/preview/*` endpoints + live accrual. When a venue moves,
+  we re-measure and re-validate. Stale numbers never touch client capital.
+- **Bespoke anti-dilutive by construction** — each client gets a distinct
+  strategy, no shared edges, capacity per client preserved.
+- **Standardize process, customize product** — validation gates, drawdown
+  limits, auto-suspension logic identical for every engagement. Only the
+  strategy varies.
+- **Venue is per-client, not platform-wide** — GMTrade for client #1
+  specifically; future clients select their own or we select based on
+  their mandate.
+- **No `unwrap()` in production paths** — all external input flows use
+  proper error handling (`map_err`, `unwrap_or_else`, `ok_or`).
+- **Median OOS Sharpe** (not mean) — prevents single-fold outliers
+  dominating.
+- **Per-fold Sharpe winsorized at ±100** — prevents tiny-sample extremes.
+- **Fragility is a penalty, not rejection** — `survivor *= 1/(1+fragility)`.
