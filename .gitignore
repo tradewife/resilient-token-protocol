@@ -71,8 +71,8 @@ night_shift.bin
 *.spec.bak
 
 # --- Configs with secrets ---
-configs/*.json
-configs/.env*
+configs/
+
 .secrets/
 
 # --- Log files ---
@@ -86,11 +86,63 @@ media/*
 # --- Skills lock ---
 skills-lock.json
 
-# --- Agent/skill tooling (local only) ---
-.agents/
-.claude/
-.factory/
+# --- AI tool config dirs (local only, never commit) ---
+# Keep .claude/ tracked (Claude Code settings), but ignore everything else.
+.adal/
+.aider-desk/
+.augment/
+.autohand/
+.bob/
+.codeartsdoer/
+.codebuddy/
+.codemaker/
+.codestudio/
+.commandcode/
+.continue/
+.cortex/
+.crush/
+.devin/
+.forge/
 .goose/
+.grok/
+.gstack/
+.hermes/
+.iflow/
+.inferencesh/
+.jazz/
+.junie/
+.kilocode/
+.kiro/
+.kode/
+.lingma/
+.mcpjam/
+.moxby/
+.mux/
+.neovate/
+.ona/
+.openhands/
+.pi/
+.pochi/
+.qoder/
+.qwen/
+.reasonix/
+.roo/
+.rovodev/
+.superstack/
+.tabnine/
+.terramind/
+.tinycloud/
+.trae/
+.vibe/
+.windsurf/
+.zencoder/
+# Factory agent runtime (local only)
+.factory/agent/
+.factory/artifacts/
+.factory/logs/
+.factory/skills/
+# Agent/skill tooling local installs
+.agents/
 
 # --- Dashboard build artifacts ---
 dashboard/.next/
