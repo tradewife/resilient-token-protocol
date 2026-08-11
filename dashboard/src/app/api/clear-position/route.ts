@@ -6,6 +6,7 @@ const TRADER_INTERNAL_URL =
   null;
 
 const TRADER_PORT = process.env.RTP_TRADER_HTTP_PORT || "8080";
+const OPERATOR_SECRET = process.env.RTP_OPERATOR_API_SECRET || null;
 
 function getTraderUrl(path: string): string | null {
   if (TRADER_INTERNAL_URL) {
@@ -15,7 +16,30 @@ function getTraderUrl(path: string): string | null {
   return null;
 }
 
-export async function POST() {
+function bearerToken(request: Request): string | null {
+  const auth = request.headers.get("authorization") || "";
+  if (auth.toLowerCase().startsWith("bearer ")) {
+    return auth.slice("bearer ".length).trim();
+  }
+  return request.headers.get("x-rtp-operator-secret");
+}
+
+function unauthorized(message = "unauthorized") {
+  return NextResponse.json({ error: message }, { status: 401 });
+}
+
+export async function POST(request: Request) {
+  if (!OPERATOR_SECRET) {
+    return NextResponse.json(
+      { error: "operator API secret not configured" },
+      { status: 503 }
+    );
+  }
+
+  if (bearerToken(request) !== OPERATOR_SECRET) {
+    return unauthorized();
+  }
+
   const url = getTraderUrl("/clear-position");
   if (!url) {
     return NextResponse.json(
@@ -29,6 +53,10 @@ export async function POST() {
     const timeout = setTimeout(() => controller.abort(), 5000);
     const res = await fetch(url, {
       method: "POST",
+      headers: {
+        Authorization: `Bearer ${OPERATOR_SECRET}`,
+        "X-RTP-Operator-Secret": OPERATOR_SECRET,
+      },
       signal: controller.signal,
     });
     clearTimeout(timeout);
@@ -46,7 +74,9 @@ export async function POST() {
   }
 }
 
-// Also support GET for convenience
 export async function GET() {
-  return POST();
+  return NextResponse.json(
+    { error: "method not allowed" },
+    { status: 405, headers: { Allow: "POST" } }
+  );
 }

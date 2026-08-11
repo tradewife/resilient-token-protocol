@@ -25,22 +25,97 @@ import { notifyConfigSummary, notifyLead } from "@/lib/intake-notify";
  */
 
 const ACCESS_SECRET = process.env.RTP_INTAKE_SECRET || null;
+const MAX_BODY_BYTES = 32_768;
+const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
+const RATE_LIMIT_MAX = 5;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-function sanitize(s: unknown): string {
-  return typeof s === "string" ? s.slice(0, 2000).replace(/\r?\n/g, " ") : "";
+type RateLimitBucket = {
+  count: number;
+  resetAt: number;
+};
+
+const rateLimitBuckets = new Map<string, RateLimitBucket>();
+
+function sanitize(s: unknown, max = 2000): string {
+  return typeof s === "string" ? s.slice(0, max).replace(/\r?\n/g, " ") : "";
+}
+
+function clientIp(request: Request): string {
+  const forwarded = request.headers.get("x-forwarded-for");
+  if (forwarded) return forwarded.split(",")[0]?.trim() || "unknown";
+  return (
+    request.headers.get("cf-connecting-ip") ||
+    request.headers.get("x-real-ip") ||
+    "unknown"
+  );
+}
+
+function checkRateLimit(request: Request): { ok: true } | { ok: false; retryAfter: number } {
+  const now = Date.now();
+  const key = clientIp(request);
+  const current = rateLimitBuckets.get(key);
+  if (!current || current.resetAt <= now) {
+    rateLimitBuckets.set(key, {
+      count: 1,
+      resetAt: now + RATE_LIMIT_WINDOW_MS,
+    });
+    return { ok: true };
+  }
+
+  if (current.count >= RATE_LIMIT_MAX) {
+    return {
+      ok: false,
+      retryAfter: Math.ceil((current.resetAt - now) / 1000),
+    };
+  }
+
+  current.count += 1;
+  return { ok: true };
+}
+
+function validEmail(email: string): boolean {
+  return email.length <= 254 && EMAIL_RE.test(email);
 }
 
 export async function POST(request: Request) {
+  const rateLimit = checkRateLimit(request);
+  if (!rateLimit.ok) {
+    return NextResponse.json(
+      { error: "too many submissions" },
+      {
+        status: 429,
+        headers: { "Retry-After": rateLimit.retryAfter.toString() },
+      }
+    );
+  }
+
+  let rawBody: string;
+  try {
+    rawBody = await request.text();
+  } catch {
+    return NextResponse.json({ error: "invalid request body" }, { status: 400 });
+  }
+
+  if (rawBody.length > MAX_BODY_BYTES) {
+    return NextResponse.json({ error: "request body too large" }, { status: 413 });
+  }
+
   let body: Record<string, unknown>;
   try {
-    body = (await request.json()) as Record<string, unknown>;
+    body = JSON.parse(rawBody) as Record<string, unknown>;
   } catch {
     return NextResponse.json({ error: "invalid JSON" }, { status: 400 });
   }
 
-  const name = sanitize(body.name).trim();
-  const email = sanitize(body.email).trim();
-  if (!name || !email || !email.includes("@")) {
+  // Basic honeypot. Real forms do not send this field.
+  if (sanitize(body.website, 200).trim()) {
+    return NextResponse.json({ ok: true });
+  }
+
+  const name = sanitize(body.name, 120).trim();
+  const email = sanitize(body.email, 254).trim().toLowerCase();
+  if (!name || !email || !validEmail(email)) {
     return NextResponse.json(
       { error: "name and valid email required" },
       { status: 400 }
@@ -88,14 +163,12 @@ export async function POST(request: Request) {
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error(`[DIAGNOSTIC-INTAKE] sqlite insert failed: ${msg}`);
-    // Still emit the log line so the lead is not totally lost.
+    // Do not mirror PII into deploy logs. The client can retry or email directly.
     console.log(
       `[DIAGNOSTIC-INTAKE] ${JSON.stringify({
         received_at: new Date().toISOString(),
         kind,
-        name,
-        email,
-        ...payload,
+        payload_keys: Object.keys(payload).filter((key) => payload[key]),
         persist_error: msg,
       })}`
     );
@@ -105,21 +178,17 @@ export async function POST(request: Request) {
     );
   }
 
-  // Durable-in-logs backup (Railway deploy logs)
+  // Durable store is SQLite. Keep deploy logs free of client PII.
+  const notify = await notifyLead(lead);
   console.log(
     `[DIAGNOSTIC-INTAKE] ${JSON.stringify({
       id: lead.id,
       received_at: lead.received_at,
       kind: lead.kind,
-      name: lead.name,
-      email: lead.email,
-      ...lead.payload,
       db: dbPathInUse(),
+      notified: notify.ok,
     })}`
   );
-
-  // Email Kate — best-effort; never fails the request after durable write.
-  const notify = await notifyLead(lead);
 
   return NextResponse.json({
     ok: true,

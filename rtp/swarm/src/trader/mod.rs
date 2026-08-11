@@ -270,6 +270,40 @@ pub fn check_trader_health(state: &TraderState) -> (u16, &'static str, String) {
     (200, "OK", "ok".to_string())
 }
 
+fn request_header<'a>(request: &'a str, name: &str) -> Option<&'a str> {
+    for line in request.lines().skip(1) {
+        if line.trim().is_empty() {
+            break;
+        }
+        let Some((key, value)) = line.split_once(':') else {
+            continue;
+        };
+        if key.eq_ignore_ascii_case(name) {
+            return Some(value.trim());
+        }
+    }
+    None
+}
+
+fn operator_authorized(request: &str) -> bool {
+    let Ok(secret) = std::env::var("RTP_OPERATOR_API_SECRET") else {
+        return false;
+    };
+    if secret.is_empty() {
+        return false;
+    }
+
+    if let Some(auth) = request_header(request, "authorization") {
+        if auth.len() >= 7 && auth[..7].eq_ignore_ascii_case("bearer ") {
+            return auth[7..].trim() == secret;
+        }
+    }
+
+    request_header(request, "x-rtp-operator-secret")
+        .map(|candidate| candidate == secret)
+        .unwrap_or(false)
+}
+
 async fn handle_status_request(
     mut stream: tokio::net::TcpStream,
     state: Arc<Mutex<TraderState>>,
@@ -284,12 +318,10 @@ async fn handle_status_request(
         .map_err(|e| format!("read: {}", e))?;
     let request = String::from_utf8_lossy(&buf[..n]);
 
-    // Extract the path from the request line (e.g., "GET /state HTTP/1.1")
-    let path = request
-        .lines()
-        .next()
-        .and_then(|line| line.split_whitespace().nth(1))
-        .unwrap_or("/");
+    // Extract the method/path from the request line (e.g., "GET /state HTTP/1.1")
+    let mut request_parts = request.lines().next().unwrap_or("").split_whitespace();
+    let method = request_parts.next().unwrap_or("GET");
+    let path = request_parts.next().unwrap_or("/");
 
     let (status, body, content_type) = if path == "/state" || path == "/" {
         let snapshot = state.lock().await;
@@ -299,10 +331,27 @@ async fn handle_status_request(
         let snapshot = state.lock().await;
         let (code, reason, body) = check_trader_health(&snapshot);
         (format!("{} {}", code, reason), body, "text/plain")
-    } else if path == "/clear-position" || path == "/clear" {
-        state.lock().await.open_position = None;
-        tracing::warn!("[HTTP] open_position cleared via /clear-position endpoint");
-        ("200 OK".to_string(), "ok".to_string(), "text/plain")
+    } else if path == "/clear-position" {
+        if method != "POST" {
+            (
+                "405 Method Not Allowed".to_string(),
+                "method not allowed".to_string(),
+                "text/plain",
+            )
+        } else if !operator_authorized(&request) {
+            (
+                "401 Unauthorized".to_string(),
+                "unauthorized".to_string(),
+                "text/plain",
+            )
+        } else {
+            state.lock().await.open_position = None;
+            tracing::warn!("[HTTP] open_position cleared via authorized /clear-position request");
+            ("200 OK".to_string(), "ok".to_string(), "text/plain")
+        }
+    } else if path == "/clear" {
+        tracing::warn!("[HTTP] deprecated /clear endpoint rejected");
+        ("410 Gone".to_string(), "gone".to_string(), "text/plain")
     } else {
         (
             "404 Not Found".to_string(),
@@ -1242,9 +1291,7 @@ async fn run_cycle(
                             // Do NOT count as a cycle error — the loop stays
                             // healthy and retries when headroom reappears.
                             if e.starts_with(gmtrade::CAPACITY_FULL_PREFIX) {
-                                tracing::warn!(
-                                    "[ENTRY] Venue capacity full — soft-skip open: {e}"
-                                );
+                                tracing::warn!("[ENTRY] Venue capacity full — soft-skip open: {e}");
                             } else {
                                 tracing::error!("[ENTRY] Open failed: {}", e);
                                 // Count open failures as cycle errors so the
