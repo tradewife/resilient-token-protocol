@@ -348,7 +348,7 @@ export default function Home() {
           <div className="hero-copy">
             <span className="hero-label">BESPOKE TREASURY INFRASTRUCTURE · CRYPTO-NATIVE CAPITAL · SELF-CUSTODY</span>
             <h1 className="hero-title">
-              A trading engine built for one account: yours.
+              A trading engine built for one account: yours
             </h1>
             <p className="hero-tagline" style={{
               fontSize: "1.25rem",
@@ -580,7 +580,7 @@ export default function Home() {
           <div className="offer-copy">
             <div className="sys2-sect-eyebrow">§2 · the offer</div>
             <h2 className="sys2-sect-title offer-title">
-              An autonomous system engineered for one account.
+              An autonomous system engineered to your terms
             </h2>
             <div className="offer-lede">
               <p>
@@ -626,7 +626,7 @@ export default function Home() {
         <header className="sys2-sect-head">
           <div>
             <div className="sys2-sect-eyebrow">§3 · the engine room</div>
-            <h2 className="sys2-sect-title">Exhaustive mathematical search to isolate true mathematical survivors</h2>
+            <h2 className="sys2-sect-title">Exhaustive search. Validated survivors</h2>
             <p className="sys2-sect-lede">
               We do not guess strategy parameters. Every night, our offline validation pipeline —
               The Night Shift — runs thousands of computational iterations to ensure only the

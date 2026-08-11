@@ -445,7 +445,7 @@ export default function DiagnosticPage() {
               <div className="sys2-sect-eyebrow">ON-CHAIN COMPATIBILITY CHECK</div>
               <h1 className="compat-title">
                 Map your custody, horizon, and risk profile before anything
-                touches capital.
+                touches capital
               </h1>
               <p className="compat-lede">
                 Most sovereign capital allocators want secure, customized market
@@ -841,7 +841,7 @@ export default function DiagnosticPage() {
                 <div className="compat-hero-copy">
                   <div className="sys2-sect-eyebrow">MANDATE INTAKE</div>
                   <h2 className="compat-title compat-title--result">
-                    Lay out your terms.
+                    Lay out your terms
                   </h2>
                   <p className="compat-lede">
                     After payment clears, complete this form so the research wing
@@ -854,7 +854,7 @@ export default function DiagnosticPage() {
               {intakeStatus === "done" ? (
                 <div className="compat-gate-card">
                   <div className="sys2-sect-eyebrow">RECEIVED</div>
-                  <h2 className="compat-gate-title">Terms received.</h2>
+                  <h2 className="compat-gate-title">Terms received</h2>
                   <p className="compat-gate-lede">
                     RTP will review and reply by email with scope confirmation.
                     Initial report typically ships 5–8 business days after intake.
