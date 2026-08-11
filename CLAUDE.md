@@ -247,6 +247,23 @@ These read `RAILWAY_TOKEN` from env or `.secrets/railway-workspace-token`.
 They do NOT trigger deploys by themselves — run `redeploy-trader.mjs`
 after override changes.
 
+### Security
+
+- **`RTP_OPERATOR_API_SECRET` gates position-clear** — must be set to the
+  SAME value on `rtp-dashboard` AND `rtp-trader`. If unset, `/api/clear-position`
+  fails closed with 503 (safer than public access). Rotate with
+  `node scripts/railway-operator-secret.mjs --rotate`, then redeploy both.
+- **No PII in `[DIAGNOSTIC-INTAKE]` logs** — log lines carry id/kind/
+  timestamp/notified only. SQLite + Resend are the durable paths. Do not
+  reintroduce name/email/payload into log lines.
+- **Intake is rate-limited** — 5 POSTs / IP / 10 min, 32KB body cap, strict
+  email validation, honeypot (constants in
+  `dashboard/src/app/api/diagnostic-intake/route.ts`). Don't raise casually.
+- **Security headers are global** (HSTS, `X-Frame-Options: DENY`, nosniff,
+  Referrer-Policy, Permissions-Policy, CSP) via `headers()` in
+  `dashboard/next.config.ts`. Keep `frame-ancestors 'none'` / `object-src 'none'`.
+- Full posture + reporting: `SECURITY.md` (repo root).
+
 ---
 
 ## Quick setup
