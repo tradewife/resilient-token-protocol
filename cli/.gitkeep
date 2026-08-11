@@ -1,0 +1,3 @@
+# Tracked to keep the cli/ directory present (needed by trader Dockerfile).
+# The Operator CLI itself lives in archive/cli/. Only the Flash SDK wrapper
+# and its npm package remain live — they're baked into rtp-trader's image.
