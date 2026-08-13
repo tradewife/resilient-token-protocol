@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { corsHeaders } from "@/lib/cors";
 
 const TRADER_INTERNAL_URL =
   process.env.RAILWAY_SERVICE_RTP_TRADER_URL ||
@@ -30,7 +31,7 @@ async function getStaticFallback(): Promise<object | null> {
   }
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   // Try live trader first
   const traderUrl = getTraderUrl();
   if (traderUrl) {
@@ -48,7 +49,7 @@ export async function GET() {
         return NextResponse.json(data, {
           headers: {
             "Cache-Control": "public, s-maxage=10, stale-while-revalidate=30",
-            "Access-Control-Allow-Origin": "*",
+            ...corsHeaders(request),
           },
         });
       }
@@ -58,7 +59,7 @@ export async function GET() {
         status: 200,
         headers: {
           "Cache-Control": "public, s-maxage=30",
-          "Access-Control-Allow-Origin": "*",
+          ...corsHeaders(request),
           "X-Data-Source": "static-fallback",
           "X-Trader-Url": traderUrl,
           "X-Trader-Status": res.status.toString(),
@@ -72,7 +73,7 @@ export async function GET() {
         status: 200,
         headers: {
           "Cache-Control": "public, s-maxage=30",
-          "Access-Control-Allow-Origin": "*",
+          ...corsHeaders(request),
           "X-Data-Source": "static-fallback",
           "X-Trader-Url": traderUrl,
           "X-Trader-Error": errMsg.slice(0, 200),
@@ -87,7 +88,7 @@ export async function GET() {
     return NextResponse.json(staticData, {
       headers: {
         "Cache-Control": "public, s-maxage=30",
-        "Access-Control-Allow-Origin": "*",
+        ...corsHeaders(request),
         "X-Data-Source": "static-fallback",
         "X-Trader-Url": "not-configured",
       },

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { corsHeaders } from "@/lib/cors";
 
 // TRADER_WALLET_PUBKEY comes from `dashboard/.env.local` (or the Railway
 // dashboard service env), with the prior published address as a fallback for
@@ -33,6 +34,7 @@ export async function GET(request: Request) {
       {
         headers: {
           "Cache-Control": "public, s-maxage=10, stale-while-revalidate=30",
+          ...corsHeaders(request),
         },
       },
     );
