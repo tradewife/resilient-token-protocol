@@ -1,0 +1,6 @@
+# Keep build contexts lean and prevent leaking secrets/git into images.
+# (Every Dockerfile builds its own node_modules; npm ci resolves it.)
+**/node_modules
+**/.next
+**/.git
+.secrets
