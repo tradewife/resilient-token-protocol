@@ -7,13 +7,16 @@ import {
   type IntakeKind,
 } from "@/lib/intake-store";
 import { notifyConfigSummary, notifyLead } from "@/lib/intake-notify";
+import { computeBlueprintProfile } from "@/lib/blueprint-scoring";
+import type { BlueprintAnswers } from "@/lib/blueprint-scoring";
 
 /**
- * Mandate / Compatibility intake endpoint.
+ * Mandate / Compatibility / Blueprint intake endpoint.
  *
  * POST /api/diagnostic-intake — receives either:
  *   - kind: "compatibility_v5"  — scorecard funnel lead (5 Qs + email)
  *   - kind: "mandate_intake"     — full paid advisory terms form
+ *   - kind: "blueprint_v1"       — Resilience Blueprint (12 Qs + scores)
  *   - (omitted / legacy)        — treated as mandate_intake
  *
  * Persistence:
@@ -124,11 +127,106 @@ export async function POST(request: Request) {
 
   const kindRaw = sanitize(body.kind).trim().toLowerCase();
   const kind: IntakeKind =
-    kindRaw === "compatibility_v5" ||
-    kindRaw === "compat_v5" ||
-    kindRaw === "scorecard"
-      ? "compatibility_v5"
-      : "mandate_intake";
+    kindRaw === "blueprint_v1" || kindRaw === "blueprint"
+      ? "blueprint_v1"
+      : kindRaw === "compatibility_v5" ||
+        kindRaw === "compat_v5" ||
+        kindRaw === "scorecard"
+        ? "compatibility_v5"
+        : "mandate_intake";
+
+  // ── Blueprint v1: compute profile + persist ──
+  if (kind === "blueprint_v1") {
+    const answers = body.answers as Record<string, unknown> | undefined;
+    if (!answers || typeof answers !== "object") {
+      return NextResponse.json(
+        { error: "answers object required for blueprint" },
+        { status: 400 }
+      );
+    }
+
+    let profile;
+    try {
+      profile = computeBlueprintProfile(answers as unknown as BlueprintAnswers);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`[DIAGNOSTIC-INTAKE] blueprint scoring failed: ${msg}`);
+      return NextResponse.json(
+        { error: "failed to compute blueprint profile" },
+        { status: 500 }
+      );
+    }
+
+    // Flatten answers + scores into the payload map for persistence.
+    const a = answers as Record<string, unknown>;
+    const payload: Record<string, string> = {
+      q1_venues: sanitize(a.q1_venues),
+      q2_account_size: sanitize(a.q2_account_size),
+      q3_activity: sanitize(a.q3_activity),
+      q4_drawdown: sanitize(a.q4_drawdown),
+      q5_pain_points: sanitize(a.q5_pain_points),
+      q6_risk_orientation: sanitize(a.q6_risk_orientation),
+      q7_custody_comfort: sanitize(a.q7_custody_comfort),
+      q8_custody_setup: sanitize(a.q8_custody_setup),
+      q9_cadence: sanitize(a.q9_cadence),
+      q10_goal: sanitize(a.q10_goal),
+      q11_do_not_do: sanitize(a.q11_do_not_do),
+      q12_commitment: sanitize(a.q12_commitment),
+      telegram: sanitize(body.telegram, 120),
+      source: sanitize(body.source, 200),
+      on_chain_readiness: String(profile.onChainReadiness),
+      risk_tolerance: String(profile.riskTolerance),
+      complexity_appetite: String(profile.complexityAppetite),
+      commitment_readiness: String(profile.commitmentReadiness),
+      archetype: profile.archetype,
+      on_chain_label: profile.onChainLabel,
+    };
+
+    let lead;
+    try {
+      lead = insertLead({ kind, name, email, payload });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`[DIAGNOSTIC-INTAKE] sqlite insert failed: ${msg}`);
+      console.log(
+        `[DIAGNOSTIC-INTAKE] ${JSON.stringify({
+          received_at: new Date().toISOString(),
+          kind,
+          payload_keys: Object.keys(payload).filter((key) => payload[key]),
+          persist_error: msg,
+        })}`
+      );
+      return NextResponse.json(
+        { error: "failed to persist lead" },
+        { status: 500 }
+      );
+    }
+
+    const notify = await notifyLead(lead);
+    console.log(
+      `[DIAGNOSTIC-INTAKE] ${JSON.stringify({
+        id: lead.id,
+        received_at: lead.received_at,
+        kind: lead.kind,
+        db: dbPathInUse(),
+        notified: notify.ok,
+        scores: {
+          onChain: profile.onChainReadiness,
+          risk: profile.riskTolerance,
+          complexity: profile.complexityAppetite,
+          commitment: profile.commitmentReadiness,
+        },
+      })}`
+    );
+
+    return NextResponse.json({
+      ok: true,
+      kind: lead.kind,
+      id: lead.id,
+      notified: notify.ok,
+      profile,
+    });
+  }
 
   // Flatten known fields into a stable payload map (snake_case keys).
   const payload: Record<string, string> = {

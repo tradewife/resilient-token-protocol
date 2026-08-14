@@ -1,9 +1,12 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import Topbar from "../Topbar";
 import { formatPnlPct, summarizeTradePnl } from "../../lib/tradePnl";
+
+/* ── Types ── */
+
+type Step = "splash" | "questions" | "gate" | "profile" | "results";
 
 type SpecimenTrade = {
   entry_price: number;
@@ -21,231 +24,286 @@ type SpecimenState = {
   total_trades?: number;
 };
 
-/* ── Scorecard model (v5 Compatibility Check) ── */
-
-type Step = "splash" | "questions" | "gate" | "results";
-
-interface ScorecardForm {
-  currentSituation: string;
-  desiredOutcome: string;
-  patienceMindset: string;
-  expectedHorizon: string;
-  solutionModel: string;
-  name: string;
-  email: string;
+interface BlueprintAnswers {
+  q1_venues: string[];
+  q2_account_size: string;
+  q3_activity: string;
+  q4_drawdown: string;
+  q5_pain_points: string[];
+  q6_risk_orientation: string;
+  q7_custody_comfort: string;
+  q8_custody_setup: string;
+  q9_cadence: string;
+  q10_goal: string;
+  q11_do_not_do: string[];
+  q12_commitment: string;
 }
 
-const EMPTY_SCORECARD: ScorecardForm = {
-  currentSituation: "",
-  desiredOutcome: "",
-  patienceMindset: "",
-  expectedHorizon: "",
-  solutionModel: "",
-  name: "",
-  email: "",
-};
-
-const FIELD_KEYS: (keyof ScorecardForm)[] = [
-  "currentSituation",
-  "desiredOutcome",
-  "patienceMindset",
-  "expectedHorizon",
-  "solutionModel",
-];
-
-const QUESTIONS = [
-  {
-    id: 1,
-    title: "Where are your active crypto assets currently managed?",
-    description:
-      "Helps us assess exposure to centralized custody risk or unoptimized wallet setups.",
-    options: [
-      {
-        value: "cex",
-        label: "Centralized Exchanges (CEX)",
-        desc: "Coinbase, Binance, Kraken, and similar venues.",
-      },
-      {
-        value: "cold",
-        label: "Cold Storage / Hardware Wallet",
-        desc: "Ledger, Trezor, or keys held offline.",
-      },
-      {
-        value: "hot_unsecured",
-        label: "Active Web3 Hot Wallets",
-        desc: "Phantom, Backpack, Solflare with manual on-chain activity.",
-      },
-      {
-        value: "none",
-        label: "New to Crypto Assets",
-        desc: "No active holdings yet; establishing a secure start.",
-      },
-    ],
-  },
-  {
-    id: 2,
-    title: "What is your primary focus when deploying capital on-chain?",
-    description:
-      "Defines the guardrails and objective targets for a bespoke system.",
-    options: [
-      {
-        value: "safety",
-        label: "Absolute Capital Preservation",
-        desc: "Accumulate with minimal drawdown exposure.",
-      },
-      {
-        value: "custom",
-        label: "Bespoke Automated Execution",
-        desc: "Systematic strategies matched to personal risk parameters.",
-      },
-      {
-        value: "yield",
-        label: "Passive Yield & Liquidity",
-        desc: "Lending, staking, or providing liquidity securely.",
-      },
-      {
-        value: "education",
-        label: "Systematic Learning",
-        desc: "Venue mechanics, cost realities, and on-chain safety.",
-      },
-    ],
-  },
-  {
-    id: 3,
-    title: "How do you view systematic patience and market volatility?",
-    description:
-      "On-chain edge often means waiting for high-probability setups.",
-    options: [
-      {
-        value: "flat_edge",
-        label: 'Patience and sitting "Flat"',
-        desc: "Preserve capital through noise; wait for structural alignment.",
-      },
-      {
-        value: "active_trade",
-        label: "High frequency / active trades",
-        desc: "Accept higher costs and slippage for constant exposure.",
-      },
-      {
-        value: "unsure",
-        label: "No defined execution timeframe",
-        desc: "Want guardrails that enforce patience programmatically.",
-      },
-    ],
-  },
-  {
-    id: 4,
-    title: "What horizon do you use to measure systematic success?",
-    description:
-      "Sophisticated systems are engineered for longevity, not short-term noise.",
-    options: [
-      {
-        value: "long_term",
-        label: "Multi-Year / Full Market Cycles",
-        desc: "Capital survival and compounding over years.",
-      },
-      {
-        value: "medium_term",
-        label: "Quarterly to Semi-Annual",
-        desc: "Structural out-of-sample metrics over 3–6 months.",
-      },
-      {
-        value: "short_term",
-        label: "Weekly to Monthly PnL",
-        desc: "High-turnover targets and rapid feedback loops.",
-      },
-    ],
-  },
-  {
-    id: 5,
-    title: "What are you looking for from this conversation?",
-    description:
-      "We take on a small number of builds at a time so edges stay uncrowded.",
-    options: [
-      {
-        value: "advisory",
-        label: "A Bespoke Strategy Build",
-        desc: "Structured intake, dedicated strategy, ten-gate validation, paper report, up to 4× implementation calls · A$4,500.",
-      },
-      {
-        value: "explore",
-        label: "Still weighing the fit",
-        desc: "I want a clear read first — happy to book a short call or keep reading before I commit.",
-      },
-    ],
-  },
-] as const;
-
-/* ── Detailed paid intake (preserved secondary path) ── */
-
-interface IntakeForm {
-  name: string;
-  email: string;
-  capitalBand: string;
-  objective: string;
-  horizon: string;
-  hardTarget: string;
-  maxDrawdown: string;
-  riskBudget: string;
-  constraints: string;
-  lossTolerance: string;
-  venues: string;
-  custody: string;
-  reporting: string;
-  cadence: string;
-  existingStyles: string;
-  regimes: string;
-  otherContext: string;
-  delivery: string;
-  contact: string;
-  deadline: string;
+interface BlueprintProfile {
+  onChainReadiness: number;
+  riskTolerance: number;
+  complexityAppetite: number;
+  commitmentReadiness: number;
+  onChainLabel: string;
+  onChainExplanation: string;
+  riskSummary: string;
+  archetype: string;
+  archetypeDescription: string;
+  custodyStance: string;
+  commitmentHint: string;
 }
 
-const EMPTY_INTAKE: IntakeForm = {
-  name: "",
-  email: "",
-  capitalBand: "",
-  objective: "",
-  horizon: "",
-  hardTarget: "",
-  maxDrawdown: "",
-  riskBudget: "",
-  constraints: "",
-  lossTolerance: "",
-  venues: "",
-  custody: "",
-  reporting: "",
-  cadence: "",
-  existingStyles: "",
-  regimes: "",
-  otherContext: "",
-  delivery: "",
-  contact: "",
-  deadline: "",
+interface GateFields {
+  name: string;
+  email: string;
+  telegram: string;
+  source: string;
+}
+
+const EMPTY_ANSWERS: BlueprintAnswers = {
+  q1_venues: [],
+  q2_account_size: "",
+  q3_activity: "",
+  q4_drawdown: "",
+  q5_pain_points: [],
+  q6_risk_orientation: "",
+  q7_custody_comfort: "",
+  q8_custody_setup: "",
+  q9_cadence: "",
+  q10_goal: "",
+  q11_do_not_do: [],
+  q12_commitment: "",
 };
 
-const TRADER_WALLET =
-  process.env.NEXT_PUBLIC_RTP_TRADER_WALLET_PUBKEY ||
-  "HDQ79fQ1YbL9CenS1DzfHizEWGrJdnmo99fgAWmdhuy5";
+const EMPTY_GATE: GateFields = {
+  name: "",
+  email: "",
+  telegram: "",
+  source: "",
+};
+
+/* ── Constants ── */
 
 const PAYMENT_LINK =
   process.env.NEXT_PUBLIC_RTP_DIAGNOSTIC_PAY_URL ||
   "https://buy.stripe.com/8x2bIU7GH0AFbAQ6qVd7q00";
 
-// Public Cal.com booking URL (30-min fit / kickoff). API keys stay server-side only.
 const CAL_BOOK_URL =
   process.env.NEXT_PUBLIC_RTP_DIAGNOSTIC_CAL_URL ||
   "https://cal.com/kate-cooper/30min";
 
+const TRADER_WALLET =
+  process.env.NEXT_PUBLIC_RTP_TRADER_WALLET_PUBKEY ||
+  "HDQ79fQ1YbL9CenS1DzfHizEWGrJdnmo99fgAWmdhuy5";
+
 const EXPLORER_URL = `https://explorer.solana.com/address/${TRADER_WALLET}`;
 
-function horizonLabel(h: string): string {
-  if (h === "long_term") return "long-term market cycles";
-  if (h === "medium_term") return "structural multi-month review windows";
-  return "shorter feedback loops with tighter operational discipline";
+/* ── Question Definitions ── */
+
+interface QuestionOption {
+  value: string;
+  label: string;
+  desc?: string;
 }
 
-/** Prefill Cal.com booker with scorecard / intake contact details. */
+interface Question {
+  id: string;
+  block: number;
+  blockTitle: string;
+  title: string;
+  description: string;
+  type: "radio" | "multi";
+  options: QuestionOption[];
+  helper?: string;
+}
+
+const QUESTIONS: Question[] = [
+  /* ── Block 1: Trading Context ── */
+  {
+    id: "q1_venues",
+    block: 1,
+    blockTitle: "Trading Context",
+    title: "Where do you currently trade?",
+    description: "Select all that apply.",
+    type: "multi",
+    options: [
+      { value: "cex", label: "Centralised exchanges only", desc: "Binance, Bybit, etc." },
+      { value: "trad_broker", label: "Traditional broker", desc: "IG, Saxo, etc." },
+      { value: "onchain", label: "On-chain perps / DEXs", desc: "Hyperliquid, Jupiter, Drift, etc." },
+      { value: "mix", label: "Mix of CEX and on-chain", desc: "" },
+    ],
+  },
+  {
+    id: "q2_account_size",
+    block: 1,
+    blockTitle: "Trading Context",
+    title: "What's your typical account size per venue?",
+    description: "Picks the relevant capital band for engine sizing.",
+    type: "radio",
+    options: [
+      { value: "<10k", label: "Under A$10k", desc: "" },
+      { value: "10k-50k", label: "A$10k – A$50k", desc: "" },
+      { value: "50k-250k", label: "A$50k – A$250k", desc: "" },
+      { value: ">250k", label: "Above A$250k", desc: "" },
+    ],
+  },
+  {
+    id: "q3_activity",
+    block: 1,
+    blockTitle: "Trading Context",
+    title: "How often do you actively manage positions?",
+    description: "Gauges the complexity your engine needs to handle.",
+    type: "radio",
+    options: [
+      { value: "daily", label: "Daily", desc: "" },
+      { value: "several_week", label: "Several times a week", desc: "" },
+      { value: "weekly", label: "Weekly", desc: "" },
+      { value: "passive", label: "Rarely / mostly passive", desc: "" },
+    ],
+  },
+
+  /* ── Block 2: Risk Envelope & Scars ── */
+  {
+    id: "q4_drawdown",
+    block: 2,
+    blockTitle: "Risk Envelope & Scars",
+    title: "What would you consider an unacceptable drawdown?",
+    description: "The hard floor your engine must respect — in percentage terms.",
+    type: "radio",
+    options: [
+      { value: "<10%", label: "Under 10%", desc: "" },
+      { value: "10-20%", label: "10% – 20%", desc: "" },
+      { value: "20-35%", label: "20% – 35%", desc: "" },
+      { value: ">35%", label: "Above 35%", desc: "" },
+    ],
+  },
+  {
+    id: "q5_pain_points",
+    block: 2,
+    blockTitle: "Risk Envelope & Scars",
+    title: "Which of these have hurt you (or people you know) before?",
+    description: "Select all that apply — I'll route around those failure modes.",
+    type: "multi",
+    options: [
+      { value: "liquidations", label: "Liquidations on leverage", desc: "" },
+      { value: "choppy", label: "Choppy markets grinding small PnL", desc: "" },
+      { value: "funding_bleed", label: "Funding bleed on perps", desc: "" },
+      { value: "venue_outages", label: "Venue outages / liquidity disappearing", desc: "" },
+      { value: "scam_coins", label: "Illiquid / scam coins rugging", desc: "" },
+      { value: "other", label: "Other (free text below)", desc: "" },
+    ],
+  },
+  {
+    id: "q6_risk_orientation",
+    block: 2,
+    blockTitle: "Risk Envelope & Scars",
+    title: "On balance, what matters more to you?",
+    description: "Shapes the engine's posture — defensive, aggressive, or balanced.",
+    type: "radio",
+    options: [
+      { value: "avoid_downswings", label: "Avoiding big downswings", desc: "" },
+      { value: "maximize_growth", label: "Maximising long-run growth", desc: "" },
+      { value: "balanced", label: "Balanced", desc: "" },
+    ],
+  },
+
+  /* ── Block 3: Custody & Operational ── */
+  {
+    id: "q7_custody_comfort",
+    block: 3,
+    blockTitle: "Custody & Operational",
+    title: "How comfortable are you with self-custody?",
+    description: "Wallets, seed phrases, hardware devices.",
+    type: "radio",
+    options: [
+      { value: "not_at_all", label: "Not at all", desc: "" },
+      { value: "somewhat", label: "Somewhat", desc: "" },
+      { value: "comfortable", label: "Comfortable", desc: "" },
+      { value: "very_comfortable", label: "Very comfortable / already using hardware wallets", desc: "" },
+    ],
+  },
+  {
+    id: "q8_custody_setup",
+    block: 3,
+    blockTitle: "Custody & Operational",
+    title: "For this engine, how would you like funds to be held?",
+    description: "Determines the custody architecture of your setup.",
+    type: "radio",
+    options: [
+      { value: "own_wallet", label: "Only in my own wallet(s)", desc: "" },
+      { value: "program_vaults", label: "On-chain program vaults with no operator keys", desc: "Zero-custody setup." },
+      { value: "mix", label: "Mix, depending on strategy", desc: "" },
+      { value: "not_sure", label: "Not sure yet — I'd like guidance", desc: "" },
+    ],
+  },
+  {
+    id: "q9_cadence",
+    block: 3,
+    blockTitle: "Custody & Operational",
+    title: "How often would you like formal updates on the engine?",
+    description: "Sets the default reporting rhythm.",
+    type: "radio",
+    options: [
+      { value: "weekly", label: "Weekly recap", desc: "" },
+      { value: "major_changes", label: "Only on major changes / events", desc: "" },
+      { value: "monthly", label: "Monthly summary", desc: "" },
+      { value: "live_dashboard", label: "I'd rather see a live dashboard", desc: "" },
+    ],
+  },
+
+  /* ── Block 4: Intent & Constraints ── */
+  {
+    id: "q10_goal",
+    block: 4,
+    blockTitle: "Intent & Constraints",
+    title: "What's the primary job you want this engine to do?",
+    description: "Picks the engine archetype.",
+    type: "radio",
+    options: [
+      { value: "compounding", label: "Grow my capital steadily over years", desc: "Compounding." },
+      { value: "income", label: "Generate more regular cashflow / income-style PnL", desc: "" },
+      { value: "directional", label: "Take higher-octane directional bets with strict risk caps", desc: "" },
+      { value: "hedge", label: "Hedge an existing treasury / core holdings", desc: "" },
+    ],
+  },
+  {
+    id: "q11_do_not_do",
+    block: 4,
+    blockTitle: "Intent & Constraints",
+    title: "What must this engine never do?",
+    description: "Select all that apply — these become hard constraints.",
+    type: "multi",
+    options: [
+      { value: "leverage_above", label: "Use leverage above a specific band", desc: "I'll ask for the band later." },
+      { value: "illiquid", label: "Hold illiquid microcaps", desc: "" },
+      { value: "overnight", label: "Run overnight positions", desc: "" },
+      { value: "outside_solana", label: "Trade outside Solana ecosystem", desc: "" },
+      { value: "other", label: "Other (free text below)", desc: "" },
+    ],
+  },
+  {
+    id: "q12_commitment",
+    block: 4,
+    blockTitle: "Intent & Constraints",
+    title: "If the profile you see next looks aligned, how ready are you?",
+    description: "No pressure — just helps me calibrate the next step.",
+    type: "radio",
+    options: [
+      { value: "ready", label: "Ready to commit now", desc: "" },
+      { value: "probably", label: "Probably — I just need minor clarification", desc: "" },
+      { value: "not_yet", label: "Not yet — I need more context", desc: "" },
+    ],
+  },
+];
+
+const TOTAL_QUESTIONS = QUESTIONS.length;
+
+/* ── Helpers ── */
+
+function toggleMulti(arr: string[], val: string): string[] {
+  return arr.includes(val) ? arr.filter((v) => v !== val) : [...arr, val];
+}
+
 function calBookHref(name?: string, email?: string): string {
   try {
     const url = new URL(CAL_BOOK_URL);
@@ -253,31 +311,33 @@ function calBookHref(name?: string, email?: string): string {
     const e = (email || "").trim();
     if (n) url.searchParams.set("name", n);
     if (e) url.searchParams.set("email", e);
-    // Keep notes short — helps you spot Compatibility leads in the calendar.
-    url.searchParams.set("notes", "RTP Compatibility Check · advisory path");
+    url.searchParams.set("notes", "Resilience Blueprint · follow-up");
     return url.toString();
   } catch {
     return CAL_BOOK_URL;
   }
 }
 
-export default function DiagnosticPage() {
+/* ── Main Page ── */
+
+export default function BlueprintPage() {
   const [step, setStep] = useState<Step>("splash");
-  const [currentQ, setCurrentQ] = useState(1);
-  const [scorecard, setScorecard] = useState<ScorecardForm>(EMPTY_SCORECARD);
+  const [questionIndex, setQuestionIndex] = useState(0);
+  const [answers, setAnswers] = useState<BlueprintAnswers>(EMPTY_ANSWERS);
+  const [gate, setGate] = useState<GateFields>(EMPTY_GATE);
+  const [profile, setProfile] = useState<BlueprintProfile | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [askQuestion, setAskQuestion] = useState("");
+  const [askQuestionSent, setAskQuestionSent] = useState(false);
 
-  const [intake, setIntake] = useState<IntakeForm>(EMPTY_INTAKE);
-  const [intakeStatus, setIntakeStatus] = useState<
-    "idle" | "submitting" | "done" | "error"
-  >("idle");
   const [specimen, setSpecimen] = useState<SpecimenState | null>(null);
 
-  const totalQuestions = QUESTIONS.length;
-  // Both answers still lead toward the paid build; "explore" is a softer CTA stack.
-  const isAdvisory = scorecard.solutionModel !== "explore";
+  const currentQ = QUESTIONS[questionIndex];
+  const currentBlock = currentQ?.block;
+  const blockTitle = currentQ?.blockTitle;
 
+  // ── Specimen polling ──
   useEffect(() => {
     let alive = true;
     const load = async () => {
@@ -287,7 +347,7 @@ export default function DiagnosticPage() {
         const data = (await res.json()) as SpecimenState;
         if (alive) setSpecimen(data);
       } catch {
-        /* keep prior / empty specimen */
+        /* keep prior */
       }
     };
     load();
@@ -309,41 +369,64 @@ export default function DiagnosticPage() {
   const specimenStatusSub = specimenOpen
     ? "In position · managing exits"
     : "Waiting for multi-TF alignment";
-  const specimenTitle = specimenOpen
-    ? "SOL/USDT Survivor 2.69 · live position open"
-    : "SOL/USDT Survivor 2.69 · waiting for alignment";
 
-  const selectOption = (field: keyof ScorecardForm, value: string) => {
-    setScorecard((prev) => ({ ...prev, [field]: value }));
-    if (currentQ < totalQuestions) {
-      setCurrentQ((q) => q + 1);
-      if (typeof window !== "undefined") {
-        window.scrollTo({ top: 0, behavior: "smooth" });
-      }
+  // ── Navigation ──
+  const goToQuestion = (idx: number) => {
+    setQuestionIndex(idx);
+    setStep("questions");
+    if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const advanceQuestion = () => {
+    if (questionIndex < TOTAL_QUESTIONS - 1) {
+      setQuestionIndex((q) => q + 1);
+      if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
     } else {
       setStep("gate");
-      if (typeof window !== "undefined") {
-        window.scrollTo({ top: 0, behavior: "smooth" });
-      }
+      if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
     }
   };
 
   const goBack = () => {
     if (step === "gate") {
       setStep("questions");
-      setCurrentQ(totalQuestions);
+      setQuestionIndex(TOTAL_QUESTIONS - 1);
       return;
     }
-    if (currentQ > 1) {
-      setCurrentQ((q) => q - 1);
+    if (step === "profile" || step === "results") {
+      setStep("gate");
+      return;
+    }
+    if (questionIndex > 0) {
+      setQuestionIndex((q) => q - 1);
     } else {
       setStep("splash");
     }
   };
 
-  const submitScorecard = async (e: React.FormEvent) => {
+  // ── Answer handling ──
+  const setRadio = (field: keyof BlueprintAnswers, value: string) => {
+    setAnswers((prev) => ({ ...prev, [field]: value }));
+    // Auto-advance on radio selection
+    setTimeout(() => advanceQuestion(), 180);
+  };
+
+  const toggleMultiAnswer = (field: keyof BlueprintAnswers, value: string) => {
+    setAnswers((prev) => {
+      const current = prev[field] as string[];
+      return { ...prev, [field]: toggleMulti(current, value) };
+    });
+  };
+
+  const hasMultiSelection = (field: keyof BlueprintAnswers): boolean => {
+    const arr = answers[field] as string[];
+    return Array.isArray(arr) && arr.length > 0;
+  };
+
+  // ── Submit ──
+  const submitBlueprint = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!scorecard.name.trim() || !scorecard.email.trim()) return;
+    if (!gate.name.trim() || !gate.email.trim()) return;
     setIsSubmitting(true);
     setSubmitError(null);
     try {
@@ -351,87 +434,55 @@ export default function DiagnosticPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          kind: "compatibility_v5",
-          name: scorecard.name,
-          email: scorecard.email,
-          currentSituation: scorecard.currentSituation,
-          desiredOutcome: scorecard.desiredOutcome,
-          patienceMindset: scorecard.patienceMindset,
-          expectedHorizon: scorecard.expectedHorizon,
-          solutionModel: scorecard.solutionModel,
-          objective: scorecard.desiredOutcome,
-          horizon: scorecard.expectedHorizon,
-          custody: scorecard.currentSituation,
+          kind: "blueprint_v1",
+          name: gate.name,
+          email: gate.email,
+          telegram: gate.telegram,
+          source: gate.source,
+          answers,
         }),
       });
-      if (!res.ok) throw new Error("submit failed");
-      setIntake((prev) => ({
-        ...prev,
-        name: scorecard.name,
-        email: scorecard.email,
-        objective:
-          scorecard.desiredOutcome === "safety"
-            ? "Capital accumulation (grow the stack)"
-            : scorecard.desiredOutcome === "custom"
-              ? "Absolute return"
-              : scorecard.desiredOutcome === "yield"
-                ? "Income generation"
-                : prev.objective,
-        horizon:
-          scorecard.expectedHorizon === "long_term"
-            ? "3+ years"
-            : scorecard.expectedHorizon === "medium_term"
-              ? "6–12 months"
-              : scorecard.expectedHorizon === "short_term"
-                ? "3–6 months"
-                : prev.horizon,
-        custody:
-          scorecard.currentSituation === "cold"
-            ? "Self-custody (hardware wallet)"
-            : scorecard.currentSituation === "hot_unsecured"
-              ? "Self-custody (software wallet)"
-              : scorecard.currentSituation === "cex"
-                ? "Exchange / custodian"
-                : prev.custody,
-      }));
-      setStep("results");
-      if (typeof window !== "undefined") {
-        window.scrollTo({ top: 0, behavior: "smooth" });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "submission failed" }));
+        throw new Error(err.error || "submission failed");
       }
-    } catch {
+      const data = await res.json();
+      setProfile(data.profile);
+      setStep("profile");
+      if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+    } catch (err) {
       setSubmitError(
-        "Submission failed. Email hello@resilientprotocol.xyz with your answers instead."
+        err instanceof Error ? err.message : "Submission failed. Email hello@resilientprotocol.xyz instead."
       );
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const setIntakeField =
-    (k: keyof IntakeForm) =>
-    (
-      e: React.ChangeEvent<
-        HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
-      >
-    ) =>
-      setIntake((f) => ({ ...f, [k]: e.target.value }));
-
-  const submitIntake = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!intake.name.trim() || !intake.email.trim()) return;
-    setIntakeStatus("submitting");
+  // ── Ask question handler ──
+  const sendQuestion = async () => {
+    if (!askQuestion.trim()) return;
     try {
-      const res = await fetch("/api/diagnostic-intake/", {
+      await fetch("/api/diagnostic-intake/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ kind: "mandate_intake", ...intake }),
+        body: JSON.stringify({
+          kind: "blueprint_v1",
+          name: gate.name || "Blueprint visitor",
+          email: gate.email || "no-reply@blueprint",
+          telegram: gate.telegram,
+          source: `pre-commit question: ${askQuestion}`,
+          answers,
+        }),
       });
-      if (!res.ok) throw new Error("submit failed");
-      setIntakeStatus("done");
+      setAskQuestionSent(true);
     } catch {
-      setIntakeStatus("error");
+      /* silently ignore — the question field is ancillary */
+      setAskQuestionSent(true);
     }
   };
+
+  /* ── RENDER ── */
 
   return (
     <div className="page">
@@ -442,23 +493,23 @@ export default function DiagnosticPage() {
         <section className="compat-shell compat-shell--wide">
           <header className="compat-hero">
             <div className="compat-hero-copy">
-              <div className="sys2-sect-eyebrow">ON-CHAIN COMPATIBILITY CHECK</div>
+              <div className="sys2-sect-eyebrow">RESILIENCE BLUEPRINT</div>
               <h1 className="compat-title">
-                Map your custody, horizon, and risk profile before anything
-                touches capital
+                Map your custody, risk envelope, and engine archetype — before
+                anything touches capital
               </h1>
               <p className="compat-lede">
-                Most sovereign capital allocators want secure, customized market
-                execution without custodian risk, technical friction, or crowded
-                templates. A 90-second check maps your structural needs and
-                generates a compatibility blueprint.
+                A 12-question diagnostic that generates a personalised profile:
+                on-chain readiness, suggested engine archetype, custody stance,
+                and hard constraints. No templates, no shared edges — just an
+                engineering brief built around your risk budget.
               </p>
               <div className="compat-hero-meta">
                 <span className="sys2-status-pill watching">
                   <span className="sys2-status-dot" />
-                  Systematic onboarding · v5
+                  Systematic onboarding
                 </span>
-                <span className="compat-meta-note">5 questions · ~90 seconds</span>
+                <span className="compat-meta-note">12 questions · ~3 minutes</span>
               </div>
             </div>
           </header>
@@ -496,75 +547,114 @@ export default function DiagnosticPage() {
               className="sys2-cta-primary"
               onClick={() => {
                 setStep("questions");
-                setCurrentQ(1);
+                setQuestionIndex(0);
               }}
             >
-              Start Compatibility Check →
+              Start your Resilience Blueprint →
             </button>
             <span className="compat-meta-note">
-              No account required until the blueprint.
+              No account required. Your answers build a personalised profile.
             </span>
           </div>
         </section>
       )}
 
       {/* ════════ QUESTIONS ════════ */}
-      {step === "questions" && (
+      {step === "questions" && currentQ && (
         <section className="compat-shell compat-shell--stage">
+          {/* Progress bar */}
           <div className="compat-stepbar">
             <button type="button" onClick={goBack} className="compat-back">
               ← Back
             </button>
             <div className="compat-step-meta">
               <span className="compat-step-count">
-                Step {currentQ} of {totalQuestions}
+                Block {currentBlock} of 4 · Question {questionIndex + 1} of {TOTAL_QUESTIONS}
               </span>
               <div className="compat-progress" aria-hidden>
                 <div
                   className="compat-progress-fill"
-                  style={{ width: `${(currentQ / totalQuestions) * 100}%` }}
+                  style={{ width: `${((questionIndex + 1) / TOTAL_QUESTIONS) * 100}%` }}
                 />
               </div>
             </div>
           </div>
 
-          {QUESTIONS.map((q) => {
-            if (q.id !== currentQ) return null;
-            const fieldKey = FIELD_KEYS[q.id - 1];
-            return (
-              <div key={q.id} className="compat-q">
-                <div className="sys2-sect-eyebrow">COMPATIBILITY · Q{q.id}</div>
-                <h2 className="compat-q-title">{q.title}</h2>
-                <p className="compat-q-desc">{q.description}</p>
+          {/* Block label */}
+          <div className="sys2-sect-eyebrow" style={{ marginBottom: "var(--space-md)" }}>
+            {blockTitle}
+          </div>
 
-                <div className="compat-options" role="listbox" aria-label={q.title}>
-                  {q.options.map((opt) => {
-                    const selected = scorecard[fieldKey] === opt.value;
-                    return (
-                      <button
-                        key={opt.value}
-                        type="button"
-                        role="option"
-                        aria-selected={selected}
-                        onClick={() => selectOption(fieldKey, opt.value)}
-                        className={`compat-option${selected ? " is-selected" : ""}`}
-                      >
-                        <span className="compat-option-radio" aria-hidden />
-                        <span className="compat-option-copy">
-                          <span className="compat-option-label">{opt.label}</span>
-                          <span className="compat-option-desc">{opt.desc}</span>
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
+          {/* Question */}
+          <div className="compat-q">
+            <h2 className="compat-q-title">{currentQ.title}</h2>
+            <p className="compat-q-desc">{currentQ.description}</p>
+
+            {currentQ.helper && (
+              <p className="blueprint-helper">{currentQ.helper}</p>
+            )}
+
+            <div className="compat-options" role={currentQ.type === "multi" ? "group" : "listbox"} aria-label={currentQ.title}>
+              {currentQ.options.map((opt) => {
+                const isRadio = currentQ.type === "radio";
+                const aa = answers as unknown as Record<string, unknown>;
+                const selected = isRadio
+                  ? aa[currentQ.id] === opt.value
+                  : (aa[currentQ.id] as string[]).includes(opt.value);
+
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    role={isRadio ? "option" : "checkbox"}
+                    aria-selected={isRadio ? selected : undefined}
+                    aria-checked={isRadio ? undefined : selected}
+                    onClick={() => {
+                      if (isRadio) {
+                        setRadio(currentQ.id as keyof BlueprintAnswers, opt.value);
+                      } else {
+                        toggleMultiAnswer(currentQ.id as keyof BlueprintAnswers, opt.value);
+                      }
+                    }}
+                    className={`compat-option${selected ? " is-selected" : ""}`}
+                  >
+                    <span className={`compat-option-radio${currentQ.type === "multi" ? " blueprint-multi-check" : ""}`} aria-hidden />
+                    <span className="compat-option-copy">
+                      <span className="compat-option-label">{opt.label}</span>
+                      {opt.desc && <span className="compat-option-desc">{opt.desc}</span>}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Multi-select continue button */}
+          {currentQ.type === "multi" && (
+            <div className="compat-actions" style={{ marginTop: "var(--space-lg)" }}>
+              <button
+                type="button"
+                className="sys2-cta-primary"
+                disabled={!hasMultiSelection(currentQ.id as keyof BlueprintAnswers)}
+                onClick={advanceQuestion}
+              >
+                {hasMultiSelection(currentQ.id as keyof BlueprintAnswers)
+                  ? "Continue →"
+                  : "Select at least one"}
+              </button>
+              <button
+                type="button"
+                className="sys2-cta-tertiary"
+                onClick={advanceQuestion}
+              >
+                Skip for now
+              </button>
+            </div>
+          )}
         </section>
       )}
 
-      {/* ════════ EMAIL GATE ════════ */}
+      {/* ════════ GATE ─═══════ */}
       {step === "gate" && (
         <section className="compat-shell compat-shell--narrow compat-shell--stage">
           <div className="compat-stepbar">
@@ -576,45 +666,67 @@ export default function DiagnosticPage() {
 
           <div className="compat-gate-card">
             <div className="sys2-sect-eyebrow">PROFILE READY</div>
-            <h2 className="compat-gate-title">Your compatibility profile is ready</h2>
+            <h2 className="compat-gate-title">Your Resilience Blueprint is ready</h2>
             <p className="compat-gate-lede">
-              Enter contact details to unlock your systematic setup
-              recommendations. One blueprint, then silence unless you choose a
-              path.
+              Enter your details to unlock your personalised profile — engine
+              archetype, custody stance, risk envelope, and the next step.
+              One blueprint, then silence unless you choose a path.
             </p>
 
-            <form onSubmit={submitScorecard} className="compat-gate-form">
+            <form onSubmit={submitBlueprint} className="compat-gate-form">
               <div className="form-group">
-                <label className="form-label" htmlFor="compat-name">
+                <label className="form-label" htmlFor="bp-name">
                   Your name
                 </label>
                 <input
-                  id="compat-name"
+                  id="bp-name"
                   className="form-input"
                   required
-                  value={scorecard.name}
-                  onChange={(e) =>
-                    setScorecard((p) => ({ ...p, name: e.target.value }))
-                  }
+                  value={gate.name}
+                  onChange={(e) => setGate((g) => ({ ...g, name: e.target.value }))}
                   placeholder="Enter your name"
                   autoComplete="name"
                 />
               </div>
               <div className="form-group">
-                <label className="form-label" htmlFor="compat-email">
-                  Corporate or primary email
+                <label className="form-label" htmlFor="bp-email">
+                  Email
                 </label>
                 <input
-                  id="compat-email"
+                  id="bp-email"
                   className="form-input"
                   type="email"
                   required
-                  value={scorecard.email}
-                  onChange={(e) =>
-                    setScorecard((p) => ({ ...p, email: e.target.value }))
-                  }
+                  value={gate.email}
+                  onChange={(e) => setGate((g) => ({ ...g, email: e.target.value }))}
                   placeholder="name@company.com"
                   autoComplete="email"
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label" htmlFor="bp-telegram">
+                  Telegram or Signal handle{" "}
+                  <span style={{ fontWeight: 400, color: "var(--text-tertiary)" }}>(optional)</span>
+                </label>
+                <input
+                  id="bp-telegram"
+                  className="form-input"
+                  value={gate.telegram}
+                  onChange={(e) => setGate((g) => ({ ...g, telegram: e.target.value }))}
+                  placeholder="@handle"
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label" htmlFor="bp-source">
+                  How did you find Resilient?{" "}
+                  <span style={{ fontWeight: 400, color: "var(--text-tertiary)" }}>(optional)</span>
+                </label>
+                <input
+                  id="bp-source"
+                  className="form-input"
+                  value={gate.source}
+                  onChange={(e) => setGate((g) => ({ ...g, source: e.target.value }))}
+                  placeholder="e.g. Twitter, friend, Colosseum…"
                 />
               </div>
 
@@ -625,7 +737,7 @@ export default function DiagnosticPage() {
               >
                 {isSubmitting
                   ? "Generating blueprint…"
-                  : "Generate Compatibility Blueprint →"}
+                  : "Generate Resilience Blueprint →"}
               </button>
 
               {submitError && <div className="compat-error">{submitError}</div>}
@@ -634,39 +746,109 @@ export default function DiagnosticPage() {
         </section>
       )}
 
-      {/* ════════ RESULTS ════════ */}
-      {step === "results" && (
+      {/* ════════ PROFILE ════════ */}
+      {(step === "profile" || step === "results") && profile && (
         <>
           <section className="compat-shell compat-shell--wide">
             <header className="compat-hero">
               <div className="compat-hero-copy">
-                <div className="sys2-sect-eyebrow">DYNAMIC ANALYSIS VERDICT</div>
+                <div className="sys2-sect-eyebrow">RESILIENCE BLUEPRINT</div>
                 <h1 className="compat-title compat-title--result">
-                  {isAdvisory
-                    ? "Bespoke Strategy Build — fit"
-                    : "Worth a closer look"}
+                  Your personalised engine profile
                 </h1>
                 <p className="compat-lede">
-                  Based on your answers, you need a system that values{" "}
-                  {horizonLabel(scorecard.expectedHorizon)} with custody that
-                  stays yours — and a strategy engineered around your risk
-                  profile, not a shared template.
+                  Based on your answers, here's the blueprint. It maps your
+                  on-chain readiness, risk tolerance, and the engine archetype
+                  that fits your constraints.
                 </p>
               </div>
               <div className="compat-hero-side">
                 <span className="sys2-status-pill watching">
                   <span className="sys2-status-dot" />
-                  Cohort · 3/4 slots booked
+                  Cohort · limited slots
                 </span>
               </div>
             </header>
 
+            {/* Profile Card */}
+            <div className="blueprint-profile-card">
+              {/* Scores row */}
+              <div className="blueprint-scores">
+                <div className="blueprint-score">
+                  <span className="blueprint-score-label">On-chain readiness</span>
+                  <span className="blueprint-score-bar">
+                    <span className="blueprint-score-fill" style={{ width: `${profile.onChainReadiness * 10}%` }} />
+                  </span>
+                  <span className="blueprint-score-val">{profile.onChainReadiness}/10</span>
+                </div>
+                <div className="blueprint-score">
+                  <span className="blueprint-score-label">Risk tolerance</span>
+                  <span className="blueprint-score-bar">
+                    <span className="blueprint-score-fill" style={{ width: `${profile.riskTolerance * 10}%` }} />
+                  </span>
+                  <span className="blueprint-score-val">{profile.riskTolerance}/10</span>
+                </div>
+                <div className="blueprint-score">
+                  <span className="blueprint-score-label">Complexity appetite</span>
+                  <span className="blueprint-score-bar">
+                    <span className="blueprint-score-fill" style={{ width: `${profile.complexityAppetite * 10}%` }} />
+                  </span>
+                  <span className="blueprint-score-val">{profile.complexityAppetite}/10</span>
+                </div>
+                <div className="blueprint-score">
+                  <span className="blueprint-score-label">Commitment readiness</span>
+                  <span className="blueprint-score-bar">
+                    <span className="blueprint-score-fill" style={{ width: `${profile.commitmentReadiness * 10}%` }} />
+                  </span>
+                  <span className="blueprint-score-val">{profile.commitmentReadiness}/10</span>
+                </div>
+              </div>
+
+              {/* On-chain readiness */}
+              <div className="blueprint-section">
+                <div className="blueprint-section-title">On-chain Readiness</div>
+                <div className="blueprint-section-label">{profile.onChainLabel}</div>
+                <div className="blueprint-section-body">{profile.onChainExplanation}</div>
+              </div>
+
+              {/* Risk envelope */}
+              <div className="blueprint-section">
+                <div className="blueprint-section-title">Risk Envelope</div>
+                <div className="blueprint-section-body">{profile.riskSummary}</div>
+              </div>
+
+              {/* Engine archetype */}
+              <div className="blueprint-section blueprint-section--highlight">
+                <div className="blueprint-section-title">Suggested Engine Archetype</div>
+                <div className="blueprint-section-label">{profile.archetype}</div>
+                <div className="blueprint-section-body">{profile.archetypeDescription}</div>
+              </div>
+
+              {/* Custody stance */}
+              <div className="blueprint-section">
+                <div className="blueprint-section-title">Custody Stance</div>
+                <div className="blueprint-section-body">{profile.custodyStance}</div>
+              </div>
+
+              {/* Commitment */}
+              <div className="blueprint-section">
+                <div className="blueprint-section-body" style={{ fontStyle: "italic", color: "var(--text-tertiary)" }}>
+                  {profile.commitmentHint}
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* CTAs */}
+          <section className="compat-shell compat-shell--wide">
             <div className="compat-results-grid">
               <div className="compat-results-main">
                 <div className="compat-specimen">
                   <div className="compat-specimen-head">
                     <span className="validated-tag">LIVE SPECIMEN</span>
-                    <span className="compat-specimen-title">{specimenTitle}</span>
+                    <span className="compat-specimen-title">
+                      SOL/USDT Survivor 2.69 · {specimenOpen ? "live position open" : "waiting for alignment"}
+                    </span>
                   </div>
                   <div className="compat-metrics">
                     <div className="compat-metric">
@@ -710,494 +892,99 @@ export default function DiagnosticPage() {
                       : "Flat is a feature. The system sits out noise until multiple clean timeframes align: capital preservation over forced activity. Closed-trade PnL is net of measured GMTrade fees."}
                   </p>
                 </div>
-
-                <div className="compat-insight">
-                  <div className="compat-insight-title">
-                    Sovereign custody (program-derived addresses)
-                  </div>
-                  <div className="compat-insight-body">
-                    No human holds private keys to the treasury. The program is
-                    the sole authority; your wallet retains an on-chain
-                    kill-switch to freeze trading instantly.
-                  </div>
-                </div>
-                <div className="compat-insight">
-                  <div className="compat-insight-title">
-                    Out-of-sample walk-forward validation
-                  </div>
-                  <div className="compat-insight-body">
-                    Engines clear walk-forward folds on isolated history before
-                    touching live Solana capital. Protection against overfitted
-                    backtests, not a marketing chart.
-                  </div>
-                </div>
               </div>
 
               <aside className="compat-fork">
-                {isAdvisory ? (
-                  <>
-                    <div className="sys2-sect-eyebrow">BESPOKE STRATEGY BUILD</div>
-                    <h2 className="compat-fork-title">
-                      Reserve your Bespoke Strategy Build
-                    </h2>
-                    <p className="compat-fork-lede">
-                      Your check qualifies you for a limited cohort slot. Pay once,
-                      lay out your terms, and we map them to a paper-validated strategy —
-                      with up to four 1-on-1 implementation calls included.
+                <div className="sys2-sect-eyebrow">BESPOKE STRATEGY BUILD</div>
+                <h2 className="compat-fork-title">
+                  If this blueprint feels right, secure your build slot
+                </h2>
+                <p className="compat-fork-lede">
+                  I reserve a small number of build slots. Once you're in, I
+                  convert this blueprint into a full engine spec and deployment
+                  plan, plus up to four dedicated consultations.
+                </p>
+                <ul className="compat-checks">
+                  <li>Bespoke Strategy Build: A$4,500, one-time</li>
+                  <li>Paper report at measured venue fees + full config</li>
+                  <li>Ten-gate verification on historical data</li>
+                  <li>Up to 4× 45–60 min implementation consultations</li>
+                  <li>Your custody throughout · no capital moves</li>
+                  <li>Initial report 5–8 business days after intake</li>
+                </ul>
+                <div className="compat-fork-actions">
+                  <a
+                    href={PAYMENT_LINK}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="sys2-cta-primary"
+                  >
+                    Secure Bespoke Strategy Build – A$4,500
+                  </a>
+                  <a
+                    href={calBookHref(gate.name, gate.email)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="sys2-cta-secondary"
+                  >
+                    Book a 30-min fit call
+                  </a>
+                </div>
+
+                {/* Secondary CTA: Ask question */}
+                <div className="blueprint-question-cta">
+                  <div className="blueprint-question-title">
+                    Still deciding? Ask a question before committing.
+                  </div>
+                  {askQuestionSent ? (
+                    <p className="compat-gate-lede" style={{ marginTop: "var(--space-sm)" }}>
+                      Thanks — I'll reply by email. In the meantime, the build slot
+                      is open whenever you're ready.
                     </p>
-                    <ul className="compat-checks">
-                      <li>Bespoke Strategy Build: A$4,500, one-time</li>
-                      <li>Paper report at measured venue fees + full config</li>
-                      <li>Ten-gate verification on historical data</li>
-                      <li>Up to 4× 45–60 min implementation consultations</li>
-                      <li>Your custody throughout · no capital moves</li>
-                      <li>Initial report 5–8 business days after intake</li>
-                    </ul>
-                    <div className="compat-fork-actions">
-                      <a
-                        href={PAYMENT_LINK}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="sys2-cta-primary"
-                      >
-                        Reserve slot · A$4,500
-                      </a>
-                      <a
-                        href={calBookHref(scorecard.name, scorecard.email)}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                  ) : (
+                    <div style={{ display: "flex", gap: "var(--space-sm)", alignItems: "flex-end", flexWrap: "wrap" }}>
+                      <textarea
+                        className="form-input"
+                        rows={2}
+                        value={askQuestion}
+                        onChange={(e) => setAskQuestion(e.target.value)}
+                        placeholder="What would you like to know before you commit?"
+                        style={{ flex: 1, minWidth: "200px" }}
+                      />
+                      <button
+                        type="button"
                         className="sys2-cta-secondary"
+                        onClick={sendQuestion}
+                        disabled={!askQuestion.trim()}
                       >
-                        Book a 30-min fit call
-                      </a>
-                      <a href="#intake" className="sys2-cta-secondary">
-                        Already paid? Lay out your terms →
-                      </a>
+                        Send
+                      </button>
                     </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="sys2-sect-eyebrow">NEXT STEP</div>
-                    <h2 className="compat-fork-title">
-                      Take the next step when you are ready
-                    </h2>
-                    <p className="compat-fork-lede">
-                      No rush. When the fit is clear, the Bespoke Strategy Build
-                      is the path: your terms in, a paper-validated strategy out,
-                      with implementation calls included.
-                    </p>
-                    <ul className="compat-checks">
-                      <li>Bespoke Strategy Build: A$4,500, one-time</li>
-                      <li>Paper report at measured venue fees + full config</li>
-                      <li>Up to 4× 45–60 min implementation consultations</li>
-                      <li>Your custody throughout · no capital moves</li>
-                    </ul>
-                    <div className="compat-fork-actions">
-                      <a
-                        href={calBookHref(scorecard.name, scorecard.email)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="sys2-cta-primary"
-                      >
-                        Book a 30-min fit call
-                      </a>
-                      <a
-                        href={PAYMENT_LINK}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="sys2-cta-secondary"
-                      >
-                        Reserve slot · A$4,500
-                      </a>
-                      <Link href="/" className="sys2-cta-secondary">
-                        View the live specimen
-                      </Link>
-                    </div>
-                  </>
-                )}
+                  )}
+                </div>
 
                 <div className="compat-fork-foot">
-                  <span>RTP-COMPAT-V5</span>
+                  <span>RTP-BLUEPRINT-V1</span>
                   <button
                     type="button"
                     className="compat-retake"
                     onClick={() => {
                       setStep("splash");
-                      setCurrentQ(1);
-                      setScorecard(EMPTY_SCORECARD);
+                      setQuestionIndex(0);
+                      setAnswers(EMPTY_ANSWERS);
+                      setGate(EMPTY_GATE);
+                      setProfile(null);
                       setSubmitError(null);
+                      setAskQuestion("");
+                      setAskQuestionSent(false);
                     }}
                   >
-                    Retake check
+                    Retake blueprint
                   </button>
                 </div>
               </aside>
             </div>
           </section>
-
-          {isAdvisory && (
-            <section className="compat-shell compat-shell--wide" id="intake">
-              <header className="compat-hero">
-                <div className="compat-hero-copy">
-                  <div className="sys2-sect-eyebrow">MANDATE INTAKE</div>
-                  <h2 className="compat-title compat-title--result">
-                    Lay out your terms
-                  </h2>
-                  <p className="compat-lede">
-                    After payment clears, complete this form so the research wing
-                    can engineer around your risk budget. Ten minutes. Precision
-                    sharpens the verdict.
-                  </p>
-                </div>
-              </header>
-
-              {intakeStatus === "done" ? (
-                <div className="compat-gate-card">
-                  <div className="sys2-sect-eyebrow">RECEIVED</div>
-                  <h2 className="compat-gate-title">Terms received</h2>
-                  <p className="compat-gate-lede">
-                    RTP will review and reply by email with scope confirmation.
-                    Initial report typically ships 5–8 business days after intake.
-                    Nothing proceeds until you agree to terms in writing.
-                  </p>
-                  <div className="compat-fork-actions" style={{ marginTop: "var(--space-md)" }}>
-                    <a
-                      href={calBookHref(intake.name || scorecard.name, intake.email || scorecard.email)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="sys2-cta-primary"
-                    >
-                      Book kickoff call · 30 min
-                    </a>
-                  </div>
-                </div>
-              ) : (
-                <form className="launch-form compat-intake" onSubmit={submitIntake}>
-                  <div className="form-group">
-                    <label className="form-label">A · Capital & Objectives</label>
-                    <div className="form-row">
-                      <div>
-                        <label className="form-label form-label--sm">Name *</label>
-                        <input
-                          className="form-input"
-                          required
-                          value={intake.name}
-                          onChange={setIntakeField("name")}
-                          placeholder="Your name"
-                        />
-                      </div>
-                      <div>
-                        <label className="form-label form-label--sm">Email *</label>
-                        <input
-                          className="form-input"
-                          type="email"
-                          required
-                          value={intake.email}
-                          onChange={setIntakeField("email")}
-                          placeholder="you@example.com"
-                        />
-                      </div>
-                    </div>
-                    <div className="form-row">
-                      <div>
-                        <label className="form-label form-label--sm">
-                          Approximate capital (band)
-                        </label>
-                        <select
-                          className="form-input"
-                          value={intake.capitalBand}
-                          onChange={setIntakeField("capitalBand")}
-                        >
-                          <option value="">Select…</option>
-                          <option>Under 10 SOL</option>
-                          <option>10–50 SOL</option>
-                          <option>50–250 SOL</option>
-                          <option>250–1,000 SOL</option>
-                          <option>1,000+ SOL</option>
-                          <option>Prefer to discuss</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="form-label form-label--sm">
-                          Primary objective
-                        </label>
-                        <select
-                          className="form-input"
-                          value={intake.objective}
-                          onChange={setIntakeField("objective")}
-                        >
-                          <option value="">Select…</option>
-                          <option>Capital accumulation (grow the stack)</option>
-                          <option>Absolute return</option>
-                          <option>Income generation</option>
-                          <option>Other</option>
-                        </select>
-                      </div>
-                    </div>
-                    <div className="form-row">
-                      <div>
-                        <label className="form-label form-label--sm">
-                          Time horizon
-                        </label>
-                        <select
-                          className="form-input"
-                          value={intake.horizon}
-                          onChange={setIntakeField("horizon")}
-                        >
-                          <option value="">Select…</option>
-                          <option>3–6 months</option>
-                          <option>6–12 months</option>
-                          <option>1–3 years</option>
-                          <option>3+ years</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="form-label form-label--sm">
-                          Hard target (optional)
-                        </label>
-                        <input
-                          className="form-input"
-                          value={intake.hardTarget}
-                          onChange={setIntakeField("hardTarget")}
-                          placeholder="e.g. +25% SOL terms"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="form-group">
-                    <label className="form-label">B · Risk Parameters</label>
-                    <div className="form-row">
-                      <div>
-                        <label className="form-label form-label--sm">
-                          Max drawdown (hard limit) *
-                        </label>
-                        <select
-                          className="form-input"
-                          required
-                          value={intake.maxDrawdown}
-                          onChange={setIntakeField("maxDrawdown")}
-                        >
-                          <option value="">Select…</option>
-                          <option>5%</option>
-                          <option>10%</option>
-                          <option>15%</option>
-                          <option>20%</option>
-                          <option>25%</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="form-label form-label--sm">
-                          Loss tolerance
-                        </label>
-                        <select
-                          className="form-input"
-                          value={intake.lossTolerance}
-                          onChange={setIntakeField("lossTolerance")}
-                        >
-                          <option value="">Select…</option>
-                          <option>Temporary unrealised losses acceptable</option>
-                          <option>Prefer to realise losses quickly</option>
-                          <option>Discuss</option>
-                        </select>
-                      </div>
-                    </div>
-                    <div>
-                      <label className="form-label form-label--sm">
-                        Risk budget description
-                      </label>
-                      <textarea
-                        className="form-input"
-                        rows={2}
-                        value={intake.riskBudget}
-                        onChange={setIntakeField("riskBudget")}
-                        placeholder="How much volatility can this capital absorb, and for how long?"
-                      />
-                    </div>
-                    <div>
-                      <label className="form-label form-label--sm">
-                        Absolute constraints
-                      </label>
-                      <textarea
-                        className="form-input"
-                        rows={2}
-                        value={intake.constraints}
-                        onChange={setIntakeField("constraints")}
-                        placeholder="e.g. no leverage above 3x, max position size, excluded assets"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="form-group">
-                    <label className="form-label">C · Operational & Custody</label>
-                    <div className="form-row">
-                      <div>
-                        <label className="form-label form-label--sm">
-                          Current custody setup
-                        </label>
-                        <select
-                          className="form-input"
-                          value={intake.custody}
-                          onChange={setIntakeField("custody")}
-                        >
-                          <option value="">Select…</option>
-                          <option>Self-custody (hardware wallet)</option>
-                          <option>Self-custody (software wallet)</option>
-                          <option>Multisig</option>
-                          <option>Exchange / custodian</option>
-                          <option>Other</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="form-label form-label--sm">
-                          Preferred chains / venues
-                        </label>
-                        <input
-                          className="form-input"
-                          value={intake.venues}
-                          onChange={setIntakeField("venues")}
-                          placeholder="e.g. Solana perps / GMTrade, or let us measure and choose"
-                        />
-                      </div>
-                    </div>
-                    <div className="form-row">
-                      <div>
-                        <label className="form-label form-label--sm">
-                          Reporting requirements
-                        </label>
-                        <input
-                          className="form-input"
-                          value={intake.reporting}
-                          onChange={setIntakeField("reporting")}
-                          placeholder="e.g. weekly summary, on-chain proofs"
-                        />
-                      </div>
-                      <div>
-                        <label className="form-label form-label--sm">
-                          Communication cadence
-                        </label>
-                        <select
-                          className="form-input"
-                          value={intake.cadence}
-                          onChange={setIntakeField("cadence")}
-                        >
-                          <option value="">Select…</option>
-                          <option>Async only (email)</option>
-                          <option>Weekly check-in</option>
-                          <option>Milestones only</option>
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="form-group">
-                    <label className="form-label">D · Style & Context (optional)</label>
-                    <div>
-                      <label className="form-label form-label--sm">
-                        Existing strategies or styles
-                      </label>
-                      <textarea
-                        className="form-input"
-                        rows={2}
-                        value={intake.existingStyles}
-                        onChange={setIntakeField("existingStyles")}
-                        placeholder="Anything you already run, or have ruled out"
-                      />
-                    </div>
-                    <div className="form-row">
-                      <div>
-                        <label className="form-label form-label--sm">
-                          Regimes you must survive
-                        </label>
-                        <input
-                          className="form-input"
-                          value={intake.regimes}
-                          onChange={setIntakeField("regimes")}
-                          placeholder="e.g. extended ranges, trend reversals"
-                        />
-                      </div>
-                      <div>
-                        <label className="form-label form-label--sm">
-                          Anything else
-                        </label>
-                        <input
-                          className="form-input"
-                          value={intake.otherContext}
-                          onChange={setIntakeField("otherContext")}
-                          placeholder="Context the research wing should know"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="form-group">
-                    <label className="form-label">E · Logistics</label>
-                    <div className="form-row">
-                      <div>
-                        <label className="form-label form-label--sm">
-                          Preferred delivery format
-                        </label>
-                        <select
-                          className="form-input"
-                          value={intake.delivery}
-                          onChange={setIntakeField("delivery")}
-                        >
-                          <option value="">Select…</option>
-                          <option>PDF report + config files</option>
-                          <option>Notion / shared doc</option>
-                          <option>Call walkthrough only</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="form-label form-label--sm">
-                          Hard deadline (optional)
-                        </label>
-                        <input
-                          className="form-input"
-                          value={intake.deadline}
-                          onChange={setIntakeField("deadline")}
-                          placeholder="e.g. before end of quarter"
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <label className="form-label form-label--sm">
-                        Best contact method & timezone
-                      </label>
-                      <input
-                        className="form-input"
-                        value={intake.contact}
-                        onChange={setIntakeField("contact")}
-                        placeholder="e.g. email, AEST"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="compat-actions">
-                    <button
-                      type="submit"
-                      className="sys2-cta-primary"
-                      disabled={intakeStatus === "submitting"}
-                    >
-                      {intakeStatus === "submitting"
-                        ? "Submitting…"
-                        : "Submit your terms"}
-                    </button>
-                    <span className="compat-meta-note">
-                      Research output only. No capital moves. No discretionary
-                      management.
-                    </span>
-                  </div>
-                  {intakeStatus === "error" && (
-                    <div className="compat-error">
-                      Submission failed. Email your terms to
-                      hello@resilientprotocol.xyz instead.
-                    </div>
-                  )}
-                </form>
-              )}
-            </section>
-          )}
         </>
       )}
     </div>

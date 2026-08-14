@@ -10,7 +10,7 @@ import { DatabaseSync } from "node:sqlite";
  * so local `next dev` still works.
  */
 
-export type IntakeKind = "compatibility_v5" | "mandate_intake";
+export type IntakeKind = "compatibility_v5" | "mandate_intake" | "blueprint_v1";
 
 export interface IntakeRecord {
   id: number;
@@ -135,7 +135,7 @@ export function listLeads(limit = 200): IntakeRecord[] {
     return {
       id: r.id,
       received_at: r.received_at,
-      kind: (r.kind === "compatibility_v5" ? "compatibility_v5" : "mandate_intake") as IntakeKind,
+      kind: (["compatibility_v5", "mandate_intake", "blueprint_v1"].includes(r.kind) ? r.kind : "mandate_intake") as IntakeKind,
       name: r.name,
       email: r.email,
       payload,

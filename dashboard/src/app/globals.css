@@ -4030,3 +4030,153 @@ button.sys2-cta-secondary:disabled {
     max-width: 100%;
   }
 }
+
+/* ═══════════════════════════════════════════
+   Resilience Blueprint
+   ═══════════════════════════════════════════ */
+
+/* Multi-select pill check */
+.blueprint-multi-check {
+  border-radius: 4px;
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--border);
+  background: var(--surface-1);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, border-color 0.15s;
+}
+.compat-option.is-selected .blueprint-multi-check {
+  border-color: var(--emerald);
+  background: var(--emerald);
+}
+.compat-option.is-selected .blueprint-multi-check::after {
+  content: "";
+  display: block;
+  width: 6px;
+  height: 10px;
+  border: solid var(--void);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg) translate(-1px, -1px);
+}
+
+/* Helper text under questions */
+.blueprint-helper {
+  font-size: 0.8125rem;
+  color: var(--text-tertiary);
+  margin-bottom: var(--space-md);
+  line-height: 1.5;
+  padding: var(--space-sm) var(--space-md);
+  background: var(--surface-1);
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+
+/* Profile card */
+.blueprint-profile-card {
+  background: var(--surface-0);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: var(--space-2xl);
+}
+
+/* Scores row */
+.blueprint-scores {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  background: var(--border);
+}
+.blueprint-score {
+  background: var(--surface-1);
+  padding: var(--space-md) var(--space-lg);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.blueprint-score-label {
+  font-size: 0.625rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.blueprint-score-bar {
+  height: 4px;
+  background: var(--surface-3);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.blueprint-score-fill {
+  display: block;
+  height: 100%;
+  background: var(--emerald);
+  border-radius: 2px;
+  transition: width 0.6s ease-out;
+}
+.blueprint-score-val {
+  font-family: var(--font-display);
+  font-size: 1.125rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Profile sections */
+.blueprint-section {
+  padding: var(--space-lg) var(--space-xl);
+  border-bottom: 1px solid var(--border);
+}
+.blueprint-section:last-child {
+  border-bottom: none;
+}
+.blueprint-section--highlight {
+  background: rgba(168, 85, 247, 0.06);
+  border-left: 2px solid var(--coral);
+}
+.blueprint-section-title {
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: var(--space-sm);
+}
+.blueprint-section-label {
+  font-family: var(--font-display);
+  font-size: 1.125rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-bottom: var(--space-sm);
+  line-height: 1.35;
+}
+.blueprint-section-body {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+/* Secondary question CTA */
+.blueprint-question-cta {
+  margin-top: var(--space-xl);
+  padding-top: var(--space-lg);
+  border-top: 1px solid var(--border);
+}
+.blueprint-question-title {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-bottom: var(--space-sm);
+}
+
+@media (max-width: 810px) {
+  .blueprint-scores {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .blueprint-section {
+    padding: var(--space-md) var(--space-lg);
+  }
+}
