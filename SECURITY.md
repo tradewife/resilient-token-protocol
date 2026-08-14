@@ -59,6 +59,13 @@ relevant). Never commit secret values to the repo.
    (port 8080, Railway private networking) only clears position state on
    `POST /clear-position` with the operator secret; the deprecated `/clear`
    alias returns 410.
+7. **CORS is allow-listed.** Public API routes
+   (`/api/trader-status`, `/api/mainnet-balance`) echo
+   `Access-Control-Allow-Origin` only when the caller's origin is on the
+   dashboard allow-list in `dashboard/src/lib/cors.ts`; all other origins
+   get no CORS header and the browser blocks them. Never reintroduce
+   `Access-Control-Allow-Origin: *`. To grant a new origin, add it to
+   `ALLOWED_ORIGINS`, never reopen a wildcard.
 
 ## Rotation
 

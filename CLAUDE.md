@@ -262,6 +262,9 @@ after override changes.
 - **Security headers are global** (HSTS, `X-Frame-Options: DENY`, nosniff,
   Referrer-Policy, Permissions-Policy, CSP) via `headers()` in
   `dashboard/next.config.ts`. Keep `frame-ancestors 'none'` / `object-src 'none'`.
+- **CORS is allow-listed** on public API routes — add new origins to
+  `ALLOWED_ORIGINS` in `dashboard/src/lib/cors.ts`; never set
+  `Access-Control-Allow-Origin: *`.
 - Full posture + reporting: `SECURITY.md` (repo root).
 
 ---
