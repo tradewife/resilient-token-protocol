@@ -1,28 +1,11 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useState } from "react";
 import Topbar from "../Topbar";
-import { formatPnlPct, summarizeTradePnl } from "../../lib/tradePnl";
 
 /* ── Types ── */
 
 type Step = "splash" | "questions" | "gate" | "profile" | "results";
-
-type SpecimenTrade = {
-  entry_price: number;
-  exit_price: number;
-  entry_time: number;
-  exit_time: number;
-  pnl_pct: number;
-  size_usd?: number;
-  side?: string;
-};
-
-type SpecimenState = {
-  open_position: { side?: string; entry_price?: number; size_usd?: number } | null;
-  trade_history: SpecimenTrade[];
-  total_trades?: number;
-};
 
 interface BlueprintAnswers {
   q1_venues: string[];
@@ -91,12 +74,6 @@ const PAYMENT_LINK =
 const CAL_BOOK_URL =
   process.env.NEXT_PUBLIC_RTP_DIAGNOSTIC_CAL_URL ||
   "https://cal.com/kate-cooper/30min";
-
-const TRADER_WALLET =
-  process.env.NEXT_PUBLIC_RTP_TRADER_WALLET_PUBKEY ||
-  "HDQ79fQ1YbL9CenS1DzfHizEWGrJdnmo99fgAWmdhuy5";
-
-const EXPLORER_URL = `https://explorer.solana.com/address/${TRADER_WALLET}`;
 
 /* ── Question Definitions ── */
 
@@ -331,44 +308,9 @@ export default function BlueprintPage() {
   const [askQuestion, setAskQuestion] = useState("");
   const [askQuestionSent, setAskQuestionSent] = useState(false);
 
-  const [specimen, setSpecimen] = useState<SpecimenState | null>(null);
-
   const currentQ = QUESTIONS[questionIndex];
   const currentBlock = currentQ?.block;
   const blockTitle = currentQ?.blockTitle;
-
-  // ── Specimen polling ──
-  useEffect(() => {
-    let alive = true;
-    const load = async () => {
-      try {
-        const res = await fetch("/api/trader-status/", { cache: "no-store" });
-        if (!res.ok) return;
-        const data = (await res.json()) as SpecimenState;
-        if (alive) setSpecimen(data);
-      } catch {
-        /* keep prior */
-      }
-    };
-    load();
-    const id = setInterval(load, 30_000);
-    return () => {
-      alive = false;
-      clearInterval(id);
-    };
-  }, []);
-
-  const specimenPnl = useMemo(
-    () => summarizeTradePnl(specimen?.trade_history),
-    [specimen]
-  );
-  const specimenOpen = Boolean(specimen?.open_position);
-  const specimenStatusLabel = specimenOpen
-    ? `${(specimen?.open_position?.side || "Long").toUpperCase()}`
-    : "FLAT";
-  const specimenStatusSub = specimenOpen
-    ? "In position · managing exits"
-    : "Waiting for multi-TF alignment";
 
   // ── Navigation ──
   const goToQuestion = (idx: number) => {
@@ -841,60 +783,7 @@ export default function BlueprintPage() {
 
           {/* CTAs */}
           <section className="compat-shell compat-shell--wide">
-            <div className="compat-results-grid">
-              <div className="compat-results-main">
-                <div className="compat-specimen">
-                  <div className="compat-specimen-head">
-                    <span className="validated-tag">LIVE SPECIMEN</span>
-                    <span className="compat-specimen-title">
-                      SOL/USDT Survivor 2.69 · {specimenOpen ? "live position open" : "waiting for alignment"}
-                    </span>
-                  </div>
-                  <div className="compat-metrics">
-                    <div className="compat-metric">
-                      <span className="compat-metric-val">{specimenStatusLabel}</span>
-                      <span className="compat-metric-lab">{specimenStatusSub}</span>
-                    </div>
-                    <div className="compat-metric">
-                      <span
-                        className="compat-metric-val"
-                        style={{
-                          color:
-                            specimenPnl.tradeCount === 0
-                              ? undefined
-                              : specimenPnl.totalNetPct >= 0
-                                ? "var(--emerald)"
-                                : "var(--coral)",
-                        }}
-                      >
-                        {specimenPnl.tradeCount === 0
-                          ? "—"
-                          : formatPnlPct(specimenPnl.totalNetPct)}
-                      </span>
-                      <span className="compat-metric-lab">
-                        Net closed PnL · measured fees
-                      </span>
-                    </div>
-                    <div className="compat-metric">
-                      <span className="compat-metric-val">
-                        {specimenPnl.tradeCount || specimen?.total_trades || "—"}
-                      </span>
-                      <span className="compat-metric-lab">Closed trades</span>
-                    </div>
-                    <div className="compat-metric">
-                      <span className="compat-metric-val">44.89</span>
-                      <span className="compat-metric-lab">Calmar (research)</span>
-                    </div>
-                  </div>
-                  <p className="compat-specimen-note">
-                    {specimenOpen
-                      ? "Live mainnet specimen on GMTrade. Closed-trade PnL is net of measured venue round-trip fees (0.022%); open mark-to-market is managed by the exit stack, not forced activity."
-                      : "Flat is a feature. The system sits out noise until multiple clean timeframes align: capital preservation over forced activity. Closed-trade PnL is net of measured GMTrade fees."}
-                  </p>
-                </div>
-              </div>
-
-              <aside className="compat-fork">
+            <aside className="compat-fork" style={{ maxWidth: "720px", margin: "0 auto" }}>
                 <div className="sys2-sect-eyebrow">BESPOKE STRATEGY BUILD</div>
                 <h2 className="compat-fork-title">
                   If this blueprint feels right, secure your build slot
@@ -983,7 +872,6 @@ export default function BlueprintPage() {
                   </button>
                 </div>
               </aside>
-            </div>
           </section>
         </>
       )}
