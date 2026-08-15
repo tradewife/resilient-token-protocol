@@ -688,29 +688,28 @@ export default function BlueprintPage() {
         </section>
       )}
 
-      {/* ════════ PROFILE ════════ */}
+      {/* ════════ PROFILE MODAL ════════ */}
       {(step === "profile" || step === "results") && profile && (
-        <>
-          <section className="compat-shell compat-shell--wide">
-            <header className="compat-hero">
-              <div className="compat-hero-copy">
-                <div className="sys2-sect-eyebrow">RESILIENCE BLUEPRINT</div>
-                <h1 className="compat-title compat-title--result">
-                  Your personalised engine profile
-                </h1>
-                <p className="compat-lede">
-                  Based on your answers, here's the blueprint. It maps your
-                  on-chain readiness, risk tolerance, and the engine archetype
-                  that fits your constraints.
-                </p>
-              </div>
-              <div className="compat-hero-side">
-                <span className="sys2-status-pill watching">
-                  <span className="sys2-status-dot" />
-                  Cohort · limited slots
-                </span>
-              </div>
-            </header>
+        <div className="blueprint-modal-overlay">
+          <div className="blueprint-modal">
+            {/* Close button */}
+            <button
+              type="button"
+              className="blueprint-modal-close"
+              onClick={() => {
+                setStep("splash");
+                setQuestionIndex(0);
+                setAnswers(EMPTY_ANSWERS);
+                setGate(EMPTY_GATE);
+                setProfile(null);
+                setSubmitError(null);
+                setAskQuestion("");
+                setAskQuestionSent(false);
+              }}
+              aria-label="Close"
+            >
+              ✕
+            </button>
 
             {/* Profile Card */}
             <div className="blueprint-profile-card">
@@ -779,101 +778,99 @@ export default function BlueprintPage() {
                 </div>
               </div>
             </div>
-          </section>
 
-          {/* CTAs */}
-          <section className="compat-shell compat-shell--wide">
-            <aside className="compat-fork" style={{ maxWidth: "720px", margin: "0 auto" }}>
-                <div className="sys2-sect-eyebrow">BESPOKE STRATEGY BUILD</div>
-                <h2 className="compat-fork-title">
-                  If this blueprint feels right, secure your build slot
-                </h2>
-                <p className="compat-fork-lede">
-                  I reserve a small number of build slots. Once you're in, I
-                  convert this blueprint into a full engine spec and deployment
-                  plan, plus up to four dedicated consultations.
-                </p>
-                <ul className="compat-checks">
-                  <li>Bespoke Strategy Build: A$4,500, one-time</li>
-                  <li>Paper report at measured venue fees + full config</li>
-                  <li>Ten-gate verification on historical data</li>
-                  <li>Up to 4× 45–60 min implementation consultations</li>
-                  <li>Your custody throughout · no capital moves</li>
-                  <li>Initial report 5–8 business days after intake</li>
-                </ul>
-                <div className="compat-fork-actions">
-                  <a
-                    href={PAYMENT_LINK}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="sys2-cta-primary"
-                  >
-                    Secure Bespoke Strategy Build – A$4,500
-                  </a>
-                  <a
-                    href={calBookHref(gate.name, gate.email)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="sys2-cta-secondary"
-                  >
-                    Book a 30-min fit call
-                  </a>
+            {/* CTAs */}
+            <div className="compat-fork" style={{ marginTop: "var(--space-xl)" }}>
+              <div className="sys2-sect-eyebrow">BESPOKE STRATEGY BUILD</div>
+              <h2 className="compat-fork-title">
+                If this blueprint feels right, secure your build slot
+              </h2>
+              <p className="compat-fork-lede">
+                I reserve a small number of build slots. Once you're in, I
+                convert this blueprint into a full engine spec and deployment
+                plan, plus up to four dedicated consultations.
+              </p>
+              <ul className="compat-checks">
+                <li>Bespoke Strategy Build: A$4,500, one-time</li>
+                <li>Paper report at measured venue fees + full config</li>
+                <li>Ten-gate verification on historical data</li>
+                <li>Up to 4× 45–60 min implementation consultations</li>
+                <li>Your custody throughout · no capital moves</li>
+                <li>Initial report 5–8 business days after intake</li>
+              </ul>
+              <div className="compat-fork-actions">
+                <a
+                  href={PAYMENT_LINK}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="sys2-cta-primary"
+                >
+                  Secure Bespoke Strategy Build – A$4,500
+                </a>
+                <a
+                  href={calBookHref(gate.name, gate.email)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="sys2-cta-secondary"
+                >
+                  Book a 30-min fit call
+                </a>
+              </div>
+
+              {/* Secondary CTA: Ask question */}
+              <div className="blueprint-question-cta">
+                <div className="blueprint-question-title">
+                  Still deciding? Ask a question before committing.
                 </div>
-
-                {/* Secondary CTA: Ask question */}
-                <div className="blueprint-question-cta">
-                  <div className="blueprint-question-title">
-                    Still deciding? Ask a question before committing.
+                {askQuestionSent ? (
+                  <p className="compat-gate-lede" style={{ marginTop: "var(--space-sm)" }}>
+                    Thanks — I'll reply by email. In the meantime, the build slot
+                    is open whenever you're ready.
+                  </p>
+                ) : (
+                  <div style={{ display: "flex", gap: "var(--space-sm)", alignItems: "flex-end", flexWrap: "wrap" }}>
+                    <textarea
+                      className="form-input"
+                      rows={2}
+                      value={askQuestion}
+                      onChange={(e) => setAskQuestion(e.target.value)}
+                      placeholder="What would you like to know before you commit?"
+                      style={{ flex: 1, minWidth: "200px" }}
+                    />
+                    <button
+                      type="button"
+                      className="sys2-cta-secondary"
+                      onClick={sendQuestion}
+                      disabled={!askQuestion.trim()}
+                    >
+                      Send
+                    </button>
                   </div>
-                  {askQuestionSent ? (
-                    <p className="compat-gate-lede" style={{ marginTop: "var(--space-sm)" }}>
-                      Thanks — I'll reply by email. In the meantime, the build slot
-                      is open whenever you're ready.
-                    </p>
-                  ) : (
-                    <div style={{ display: "flex", gap: "var(--space-sm)", alignItems: "flex-end", flexWrap: "wrap" }}>
-                      <textarea
-                        className="form-input"
-                        rows={2}
-                        value={askQuestion}
-                        onChange={(e) => setAskQuestion(e.target.value)}
-                        placeholder="What would you like to know before you commit?"
-                        style={{ flex: 1, minWidth: "200px" }}
-                      />
-                      <button
-                        type="button"
-                        className="sys2-cta-secondary"
-                        onClick={sendQuestion}
-                        disabled={!askQuestion.trim()}
-                      >
-                        Send
-                      </button>
-                    </div>
-                  )}
-                </div>
+                )}
+              </div>
 
-                <div className="compat-fork-foot">
-                  <span>RTP-BLUEPRINT-V1</span>
-                  <button
-                    type="button"
-                    className="compat-retake"
-                    onClick={() => {
-                      setStep("splash");
-                      setQuestionIndex(0);
-                      setAnswers(EMPTY_ANSWERS);
-                      setGate(EMPTY_GATE);
-                      setProfile(null);
-                      setSubmitError(null);
-                      setAskQuestion("");
-                      setAskQuestionSent(false);
-                    }}
-                  >
-                    Retake blueprint
-                  </button>
-                </div>
-              </aside>
-          </section>
-        </>
+              <div className="compat-fork-foot" style={{ marginTop: "var(--space-xl)" }}>
+                <span>RTP-BLUEPRINT-V1</span>
+                <button
+                  type="button"
+                  className="compat-retake"
+                  onClick={() => {
+                    setStep("splash");
+                    setQuestionIndex(0);
+                    setAnswers(EMPTY_ANSWERS);
+                    setGate(EMPTY_GATE);
+                    setProfile(null);
+                    setSubmitError(null);
+                    setAskQuestion("");
+                    setAskQuestionSent(false);
+                  }}
+                >
+                  Retake blueprint
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

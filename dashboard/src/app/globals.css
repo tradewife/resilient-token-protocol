@@ -4180,3 +4180,68 @@ button.sys2-cta-secondary:disabled {
     padding: var(--space-md) var(--space-lg);
   }
 }
+
+/* ═══════════════════════════════════════════
+   Blueprint Modal
+   ═══════════════════════════════════════════ */
+
+.blueprint-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: oklch(6% 0.02 160 / 0.85);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: var(--space-2xl) var(--space-md);
+  overflow-y: auto;
+  animation: blueprintModalFadeIn 0.25s ease-out;
+}
+
+@keyframes blueprintModalFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.blueprint-modal {
+  background: var(--surface-0);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  max-width: 720px;
+  width: 100%;
+  padding: var(--space-xl) var(--space-2xl);
+  position: relative;
+  animation: blueprintModalSlideUp 0.3s ease-out;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.5);
+}
+
+@keyframes blueprintModalSlideUp {
+  from { opacity: 0; transform: translateY(24px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.blueprint-modal-close {
+  position: absolute;
+  top: var(--space-md);
+  right: var(--space-md);
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  color: var(--text-tertiary);
+  font-size: 1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  z-index: 10;
+}
+
+.blueprint-modal-close:hover {
+  background: var(--surface-2);
+  color: var(--text-primary);
+  border-color: var(--border-hover);
+}
