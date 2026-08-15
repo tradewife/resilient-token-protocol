@@ -5,7 +5,7 @@ import Topbar from "../Topbar";
 
 /* ── Types ── */
 
-type Step = "splash" | "questions" | "gate" | "profile" | "results";
+type Step = "splash" | "questions" | "gate" | "generating" | "profile" | "results";
 
 interface BlueprintAnswers {
   q1_venues: string[];
@@ -390,8 +390,11 @@ export default function BlueprintPage() {
       }
       const data = await res.json();
       setProfile(data.profile);
-      setStep("profile");
-      if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+      setStep("generating");
+      // Brief moment so the "generating" state is visible before the modal appears.
+      setTimeout(() => {
+        setStep("profile");
+      }, 1400);
     } catch (err) {
       setSubmitError(
         err instanceof Error ? err.message : "Submission failed. Email hello@resilientprotocol.xyz instead."
@@ -688,6 +691,18 @@ export default function BlueprintPage() {
         </section>
       )}
 
+      {/* ════════ GENERATING ════════ */}
+      {step === "generating" && (
+        <div className="blueprint-modal-overlay">
+          <div className="blueprint-modal blueprint-modal--generating">
+            <div className="blueprint-spinner" />
+            <p className="blueprint-generating-text">
+              Computing your Resilience Blueprint…
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* ════════ PROFILE MODAL ════════ */}
       {(step === "profile" || step === "results") && profile && (
         <div className="blueprint-modal-overlay">
@@ -710,6 +725,19 @@ export default function BlueprintPage() {
             >
               ✕
             </button>
+
+            {/* Modal title */}
+            <div className="sys2-sect-eyebrow" style={{ marginBottom: "var(--space-sm)" }}>
+              RESILIENCE BLUEPRINT
+            </div>
+            <h2 className="compat-title compat-title--result" style={{ marginBottom: "var(--space-lg)" }}>
+              Your personalised engine profile
+            </h2>
+            <p className="compat-lede" style={{ marginBottom: "var(--space-xl)" }}>
+              Based on your answers, here's the blueprint. It maps your
+              on-chain readiness, risk tolerance, and the engine archetype
+              that fits your constraints.
+            </p>
 
             {/* Profile Card */}
             <div className="blueprint-profile-card">

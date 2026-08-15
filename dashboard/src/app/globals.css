@@ -4245,3 +4245,30 @@ button.sys2-cta-secondary:disabled {
   color: var(--text-primary);
   border-color: var(--border-hover);
 }
+
+/* Generating spinner */
+.blueprint-modal--generating {
+  max-width: 400px;
+  text-align: center;
+  padding: var(--space-3xl) var(--space-2xl);
+}
+
+.blueprint-spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid var(--border);
+  border-top-color: var(--emerald);
+  border-radius: 50%;
+  animation: blueprintSpin 0.8s linear infinite;
+  margin: 0 auto var(--space-lg);
+}
+
+@keyframes blueprintSpin {
+  to { transform: rotate(360deg); }
+}
+
+.blueprint-generating-text {
+  font-size: 0.9375rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
