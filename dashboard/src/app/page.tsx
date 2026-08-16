@@ -19,6 +19,8 @@ import {
 const TREASURY_AUTHORITY = "********************************************";
 const TREASURY_PDA = "6PYPAnwiMoZvzphAWEu3EsNz3PpwjJ6YcZabj34qVQ4Z";
 const DEVNET_RPC = "https://api.devnet.solana.com";
+// Captured once at module load so render stays pure (React compiler rule).
+const PAGE_LOAD_TS = Date.now();
 
 const MAINNET_TXS = [
   { label: "Open · CPI invoke_signed", tx: "2bLg1FuJ6iqwYq6SKi5EcZQWszarDZhS68bCbGTRLKMwhYqsU7G57fTtG4G6GFx3ZKN15qhb85zy28pGJvSdrnG3", note: "99,214 CU", kind: "open" },
@@ -268,10 +270,11 @@ export default function Home() {
 
   // ── Yield received ──
   useEffect(() => {
-    if (!publicKey) { setYieldReceived(null); return; }
+    if (!publicKey) return;
     let cancelled = false;
-    setYieldLoading(true);
     (async () => {
+      setYieldReceived(null);
+      setYieldLoading(true);
       try {
         const devnetConn = new (await import("@solana/web3.js")).Connection(DEVNET_RPC, "confirmed");
         const treasuryPubkey = new PublicKey(TREASURY_PDA);
@@ -312,9 +315,11 @@ export default function Home() {
   const totalPnlPct = pnl.totalNetPct;
   const winRate = pnl.winRatePct;
 
+  // Date.now() at module load keeps render pure (React compiler rule);
+  // days-running only needs per-page-load granularity.
   const daysRunning = useMemo(() => {
     const deployedAt = new Date("2026-05-12T04:20:00Z").getTime();
-    return Math.max(0, Math.ceil((Date.now() - deployedAt) / 86400000));
+    return Math.max(0, Math.ceil((PAGE_LOAD_TS - deployedAt) / 86400000));
   }, []);
 
   const traderStatus =

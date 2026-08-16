@@ -1,0 +1,12 @@
+# nextest configuration — CI profile emits JUnit XML so test timing and
+# per-test results are uploaded as workflow artifacts (test reporting).
+[profile.default]
+slow-timeout = { period = "30s", terminate-after = 3 }
+
+[profile.ci]
+fail-fast = false
+# Show slowest tests in output (test performance visibility).
+slow-timeout = { period = "10s", terminate-after = 3 }
+
+[profile.ci.junit]
+path = "junit.xml"

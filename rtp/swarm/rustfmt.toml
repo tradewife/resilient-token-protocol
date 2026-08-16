@@ -1,0 +1,4 @@
+# rustfmt config so file-level invocations (lint-staged pre-commit)
+# match the crate edition. cargo fmt reads this from Cargo.toml
+# automatically, but bare rustfmt on a single file does not.
+edition = "2024"

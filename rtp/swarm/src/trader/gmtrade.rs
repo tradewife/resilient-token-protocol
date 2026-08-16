@@ -36,6 +36,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use gmsol_sdk::Client;
+use gmsol_sdk::IntoAtomicGroup;
 use gmsol_sdk::builders::token::WrapNative;
 use gmsol_sdk::client::ops::ExchangeOps;
 use gmsol_sdk::solana_utils::cluster::Cluster;
@@ -43,7 +44,6 @@ use gmsol_sdk::solana_utils::instruction_group::{ComputeBudgetOptions, GetInstru
 use gmsol_sdk::solana_utils::solana_sdk::instruction::Instruction;
 use gmsol_sdk::solana_utils::solana_sdk::pubkey::Pubkey as GmPubkey;
 use gmsol_sdk::solana_utils::solana_sdk::signature::{Keypair as GmKeypair, read_keypair_file};
-use gmsol_sdk::IntoAtomicGroup;
 use solana_sdk::signer::Signer;
 
 use crate::trader::executor::PositionInfo;
@@ -313,9 +313,8 @@ async fn oi_headroom_usd(v: &Venue, is_long: bool, sol_price: f64) -> GmResult<f
     }
 
     // OI-in-tokens / OI pools: gmsol Merged/Balance long_amount sums both legs.
-    let pool_amount = |long_raw: u128, short_raw: u128| -> u128 {
-        long_raw.saturating_add(short_raw)
-    };
+    let pool_amount =
+        |long_raw: u128, short_raw: u128| -> u128 { long_raw.saturating_add(short_raw) };
 
     // Pessimistic oracle band: pool at min, long reserved at index max.
     let pool_px = sol_price * (1.0 - OI_PRICE_BAND);
@@ -344,8 +343,14 @@ async fn oi_headroom_usd(v: &Venue, is_long: bool, sol_price: f64) -> GmResult<f
         let pool_tokens = side_pool_raw as f64 / 1e9;
         let pool_value = pool_tokens * pool_px;
         let oi_tok_raw = pool_amount(
-            pools.open_interest_in_tokens_for_long.pool.long_token_amount,
-            pools.open_interest_in_tokens_for_long.pool.short_token_amount,
+            pools
+                .open_interest_in_tokens_for_long
+                .pool
+                .long_token_amount,
+            pools
+                .open_interest_in_tokens_for_long
+                .pool
+                .short_token_amount,
         );
         let reserved = (oi_tok_raw as f64 / 1e9) * index_max_px;
         let oi = pool_amount(
@@ -803,9 +808,7 @@ async fn wait_for_fill(
                 _ => None,
             });
             if trade.is_some() {
-                tracing::info!(
-                    "[GM] recovered TradeEvent from historical scan for {order}"
-                );
+                tracing::info!("[GM] recovered TradeEvent from historical scan for {order}");
             } else {
                 tracing::warn!(
                     "[GM] historical scan found no TradeEvent for our order {order} \

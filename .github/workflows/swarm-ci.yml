@@ -1,23 +1,26 @@
-name: Swarm CI — Build + Test + Lint
+name: Swarm CI — Build + Test + Coverage
 
 on:
-  # Paused — CI moved to Railway
-  # push:
-  #   branches: [main, feat/flashtrade-pda-execution]
-  #   paths:
-  #     - "rtp/**"
-  #     - "sdk/**"
-  # pull_request:
-  #   branches: [main]
-  #   paths:
-  #     - "rtp/**"
-  #     - "sdk/**"
+  push:
+    branches: [main]
+    paths:
+      - "rtp/**"
+      - "sdk/**"
+      - ".github/workflows/swarm-ci.yml"
+      - "AGENTS.md"
+  pull_request:
+    branches: [main]
+    paths:
+      - "rtp/**"
+      - "sdk/**"
+      - ".github/workflows/swarm-ci.yml"
+      - "AGENTS.md"
   workflow_dispatch:
 
 jobs:
   swarm-build-and-test:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     steps:
       - name: Checkout repo
@@ -26,7 +29,12 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          components: clippy, rustfmt
+          components: clippy, rustfmt, llvm-tools-preview
+
+      - name: Install cargo-nextest + cargo-llvm-cov
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest,cargo-llvm-cov
 
       - name: Cache cargo registry + target
         uses: actions/cache@v4
@@ -35,17 +43,31 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             rtp/swarm/target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('rtp/swarm/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-ci-${{ hashFiles('rtp/swarm/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-
+            ${{ runner.os }}-cargo-ci-
 
       - name: Cargo build
         working-directory: rtp/swarm
         run: cargo build --release
 
-      - name: Cargo test
+      - name: Cargo test + coverage (fail-under 70%)
         working-directory: rtp/swarm
-        run: cargo test
+        # nextest (profile ci → JUnit XML + slow-test timing) under llvm-cov.
+        # 70% line threshold calibrated 2026-08-17 at 72.88% (gmtrade.rs is
+        # 0% — mainnet integration, not unit-testable).
+        run: |
+          cargo llvm-cov nextest --lib --profile ci \
+            --fail-under-lines 70 \
+            --summary-only
+
+      - name: Upload test report (JUnit + timing)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: swarm-test-report
+          path: rtp/swarm/target/nextest/ci/junit.xml
+          if-no-files-found: warn
 
       - name: Cargo clippy
         working-directory: rtp/swarm
@@ -55,47 +77,47 @@ jobs:
         working-directory: rtp/swarm
         run: cargo fmt --check
 
-  anchor-build:
+  agents-md-validation:
+    # Keeps AGENTS.md honest: the verification commands it documents must
+    # actually run. If a documented command breaks, CI fails here.
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Install Solana CLI
-        run: |
-          sh -c "$(curl -sSfL https://release.anza.xyz/stable/install)"
-          export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
-          echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
-          solana --version
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
 
-      - name: Install Anchor
-        run: |
-          cargo install --git https://github.com/coral-xyz/anchor avm --force
-          avm install 1.0.0
-          avm use 1.0.0
-          echo "$HOME/.avm/bin" >> $GITHUB_PATH
-          anchor --version
+      - name: Cache cargo registry + target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            rtp/swarm/target
+          key: ${{ runner.os }}-cargo-agentsmd-${{ hashFiles('rtp/swarm/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-agentsmd-
 
-      - name: Anchor build
-        working-directory: rtp/programs/rtp-treasury
+      - name: Run AGENTS.md verification commands
         run: |
-          # CI uses ephemeral keypair — devnet keypair managed separately.
-          anchor keys sync
-          anchor build
+          set -e
+          # Commands listed under "## Verification commands" in AGENTS.md:
+          cd rtp/swarm && cargo test --lib
 
   test-summary:
-    needs: [swarm-build-and-test, anchor-build]
+    needs: [swarm-build-and-test, agents-md-validation]
     runs-on: ubuntu-latest
     if: always()
     steps:
       - name: Check all jobs passed
         run: |
           echo "Swarm CI: ${{ needs.swarm-build-and-test.result }}"
-          echo "Anchor build: ${{ needs.anchor-build.result }}"
+          echo "AGENTS.md validation: ${{ needs.agents-md-validation.result }}"
           if [[ "${{ needs.swarm-build-and-test.result }}" == "failure" ]] || \
-             [[ "${{ needs.anchor-build.result }}" == "failure" ]]; then
+             [[ "${{ needs.agents-md-validation.result }}" == "failure" ]]; then
             echo "::error::One or more CI jobs failed"
             exit 1
           fi

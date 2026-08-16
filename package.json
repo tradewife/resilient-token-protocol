@@ -1,0 +1,22 @@
+{
+  "name": "resilient-token-protocol",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "deck:pdf": "node scripts/generate-deck-pdf.mjs",
+    "deck:open": "node scripts/generate-deck-pdf.mjs --open",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "husky": "^9.1.7",
+    "lint-staged": "^17.3.0",
+    "puppeteer": "^24.8.0"
+  },
+  "lint-staged": {
+    "rtp/**/*.rs": "rustfmt",
+    "dashboard/**/*.{ts,tsx}": "dashboard/node_modules/.bin/eslint --fix --config dashboard/eslint.config.mjs"
+  },
+  "dependencies": {
+    "@flash_trade/flash-sdk-v2": "^1.0.36"
+  }
+}
