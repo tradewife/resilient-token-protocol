@@ -29,6 +29,10 @@ updates:
         update-types: ["version-update:semver-major"]
       - dependency-name: "@types/node"
         update-types: ["version-update:semver-major"]
+      # eslint 10 crashes eslint-plugin-react (unported to the new API) —
+      # revisit when eslint-config-next supports eslint 10.
+      - dependency-name: "eslint"
+        update-types: ["version-update:semver-major"]
     commit-message:
       prefix: "deps(dashboard)"
 
