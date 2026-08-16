@@ -11,6 +11,8 @@ updates:
     commit-message:
       prefix: "deps"
 
+  # NOTE: /cli deliberately absent — Flash Trade wound down Aug 2026 (execution
+  # moved to GMTrade); cli/ is frozen legacy. No automated updates there.
   - package-ecosystem: "npm"
     directory: "/dashboard"
     schedule:
@@ -19,6 +21,14 @@ updates:
     groups:
       next-js:
         patterns: ["next", "eslint-config-next"]
+    ignore:
+      # TS 7 is the native-compiler rewrite; revisit manually when the
+      # ecosystem settles. @types/node majors track Node runtime upgrades
+      # (currently Node 22) — bump deliberately, not automatically.
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
     commit-message:
       prefix: "deps(dashboard)"
 
@@ -31,18 +41,13 @@ updates:
       prefix: "deps(sdk)"
 
   - package-ecosystem: "npm"
-    directory: "/cli"
-    schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 5
-    commit-message:
-      prefix: "deps(cli)"
-
-  - package-ecosystem: "npm"
     directory: "/scripts"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    ignore:
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
     commit-message:
       prefix: "deps(scripts)"
 
