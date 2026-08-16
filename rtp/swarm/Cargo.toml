@@ -25,7 +25,7 @@ tokio = { version = "1", features = ["full"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 dashmap = "6"
-aes-gcm = "0.10"
+aes-gcm = "0.11"
 hex = "0.4"
 reqwest = { version = "0.12", default-features = false, features = ["json", "blocking", "rustls-tls"] }
 sha3 = "0.10"
