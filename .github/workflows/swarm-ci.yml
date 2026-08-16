@@ -27,7 +27,10 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        # Pinned to match the dev toolchain + Docker builders (1.94).
+        # stable (1.97 at first enable) fired lints that never appear
+        # locally — keep CI deterministic with the local environment.
+        uses: dtolnay/rust-toolchain@1.94.0
         with:
           components: clippy, rustfmt, llvm-tools-preview
 
@@ -88,7 +91,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.94.0
 
       - name: Cache cargo registry + target
         uses: actions/cache@v4

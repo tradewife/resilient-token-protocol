@@ -299,10 +299,11 @@ fn operator_authorized(request: &str) -> bool {
         return false;
     }
 
-    if let Some(auth) = request_header(request, "authorization") {
-        if auth.len() >= 7 && auth[..7].eq_ignore_ascii_case("bearer ") {
-            return auth[7..].trim() == secret;
-        }
+    if let Some(auth) = request_header(request, "authorization")
+        && auth.len() >= 7
+        && auth[..7].eq_ignore_ascii_case("bearer ")
+    {
+        return auth[7..].trim() == secret;
     }
 
     request_header(request, "x-rtp-operator-secret")
@@ -532,8 +533,8 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
     let mut params = StrategyParams::load_from_daemon_config();
 
     // Apply operational overrides from env. Both are loosening-only.
-    let min_align_before = params.min_alignment;
-    let signal_before = params.signal_threshold;
+    let _min_align_before = params.min_alignment;
+    let _signal_before = params.signal_threshold;
     if let Some(v) = min_alignment_override {
         if v < params.min_alignment {
             tracing::warn!(
@@ -901,6 +902,13 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
 
 /// Run a single trading cycle: fetch price → check exit → check entry → save.
 /// Returns Err only for fatal-ish errors. Most errors are logged and swallowed.
+///
+/// `too_many_arguments`: the parameter list is the cycle's full context
+/// (config, keys, strategy params, TF buffers, shared state, refresh
+/// schedule, entry cooldown). Bundling it into a struct would be churn on
+/// live trading code for no behavior change; the single call site passes
+/// everything through explicitly, which keeps the data flow readable.
+#[allow(clippy::too_many_arguments)]
 async fn run_cycle(
     config: &TraderConfig,
     keypair: &solana_sdk::signature::Keypair,

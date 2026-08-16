@@ -23,6 +23,9 @@ const DEFAULT_V2_RPC: &str = "https://flash.magicblock.xyz";
 /// we hold off and surface a "node unavailable" error to the caller. Caller
 /// falls back to the legacy REST path on this error.
 const SDK_MAX_RESPAWNS_PER_MINUTE: u32 = 3;
+// Retained Flash-era fallback plumbing — referenced from docs and reserved
+// for the respawn-hold path if the legacy REST fallback is re-enabled.
+#[allow(dead_code)]
 const SDK_RESPAWN_HOLD_MS: u64 = 5_000;
 
 /// Default path the wrapper lives at inside the trader Docker image.
@@ -37,7 +40,10 @@ fn solana_rpc_url() -> String {
     std::env::var("RTP_SOLANA_RPC_URL").unwrap_or_else(|_| MAINNET_RPC.to_string())
 }
 
-/// JSON-RPC request to Node.js wrapper
+/// JSON-RPC request to Node.js wrapper. `jsonrpc`/`id` are part of the
+/// JSON-RPC 2.0 envelope (written on construction/serialize, never read
+/// back); the whole type is retained Flash-era plumbing.
+#[allow(dead_code)]
 #[derive(Serialize, Deserialize, Debug)]
 struct SdkRequest {
     jsonrpc: String,
@@ -46,7 +52,9 @@ struct SdkRequest {
     id: u64,
 }
 
-/// JSON-RPC response from Node.js wrapper
+/// JSON-RPC response from Node.js wrapper. `jsonrpc`/`id` are part of the
+/// JSON-RPC 2.0 envelope (deserialized for validation, never read back).
+#[allow(dead_code)]
 #[derive(Deserialize, Debug)]
 struct SdkResponse {
     jsonrpc: String,
@@ -349,6 +357,8 @@ impl FlashSdkClient {
     }
 
     /// Get current price via SDK.
+    /// (Retained Flash-era price path; the GM venue supplies prices now.)
+    #[allow(dead_code)]
     pub async fn get_price(&mut self, symbol: &str, side: &str) -> Result<(u64, i32), String> {
         let params = serde_json::json!({ "symbol": symbol, "side": side });
         let result = self.call("get_price", params).await?;
@@ -443,6 +453,8 @@ async fn try_get_sdk_client() -> Result<tokio::sync::MutexGuard<'static, FlashSd
 /// Drop the dead client so the next caller respawns. Called from `open_position`
 /// / `close_position` when the SDK call returns an error indicating the child
 /// process is dead (timeout, EOF, parse failure).
+/// (Retained Flash-era plumbing; the respawn path guards via the cell check.)
+#[allow(dead_code)]
 async fn sdk_mark_dead() {
     let Some(state_cell) = FLASH_SDK_CLIENT.get() else {
         return;
@@ -768,21 +780,17 @@ pub async fn open_position(
                 Ok(pos) => {
                     let size = pos.size_usd_ui.parse().unwrap_or(size_usd);
                     let entry = pos.entry_price_ui.parse().unwrap_or(entry_price);
-                    return Ok((sig, size, entry));
+                    Ok((sig, size, entry))
                 }
-                Err(e) => {
-                    return Err(format!(
-                        "SDK open returned sig {sig} but position not visible: {e}"
-                    ));
-                }
+                Err(e) => Err(format!(
+                    "SDK open returned sig {sig} but position not visible: {e}"
+                )),
             }
         }
-        Err(sdk_err) => {
-            return Err(format!(
-                "open_position failed on both paths: REST: {} | SDK: {}",
-                rest_err, sdk_err
-            ));
-        }
+        Err(sdk_err) => Err(format!(
+            "open_position failed on both paths: REST: {} | SDK: {}",
+            rest_err, sdk_err
+        )),
     }
 }
 
@@ -880,7 +888,7 @@ async fn open_position_via_rest(
                     } else {
                         "Short"
                     };
-                    match wait_for_sol_position(&wallet, side_for_wait, 12).await {
+                    match wait_for_sol_position(wallet, side_for_wait, 12).await {
                         Ok(pos) => {
                             let size = pos.size_usd_ui.parse().unwrap_or(size_usd);
                             let entry = pos.entry_price_ui.parse().unwrap_or(entry_price);
@@ -1134,10 +1142,10 @@ async fn confirm_signature(
             .unwrap_or(serde_json::Value::Null);
 
         if !status.is_null() {
-            if let Some(err) = status.get("err") {
-                if !err.is_null() {
-                    return Err(format!("Transaction failed on-chain ({signature}): {err}"));
-                }
+            if let Some(err) = status.get("err")
+                && !err.is_null()
+            {
+                return Err(format!("Transaction failed on-chain ({signature}): {err}"));
             }
             let conf = status
                 .get("confirmationStatus")
@@ -1190,17 +1198,17 @@ async fn confirm_signature_via_get_transaction(
             .await
             .map_err(|e| format!("getTransaction parse error: {e}"))?;
 
-        if let Some(result) = json.get("result") {
-            if !result.is_null() {
-                let err = result.pointer("/meta/err");
-                if err.map(|e| !e.is_null()).unwrap_or(false) {
-                    return Err(format!(
-                        "Transaction failed on-chain ({signature}): {}",
-                        err.unwrap()
-                    ));
-                }
-                return Ok(());
+        if let Some(result) = json.get("result")
+            && !result.is_null()
+        {
+            let err = result.pointer("/meta/err");
+            if err.map(|e| !e.is_null()).unwrap_or(false) {
+                return Err(format!(
+                    "Transaction failed on-chain ({signature}): {}",
+                    err.unwrap()
+                ));
             }
+            return Ok(());
         }
 
         if std::time::Instant::now() >= deadline {

@@ -306,7 +306,7 @@ async fn oi_headroom_usd(v: &Venue, is_long: bool, sol_price: f64) -> GmResult<f
     let pools = &market.state.pools;
 
     let reserve_factor = cfg.open_interest_reserve_factor as f64 / USD_SCALE;
-    if !(reserve_factor > 0.0) || !reserve_factor.is_finite() {
+    if reserve_factor <= 0.0 || !reserve_factor.is_finite() {
         return Err(format!(
             "GM open_interest_reserve_factor out of range: {reserve_factor}"
         ));
