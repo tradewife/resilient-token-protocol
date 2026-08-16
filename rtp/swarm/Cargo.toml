@@ -36,7 +36,7 @@ rmp = "0.8"
 # system_program, transactions) which are identical across 2.x.
 solana-sdk = "2.1"
 bincode = "1"
-base64 = "0.22"
+base64 = "0.23"
 # GMTrade execution venue (gmx-solana). Pinned at the commit validated by the
 # keeper-fill probe (research/missions/gmtrade_probe/TRADE-PROBE-RESULTS.md).
 gmsol-sdk = { git = "https://github.com/gmsol-labs/gmx-solana", rev = "3175cda304748ef24cbf96156021a320dbf1f061", default-features = false, features = ["client", "decode"] }
