@@ -34,7 +34,7 @@ rmp = "0.8"
 # Pinned to 2.1 to unify with gmsol-sdk's internal solana-sdk range
 # (>=2.1,<2.2). The swarm only uses basic SDK APIs (signer, pubkey,
 # system_program, transactions) which are identical across 2.x.
-solana-sdk = "2.1"
+solana-sdk = "4.1"
 bincode = "1"
 base64 = "0.23"
 # GMTrade execution venue (gmx-solana). Pinned at the commit validated by the
