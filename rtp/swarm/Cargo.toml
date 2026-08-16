@@ -35,7 +35,7 @@ rmp = "0.8"
 # (>=2.1,<2.2). The swarm only uses basic SDK APIs (signer, pubkey,
 # system_program, transactions) which are identical across 2.x.
 solana-sdk = "2.1"
-bincode = "1"
+bincode = "3"
 base64 = "0.23"
 # GMTrade execution venue (gmx-solana). Pinned at the commit validated by the
 # keeper-fill probe (research/missions/gmtrade_probe/TRADE-PROBE-RESULTS.md).

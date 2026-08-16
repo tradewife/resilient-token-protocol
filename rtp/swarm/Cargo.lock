@@ -283,7 +283,7 @@ dependencies = [
  "anchor-derive-serde",
  "anchor-derive-space",
  "base64 0.21.7",
- "bincode",
+ "bincode 1.3.3",
  "borsh 0.10.4",
  "bytemuck",
  "solana-program",
@@ -657,6 +657,12 @@ checksum = "b1f45e9417d87227c7a56d22e471c6206462cba514c7590c09aff4cf6d1ddcad"
 dependencies = [
  "serde",
 ]
+
+[[package]]
+name = "bincode"
+version = "3.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fd6a120d2e16b3e1b4a24bd70f23b12d3e16b81f113364a26935f8db7245452d"
 
 [[package]]
 name = "bitflags"
@@ -3826,7 +3832,7 @@ version = "0.1.0"
 dependencies = [
  "aes-gcm",
  "base64 0.23.1",
- "bincode",
+ "bincode 3.0.0",
  "chrono",
  "dashmap 6.2.1",
  "gmsol-sdk",
@@ -4405,7 +4411,7 @@ version = "2.1.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d9a495abef137c65f58282720384262503172cddb937c94c1a01f0a6c553a0dc"
 dependencies = [
- "bincode",
+ "bincode 1.3.3",
  "serde",
  "serde_bytes",
  "serde_derive",
@@ -4421,7 +4427,7 @@ checksum = "86e83b9f421857e9aee51df52aab53d03a9f5860a57c0adcda8a480392f2f85a"
 dependencies = [
  "Inflector",
  "base64 0.22.1",
- "bincode",
+ "bincode 1.3.3",
  "bs58",
  "bv",
  "lazy_static",
@@ -4461,7 +4467,7 @@ version = "2.1.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9b43b59c9659eb61504c4cc73a92a5995a117fa4ffc04bb0da002848cfdd7fcd"
 dependencies = [
- "bincode",
+ "bincode 1.3.3",
  "serde",
  "solana-program-error",
  "solana-program-memory",
@@ -4483,7 +4489,7 @@ version = "2.1.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f7c4ce8ddc2f5343e64346f9f8a05e9f27579d848f059485290d5b9c962c352c"
 dependencies = [
- "bincode",
+ "bincode 1.3.3",
  "serde",
  "solana-instruction",
 ]
@@ -4520,7 +4526,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f9e8b895b90c53861d2c9cfa5fa50ec1ff4eb5df904f8c3ef604c3c7d21bc048"
 dependencies = [
  "async-trait",
- "bincode",
+ "bincode 1.3.3",
  "dashmap 5.5.3",
  "futures",
  "futures-util",
@@ -4572,7 +4578,7 @@ version = "2.1.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dbb08509a0969a3929fc48de314af650ce77d678ec742e49b6f60535c57eccb2"
 dependencies = [
- "bincode",
+ "bincode 1.3.3",
  "chrono",
  "serde",
  "serde_derive",
@@ -4589,7 +4595,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dacc24987ab8878540216bbf98d637d9fc1df84722bf8e90a2f4f546d720d808"
 dependencies = [
  "async-trait",
- "bincode",
+ "bincode 1.3.3",
  "crossbeam-channel",
  "futures-util",
  "indexmap 2.13.1",
@@ -4737,7 +4743,7 @@ version = "2.1.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6cfdcaf08849c1828899c5f9ac8da6077bd3b339e2b0648b2d99d3fd780c3c6f"
 dependencies = [
- "bincode",
+ "bincode 1.3.3",
  "borsh 1.6.1",
  "getrandom 0.2.17",
  "js-sys",
@@ -4812,7 +4818,7 @@ version = "2.1.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f7e51e4517d9580de18b36d9ad8743b76b58332cbdbcf86931a4627e4f01e13b"
 dependencies = [
- "bincode",
+ "bincode 1.3.3",
  "crossbeam-channel",
  "log",
  "nix",
@@ -4831,7 +4837,7 @@ version = "2.1.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a46ca92cd3303aa3a225b4b3b4d9b2d29e42927545f1c1ff4042ca516b4decbd"
 dependencies = [
- "bincode",
+ "bincode 1.3.3",
  "bitflags 2.11.0",
  "cfg_eval",
  "serde",
@@ -4846,7 +4852,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a89bb80d7168654e72c3414b70d6c6e8fcd2de7eb291ed72e4a646f133b8b8e1"
 dependencies = [
  "ahash 0.8.12",
- "bincode",
+ "bincode 1.3.3",
  "bv",
  "caps",
  "curve25519-dalek 4.1.3",
@@ -4883,7 +4889,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1c3aa133068171f46e9583dc9c20221b9a67459e7b8aecd3be5b49af60b2887f"
 dependencies = [
  "base64 0.22.1",
- "bincode",
+ "bincode 1.3.3",
  "bitflags 2.11.0",
  "blake3",
  "borsh 0.10.4",
@@ -5009,7 +5015,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7702436e95dadea0553a5b29b42271b81da61c2ae78e4425c74fadd7ce2252b5"
 dependencies = [
  "base64 0.22.1",
- "bincode",
+ "bincode 1.3.3",
  "enum-iterator",
  "itertools 0.12.1",
  "libc",
@@ -5140,7 +5146,7 @@ checksum = "5dd7f12d85566cd6657548d545b0ef231eeb9b290bbed690fb7221dac27426ac"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
- "bincode",
+ "bincode 1.3.3",
  "bs58",
  "indicatif",
  "log",
@@ -5206,7 +5212,7 @@ version = "2.1.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cef4d9a579ff99aa5109921f729ab9cba07b207486b2c1eab8240c97777102ba"
 dependencies = [
- "bincode",
+ "bincode 1.3.3",
  "bitflags 2.11.0",
  "borsh 1.6.1",
  "bs58",
@@ -5450,7 +5456,7 @@ version = "2.1.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "088dc95940d918063ddb317911b4c52c4647bfc68f012cde71bd2cd728a78a82"
 dependencies = [
- "bincode",
+ "bincode 1.3.3",
  "log",
  "rayon",
  "solana-connection-cache",
@@ -5477,7 +5483,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9488a780907414a3688bec172e5a659639fd4bfcf2316ebd1e38eb945e8c16ef"
 dependencies = [
  "async-trait",
- "bincode",
+ "bincode 1.3.3",
  "futures-util",
  "indexmap 2.13.1",
  "indicatif",
@@ -5512,7 +5518,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0da8cde1a888002debdbb216efdb9b86de52df48fa2804bb66ea7c780465e79d"
 dependencies = [
  "base64 0.22.1",
- "bincode",
+ "bincode 1.3.3",
  "lazy_static",
  "log",
  "rand 0.8.5",
@@ -5529,7 +5535,7 @@ checksum = "d7c62ad1caf3e15f05cf40dc82e765319750b4f6a48e1ad3ae2e8a4f6be6e7de"
 dependencies = [
  "Inflector",
  "base64 0.22.1",
- "bincode",
+ "bincode 1.3.3",
  "borsh 1.6.1",
  "bs58",
  "lazy_static",
@@ -5556,7 +5562,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "836a0e47c3d688676b37c1e3ff6a1fbb6a8b3bfaf050ee6343b6b993e3cc91cd"
 dependencies = [
  "base64 0.22.1",
- "bincode",
+ "bincode 1.3.3",
  "bs58",
  "serde",
  "serde_derive",
@@ -5626,7 +5632,7 @@ version = "2.1.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0fcfb452c460133ba79f50437f455d50d0cf59f9937c2e680c4dc54e021b9bca"
 dependencies = [
- "bincode",
+ "bincode 1.3.3",
  "log",
  "num-derive 0.4.2",
  "num-traits",
@@ -5648,7 +5654,7 @@ checksum = "f166693492d3d4af95b75a06471d83a60d71b6b02172ff7364f572330d20158e"
 dependencies = [
  "aes-gcm-siv",
  "base64 0.22.1",
- "bincode",
+ "bincode 1.3.3",
  "bytemuck",
  "bytemuck_derive",
  "curve25519-dalek 4.1.3",
@@ -5680,7 +5686,7 @@ checksum = "8c2cc3254bc3d6f09fcf7677a4606d8bb5d7719860065cde3dd8e7e41022740a"
 dependencies = [
  "aes-gcm-siv",
  "base64 0.22.1",
- "bincode",
+ "bincode 1.3.3",
  "bytemuck",
  "bytemuck_derive",
  "byteorder",
