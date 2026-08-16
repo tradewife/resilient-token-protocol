@@ -3,7 +3,7 @@
 
 use aes_gcm::{
     AeadCore, Aes256Gcm, Nonce,
-    aead::{Aead, KeyInit, OsRng},
+    aead::{Aead, Generate, KeyInit},
 };
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
@@ -101,8 +101,8 @@ impl ConfigEncryption {
     /// Pass `None` for plaintext mode, `Some(key_bytes)` for encrypted mode.
     pub fn with_dir_and_key(dir: PathBuf, key: Option<&[u8; 32]>) -> Self {
         let cipher = key.map(|k| {
-            let key = aes_gcm::Key::<Aes256Gcm>::from_slice(k);
-            Aes256Gcm::new(key)
+            let key: aes_gcm::Key<Aes256Gcm> = (*k).into();
+            Aes256Gcm::new(&key)
         });
         Self {
             cipher,
@@ -129,7 +129,7 @@ impl ConfigEncryption {
             .map_err(|e| ConfigError::EncryptionError(format!("Serialize error: {}", e)))?;
 
         if let Some(ref cipher) = self.cipher {
-            let nonce = Aes256Gcm::generate_nonce(&mut OsRng);
+            let nonce = Nonce::<<Aes256Gcm as AeadCore>::NonceSize>::generate();
             let ciphertext = cipher
                 .encrypt(&nonce, json_bytes.as_ref())
                 .map_err(|e| ConfigError::EncryptionError(format!("AES-GCM encrypt: {}", e)))?;
@@ -250,8 +250,10 @@ impl ConfigEncryption {
             )));
         }
 
-        let key = aes_gcm::Key::<Aes256Gcm>::from_slice(&key_bytes);
-        Ok(Some(Aes256Gcm::new(key)))
+        let key: aes_gcm::Key<Aes256Gcm> =
+            aes_gcm::Key::<Aes256Gcm>::try_from(key_bytes.as_slice())
+                .map_err(|e| ConfigError::KeyError(format!("Invalid key length: {}", e)))?;
+        Ok(Some(Aes256Gcm::new(&key)))
     }
 
     fn decrypt_config(&self, encrypted: &EncryptedConfig) -> Result<ConfigEntry, ConfigError> {
@@ -266,10 +268,13 @@ impl ConfigEncryption {
         let nonce_bytes = hex::decode(&encrypted.nonce_hex)
             .map_err(|e| ConfigError::DecryptionError(format!("Invalid nonce hex: {}", e)))?;
 
-        let nonce = Nonce::from_slice(&nonce_bytes);
+        let nonce: Nonce<<Aes256Gcm as AeadCore>::NonceSize> =
+            Nonce::<<Aes256Gcm as AeadCore>::NonceSize>::try_from(nonce_bytes.as_slice()).map_err(
+                |e| ConfigError::DecryptionError(format!("Invalid nonce length: {}", e)),
+            )?;
 
         let plaintext = cipher
-            .decrypt(nonce, ciphertext.as_ref())
+            .decrypt(&nonce, ciphertext.as_ref())
             .map_err(|e| ConfigError::DecryptionError(format!("AES-GCM decrypt: {}", e)))?;
 
         let entry: ConfigEntry = serde_json::from_slice(&plaintext)
@@ -310,9 +315,9 @@ mod tests {
     fn make_key() -> [u8; 32] {
         // Generate a random 256-bit key for testing.
         // Use three 12-byte nonces to fill 32 bytes.
-        let n1 = Aes256Gcm::generate_nonce(&mut OsRng);
-        let n2 = Aes256Gcm::generate_nonce(&mut OsRng);
-        let n3 = Aes256Gcm::generate_nonce(&mut OsRng);
+        let n1 = Nonce::<<Aes256Gcm as AeadCore>::NonceSize>::generate();
+        let n2 = Nonce::<<Aes256Gcm as AeadCore>::NonceSize>::generate();
+        let n3 = Nonce::<<Aes256Gcm as AeadCore>::NonceSize>::generate();
         let mut key_bytes = [0u8; 32];
         key_bytes[..12].copy_from_slice(&n1);
         key_bytes[12..24].copy_from_slice(&n2);
