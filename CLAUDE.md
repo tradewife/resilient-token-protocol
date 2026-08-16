@@ -280,6 +280,9 @@ after override changes.
 
 ## Quick setup
 
+(Agent quick-reference: see `AGENTS.md` — layout, build/test commands,
+naming conventions, and the CI-verified command list.)
+
 ```bash
 # Dashboard
 cd dashboard && npm ci && npm run dev      # http://127.0.0.1:3000
