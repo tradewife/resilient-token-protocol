@@ -127,6 +127,15 @@ program interactions.
 - **GMTrade position sizing** — keep `RTP_TRADER_POSITION_FRACTION=0.20`
   and a collateral floor (`RTP_TRADER_MIN_OPEN_COLLATERAL_LAMPORTS`) that
   clears the venue's minimum-notional requirement.
+- **GMTrade fill attribution MUST be verified** — gmsol-sdk's
+  `complete_order()` watches STORE-WIDE CPI events and returns the last
+  `TradeEvent` before any `OrderRemoved`, WITHOUT checking it belongs to
+  our order PDA. Keepers batch many traders' fills in one tx, so a foreign
+  fill can be handed back (Aug 9: a close logged `FILLED @ $3.12 pnl
+  $391.12` on a $320 SOL long — another trader's event). `wait_for_fill`
+  re-checks `TradeEvent.order == our order PDA` on every path and falls
+  back to an order-PDA-scoped historical scan. Do NOT trust an SDK
+  TradeEvent's price/pnl without this attribution check.
 
 ---
 

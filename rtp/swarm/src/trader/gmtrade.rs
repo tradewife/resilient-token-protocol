@@ -17,7 +17,10 @@
 //! - Fill detection: `Client::complete_order(order)` polls CPI events until the
 //!   order PDA is removed and returns the `TradeEvent` (execution price, pnl,
 //!   fees). Wrapped in a timeout + cancel so an unfilled order cannot hang a
-//!   cycle or fill unattended later.
+//!   cycle or fill unattended later. IMPORTANT: the SDK watches STORE-WIDE
+//!   events and does not verify order attribution (keeper batches mix many
+//!   traders' fills), so `wait_for_fill` re-checks `TradeEvent.order` against
+//!   our order PDA on every path before trusting price/pnl.
 //!
 //! Unit conventions (do NOT conflate):
 //! - USD values in position state / fees are fixed-point 1e20.
@@ -733,38 +736,13 @@ async fn wait_for_fill(
     let timeout = fill_timeout();
     let client = v.client.clone();
     let order_addr = *order;
-    match tokio::time::timeout(timeout, client.complete_order(&order_addr, None)).await {
-        Ok(Ok(Some(t))) => Ok(Some(t)),
-        Ok(Ok(None)) => {
-            // Fill+cleanup was faster than the WS attachment. Scan historical
-            // signatures on the order PDA for a TradeEvent.
-            tracing::warn!(
-                "[GM] complete_order returned no TradeEvent for {order}; \
-                 trying historical event scan"
-            );
-            match client
-                .last_order_events(&order_addr, u64::MAX, CommitmentConfig::confirmed())
-                .await
-            {
-                Ok(events) => {
-                    let trade = events.into_iter().find_map(|ev| match ev {
-                        GMSOLCPIEvent::TradeEvent(t) => Some(t),
-                        _ => None,
-                    });
-                    if trade.is_some() {
-                        tracing::info!(
-                            "[GM] recovered TradeEvent from historical scan for {order}"
-                        );
-                    }
-                    Ok(trade)
-                }
-                Err(e) => {
-                    tracing::warn!("[GM] historical event scan failed: {e}");
-                    Ok(None)
-                }
-            }
-        }
-        Ok(Err(e)) => Err(format!("GM fill watch error: {e}")),
+
+    // Step 1: live fill watch via the SDK.
+    let ws_trade = match tokio::time::timeout(timeout, client.complete_order(&order_addr, None))
+        .await
+    {
+        Ok(Ok(t)) => t,
+        Ok(Err(e)) => return Err(format!("GM fill watch error: {e}")),
         Err(_) => {
             tracing::warn!("[GM] fill timeout after {timeout:?}; cancelling order {order}");
             match client.close_order(&order_addr) {
@@ -781,6 +759,63 @@ async fn wait_for_fill(
             }
             // Even after cancel attempt: if the order already filled, a
             // Position may exist. Caller will recover via on-chain query.
+            None
+        }
+    };
+
+    // Order-attribution check. The SDK fill watch subscribes to STORE-WIDE
+    // CPI events and returns the last TradeEvent seen before any
+    // OrderRemoved — it never verifies the event belongs to our order PDA.
+    // Keepers batch fills from many traders in one tx, so a foreign fill can
+    // be handed back (Aug 9: a close logged "FILLED @ $3.12 pnl $391.12" —
+    // another trader's event on our $320 SOL long). Reject mismatches and
+    // fall through to the order-PDA-scoped historical scan.
+    let ws_trade = match ws_trade {
+        Some(t) if t.order == order_addr => Some(t),
+        Some(t) => {
+            tracing::warn!(
+                "[GM] fill watch returned a TradeEvent for foreign order {} (ours: {order}) — \
+                 keeper batch mixed traders; scanning our order PDA instead",
+                t.order
+            );
+            None
+        }
+        None => None,
+    };
+    if ws_trade.is_some() {
+        return Ok(ws_trade);
+    }
+
+    // Step 2: historical scan scoped to our order PDA's signatures. The txs
+    // can still be keeper batches carrying other traders' events, so apply
+    // the same order-attribution filter here.
+    tracing::warn!(
+        "[GM] no attributable TradeEvent from fill watch for {order}; \
+         trying historical event scan"
+    );
+    match client
+        .last_order_events(&order_addr, u64::MAX, CommitmentConfig::confirmed())
+        .await
+    {
+        Ok(events) => {
+            let trade = events.into_iter().find_map(|ev| match ev {
+                GMSOLCPIEvent::TradeEvent(t) if t.order == order_addr => Some(t),
+                _ => None,
+            });
+            if trade.is_some() {
+                tracing::info!(
+                    "[GM] recovered TradeEvent from historical scan for {order}"
+                );
+            } else {
+                tracing::warn!(
+                    "[GM] historical scan found no TradeEvent for our order {order} \
+                     (only foreign events in shared keeper batches)"
+                );
+            }
+            Ok(trade)
+        }
+        Err(e) => {
+            tracing::warn!("[GM] historical event scan failed: {e}");
             Ok(None)
         }
     }
