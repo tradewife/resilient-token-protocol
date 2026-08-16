@@ -255,16 +255,20 @@ pub fn sign_l1_action(
         .unwrap_or(private_key_hex);
     let pk_bytes =
         hex::decode(pk_hex).map_err(|e| format!("Failed to decode private key hex: {}", e))?;
-    let secret_key = secp256k1::SecretKey::from_slice(&pk_bytes)
+    let pk_arr: [u8; 32] = pk_bytes
+        .as_slice()
+        .try_into()
+        .map_err(|_| "Private key must be 32 bytes".to_string())?;
+    let secret_key = secp256k1::SecretKey::from_byte_array(pk_arr)
         .map_err(|e| format!("Invalid private key: {}", e))?;
     let message = secp256k1::Message::from_digest(sign_hash);
-    let sig = secp.sign_ecdsa_recoverable(&message, &secret_key);
+    let sig = secp.sign_ecdsa_recoverable(message, &secret_key);
     let (recovery_id, compact) = sig.serialize_compact();
 
     Ok(HlSignature {
         r: format!("0x{}", hex::encode(&compact[0..32])),
         s: format!("0x{}", hex::encode(&compact[32..64])),
-        v: (recovery_id.to_i32() + 27) as u64,
+        v: (i32::from(recovery_id) + 27) as u64,
     })
 }
 
@@ -2072,7 +2076,9 @@ mod tests {
             .strip_prefix("0x")
             .unwrap_or(&key.private_key);
         let pk_bytes = hex::decode(pk_hex).expect("private key hex valid");
-        let secret_key = secp256k1::SecretKey::from_slice(&pk_bytes).expect("valid secp256k1 key");
+        let pk_arr: [u8; 32] = pk_bytes.as_slice().try_into().expect("32-byte key");
+        let secret_key =
+            secp256k1::SecretKey::from_byte_array(pk_arr).expect("valid secp256k1 key");
         let secp = secp256k1::Secp256k1::new();
         let public_key = secp256k1::PublicKey::from_secret_key(&secp, &secret_key);
         // Ethereum address = last 20 bytes of keccak256(uncompressed pubkey without 0x04 prefix)

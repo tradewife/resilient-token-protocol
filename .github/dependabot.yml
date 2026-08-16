@@ -61,6 +61,14 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 10
+    ignore:
+      # solana-sdk pinned at 2.1 to unify with gmsol-sdk's internal range
+      # (>=2.1,<2.2) — see Cargo.toml comment. bincode 2/3 is a full API
+      # rewrite of serialize/deserialize used by the live trader executor.
+      - dependency-name: "solana-sdk"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "bincode"
+        update-types: ["version-update:semver-major"]
     commit-message:
       prefix: "deps(swarm)"
 
@@ -70,5 +78,9 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    ignore:
+      # Rust toolchain intentionally pinned to 1.94.0 (matches dev toolchain
+      # + Docker builders; stable fires lints that never appear locally).
+      - dependency-name: "dtolnay/rust-toolchain"
     commit-message:
       prefix: "deps(actions)"
