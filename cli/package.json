@@ -27,6 +27,6 @@
   },
   "license": "BSL-1.1",
   "devDependencies": {
-    "@types/node": "^22.19.17"
+    "@types/node": "^26.2.0"
   }
 }
