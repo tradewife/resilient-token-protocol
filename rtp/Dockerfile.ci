@@ -2,8 +2,11 @@
 ARG RUST_VERSION=1.94-slim
 FROM rust:${RUST_VERSION} AS builder
 WORKDIR /app
-# Install Solana CLI and Anchor
-RUN apt-get update && apt-get install -y curl pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*
+# Install Solana CLI and Anchor. git + make + perl + OPENSSL_NO_VENDOR:
+# the workspace's gmsol-sdk dep would otherwise trigger the vendored-OpenSSL
+# build that fails here (same failure Dockerfile.daemon had; see Dockerfile.trader).
+RUN apt-get update && apt-get install -y curl pkg-config libssl-dev git make perl && rm -rf /var/lib/apt/lists/*
+ENV OPENSSL_NO_VENDOR=1
 RUN sh -c "$(curl -sSfL https://release.anza.xyz/stable/install)" && \
     export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
 RUN cargo install --git https://github.com/coral-xyz/anchor avm --force && \
