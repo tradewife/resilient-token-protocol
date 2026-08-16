@@ -106,6 +106,15 @@ struct Venue {
 /// The trader loop treats this as a healthy no-op (not a watchdog error).
 pub const CAPACITY_FULL_PREFIX: &str = "GM_CAPACITY_FULL:";
 
+/// Soft-skip marker when the wallet cannot clear the venue's collateral
+/// minimum. The trader loop treats this as a healthy no-op WITH an entry
+/// cooldown (not a watchdog error) — an undersized wallet will keep failing
+/// every poll until funded, so retrying burns gas and the error budget.
+pub const INSUFFICIENT_COLLATERAL_PREFIX: &str = "GM_INSUFFICIENT_COLLATERAL:";
+
+/// GMTrade refuses opens with less than this much collateral (USD).
+pub const MIN_OPEN_COLLATERAL_USD: f64 = 1.0;
+
 fn venue_slot() -> &'static tokio::sync::Mutex<Option<Venue>> {
     static SLOT: std::sync::OnceLock<tokio::sync::Mutex<Option<Venue>>> =
         std::sync::OnceLock::new();
@@ -592,8 +601,9 @@ pub async fn open_position(
 
     if collateral_sol < 0.001 {
         return Err(format!(
-            "GM open refused: collateral budget {amount_sol:.4} SOL vs available \
-             {available_sol:.4} SOL (native wallet {native_sol:.4} minus reserve {reserved:.4})"
+            "{INSUFFICIENT_COLLATERAL_PREFIX} collateral budget {amount_sol:.4} SOL vs \
+             available {available_sol:.4} SOL (native wallet {native_sol:.4} minus \
+             reserve {reserved:.4})"
         ));
     }
 
@@ -632,9 +642,10 @@ pub async fn open_position(
             if is_long { "LONG" } else { "SHORT" }
         ));
     }
-    if collateral_usd < 1.0 {
+    if collateral_usd < MIN_OPEN_COLLATERAL_USD {
         return Err(format!(
-            "GM open refused: ${collateral_usd:.2} collateral below $1 floor"
+            "{INSUFFICIENT_COLLATERAL_PREFIX} ${collateral_usd:.2} collateral below \
+             ${MIN_OPEN_COLLATERAL_USD:.0} floor"
         ));
     }
     let collateral_lamports = (collateral_sol * 1e9) as u64;

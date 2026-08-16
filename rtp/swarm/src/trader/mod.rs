@@ -222,6 +222,12 @@ pub fn start_status_server(
 const HEALTH_MAX_ERRORS: u32 = 5;
 const HEALTH_STALE_THRESHOLD_SECS: i64 = 30 * 60; // 30 minutes
 
+/// After a collateral-floor refusal, skip entry attempts for this long.
+/// The wallet can't clear the venue's minimum until it's funded, so
+/// retrying every poll only burns RPC calls and the watchdog error
+/// budget. 1h keeps log noise down without delaying a funding fix long.
+const ENTRY_COOLDOWN_SECS: u64 = 3600;
+
 /// Determine trader health from current state.
 /// Returns `(status_code, status_reason, body_text)`.
 pub fn check_trader_health(state: &TraderState) -> (u16, &'static str, String) {
@@ -452,7 +458,11 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
 
     tracing::info!("=== RTP Autonomous Trader ===");
     tracing::info!("Wallet:     {}", wallet);
-    tracing::info!("Amount:     {} SOL (fallback)", config.amount_sol);
+    tracing::info!(
+        "Amount:     {} SOL (only if balance fetch fails; normal sizing = {}% of balance)",
+        config.amount_sol,
+        config.position_fraction * 100.0
+    );
     tracing::info!(
         "Fraction:   {}% of wallet balance",
         config.position_fraction * 100.0
@@ -788,6 +798,13 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
     let mut last_4h_refresh = Utc::now().timestamp();
     let mut last_1d_refresh = Utc::now().timestamp();
 
+    // Entry cooldown: when an open is refused because the wallet can't clear
+    // the venue's collateral minimum, retrying every poll until someone funds
+    // the wallet burns RPC calls and fills the watchdog error budget (Aug 14:
+    // 10/10 errors in 45 min). After such a refusal, entry attempts are
+    // skipped until this timestamp.
+    let mut entry_cooldown_until: i64 = 0;
+
     tracing::info!(
         "[LOOP] Starting autonomous trading loop (watchdog: {}s cycle timeout)...",
         cycle_timeout_secs
@@ -814,6 +831,7 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
                 &mut last_1d_refresh,
                 SLOW_REFRESH_4H_SECS,
                 SLOW_REFRESH_1D_SECS,
+                &mut entry_cooldown_until,
             ),
         )
         .await;
@@ -896,6 +914,7 @@ async fn run_cycle(
     last_1d_refresh: &mut i64,
     refresh_4h_secs: i64,
     refresh_1d_secs: i64,
+    entry_cooldown_until: &mut i64,
 ) -> Result<(), String> {
     let cycle_start = Utc::now();
 
@@ -1211,7 +1230,22 @@ async fn run_cycle(
                     reasons
                 );
 
-                if !config.dry_run {
+                // Entry cooldown: a recent open was refused on wallet sizing
+                // (collateral below the venue floor). Skip entry attempts
+                // until the cooldown expires instead of hammering the venue
+                // every poll — the wallet won't clear the floor until someone
+                // funds it, and retrying burns RPC calls + the watchdog error
+                // budget (Aug 14: 10/10 consecutive errors in 45 min).
+                let now_ts = cycle_start.timestamp();
+                if now_ts < *entry_cooldown_until {
+                    tracing::info!(
+                        "[ENTRY] Skipped — collateral refusal cooldown active, \
+                         next attempt after {}",
+                        chrono::DateTime::from_timestamp(*entry_cooldown_until, 0)
+                            .map(|t| t.to_rfc3339())
+                            .unwrap_or_else(|| "unknown".to_string())
+                    );
+                } else if !config.dry_run {
                     // Compute position size as fraction of wallet balance
                     let amount_sol = match fetch_wallet_balance(&config.rpc_url, wallet).await {
                         Ok(balance) => {
@@ -1234,6 +1268,31 @@ async fn run_cycle(
                             config.amount_sol
                         }
                     };
+
+                    // Collateral pre-flight (GM only): if the sized collateral
+                    // can't clear the venue's floor, skip BEFORE spending a
+                    // venue round-trip (the venue-side check still guards —
+                    // this only avoids the wasted call). 10% margin for price
+                    // drift between this poll's price and the venue's fetch.
+                    // Note: gmtrade also caps collateral at
+                    // (balance - reserve) * 0.98, so this is a fast filter,
+                    // not the authoritative guard.
+                    let est_collateral_usd = amount_sol * price;
+                    if is_gm(&config.venue)
+                        && est_collateral_usd < gmtrade::MIN_OPEN_COLLATERAL_USD * 1.1
+                    {
+                        tracing::warn!(
+                            "[ENTRY] Pre-flight: ${:.2} sized collateral can't clear the ${:.0} \
+                             venue floor — soft-skip, entry cooldown {}s",
+                            est_collateral_usd,
+                            gmtrade::MIN_OPEN_COLLATERAL_USD,
+                            ENTRY_COOLDOWN_SECS
+                        );
+                        *entry_cooldown_until =
+                            cycle_start.timestamp() + ENTRY_COOLDOWN_SECS as i64;
+                        return Ok(());
+                    }
+
                     match venue_open_position(
                         &config.venue,
                         keypair,
@@ -1292,6 +1351,19 @@ async fn run_cycle(
                             // healthy and retries when headroom reappears.
                             if e.starts_with(gmtrade::CAPACITY_FULL_PREFIX) {
                                 tracing::warn!("[ENTRY] Venue capacity full — soft-skip open: {e}");
+                            } else if e.starts_with(gmtrade::INSUFFICIENT_COLLATERAL_PREFIX) {
+                                // Wallet can't clear the venue's collateral
+                                // minimum. Soft-skip (no cycle error) AND arm
+                                // the entry cooldown — retrying every poll
+                                // until funding arrives only burns RPC calls
+                                // and the watchdog error budget (Aug 14).
+                                tracing::warn!(
+                                    "[ENTRY] Wallet below venue collateral floor — soft-skip open, \
+                                     entry cooldown {}s: {e}",
+                                    ENTRY_COOLDOWN_SECS
+                                );
+                                *entry_cooldown_until =
+                                    cycle_start.timestamp() + ENTRY_COOLDOWN_SECS as i64;
                             } else {
                                 tracing::error!("[ENTRY] Open failed: {}", e);
                                 // Count open failures as cycle errors so the
