@@ -23,7 +23,7 @@ and overrides everything.
 | `research/` | Python Night Shift factory: WFA, full-sim validation |
 | `scripts/` | Operator helpers + on-chain crons (fee crank, promote-strategy) |
 | `sdk/` | `@resilient-protocol/sdk` — shared TS SDK (library, imported by dashboard) |
-| `cli/` | Flash SDK wrapper required by the trader image |
+| `cli/` | Flash-era legacy (frozen — no Dependabot updates). Only live piece: `flash-sdk-wrapper.mjs` baked into `Dockerfile.trader` as a fallback path |
 | `data/ohlcv/`, `data/night_results/` | Night Shift input/output data |
 | `archive/` | Historical eras — read-only context, never build against it |
 
@@ -91,6 +91,10 @@ commit them.
 - Keep security headers global and CORS allow-listed (see `SECURITY.md`).
 - Never `railway up` — it wipes custom domain registrations.
 - No PII in log lines.
+- Respect the intentional dependency pins: `solana-sdk 2.1` (gmsol-sdk
+  unification), `bincode 1`, CI toolchain `1.94.0`, frozen `/cli` —
+  see CLAUDE.md → "Intentional dependency pins". Dashboard installs use
+  `--legacy-peer-deps` (known anchor/sdk peer conflict).
 
 ## Verification commands (run in CI)
 
@@ -107,3 +111,8 @@ Railway auto-deploys every push to `main` (see CLAUDE.md → "Railway
 Project" for the service table). Operator helpers:
 `node scripts/railway-logs.mjs`, `scripts/railway-trader-override.mjs`,
 `scripts/railway-redeploy-trader.mjs`, `scripts/check-railway-services.ts`.
+
+Dependabot runs weekly (policy + ignore rules in
+`.github/dependabot.yml`). It auto-closes a PR once main already carries
+the same version — after applying bumps manually, `@dependabot rebase`
+the matching PRs instead of merging them.

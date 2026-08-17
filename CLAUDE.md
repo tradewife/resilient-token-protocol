@@ -127,6 +127,44 @@ program interactions.
 - **GMTrade position sizing** — keep `RTP_TRADER_POSITION_FRACTION=0.20`
   and a collateral floor (`RTP_TRADER_MIN_OPEN_COLLATERAL_LAMPORTS`) that
   clears the venue's minimum-notional requirement.
+- **aes-gcm is on 0.11 (aead 0.6)** — `config.rs` migrated 2026-08-17:
+  nonce generation is `Nonce::<<Aes256Gcm as AeadCore>::NonceSize>::generate()`
+  (no `OsRng`), keys/nonces build via `TryFrom` from byte slices
+  (`Array::from_slice` is deprecated), `Aes256Gcm::new(&key)` /
+  `.decrypt(&nonce, …)` take references. AES-256-GCM is a standardized
+  algorithm so configs encrypted under 0.10 still decrypt. Do NOT
+  reintroduce the old `generate_nonce(&mut OsRng)` / `from_slice` calls.
+
+### Intentional dependency pins (do not "fix" without a reason)
+
+- `solana-sdk = "2.1"` in `rtp/swarm` — unifies with gmsol-sdk's internal
+  range (`>=2.1,<2.2`). Dependabot major updates ignored.
+- `bincode = "1"` — bincode 2/3 is a full API rewrite of
+  `serialize`/`deserialize` used by the live trader executor. Majors ignored.
+- `dtolnay/rust-toolchain@1.94.0` in CI — matches dev toolchain + Docker
+  builders; newer stable fired lints that never appear locally.
+- `/cli` is **frozen Flash-era legacy** (Flash Trade wound down Aug 2026;
+  GMTrade is the live venue). No Dependabot updates; the only live piece is
+  `flash-sdk-wrapper.mjs` in `Dockerfile.trader`'s wrapper stage (fallback
+  path). Don't bump its deps.
+- Dashboard peer conflict is known and tolerated: `@coral-xyz/anchor ^0.32`
+  vs sdk peer `^0.31` — install/build with `npm ci --legacy-peer-deps`
+  (same as `Dockerfile.dashboard`).
+- `next` / `react` / `react-dom` / `eslint-config-next` use **exact pins**
+  (no `^`) in `dashboard/package.json` — keep that convention.
+- Dependabot ignores (`.github/dependabot.yml`): typescript majors (TS7
+  native-compiler rewrite), @types/node majors (track Node runtime),
+  eslint majors (10 crashes eslint-plugin-react — revisit when
+  eslint-config-next supports it).
+
+### Git/Dependabot workflow
+
+- `main` has branch protection (1 approving review) **with admin bypass** —
+  direct pushes work for the repo owner/operator.
+- Dependabot **auto-closes** a PR once main already contains its exact
+  version (diff becomes empty after rebase). When applying a batch of
+  bumps manually, comment `@dependabot rebase` on the matching PRs instead
+  of merging them — cheaper than reviewing 20 identical diffs.
 - **GMTrade fill attribution MUST be verified** — gmsol-sdk's
   `complete_order()` watches STORE-WIDE CPI events and returns the last
   `TradeEvent` before any `OrderRemoved`, WITHOUT checking it belongs to
