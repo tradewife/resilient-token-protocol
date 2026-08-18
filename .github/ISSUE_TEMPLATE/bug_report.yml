@@ -1,0 +1,47 @@
+name: Bug report
+description: Report a reproducible problem with RTP (dashboard, swarm, research, scripts, or infra).
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file this. Fill in the fields below; the more specific, the faster someone can act.
+  - type: input
+    id: area
+    attributes:
+      label: Area
+      description: Which application/path is affected? (dashboard, rtp/swarm, research, scripts, sdk, infrastructure/CI)
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What should happen?
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: What actually happened? Include error text, logs, or a runbook reference if relevant.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Exact commands/steps to trigger it.
+      placeholder: |
+        1. cd dashboard && npm ci && npm run dev
+        2. ... 
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Platform, versions, deploy target (e.g. local dev / Railway production).
+    validations:
+      required: false

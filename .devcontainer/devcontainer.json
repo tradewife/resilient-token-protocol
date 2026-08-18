@@ -1,0 +1,28 @@
+{
+  "name": "RTP Dashboard (Next.js / TypeScript)",
+  "image": "mcr.microsoft.com/devcontainers/typescript-node:1-20-bookworm",
+  "forwardPorts": [3000],
+  "portsAttributes": {
+    "3000": {
+      "label": "Dashboard dev server",
+      "onAutoForward": "openPreview"
+    }
+  },
+  "postCreateCommand": "cd dashboard && npm ci && echo 'Devcontainer ready: cd dashboard && npm run dev'",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "bradlc.vscode-tailwindcss",
+        "EditorConfig.EditorConfig"
+      ],
+      "settings": {
+        "typescript.tsdk": "dashboard/node_modules/typescript/lib",
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "esbenp.prettier-vscode"
+      }
+    }
+  },
+  "remoteUser": "node"
+}

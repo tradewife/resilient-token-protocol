@@ -1,0 +1,13 @@
+# Global owners for RTP (all repos map to the single operator).
+*            @tradewife
+
+# Rust trading swarm + Anchor treasury program live-code paths.
+/rtp/swarm/       @tradewife
+/rtp/programs/    @tradewife
+
+# Product site and public web app.
+/dashboard/       @tradewife
+
+# CI / deployment definitions.
+/.github/         @tradewife
+/railway.toml     @tradewife

@@ -1,0 +1,37 @@
+name: Feature request
+description: Suggest a new capability or improvement for RTP.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe the feature and the problem it solves. Keep it actionable.
+  - type: input
+    id: area
+    attributes:
+      label: Area
+      description: Which application/path would this affect?
+    validations:
+      required: true
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Motivation
+      description: What user/dev problem does this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: High-level approach. Locals to research, docs, or runbooks welcome.
+    validations:
+      required: false
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternative approaches considered
+      description: Anything else considered and why it was not chosen.
+    validations:
+      required: false
