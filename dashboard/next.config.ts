@@ -44,6 +44,9 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   output: "standalone",
   trailingSlash: true,
+  // Dev-only: Next 16 blocks cross-origin dev chunk loads by default;
+  // allow the loopback alias so the site hydrates from either host.
+  allowedDevOrigins: ["127.0.0.1"],
   images: {
     unoptimized: true,
   },

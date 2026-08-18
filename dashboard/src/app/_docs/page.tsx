@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import Topbar from "../Topbar";
+import RedistributionDonut from "../RedistributionDonut";
 
 // --- Doc content definitions ---
 
@@ -773,6 +774,7 @@ PublicKey.findProgramAddressSync(
         content: (
           <>
             <p>When the treasury vault accumulates enough yield, the on-chain program automatically redistributes funds:</p>
+            <RedistributionDonut />
             <Table
               headers={["Recipient", "Share", "Purpose"]}
               rows={[
@@ -880,13 +882,13 @@ export default function DocsPage() {
   const handleNav = (slug: string) => {
     setActiveSlug(slug);
     setSidebarOpen(false);
-    window.location.hash = slug;
+    history.replaceState(undefined, "", `#${slug}`);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   return (
     <div className="page">
-      <Topbar activePage="docs" />
+      <Topbar />
 
       {/* Mobile sidebar toggle */}
       <button

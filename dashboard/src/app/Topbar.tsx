@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 
 interface TopbarProps {
-  activePage?: "dashboard" | "offer" | "architecture" | "pipeline" | "compatibility" | "diagnostic" | "launch" | "docs" | "research";
+  activePage?: "dashboard" | "offer" | "architecture" | "pipeline" | "compatibility" | "diagnostic" | "launch" | "research";
 }
 
 const NAV_ITEMS = [
@@ -12,7 +12,6 @@ const NAV_ITEMS = [
   { href: "/#offer", label: "The Offer", key: "offer" },
   { href: "/#pipeline", label: "Research Pipeline", key: "pipeline" },
   { href: "/compatibility", label: "Blueprint", key: "compatibility" },
-  { href: "/docs", label: "Docs", key: "docs" },
 ] as const;
 
 export default function Topbar({ activePage }: TopbarProps) {

@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import Topbar from "../Topbar";
+import BlueprintRadar from "../BlueprintRadar";
 
 /* ── Types ── */
 
@@ -734,43 +735,34 @@ export default function BlueprintPage() {
               Your personalised engine profile
             </h2>
             <p className="compat-lede" style={{ marginBottom: "var(--space-xl)" }}>
-              Based on your answers, here's the blueprint. It maps your
+              Based on your answers, here&apos;s the blueprint. It maps your
               on-chain readiness, risk tolerance, and the engine archetype
               that fits your constraints.
             </p>
 
             {/* Profile Card */}
             <div className="blueprint-profile-card">
-              {/* Scores row */}
+              {/* Blueprint radar — the four scored axes as one polygon */}
+              <BlueprintRadar
+                onChainReadiness={profile.onChainReadiness}
+                riskTolerance={profile.riskTolerance}
+                complexityAppetite={profile.complexityAppetite}
+                commitmentReadiness={profile.commitmentReadiness}
+              />
+
+              {/* Compact numeric readout under the radar */}
               <div className="blueprint-scores">
-                <div className="blueprint-score">
-                  <span className="blueprint-score-label">On-chain readiness</span>
-                  <span className="blueprint-score-bar">
-                    <span className="blueprint-score-fill" style={{ width: `${profile.onChainReadiness * 10}%` }} />
-                  </span>
-                  <span className="blueprint-score-val">{profile.onChainReadiness}/10</span>
-                </div>
-                <div className="blueprint-score">
-                  <span className="blueprint-score-label">Risk tolerance</span>
-                  <span className="blueprint-score-bar">
-                    <span className="blueprint-score-fill" style={{ width: `${profile.riskTolerance * 10}%` }} />
-                  </span>
-                  <span className="blueprint-score-val">{profile.riskTolerance}/10</span>
-                </div>
-                <div className="blueprint-score">
-                  <span className="blueprint-score-label">Complexity appetite</span>
-                  <span className="blueprint-score-bar">
-                    <span className="blueprint-score-fill" style={{ width: `${profile.complexityAppetite * 10}%` }} />
-                  </span>
-                  <span className="blueprint-score-val">{profile.complexityAppetite}/10</span>
-                </div>
-                <div className="blueprint-score">
-                  <span className="blueprint-score-label">Commitment readiness</span>
-                  <span className="blueprint-score-bar">
-                    <span className="blueprint-score-fill" style={{ width: `${profile.commitmentReadiness * 10}%` }} />
-                  </span>
-                  <span className="blueprint-score-val">{profile.commitmentReadiness}/10</span>
-                </div>
+                {[
+                  ["On-chain readiness", profile.onChainReadiness],
+                  ["Risk tolerance", profile.riskTolerance],
+                  ["Complexity appetite", profile.complexityAppetite],
+                  ["Commitment readiness", profile.commitmentReadiness],
+                ].map(([label, val]) => (
+                  <div key={String(label)} className="blueprint-score blueprint-score--chip">
+                    <span className="blueprint-score-label">{label}</span>
+                    <span className="blueprint-score-val">{val}/10</span>
+                  </div>
+                ))}
               </div>
 
               {/* On-chain readiness */}
@@ -814,7 +806,7 @@ export default function BlueprintPage() {
                 If this blueprint feels right, secure your build slot
               </h2>
               <p className="compat-fork-lede">
-                I reserve a small number of build slots. Once you're in, I
+                I reserve a small number of build slots. Once you&apos;re in, I
                 convert this blueprint into a full engine spec and deployment
                 plan, plus up to four dedicated consultations.
               </p>
@@ -852,8 +844,8 @@ export default function BlueprintPage() {
                 </div>
                 {askQuestionSent ? (
                   <p className="compat-gate-lede" style={{ marginTop: "var(--space-sm)" }}>
-                    Thanks — I'll reply by email. In the meantime, the build slot
-                    is open whenever you're ready.
+                    Thanks — I&apos;ll reply by email. In the meantime, the build slot
+                    is open whenever you&apos;re ready.
                   </p>
                 ) : (
                   <div style={{ display: "flex", gap: "var(--space-sm)", alignItems: "flex-end", flexWrap: "wrap" }}>

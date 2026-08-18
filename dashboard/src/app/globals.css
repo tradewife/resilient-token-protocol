@@ -1,7 +1,20 @@
 /* RTP SENTINEL — Design System
    Palette: deep emerald + coral. OKLCH-based, perceptually uniform. */
 
+/* Brand fonts FIRST — CSS requires @import url() before any other rules. */
 @import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600&family=Figtree:wght@400;500&display=swap');
+
+/* Tailwind v4 theme + utilities for the EvilCharts/shadcn chart components.
+   Preflight is deliberately NOT imported — the hand-written RTP design
+   system below owns all element resets and base styles. Both imports sit
+   in a dedicated cascade layer so any utility that ever shares a name
+   with an RTP rule loses the cascade. */
+@import "tailwindcss/theme" layer(rtp-charts);
+@import "tailwindcss/utilities" layer(rtp-charts);
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
 
 :root {
   /* Emerald surfaces (neutrals tinted toward hue 160) */
@@ -45,6 +58,42 @@
   --font-display: 'Bricolage Grotesque', system-ui, sans-serif;
   --font-body:    'Figtree', system-ui, sans-serif;
   --font-mono:    'Geist Mono', 'SF Mono', 'Cascadia Code', monospace;
+  /* ── shadcn / EvilCharts token bridge ──
+     This site is dark-only, so the shadcn tokens map straight onto the
+     RTP palette above. EvilCharts resolves these four via Tailwind probe
+     classes (text-background/text-foreground/text-muted-foreground/
+     text-border) to tint grids, axis labels, and tooltip surfaces. */
+  --background:         var(--void);
+  --foreground:         var(--text-primary);
+  --card:               var(--surface-1);
+  --card-foreground:    var(--text-primary);
+  --popover:            var(--surface-2);
+  --popover-foreground: var(--text-primary);
+  --primary:            var(--emerald);
+  --primary-foreground: var(--text-primary);
+  --secondary:          var(--surface-2);
+  --secondary-foreground: var(--text-secondary);
+  --muted:              var(--surface-2);
+  --muted-foreground:   var(--text-tertiary);
+  --accent:             var(--surface-3);
+  --accent-foreground:  var(--text-primary);
+  --destructive:        var(--coral);
+  --input:              oklch(32% 0.02 160);
+  --ring:               var(--emerald);
+  --chart-1:            var(--emerald);
+  --chart-2:            var(--coral);
+  --chart-3:            var(--text-secondary);
+  --chart-4:            var(--emerald-dim);
+  --chart-5:            var(--coral-dim);
+  --radius:             0.625rem;
+  --sidebar:            var(--surface-1);
+  --sidebar-foreground: var(--text-primary);
+  --sidebar-primary:    var(--emerald);
+  --sidebar-primary-foreground: var(--text-primary);
+  --sidebar-accent:     var(--surface-3);
+  --sidebar-accent-foreground: var(--text-primary);
+  --sidebar-border:     var(--border);
+  --sidebar-ring:       var(--emerald);
 }
 
 /* Reset */
@@ -368,25 +417,6 @@ body {
   color: var(--text-muted);
 }
 
-.hero-yield {
-  margin-top: var(--space-sm);
-  padding: var(--space-sm) var(--space-md);
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-}
-
-.yield-text {
-  font-size: 0.875rem;
-  color: var(--text-secondary);
-  font-variant-numeric: tabular-nums;
-}
-
-.yield-text strong {
-  color: var(--coral);
-  font-weight: 500;
-}
-
 /* Middle section: 3-col asymmetric */
 .mid-section {
   display: grid;
@@ -599,10 +629,10 @@ body {
 }
 
 .vital-label {
-  font-size: 0.625rem;
+  font-size: 0.75rem;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--text-muted);
+  color: var(--text-tertiary);
 }
 
 .vital-link {
@@ -616,27 +646,6 @@ body {
 
 .vital-link:hover {
   color: var(--coral);
-}
-
-/* Liveness badge */
-.liveness-badge {
-  font-size: 0.625rem;
-  font-weight: 500;
-  letter-spacing: 0.04em;
-  padding: 2px 6px;
-  border-radius: 3px;
-  vertical-align: middle;
-  margin-left: 4px;
-}
-
-.liveness-badge.live {
-  color: var(--emerald);
-  background: oklch(20% 0.04 160);
-}
-
-.liveness-badge.down {
-  color: var(--coral);
-  background: oklch(25% 0.04 30);
 }
 
 /* How it works accordion (C1) */
@@ -834,7 +843,7 @@ body {
     color: var(--text-primary);
   }
   .mobile-menu .menu-badge {
-    font-size: 0.625rem;
+    font-size: 0.75rem;
     letter-spacing: 0.06em;
     text-transform: uppercase;
     color: var(--emerald);
@@ -1908,7 +1917,7 @@ button.sys2-cta-secondary:disabled {
 .sys2-cta-tertiary:hover { color: var(--coral); }
 .cta-badge-devnet {
   display: inline-block;
-  font-size: 0.625rem;
+  font-size: 0.75rem;
   font-weight: 600;
   letter-spacing: 0.08em;
   padding: 2px 6px;
@@ -1942,11 +1951,11 @@ button.sys2-cta-secondary:disabled {
 }
 
 .sys2-vital-label {
-  font-size: 0.625rem;
+  font-size: 0.75rem;
   font-weight: 500;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--text-muted);
+  color: var(--text-tertiary);
 }
 
 .sys2-vital-value {
@@ -2089,11 +2098,11 @@ button.sys2-cta-secondary:disabled {
 }
 
 .console-card-eyebrow {
-  font-size: 0.625rem;
+  font-size: 0.75rem;
   font-weight: 600;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--text-muted);
+  color: var(--text-secondary);
   margin-bottom: var(--space-xs);
 }
 
@@ -2136,8 +2145,8 @@ button.sys2-cta-secondary:disabled {
   margin-top: auto;
   padding-top: var(--space-md);
   border-top: 1px solid var(--border);
-  font-size: 0.6875rem;
-  color: var(--text-muted);
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
   letter-spacing: 0.04em;
 }
 
@@ -2179,8 +2188,8 @@ button.sys2-cta-secondary:disabled {
 }
 
 .sparkline-empty-sub {
-  font-size: 0.75rem;
-  color: var(--text-tertiary);
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
   max-width: 380px;
   line-height: 1.5;
 }
@@ -2209,8 +2218,8 @@ button.sys2-cta-secondary:disabled {
 .chart-stat-val.pos { color: var(--emerald); }
 .chart-stat-val.neg { color: var(--coral); }
 .chart-stat-lab {
-  font-size: 0.625rem;
-  color: var(--text-muted);
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
@@ -2231,7 +2240,7 @@ button.sys2-cta-secondary:disabled {
   padding: 10px var(--space-lg);
   background: var(--surface-1);
   border-bottom: 1px solid var(--border);
-  font-size: 0.625rem;
+  font-size: 0.75rem;
   font-weight: 600;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -2268,7 +2277,7 @@ button.sys2-cta-secondary:disabled {
 }
 
 .trade-side {
-  font-size: 0.625rem;
+  font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.08em;
   padding: 1px 5px;
@@ -2331,7 +2340,52 @@ button.sys2-cta-secondary:disabled {
 .offer-arch {
   margin: 0;
   width: 100%;
-  max-width: 460px;
+  max-width: 520px;
+}
+
+/* Sankey caption under the §2 offer flow */
+.offer-flow-caption {
+  margin-top: var(--space-sm);
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--text-tertiary);
+}
+/* On phones the sankey swaps to one-word node labels (handled in
+   OfferFlow) so the whole flow fits the viewport — no horizontal scroll,
+   no clipping. */
+@media (max-width: 810px) {
+  .offer-arch {
+    max-width: 100%;
+  }
+  .offer-flow-chart {
+    height: 300px;
+  }
+}
+.offer-flow-chart [class*="text-"] {
+  font-family: var(--font-body);
+}
+
+/* §3 Night Shift survivor bar chart card internals */
+.nightshift-chart-wrap {
+  display: grid;
+  gap: var(--space-sm);
+}
+.nightshift-chart-caption {
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+/* Compatibility profile — numeric chips under the radar */
+.blueprint-score--chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+/* Docs — redistribution donut spacing */
+.docs-redistribution-donut {
+  margin: var(--space-lg) 0;
 }
 .offer-arch-svg {
   display: block;
@@ -2612,7 +2666,7 @@ button.sys2-cta-secondary:disabled {
 
 .loop-legend-num {
   font-family: var(--font-mono);
-  font-size: 0.625rem;
+  font-size: 0.75rem;
   font-weight: 600;
   color: var(--text-muted);
   letter-spacing: 0.08em;
@@ -2659,7 +2713,7 @@ button.sys2-cta-secondary:disabled {
 }
 
 .arch2-layer-tag {
-  font-size: 0.625rem;
+  font-size: 0.75rem;
   font-weight: 600;
   letter-spacing: 0.16em;
   text-transform: uppercase;
@@ -2772,7 +2826,7 @@ button.sys2-cta-secondary:disabled {
 
 .arch2-coord-tag {
   display: inline-block;
-  font-size: 0.625rem;
+  font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.16em;
   color: var(--emerald);
@@ -2852,6 +2906,52 @@ button.sys2-cta-secondary:disabled {
 }
 
 /* ────────── §4 PIPELINE ────────── */
+
+/* Validated stats + last night's survivors share one row on desktop,
+   stack on phones. */
+.engine-proof-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-md);
+  margin-top: var(--space-2xl);
+  align-items: stretch;
+}
+/* The stats frame wears the same chrome as the Night Shift card beside it. */
+.engine-proof-row .validated-card {
+  margin: 0;
+  height: 100%;
+  background: var(--surface-0);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: var(--space-lg) var(--space-xl);
+  overflow: hidden;
+}
+.engine-proof-row .validated-card::before {
+  display: none;
+}
+.engine-proof-row .validated-grid {
+  grid-template-columns: repeat(2, 1fr);
+  row-gap: var(--space-lg);
+  column-gap: var(--space-xl);
+}
+/* Every stat carries its left rule — including the first (Calmar).
+   The higher-specificity :first-child selector beats the base rule's
+   `border-left: none` even though that rule sits later in the file. */
+.engine-proof-row .validated-cell:first-child,
+.engine-proof-row .validated-cell {
+  border-left: 1px solid var(--border);
+  padding-left: var(--space-md);
+}
+.engine-proof-row .chart-card {
+  margin: 0;
+  height: 100%;
+}
+@media (max-width: 1100px) {
+  .engine-proof-row {
+    grid-template-columns: 1fr;
+  }
+}
+
 .pipe2-steps {
   list-style: none;
   display: flex;
@@ -2973,7 +3073,7 @@ button.sys2-cta-secondary:disabled {
 }
 
 .validated-tag {
-  font-size: 0.625rem;
+  font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.16em;
   color: var(--emerald);
@@ -3017,11 +3117,11 @@ button.sys2-cta-secondary:disabled {
 }
 
 .validated-lab {
-  font-size: 0.625rem;
+  font-size: 0.75rem;
   font-weight: 500;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--text-muted);
+  color: var(--text-tertiary);
 }
 
 /* ────────── §5 STRATEGY INTELLIGENCE ────────── */
@@ -3787,7 +3887,7 @@ button.sys2-cta-secondary:disabled {
   line-height: 1.1;
 }
 .compat-metric-lab {
-  font-size: 0.625rem;
+  font-size: 0.75rem;
   font-weight: 500;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -3915,7 +4015,7 @@ button.sys2-cta-secondary:disabled {
   padding-top: var(--space-md);
   border-top: 1px solid var(--border);
   font-family: var(--font-mono);
-  font-size: 0.625rem;
+  font-size: 0.75rem;
   letter-spacing: 0.06em;
   color: var(--text-muted);
 }
@@ -4098,7 +4198,7 @@ button.sys2-cta-secondary:disabled {
   gap: 6px;
 }
 .blueprint-score-label {
-  font-size: 0.625rem;
+  font-size: 0.75rem;
   font-weight: 500;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -4271,4 +4371,87 @@ button.sys2-cta-secondary:disabled {
   font-size: 0.9375rem;
   color: var(--text-secondary);
   line-height: 1.5;
+}
+
+@theme inline {
+  /* Map Tailwind font tokens onto the RTP brand faces (no Geist/Inter). */
+  --font-heading:         var(--font-display);
+  --font-sans:         var(--font-body);
+  --color-sidebar-ring:         var(--sidebar-ring);
+  --color-sidebar-border:         var(--sidebar-border);
+  --color-sidebar-accent-foreground:         var(--sidebar-accent-foreground);
+  --color-sidebar-accent:         var(--sidebar-accent);
+  --color-sidebar-primary-foreground:         var(--sidebar-primary-foreground);
+  --color-sidebar-primary:         var(--sidebar-primary);
+  --color-sidebar-foreground:         var(--sidebar-foreground);
+  --color-sidebar:         var(--sidebar);
+  --color-chart-5:         var(--chart-5);
+  --color-chart-4:         var(--chart-4);
+  --color-chart-3:         var(--chart-3);
+  --color-chart-2:         var(--chart-2);
+  --color-chart-1:         var(--chart-1);
+  --color-ring:         var(--ring);
+  --color-input:         var(--input);
+  --color-border:         var(--border);
+  --color-destructive:         var(--destructive);
+  --color-accent-foreground:         var(--accent-foreground);
+  --color-accent:         var(--accent);
+  --color-muted-foreground:         var(--muted-foreground);
+  --color-muted:         var(--muted);
+  --color-secondary-foreground:         var(--secondary-foreground);
+  --color-secondary:         var(--secondary);
+  --color-primary-foreground:         var(--primary-foreground);
+  --color-primary:         var(--primary);
+  --color-popover-foreground:         var(--popover-foreground);
+  --color-popover:         var(--popover);
+  --color-card-foreground:         var(--card-foreground);
+  --color-card:         var(--card);
+  --color-foreground:         var(--foreground);
+  --color-background:         var(--background);
+  --radius-sm:         calc(var(--radius) * 0.6);
+  --radius-md:         calc(var(--radius) * 0.8);
+  --radius-lg:         var(--radius);
+  --radius-xl:         calc(var(--radius) * 1.4);
+  --radius-2xl:         calc(var(--radius) * 1.8);
+  --radius-3xl:         calc(var(--radius) * 2.2);
+  --radius-4xl:         calc(var(--radius) * 2.6);
+}
+
+/* The site is dark-only — tokens above already carry the RTP palette.
+   This mirror exists only so the palette stays honest if a `.dark` class
+   is ever added to <html> (shadcn convention); it must never diverge
+   from the :root mapping. The scaffold's @layer base block was removed:
+   the unlayered design system above owns resets, body colors, and type. */
+.dark {
+  --background:         var(--void);
+  --foreground:         var(--text-primary);
+  --card:               var(--surface-1);
+  --card-foreground:    var(--text-primary);
+  --popover:            var(--surface-2);
+  --popover-foreground: var(--text-primary);
+  --primary:            var(--emerald);
+  --primary-foreground: var(--text-primary);
+  --secondary:          var(--surface-2);
+  --secondary-foreground: var(--text-secondary);
+  --muted:              var(--surface-2);
+  --muted-foreground:   var(--text-tertiary);
+  --accent:             var(--surface-3);
+  --accent-foreground:  var(--text-primary);
+  --destructive:        var(--coral);
+  --border:             oklch(25% 0.015 160);
+  --input:              oklch(32% 0.02 160);
+  --ring:               var(--emerald);
+  --chart-1:            var(--emerald);
+  --chart-2:            var(--coral);
+  --chart-3:            var(--text-secondary);
+  --chart-4:            var(--emerald-dim);
+  --chart-5:            var(--coral-dim);
+  --sidebar:            var(--surface-1);
+  --sidebar-foreground: var(--text-primary);
+  --sidebar-primary:    var(--emerald);
+  --sidebar-primary-foreground: var(--text-primary);
+  --sidebar-accent:     var(--surface-3);
+  --sidebar-accent-foreground: var(--text-primary);
+  --sidebar-border:     oklch(25% 0.015 160);
+  --sidebar-ring:       var(--emerald);
 }

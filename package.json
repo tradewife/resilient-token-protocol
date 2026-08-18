@@ -14,7 +14,7 @@
   },
   "lint-staged": {
     "rtp/**/*.rs": "rustfmt",
-    "dashboard/**/*.{ts,tsx}": "dashboard/node_modules/.bin/eslint --fix --config dashboard/eslint.config.mjs"
+    "dashboard/**/*.{ts,tsx}": "bash -c 'cd dashboard && f=(); for x in \"$@\"; do f+=(\"${x#dashboard/}\"); done; ./node_modules/.bin/eslint --config eslint.config.mjs \"${f[@]}\"' --"
   },
   "dependencies": {
     "@flash_trade/flash-sdk-v2": "^1.0.36"

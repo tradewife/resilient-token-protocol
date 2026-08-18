@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Vendored EvilCharts chart components (shadcn registry code) — linted
+    // upstream; their ref-during-render patterns trip React compiler rules.
+    "src/components/evilcharts/**",
   ]),
 ]);
 

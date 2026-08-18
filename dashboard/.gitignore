@@ -13,6 +13,9 @@
 # testing
 /coverage
 
+# agent QA scratch (screenshots etc.)
+.tmp-qa/
+
 # next.js
 /.next/
 /out/

@@ -17,7 +17,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    // `dark` is the shadcn/EvilCharts theme class — this site is dark-only,
+    // so it is static. It activates the dark palette block in globals.css
+    // and EvilCharts' dark chart-color variables.
+    <html lang="en" className="dark">
       <body>
         <WalletContextProvider>{children}</WalletContextProvider>
       </body>

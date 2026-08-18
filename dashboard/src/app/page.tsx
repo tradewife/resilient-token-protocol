@@ -1,12 +1,12 @@
 "use client";
 
 import React, { useEffect, useState, useMemo } from "react";
-import { useWallet, useConnection } from "@solana/wallet-adapter-react";
-import { PublicKey, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import Link from "next/link";
 import Topbar from "./Topbar";
-import OfferArchitecture from "./OfferArchitecture";
-import { fetchTreasuryState } from "../lib/sdk";
+import OfferFlow from "./OfferFlow";
+import PnlChart from "./PnlChart";
+import NightShiftChart from "./NightShiftChart";
+import type { NightData } from "./nightTypes";
 import { inferTradeSide, tradeSideCssClass } from "../lib/tradeSide";
 import {
   formatPnlPct,
@@ -16,9 +16,6 @@ import {
 
 /* ── Constants ── */
 
-const TREASURY_AUTHORITY = "********************************************";
-const TREASURY_PDA = "6PYPAnwiMoZvzphAWEu3EsNz3PpwjJ6YcZabj34qVQ4Z";
-const DEVNET_RPC = "https://api.devnet.solana.com";
 // Captured once at module load so render stays pure (React compiler rule).
 const PAGE_LOAD_TS = Date.now();
 
@@ -61,69 +58,7 @@ interface TraderState {
   total_trades: number;
 }
 
-interface LivenessData {
-  programId: string;
-  live: boolean;
-  executable: boolean;
-  slot: number | null;
-}
-
-interface NightData {
-  num_folds: number;
-  runtime_seconds: number;
-  top_candidates: Array<{
-    symbol: string; survivor_score: number; oos_sharpe: number;
-    oos_consistency: number; oos_max_dd: number;
-    overfitting_score: number; fragility: number;
-  }>;
-}
-
-/* ── SVG Components ── */
-
-function PnlSparkline({ trades }: { trades: TraderState["trade_history"] }) {
-  const W = 720, H = 180, PAD_X = 14, PAD_Y = 22;
-  const series = useMemo(() => summarizeTradePnl(trades).cumulativeNet, [trades]);
-
-  if (series.length < 2) {
-    return (
-      <div className="sparkline-empty">
-        <div className="sparkline-empty-glyph">⏷</div>
-        <div className="sparkline-empty-title">Awaiting first closed trade</div>
-        <div className="sparkline-empty-sub">
-          The trader is watching SOL/USDT live. Cumulative PnL appears here the moment the first position closes.
-        </div>
-      </div>
-    );
-  }
-
-  const min = Math.min(...series, 0), max = Math.max(...series, 0);
-  const range = max - min || 1;
-  const xy = series.map((v, i) => {
-    const x = PAD_X + (i / (series.length - 1)) * (W - 2 * PAD_X);
-    const y = H - PAD_Y - ((v - min) / range) * (H - 2 * PAD_Y);
-    return [x, y] as const;
-  });
-  const path = xy.map(([x, y], i) => `${i ? "L" : "M"} ${x.toFixed(1)} ${y.toFixed(1)}`).join(" ");
-  const last = xy[xy.length - 1];
-  const area = `${path} L ${last[0]} ${H - PAD_Y} L ${PAD_X} ${H - PAD_Y} Z`;
-  const final = series[series.length - 1];
-  const color = final >= 0 ? "var(--emerald)" : "var(--coral)";
-  const zeroY = H - PAD_Y - ((0 - min) / range) * (H - 2 * PAD_Y);
-
-  return (
-    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="sparkline-svg">
-      <line x1={PAD_X} x2={W - PAD_X} y1={zeroY} y2={zeroY} stroke="var(--border)" strokeDasharray="2 6" />
-      <path d={area} fill={color} fillOpacity="0.10" />
-      <path d={path} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
-      {xy.map(([x, y], i) => (
-        <circle key={i} cx={x} cy={y} r={i === xy.length - 1 ? 3.5 : 2} fill={color} />
-      ))}
-      <text x={last[0] - 6} y={last[1] - 8} className="sparkline-final" fill={color} textAnchor="end">
-        {final >= 0 ? "+" : ""}{final.toFixed(2)}%
-      </text>
-    </svg>
-  );
-}
+/* NightData shape lives in nightTypes.ts (shared with NightShiftChart). */
 
 /* ── Invariant data ── */
 
@@ -132,17 +67,9 @@ function PnlSparkline({ trades }: { trades: TraderState["trade_history"] }) {
 /* ── Main Page ── */
 
 export default function Home() {
-  const { publicKey, connected } = useWallet();
-  const { connection } = useConnection();
-
   const [treasurySol, setTreasurySol] = useState<number | null>(null);
-  const [walletSol, setWalletSol] = useState<number | null>(null);
   const [cycle, setCycle] = useState<CycleData | null>(null);
-  const [liveness, setLiveness] = useState<LivenessData | null>(null);
   const [trader, setTrader] = useState<TraderState | null>(null);
-  const [yieldReceived, setYieldReceived] = useState<number | null>(null);
-  const [yieldLoading, setYieldLoading] = useState(false);
-  const [isFrozen, setIsFrozen] = useState(false);
   const [night, setNight] = useState<NightData | null>(null);
 
   // ── Trader wallet balance (mainnet) ──
@@ -180,22 +107,6 @@ export default function Home() {
     return () => { alive = false; clearInterval(id); };
   }, []);
 
-  // ── Connected wallet balance (mainnet, via API route) ──
-  useEffect(() => {
-    if (!publicKey) return;
-    let alive = true;
-    const poll = async () => {
-      try {
-        const res = await fetch(`/api/mainnet-balance?wallet=${publicKey.toBase58()}`);
-        const json = await res.json();
-        if (alive) setWalletSol(json.sol ?? 0);
-      } catch { /* retry */ }
-    };
-    poll();
-    const id = setInterval(poll, 15_000);
-    return () => { alive = false; clearInterval(id); };
-  }, [publicKey]);
-
   // ── Fetch cycle data ──
   useEffect(() => {
     (async () => {
@@ -228,83 +139,6 @@ export default function Home() {
     })();
   }, []);
 
-  // ── Program liveness ──
-  useEffect(() => {
-    let alive = true;
-    const check = async () => {
-      try {
-        const res = await fetch("https://api.devnet.solana.com", {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "getAccountInfo",
-            params: ["8rt6yiBnRTyHy8F69jUd7exWwwShUs4Eokeq41auo2RB", { encoding: "base64" }] }),
-        });
-        const json = await res.json();
-        const value = json?.result?.value;
-        if (alive) setLiveness({
-          programId: "8rt6yiBnRTyHy8F69jUd7exWwwShUs4Eokeq41auo2RB",
-          live: value !== null && value !== undefined,
-          executable: value?.executable ?? false,
-          slot: json?.result?.context?.slot ?? null,
-        });
-      } catch {}
-    };
-    check();
-    const id = setInterval(check, 30_000);
-    return () => { alive = false; clearInterval(id); };
-  }, []);
-
-  // ── Treasury frozen state ──
-  useEffect(() => {
-    let alive = true;
-    const check = async () => {
-      try {
-        const devnetConn = new (await import("@solana/web3.js")).Connection(DEVNET_RPC, "confirmed");
-        const state = await fetchTreasuryState(devnetConn, TREASURY_AUTHORITY);
-        if (alive) setIsFrozen(state.isFrozen);
-      } catch {}
-    };
-    check();
-    const id = setInterval(check, 30_000);
-    return () => { alive = false; clearInterval(id); };
-  }, []);
-
-  // ── Yield received ──
-  useEffect(() => {
-    if (!publicKey) return;
-    let cancelled = false;
-    (async () => {
-      setYieldReceived(null);
-      setYieldLoading(true);
-      try {
-        const devnetConn = new (await import("@solana/web3.js")).Connection(DEVNET_RPC, "confirmed");
-        const treasuryPubkey = new PublicKey(TREASURY_PDA);
-        const walletStr = publicKey.toBase58();
-        const signatures = await devnetConn.getSignaturesForAddress(treasuryPubkey, { limit: 20 });
-        let totalYieldLamports = 0;
-        for (const sigInfo of signatures) {
-          if (cancelled) break;
-          try {
-            const tx = await devnetConn.getTransaction(sigInfo.signature, { maxSupportedTransactionVersion: 0 });
-            if (!tx || !tx.meta) continue;
-            const { preBalances, postBalances } = tx.meta;
-            const accountKeys = tx.transaction.message.staticAccountKeys
-              ? tx.transaction.message.staticAccountKeys
-              : (tx.transaction.message as { accountKeys: PublicKey[] }).accountKeys;
-            for (let i = 0; i < accountKeys.length; i++) {
-              const key = accountKeys[i] instanceof PublicKey ? (accountKeys[i] as PublicKey).toBase58() : String(accountKeys[i]);
-              if (key === walletStr) {
-                const delta = (postBalances[i] ?? 0) - (preBalances[i] ?? 0);
-                if (delta > 0) totalYieldLamports += delta;
-              }
-            }
-          } catch {}
-        }
-        if (!cancelled) { setYieldReceived(totalYieldLamports / LAMPORTS_PER_SOL); setYieldLoading(false); }
-      } catch { if (!cancelled) { setYieldReceived(null); setYieldLoading(false); } }
-    })();
-    return () => { cancelled = true; };
-  }, [publicKey]);
-
   /* ── Derived ── */
 
   const pnl = useMemo(
@@ -331,17 +165,6 @@ export default function Home() {
   return (
     <div className="page">
       <Topbar activePage="dashboard" />
-
-      {/* Emergency freeze banner */}
-      {isFrozen && (
-        <div style={{
-          background: "#dc2626", color: "#fff", padding: "10px 24px",
-          textAlign: "center", fontSize: "0.875rem", fontWeight: 600,
-          letterSpacing: "0.04em",
-        }}>
-          TREASURY FROZEN: All operations halted by authority. Unfreeze requires 2-of-3 multisig approval + 24h time lock.
-        </div>
-      )}
 
       {/* ════════ HERO ════════ */}
       <section className="hero" style={{ marginBottom: 0 }}>
@@ -377,20 +200,7 @@ export default function Home() {
             <Link href="/compatibility" className="sys2-cta-primary">
               Start Compatibility Check →
             </Link>
-            <Link href="/docs" className="sys2-cta-secondary">Read the docs →</Link>
           </div>
-
-          {connected && publicKey && (yieldLoading || (yieldReceived !== null && yieldReceived > 0)) && (
-            <div className="hero-yield">
-              {yieldLoading ? (
-                <span className="yield-text">Scanning treasury transactions...</span>
-              ) : (
-                <span className="yield-text">
-                  You have received <strong>{yieldReceived?.toFixed(4)} SOL</strong> from RTP
-                </span>
-              )}
-            </div>
-          )}
         </div>
 
         {/* Vitals strip — full width */}
@@ -493,7 +303,17 @@ export default function Home() {
 
           <div className="console-card chart-card">
             <div className="console-card-eyebrow">CUMULATIVE PNL · NET OF FEES · ALL CLOSED TRADES</div>
-            <PnlSparkline trades={trader?.trade_history ?? []} />
+            {(trader?.trade_history?.length ?? 0) >= 1 ? (
+              <PnlChart trades={trader?.trade_history ?? []} />
+            ) : (
+              <div className="sparkline-empty">
+                <div className="sparkline-empty-glyph">⏷</div>
+                <div className="sparkline-empty-title">Awaiting first closed trade</div>
+                <div className="sparkline-empty-sub">
+                  The trader is watching SOL/USDT live. Cumulative PnL appears here the moment the first position closes.
+                </div>
+              </div>
+            )}
             <div className="chart-stats">
               <div className="chart-stat">
                 <span className="chart-stat-val">{trader?.total_trades ?? 0}</span>
@@ -621,7 +441,7 @@ export default function Home() {
             </div>
           </div>
           <div className="offer-visual">
-            <OfferArchitecture />
+            <OfferFlow />
           </div>
         </div>
       </section>
@@ -664,69 +484,30 @@ export default function Home() {
           ))}
         </ol>
 
-        <div className="validated-card">
-          <div className="validated-head">
-            <span className="validated-tag">VALIDATED · LIVE ON MAINNET</span>
-            <span className="validated-title">SOL/USDT Survivor 2.69 · 9× leverage</span>
-          </div>
-          <div className="validated-grid">
-            {[
-              { v: "44.89", l: "Calmar Ratio" }, { v: "+554%", l: "9× return" },
-              { v: "12.3%", l: "Max drawdown" }, { v: "100%", l: "Fold consistency" },
-              { v: "0", l: "Liquidations" }, { v: "16,228", l: "Candidates tested" },
-            ].map((m) => (
-              <div key={m.l} className="validated-cell">
-                <span className="validated-val">{m.v}</span>
-                <span className="validated-lab">{m.l}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Compact: active strategy + failure memory */}
-        <div className="intel-grid intel-grid--2col" style={{ marginTop: "var(--space-2xl)" }}>
-          <article className="intel-panel intel-active">
-            <header className="intel-panel-head">
-              <span className="intel-pill live">LIVE</span>
-              <span className="intel-panel-title">Active Strategy</span>
-            </header>
-            <div className="intel-active-name">SOL/USDT · Survivor 2.69</div>
-            <div className="intel-active-type">Multi-timeframe trend following · 9× leverage</div>
-            <div className="intel-chips">
-              {[["signal_threshold","0.3"],["tp_atr","6.0"],["sl_atr","2.5"],["trail_atr","1.0"],["min_alignment","2"],["max_hold","96h"]].map(([k, v]) => (
-                <span key={k} className="intel-chip"><span className="dim">{k}</span>={v}</span>
-              ))}
+        {/* Validated stats + last night's survivors, one row */}
+        <div className="engine-proof-row">
+          <div className="console-card validated-card">
+            <div className="console-card-eyebrow">
+              Walk-forward validated · Survivor 2.69 · 9× · OOS, not live PnL
             </div>
-            <div className="intel-active-status">
-              <span className={`status-dot ${trader ? "live" : ""}`} />
-              {trader ? trader.open_position ? "Position open on mainnet" : `Watching · ${trader.candle_count} candles · ${trader.total_trades} trades` : "Connecting to trader…"}
-            </div>
-          </article>
-
-          <article className="intel-panel">
-            <header className="intel-panel-head">
-              <span className="intel-pill explore">6 WINGS</span>
-              <span className="intel-panel-title">Swarm Architecture</span>
-            </header>
-            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+            <div className="validated-grid">
               {[
-                { name: "Trading", desc: "Venue execution · REST · PnL", live: true },
-                { name: "Evolve", desc: "LLM proposer · gates · rollback", live: true },
-                { name: "Audit", desc: "3-agent tribunal · consensus" },
-                { name: "Security", desc: "Threats · rate limits · alerts" },
-                { name: "Knowledge", desc: "Persistent store · cross-wing graph" },
-                { name: "Futureproof", desc: "Deprecation · heartbeat" },
-              ].map((w) => (
-                <div key={w.name} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 0", borderBottom: "1px solid var(--border)" }}>
-                  <span style={{ fontSize: "0.8125rem", fontWeight: 500, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: "6px" }}>
-                    {w.name}
-                    {w.live && <span className="arch2-wing-pulse" style={{ width: "5px", height: "5px" }} />}
-                  </span>
-                  <span style={{ fontSize: "0.6875rem", color: "var(--text-tertiary)" }}>{w.desc}</span>
+                { v: "44.89", l: "Calmar Ratio" }, { v: "+554%", l: "9× return" },
+                { v: "12.3%", l: "Max drawdown" }, { v: "100%", l: "Fold consistency" },
+                { v: "0", l: "Liquidations" }, { v: "16,228", l: "Candidates tested" },
+              ].map((m) => (
+                <div key={m.l} className="validated-cell">
+                  <span className="validated-val">{m.v}</span>
+                  <span className="validated-lab">{m.l}</span>
                 </div>
               ))}
             </div>
-          </article>
+          </div>
+
+          {/* Night Shift survivors — the pipeline's output, ranked */}
+          <div className="console-card chart-card">
+            <NightShiftChart night={night} />
+          </div>
         </div>
       </section>
 
@@ -745,7 +526,6 @@ export default function Home() {
               <Link href="/compatibility" className="sys2-cta-primary">
                 Start Compatibility Check →
               </Link>
-              <Link href="/docs" className="sys2-cta-secondary">Read the docs →</Link>
             </div>
           </div>
         </div>
@@ -754,32 +534,8 @@ export default function Home() {
       {/* Footer */}
       <footer className="vitals">
         <div className="vital">
-          <span className="vital-value">
-            8rt6yi...2RB{" "}
-            {liveness && (
-              <span className={`liveness-badge ${liveness.live ? "live" : "down"}`}>
-                {liveness.live ? "● Live" : "● Recheck"}
-              </span>
-            )}
-          </span>
-          <span className="vital-label">Program ID (Devnet)</span>
-        </div>
-        <div className="vital">
           <span className="vital-value">{TRADER_WALLET_SHORT}</span>
           <span className="vital-label">Trader Wallet (Mainnet)</span>
-        </div>
-        <div className="vital">
-          <span className="vital-value">70 / 20 / 10</span>
-          <span className="vital-label">Redistribution Split</span>
-        </div>
-        <div className="vital">
-          <span className="vital-value">Sustenance</span>
-          <span className="vital-label">Current Phase</span>
-        </div>
-        <div className="vital">
-          <a className="vital-link" href="https://explorer.solana.com/tx/4RVehmPVpnFYHrsF6N64RjVh7mszRzKF9DQVHd8TUqBHwrnyDYavf3TnDYJC4b5PrJWVSubZkNuyVkF1oJzk71RT?cluster=devnet"
-            target="_blank" rel="noopener noreferrer">On-Chain Proof ↗</a>
-          <span className="vital-label">On-Chain Proof</span>
         </div>
         <div className="vital">
           <a className="vital-link" href="https://resilientprotocol.xyz" target="_blank" rel="noopener noreferrer">resilientprotocol.xyz ↗</a>
