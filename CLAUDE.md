@@ -175,6 +175,15 @@ program interactions.
 - Dashboard peer conflict is known and tolerated: `@coral-xyz/anchor ^0.32`
   vs sdk peer `^0.31` — install/build with `npm ci --legacy-peer-deps`
   (same as `Dockerfile.dashboard`).
+- **Dashboard lockfile MUST be regenerated with npm 10 (node:22)** — the
+  Dockerfile.dashboard toolchain. npm 9 writes `file:../sdk` deps as an
+  inline entry and drops the `../sdk` source-package entry, so the build
+  fails at `npm ci` with "Missing: @resilient-protocol/sdk@0.1.0 from
+  lock file" (Aug 16–23: every dashboard deploy failed from this after a
+  batch bump ran under npm 9). Regenerate with
+  `docker run --rm -v "$PWD":/repo -w /repo/dashboard node:22 npm install
+  --package-lock-only --legacy-peer-deps` — never under a local npm 9.
+  Always verify `packages["../sdk"]` exists after regenerating.
 - `next` / `react` / `react-dom` / `eslint-config-next` use **exact pins**
   (no `^`) in `dashboard/package.json` — keep that convention.
 - Dependabot ignores (`.github/dependabot.yml`): typescript majors (TS7
