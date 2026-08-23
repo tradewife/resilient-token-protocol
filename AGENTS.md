@@ -29,9 +29,15 @@ and overrides everything.
 
 ## Setup (fresh clone → running)
 
+Node toolchain: **Node 22 LTS + npm 10.x** (matches `Dockerfile.dashboard`).
+The repo carries a `.nvmrc` (`22`); with nvm installed, `cd` into the repo
+auto-switches. Lockfiles must only be touched with this toolchain — an
+npm 9 lockfile drops the `../sdk` workspace entry and breaks Railway builds
+(see CLAUDE.md → "Intentional dependency pins").
+
 ```bash
 # Dashboard (http://127.0.0.1:3000)
-cd dashboard && npm ci && npm run dev
+cd dashboard && npm ci --legacy-peer-deps && npm run dev
 
 # Rust swarm tests
 cd rtp/swarm && cargo test --lib
