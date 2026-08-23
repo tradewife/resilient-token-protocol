@@ -67,7 +67,11 @@ and `CLAUDE.md` (Railway section). Key ones:
 `LLM_API_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL` (devnet-loop),
 `RTP_INTAKE_DB_PATH` (dashboard). Local template: `dashboard/env.example`.
 Secrets live in Railway env vars or `.secrets/` (gitignored) — never
-commit them.
+commit them. Operational (not secret):
+`RTP_TRADER_MIN_OPEN_COLLATERAL_LAMPORTS` (fee-sane entry floor,
+default 500M = 0.5 SOL — the venue's $1 minimum does not cover fixed
+per-order costs), `RTP_GM_EXECUTION_FEE_LAMPORTS` (keeper fee, default
+500k).
 
 ## Naming conventions
 

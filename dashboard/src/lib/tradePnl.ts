@@ -24,6 +24,7 @@ export type ClosedTradeLike = {
   pnl_pct: number;
   size_usd?: number;
   side?: string;
+  exit_reason?: string;
 };
 
 export function holdHours(t: Pick<ClosedTradeLike, "entry_time" | "exit_time">): number {
@@ -35,8 +36,17 @@ export function measuredRtFeePct(_t?: ClosedTradeLike): number {
   return GMTRADE_RT_FEE_PCT;
 }
 
-/** Per-trade net PnL % after measured venue RT fee. */
+/** Per-trade net PnL % after measured venue RT fee.
+ *
+ * PhantomClear rows are reconciliation audit entries (positions closed
+ * outside the trader's observation), not real round trips — subtracting the
+ * venue fee from their estimated PnL would invent a cost that was never
+ * charged to this accounting. They pass through gross.
+ */
 export function netTradePnlPct(t: ClosedTradeLike): number {
+  if (t.exit_reason?.startsWith("PhantomClear")) {
+    return t.pnl_pct;
+  }
   return t.pnl_pct - measuredRtFeePct(t);
 }
 

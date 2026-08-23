@@ -153,6 +153,28 @@ impl TraderState {
     }
 }
 
+/// Drop the current (still-forming) candle from a Binance kline fetch.
+///
+/// Binance returns the in-progress candle as the last row with its OPEN
+/// timestamp. Loading it as a FINAL candle and then letting `append_tick`
+/// roll the same hour creates a duplicated candle, and every warmup/refresh
+/// was doing this. Compare the last candle's timestamp against the current
+/// period boundary; drop it when it's the live one. Works for any
+/// `period_secs` (3600, 14400, 86400).
+fn drop_in_progress_candle(
+    mut candles: Vec<indicators::Candle>,
+    period_secs: i64,
+) -> Vec<indicators::Candle> {
+    if let Some(last) = candles.last() {
+        let now = Utc::now().timestamp();
+        let current_period_start = (now / period_secs) * period_secs;
+        if last.timestamp == current_period_start {
+            candles.pop();
+        }
+    }
+    candles
+}
+
 /// Fetch SOL balance of a wallet via RPC. Returns SOL (not lamports).
 async fn fetch_wallet_balance(rpc_url: &str, wallet: &str) -> Result<f64, String> {
     let client = reqwest::Client::new();
@@ -647,18 +669,21 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
         candles::fetch_binance_ohlcv("SOLUSDT", "1d", 120),
     );
     if let Ok(c) = r1h {
+        let c = drop_in_progress_candle(c, 3600);
         tracing::info!("[WARMUP] Loaded {} 1h candles from Binance", c.len());
         buffer_1h.load_candles(c);
     } else if let Err(e) = r1h {
         tracing::warn!("[WARMUP] 1h Binance fetch failed ({}). Starting cold.", e);
     }
     if let Ok(c) = r4h {
+        let c = drop_in_progress_candle(c, 4 * 3600);
         tracing::info!("[WARMUP] Loaded {} 4h candles from Binance", c.len());
         buffer_4h.load_candles(c);
     } else if let Err(e) = r4h {
         tracing::warn!("[WARMUP] 4h Binance fetch failed ({}). Starting cold.", e);
     }
     if let Ok(c) = r1d {
+        let c = drop_in_progress_candle(c, 24 * 3600);
         tracing::info!("[WARMUP] Loaded {} 1d candles from Binance", c.len());
         buffer_1d.load_candles(c);
     } else if let Err(e) = r1d {
@@ -680,17 +705,40 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
                         let entry_price: f64 = pos.entry_price_ui.parse().unwrap_or(0.0);
                         let size_usd: f64 = pos.size_usd_ui.parse().unwrap_or(0.0);
                         let side = pos.side_ui.clone();
+                        // Use the venue-reported open time when available so
+                        // MaxHold / time-decay measure the TRUE holding
+                        // period. The old code always assumed "1h ago", which
+                        // silently restarted the 96h MaxHold clock on every
+                        // redeploy and let orphaned positions drift far past
+                        // their validated hold window. Fall back to 1h ago
+                        // only when the venue reports no timestamp.
+                        let now_ts = Utc::now().timestamp();
+                        let entry_time = if pos.opened_at_secs > 0 && pos.opened_at_secs <= now_ts {
+                            pos.opened_at_secs
+                        } else {
+                            tracing::warn!(
+                                "[RECONCILE] venue reported no open time — assuming 1h ago \
+                                 (MaxHold clock will be approximate)"
+                            );
+                            now_ts - 3600
+                        };
                         tracing::warn!(
-                            "[RECONCILE] Found orphaned SOL {} position on Flash Trade: \
-                             entry=${:.2} size=${:.2} key={}...restoring to internal state.",
+                            "[RECONCILE] Found orphaned SOL {} position on {}: \
+                             entry=${:.2} size=${:.2} opened={} ({}h ago) key={}... \
+                             restoring to internal state.",
                             side,
+                            config.venue,
                             entry_price,
                             size_usd,
-                            &pos.key[..8]
+                            chrono::DateTime::from_timestamp(entry_time, 0)
+                                .map(|t| t.to_rfc3339())
+                                .unwrap_or_else(|| "invalid".to_string()),
+                            (now_ts - entry_time) as f64 / 3600.0,
+                            &pos.key[..pos.key.len().min(8)]
                         );
                         s.open_position = Some(OpenPosition {
                             entry_price,
-                            entry_time: Utc::now().timestamp() - 3600, // assume 1h ago to avoid max_hold firing immediately
+                            entry_time,
                             peak_price: entry_price,
                             entry_rsi: 50.0, // neutral default
                             entry_atr: 0.0,
@@ -740,18 +788,41 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
                     .iter()
                     .any(|p| p.market_symbol == "SOL" && p.side_ui == side_lookup);
                 if !on_chain {
+                    // The position vanished between sessions (external close,
+                    // liquidation, or a prior session's unrecorded close).
+                    // Booking pnl_pct = 0 here silently dropped the real
+                    // outcome from the tape — estimate it against the current
+                    // venue price instead (NOT added to total_pnl_sol, which
+                    // stays a realized-only counter).
+                    let est_price = venue_get_sol_price(&config.venue).await.unwrap_or(0.0);
                     tracing::warn!(
-                        "[CLEANUP] Stale SOL {} position in state — not found on Flash Trade. Clearing.",
-                        side_lookup
+                        "[CLEANUP] Stale SOL {} position in state — not found on {}. \
+                         Clearing (exit price estimate ${:.2}).",
+                        side_lookup,
+                        config.venue,
+                        est_price
                     );
                     let mut s = state.lock().await;
                     if let Some(pos) = s.open_position.take() {
+                        let exit_price = if est_price > 0.0 {
+                            est_price
+                        } else {
+                            pos.entry_price
+                        };
+                        let pnl_pct = if pos.entry_price > 0.0 && est_price > 0.0 {
+                            match pos.side() {
+                                "Short" => (pos.entry_price - exit_price) / pos.entry_price * 100.0,
+                                _ => (exit_price - pos.entry_price) / pos.entry_price * 100.0,
+                            }
+                        } else {
+                            0.0
+                        };
                         s.trade_history.push(TradeRecord {
                             entry_price: pos.entry_price,
-                            exit_price: pos.entry_price,
+                            exit_price,
                             entry_time: pos.entry_time,
                             exit_time: Utc::now().timestamp(),
-                            pnl_pct: 0.0,
+                            pnl_pct,
                             exit_reason: "PhantomClear(StartupReconcile)".to_string(),
                             size_usd: pos.size_usd,
                             side: pos.side().to_string(),
@@ -796,8 +867,14 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
     // react to real TF changes, slow enough to avoid burning Binance quota.
     const SLOW_REFRESH_4H_SECS: i64 = 2 * 3600;
     const SLOW_REFRESH_1D_SECS: i64 = 6 * 3600;
+    // 1h buffer: rebuilt live from ~12 venue ticks/hour with tick-count
+    // "volumes", so the vol_confirm score term is dead and long-uptime
+    // buffers drift from the true hourly closes. Refetch hourly like the
+    // slow TFs (the in-progress candle is dropped; append_tick rebuilds it).
+    const SLOW_REFRESH_1H_SECS: i64 = 3600;
     let mut last_4h_refresh = Utc::now().timestamp();
     let mut last_1d_refresh = Utc::now().timestamp();
+    let mut last_1h_refresh = Utc::now().timestamp();
 
     // Entry cooldown: when an open is refused because the wallet can't clear
     // the venue's collateral minimum, retrying every poll until someone funds
@@ -828,8 +905,10 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
                 &mut buffer_4h,
                 &mut buffer_1d,
                 &state,
+                &mut last_1h_refresh,
                 &mut last_4h_refresh,
                 &mut last_1d_refresh,
+                SLOW_REFRESH_1H_SECS,
                 SLOW_REFRESH_4H_SECS,
                 SLOW_REFRESH_1D_SECS,
                 &mut entry_cooldown_until,
@@ -918,25 +997,45 @@ async fn run_cycle(
     buffer_4h: &mut CandleBuffer,
     buffer_1d: &mut CandleBuffer,
     state: &Arc<Mutex<TraderState>>,
+    last_1h_refresh: &mut i64,
     last_4h_refresh: &mut i64,
     last_1d_refresh: &mut i64,
+    refresh_1h_secs: i64,
     refresh_4h_secs: i64,
     refresh_1d_secs: i64,
     entry_cooldown_until: &mut i64,
 ) -> Result<(), String> {
     let cycle_start = Utc::now();
 
-    // 0. Periodically refresh slow-TF buffers from Binance. The 1h buffer
-    // receives live ticks via `append_tick`, but the 4h/1d buffers would
-    // stay pinned at the warmup snapshot — leaving tf_4h.trend and
-    // tf_1d.trend frozen at deploy-time SMA values. Without this refresh,
-    // bullish/bearish counts can never flip with the market even when the
-    // trend has clearly shifted. This was the core wiring bug behind the
-    // "stuck at bull=2 bear=1 for 12 hours" deadlock.
+    // 0. Periodically refresh TF buffers from Binance. The 1h buffer
+    // receives live ticks via `append_tick`, but ticks carry tick-count
+    // "volumes" and an uptime-accumulated buffer drifts from the true
+    // hourly closes the strategy was validated on — refetch it hourly like
+    // the slow TFs. Without periodic refetch, tf_4h.trend and tf_1d.trend
+    // stay pinned at warmup SMA/price, and bullish/bearish counts can never
+    // flip with the market even when the trend has clearly shifted. This was
+    // the core wiring bug behind the "stuck at bull=2 bear=1 for 12 hours"
+    // deadlock.
     let now_ts = cycle_start.timestamp();
+    if now_ts - *last_1h_refresh >= refresh_1h_secs {
+        match candles::fetch_binance_ohlcv("SOLUSDT", "1h", 300).await {
+            Ok(c) if !c.is_empty() => {
+                let c = drop_in_progress_candle(c, 3600);
+                tracing::info!("[REFRESH] 1h: loaded {} candles from Binance", c.len());
+                buffer_1h.load_candles(c);
+                *last_1h_refresh = now_ts;
+            }
+            Ok(_) => tracing::warn!("[REFRESH] 1h: Binance returned empty candle set"),
+            Err(e) => tracing::warn!(
+                "[REFRESH] 1h: Binance fetch failed ({}) — using stale buffer",
+                e
+            ),
+        }
+    }
     if now_ts - *last_4h_refresh >= refresh_4h_secs {
         match candles::fetch_binance_ohlcv("SOLUSDT", "4h", 200).await {
             Ok(c) if !c.is_empty() => {
+                let c = drop_in_progress_candle(c, 4 * 3600);
                 tracing::info!("[REFRESH] 4h: loaded {} candles from Binance", c.len());
                 buffer_4h.load_candles(c);
                 *last_4h_refresh = now_ts;
@@ -951,6 +1050,7 @@ async fn run_cycle(
     if now_ts - *last_1d_refresh >= refresh_1d_secs {
         match candles::fetch_binance_ohlcv("SOLUSDT", "1d", 120).await {
             Ok(c) if !c.is_empty() => {
+                let c = drop_in_progress_candle(c, 24 * 3600);
                 tracing::info!("[REFRESH] 1d: loaded {} candles from Binance", c.len());
                 buffer_1d.load_candles(c);
                 *last_1d_refresh = now_ts;
@@ -1130,20 +1230,37 @@ async fn run_cycle(
                             }
                         } else {
                             tracing::warn!(
-                                "[EXIT] No SOL {} position found on Flash Trade — clearing phantom local state",
-                                pos_side
+                                "[EXIT] No SOL {} position found on {} — clearing phantom local state",
+                                pos_side,
+                                config.venue
                             );
-                            // Never treat a missing on-chain position as a real close for PnL,
-                            // but record an audit row so the dashboard trade tape advances.
+                            // Never treat a missing on-chain position as a real close for PnL
+                            // (total_pnl_sol untouched), but record an audit row against the
+                            // current price so the tape reflects the estimated outcome —
+                            // booking 0.0 silently dropped these results before.
                             let exit_price =
                                 closes_1h.last().copied().unwrap_or(pos_info.entry_price);
                             let side = pos_info.side().to_string();
+                            let pnl_pct = if pos_info.entry_price > 0.0 {
+                                match pos_info.side() {
+                                    "Short" => {
+                                        (pos_info.entry_price - exit_price) / pos_info.entry_price
+                                            * 100.0
+                                    }
+                                    _ => {
+                                        (exit_price - pos_info.entry_price) / pos_info.entry_price
+                                            * 100.0
+                                    }
+                                }
+                            } else {
+                                0.0
+                            };
                             let trade = TradeRecord {
                                 entry_price: pos_info.entry_price,
                                 exit_price,
                                 entry_time: pos_info.entry_time,
                                 exit_time: Utc::now().timestamp(),
-                                pnl_pct: 0.0,
+                                pnl_pct,
                                 exit_reason: format!("PhantomClear({:?})", reason),
                                 size_usd: pos_info.size_usd,
                                 side,
@@ -1278,27 +1395,27 @@ async fn run_cycle(
                     };
 
                     // Collateral pre-flight (GM only): if the sized collateral
-                    // can't clear the venue's floor, skip BEFORE spending a
+                    // can't clear the fee-sane floor, skip BEFORE spending a
                     // venue round-trip (the venue-side check still guards —
-                    // this only avoids the wasted call). 10% margin for price
-                    // drift between this poll's price and the venue's fetch.
-                    // Note: gmtrade also caps collateral at
-                    // (balance - reserve) * 0.98, so this is a fast filter,
-                    // not the authoritative guard.
-                    let est_collateral_usd = amount_sol * price;
-                    if is_gm(&config.venue)
-                        && est_collateral_usd < gmtrade::MIN_OPEN_COLLATERAL_USD * 1.1
-                    {
-                        tracing::warn!(
-                            "[ENTRY] Pre-flight: ${:.2} sized collateral can't clear the ${:.0} \
-                             venue floor — soft-skip, entry cooldown {}s",
-                            est_collateral_usd,
-                            gmtrade::MIN_OPEN_COLLATERAL_USD,
-                            ENTRY_COOLDOWN_SECS
-                        );
-                        *entry_cooldown_until =
-                            cycle_start.timestamp() + ENTRY_COOLDOWN_SECS as i64;
-                        return Ok(());
+                    // this only avoids the wasted call). The floor is the
+                    // configurable `min_open_collateral_lamports()` (default
+                    // 0.5 SOL), not the venue's $1 minimum: fixed per-order
+                    // costs (execution fee + wrap) make sub-floor positions
+                    // fee-negative regardless of edge.
+                    if is_gm(&config.venue) {
+                        let floor_lamports = gmtrade::min_open_collateral_lamports();
+                        if (amount_sol * 1e9) < floor_lamports as f64 {
+                            tracing::warn!(
+                                "[ENTRY] Pre-flight: {:.4} SOL sized collateral below the {} \
+                                 lamport fee-sane floor — soft-skip, entry cooldown {}s",
+                                amount_sol,
+                                floor_lamports,
+                                ENTRY_COOLDOWN_SECS
+                            );
+                            *entry_cooldown_until =
+                                cycle_start.timestamp() + ENTRY_COOLDOWN_SECS as i64;
+                            return Ok(());
+                        }
                     }
 
                     match venue_open_position(
@@ -2034,5 +2151,91 @@ mod tests {
 
         // Different input → different output, confirming dynamic behavior
         assert_ne!(code1, code2, "Health check must be dynamic, not static");
+    }
+
+    fn candle_at(ts: i64) -> indicators::Candle {
+        indicators::Candle {
+            timestamp: ts,
+            open: 100.0,
+            high: 101.0,
+            low: 99.0,
+            close: 100.5,
+            volume: 1000.0,
+        }
+    }
+
+    #[test]
+    fn drop_in_progress_candle_removes_current_period() {
+        // Binance returns the in-progress candle last (open timestamp ==
+        // current period start). It must be dropped so load_candles never
+        // installs a half-formed candle as final.
+        let now = Utc::now().timestamp();
+        let hour = 3600;
+        let current_start = (now / hour) * hour;
+        let candles = vec![
+            candle_at(current_start - 2 * hour),
+            candle_at(current_start - hour),
+            candle_at(current_start), // in-progress
+        ];
+        let out = drop_in_progress_candle(candles, hour);
+        assert_eq!(out.len(), 2, "in-progress candle must be dropped");
+        assert_eq!(out.last().unwrap().timestamp, current_start - hour);
+    }
+
+    #[test]
+    fn drop_in_progress_candle_keeps_final_set() {
+        // When the last candle belongs to a past period (e.g. fetched right
+        // after the boundary rolled), nothing is dropped.
+        let now = Utc::now().timestamp();
+        let hour = 3600;
+        let current_start = (now / hour) * hour;
+        let candles = vec![
+            candle_at(current_start - 2 * hour),
+            candle_at(current_start - hour),
+        ];
+        let out = drop_in_progress_candle(candles.clone(), hour);
+        assert_eq!(out.len(), 2, "all-final candle set must be kept");
+    }
+
+    #[test]
+    fn drop_in_progress_candle_works_for_4h_and_1d_periods() {
+        let now = Utc::now().timestamp();
+        for period in [4 * 3600, 24 * 3600] {
+            let current_start = (now / period) * period;
+            let candles = vec![candle_at(current_start - period), candle_at(current_start)];
+            let out = drop_in_progress_candle(candles, period);
+            assert_eq!(out.len(), 1, "period {} must drop the live candle", period);
+        }
+    }
+
+    #[test]
+    fn gm_min_open_collateral_env_override() {
+        // The fee-sane floor is operator-tunable; parse failures fall back
+        // to the default rather than opening dust positions.
+        unsafe { std::env::set_var("RTP_TRADER_MIN_OPEN_COLLATERAL_LAMPORTS", "123456789") };
+        assert_eq!(gmtrade::min_open_collateral_lamports(), 123456789);
+        unsafe { std::env::set_var("RTP_TRADER_MIN_OPEN_COLLATERAL_LAMPORTS", "not-a-number") };
+        assert_eq!(
+            gmtrade::min_open_collateral_lamports(),
+            gmtrade::DEFAULT_MIN_OPEN_COLLATERAL_LAMPORTS
+        );
+        unsafe { std::env::remove_var("RTP_TRADER_MIN_OPEN_COLLATERAL_LAMPORTS") };
+        assert_eq!(
+            gmtrade::min_open_collateral_lamports(),
+            gmtrade::DEFAULT_MIN_OPEN_COLLATERAL_LAMPORTS
+        );
+    }
+
+    #[test]
+    fn position_info_opened_at_secs_defaults_to_zero() {
+        // Flash-era position JSON lacks openedAtSecs; GMTrade fills it.
+        let json =
+            r#"{"sideUi":"Long","marketSymbol":"SOL","sizeUsdUi":"100","entryPriceUi":"90"}"#;
+        let parsed: crate::trader::executor::PositionInfo = serde_json::from_str(json).unwrap();
+        assert_eq!(parsed.opened_at_secs, 0);
+        let json_gm = r#"{"sideUi":"Long","marketSymbol":"SOL","openedAtSecs":1787430903}"#;
+        let parsed_gm: crate::trader::executor::PositionInfo =
+            serde_json::from_str(json_gm).unwrap();
+        assert_eq!(parsed_gm.opened_at_secs, 1787430903);
     }
 }

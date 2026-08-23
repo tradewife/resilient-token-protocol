@@ -140,6 +140,25 @@ fn fill_timeout() -> Duration {
     )
 }
 
+/// Minimum collateral (lamports) for an open to proceed.
+///
+/// The venue floor is only $1 (`MIN_OPEN_COLLATERAL_USD`), which merely
+/// clears the keeper's validation — it does NOT clear the fixed per-order
+/// costs (execution fee + wrap/rent ≈ 0.0012 SOL per round trip). At
+/// $1 collateral those fixed costs are ~4% per leg, so tiny positions bleed
+/// fees regardless of edge (Aug 2026: a drained wallet churned ~$1
+/// collateral positions at ~0.012 SOL net loss per cycle). The floor keeps
+/// fixed costs a small fraction of the position. Overridable via
+/// `RTP_TRADER_MIN_OPEN_COLLATERAL_LAMPORTS`.
+pub const DEFAULT_MIN_OPEN_COLLATERAL_LAMPORTS: u64 = 500_000_000; // 0.5 SOL
+
+pub fn min_open_collateral_lamports() -> u64 {
+    std::env::var("RTP_TRADER_MIN_OPEN_COLLATERAL_LAMPORTS")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(DEFAULT_MIN_OPEN_COLLATERAL_LAMPORTS)
+}
+
 fn rpc_url() -> String {
     std::env::var("RTP_GM_RPC_URL")
         .unwrap_or_else(|_| "https://api.mainnet-beta.solana.com".to_string())
@@ -572,6 +591,7 @@ pub async fn get_positions(wallet: &str) -> GmResult<Vec<PositionInfo>> {
             borrow_fee_usd: format!("{}", (borrow_fee * 1e6) as u64),
             price_impact_usd: "0".to_string(),
             total_fee_usd: format!("{}", (total_fee * 1e6) as u64),
+            opened_at_secs: pos.state.increased_at,
         });
     }
     Ok(out)
@@ -650,13 +670,25 @@ pub async fn open_position(
             if is_long { "LONG" } else { "SHORT" }
         ));
     }
+    let collateral_lamports = (collateral_sol * 1e9) as u64;
+    // Fee-sane collateral floor (see `min_open_collateral_lamports`): the
+    // venue's $1 minimum only clears keeper validation, not the fixed
+    // per-order costs. Below the floor the trader stays flat via the
+    // INSUFFICIENT_COLLATERAL soft-skip (entry cooldown arms upstream).
+    let min_collateral = min_open_collateral_lamports();
+    if collateral_lamports < min_collateral {
+        return Err(format!(
+            "{INSUFFICIENT_COLLATERAL_PREFIX} {collateral_sol:.4} SOL collateral below the \
+             {} lamport fee-sane floor (${collateral_usd:.2} @ SOL ${sol_price:.2})",
+            min_collateral
+        ));
+    }
     if collateral_usd < MIN_OPEN_COLLATERAL_USD {
         return Err(format!(
             "{INSUFFICIENT_COLLATERAL_PREFIX} ${collateral_usd:.2} collateral below \
              ${MIN_OPEN_COLLATERAL_USD:.0} floor"
         ));
     }
-    let collateral_lamports = (collateral_sol * 1e9) as u64;
     let size_delta = (size_usd * USD_SCALE) as u128;
 
     tracing::info!(

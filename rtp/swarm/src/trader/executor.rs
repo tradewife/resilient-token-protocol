@@ -103,6 +103,12 @@ pub struct PositionInfo {
     pub price_impact_usd: String,
     #[serde(default)]
     pub total_fee_usd: String,
+    /// Unix seconds when the venue opened the position, when the venue
+    /// reports it (GMTrade `increased_at`; 0 = unknown). Lets startup
+    /// reconciliation restore real entry times instead of synthetic ones,
+    /// so MaxHold / time-decay measure the true holding period.
+    #[serde(default)]
+    pub opened_at_secs: i64,
 }
 
 impl PositionInfo {

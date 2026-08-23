@@ -3,8 +3,16 @@
 // on the Railway rtp-trader service. Loosening-only (the Rust trader silently
 // ignores values tighter than the validated WFA config).
 //
+// Also manages two operational knobs (NOT loosening overrides):
+//   RTP_TRADER_MIN_OPEN_COLLATERAL_LAMPORTS — fee-sane entry floor in
+//     lamports (default 0.5 SOL). Fixed per-order costs (execution fee +
+//     wrap ≈ 0.0012 SOL/RT) make sub-floor positions fee-negative.
+//   RTP_GM_EXECUTION_FEE_LAMPORTS — keeper execution fee per GMTrade order
+//     (venue floor 300k; probe ran 500k).
+//
 // Usage:
 //   node scripts/railway-trader-override.mjs set --min-alignment 2 --signal-threshold 0.2
+//   node scripts/railway-trader-override.mjs set --min-collateral-lamports 500000000 --execution-fee-lamports 400000
 //   node scripts/railway-trader-override.mjs unset
 //   node scripts/railway-trader-override.mjs show
 //
@@ -23,6 +31,10 @@ const GRAPHQL = 'https://backboard.railway.com/graphql/v2';
 const OVERRIDE_KEYS = [
   'RTP_TRADER_MIN_ALIGNMENT_OVERRIDE',
   'RTP_TRADER_SIGNAL_THRESHOLD_OVERRIDE',
+];
+const OPERATIONAL_KEYS = [
+  'RTP_TRADER_MIN_OPEN_COLLATERAL_LAMPORTS',
+  'RTP_GM_EXECUTION_FEE_LAMPORTS',
 ];
 
 function loadToken() {
@@ -69,13 +81,21 @@ async function listVars(token) {
 }
 
 function parseArgs(argv) {
-  const out = { command: null, minAlignment: null, signalThreshold: null };
+  const out = {
+    command: null,
+    minAlignment: null,
+    signalThreshold: null,
+    minCollateralLamports: null,
+    executionFeeLamports: null,
+  };
   const [, , cmd, ...rest] = argv;
   out.command = cmd;
   for (let i = 0; i < rest.length; i++) {
     const k = rest[i];
     if (k === '--min-alignment') out.minAlignment = rest[++i];
     else if (k === '--signal-threshold') out.signalThreshold = rest[++i];
+    else if (k === '--min-collateral-lamports') out.minCollateralLamports = rest[++i];
+    else if (k === '--execution-fee-lamports') out.executionFeeLamports = rest[++i];
   }
   return out;
 }
@@ -83,15 +103,18 @@ function parseArgs(argv) {
 (async () => {
   const args = parseArgs(process.argv);
   if (!args.command) {
-    console.error('Usage: railway-trader-override.mjs <set|unset|show> [--min-alignment N] [--signal-threshold F]');
+    console.error(
+      'Usage: railway-trader-override.mjs <set|unset|show> [--min-alignment N] [--signal-threshold F] ' +
+        '[--min-collateral-lamports N] [--execution-fee-lamports N]'
+    );
     process.exit(1);
   }
   const token = loadToken();
   if (args.command === 'show') {
     const vars = await listVars(token);
-    const overrides = vars.filter(v => OVERRIDE_KEYS.includes(v.name));
-    if (!overrides.length) console.log('(no override env vars set)');
-    else for (const v of overrides) console.log(`${v.name}=${v.value}`);
+    const tracked = vars.filter(v => [...OVERRIDE_KEYS, ...OPERATIONAL_KEYS].includes(v.name));
+    if (!tracked.length) console.log('(no override/operational env vars set)');
+    else for (const v of tracked) console.log(`${v.name}=${v.value}`);
     return;
   }
   if (args.command === 'unset') {
@@ -99,7 +122,11 @@ function parseArgs(argv) {
       await upsert(token, k, '');
       console.log(`unset ${k}`);
     }
-    console.log('Done. Redeploy rtp-trader to apply.');
+    console.log(
+      'Done (loosening overrides only; operational keys RTP_TRADER_MIN_OPEN_COLLATERAL_LAMPORTS / ' +
+        'RTP_GM_EXECUTION_FEE_LAMPORTS are left alone — set them explicitly to reset). ' +
+        'Redeploy rtp-trader to apply.'
+    );
     return;
   }
   if (args.command === 'set') {
@@ -110,6 +137,14 @@ function parseArgs(argv) {
     if (args.signalThreshold !== null) {
       await upsert(token, 'RTP_TRADER_SIGNAL_THRESHOLD_OVERRIDE', String(args.signalThreshold));
       console.log(`RTP_TRADER_SIGNAL_THRESHOLD_OVERRIDE=${args.signalThreshold}`);
+    }
+    if (args.minCollateralLamports !== null) {
+      await upsert(token, 'RTP_TRADER_MIN_OPEN_COLLATERAL_LAMPORTS', String(args.minCollateralLamports));
+      console.log(`RTP_TRADER_MIN_OPEN_COLLATERAL_LAMPORTS=${args.minCollateralLamports}`);
+    }
+    if (args.executionFeeLamports !== null) {
+      await upsert(token, 'RTP_GM_EXECUTION_FEE_LAMPORTS', String(args.executionFeeLamports));
+      console.log(`RTP_GM_EXECUTION_FEE_LAMPORTS=${args.executionFeeLamports}`);
     }
     console.log('Done. Redeploy rtp-trader to apply — defaults revert automatically when env vars unset.');
     return;

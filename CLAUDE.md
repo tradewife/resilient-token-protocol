@@ -82,10 +82,31 @@ program interactions.
   a single buffer at multiple lookbacks; the TFs lock together and block
   opposite-side entries. Warmup uses `tokio::join!`; poll line shows
   `1h=N 4h=N 1d=N`.
-- **Slow-TF buffers MUST be refreshed** — 4h every 2h, 1d every 6h from
-  Binance (`last_4h_refresh` / `last_1d_refresh` in `run_cycle`, logs
-  `[REFRESH]`). Without this, `tf_4h.trend` / `tf_1d.trend` compare
-  stale close vs stale SMA and bullish/bearish counts never flip.
+- **All TF buffers refresh from Binance; in-progress candles are dropped** —
+  1h every 1h, 4h every 2h, 1d every 6h (`last_1h_refresh` /
+  `last_4h_refresh` / `last_1d_refresh` in `run_cycle`, logs
+  `[REFRESH]`). Without the slow-TF refresh, `tf_4h.trend` /
+  `tf_1d.trend` compare stale close vs stale SMA and bullish/bearish
+  counts never flip. The 1h refresh matters too: tick-built candles
+  carry tick-count "volumes" (vol_confirm score term dies) and drift
+  from true hourly closes with uptime. `drop_in_progress_candle` strips
+  Binance's still-forming last candle on every warmup/refresh — loading
+  it as final duplicates the hour when `append_tick` rolls.
+- **Reconcile uses venue entry time; phantom clears estimate PnL** —
+  `[RECONCILE]` restores orphaned positions with the venue-reported
+  `increased_at` (GMTrade) so MaxHold measures the true hold, not a
+  synthetic "1h ago". PhantomClear rows book an estimated PnL against
+  the current price instead of 0.0 (never counted in `total_pnl_sol`).
+- **S16: the live multi-TF model has NO validation artifact** (Aug 23) —
+  every prior validation (Calmar 44.89, OOS Sharpe 3.96, sensitivity
+  CSV, night-shift candidates) used fake multi-TF (lookback 20/80/200
+  on one 1h series). The trader runs independent 1h/4h/1d feeds.
+  `research/missions/s16_real_tf_revalidation.py` re-validated the REAL
+  model over 1y: raw edge ≈ +0.035%/trade @ threshold 0.24, ~0 above;
+  no candidate cleared promotion gates at 9× + measured GMTrade fees.
+  Do NOT tighten `trailing_stop_atr` based on the old sensitivity CSV —
+  it hurts on the real model (0.5 ATR: −453% vs 1.0 baseline). See
+  `research/dead_ends.md` (S16 entry).
 - **Entry gates on score only, NOT alignment count** — Long = `score >
   threshold`, Short = `score < -threshold`. The alignment count is already
   baked into the score (0.4 × bull/3); an extra `bull_count >=
@@ -125,8 +146,12 @@ program interactions.
   backoff on repeated failures; 5-min sleep after 10 consecutive.
   All HTTP clients have 30s timeouts.
 - **GMTrade position sizing** — keep `RTP_TRADER_POSITION_FRACTION=0.20`
-  and a collateral floor (`RTP_TRADER_MIN_OPEN_COLLATERAL_LAMPORTS`) that
-  clears the venue's minimum-notional requirement.
+  and a collateral floor (`RTP_TRADER_MIN_OPEN_COLLATERAL_LAMPORTS`,
+  default 500M = 0.5 SOL) that keeps the FIXED per-order costs
+  (execution fee + wrap ≈ 0.0012 SOL/RT) a small fraction of the
+  position. The venue's own $1 minimum only clears keeper validation —
+  a drained wallet churning ~$1-collateral positions loses ~4%/leg to
+  fixed fees (Aug 2026). Sub-floor sizing soft-skips with entry cooldown.
 - **aes-gcm is on 0.11 (aead 0.6)** — `config.rs` migrated 2026-08-17:
   nonce generation is `Nonce::<<Aes256Gcm as AeadCore>::NonceSize>::generate()`
   (no `OsRng`), keys/nonces build via `TryFrom` from byte slices
