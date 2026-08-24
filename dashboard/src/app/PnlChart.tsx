@@ -16,17 +16,19 @@ import {
 type ChartTrade = ClosedTradeLike & { exit_reason?: string };
 
 /**
- * Cumulative PnL chart — the animated replacement for the hand-rolled
- * PnlSparkline SVG. One point per closed trade; the x value carries the
- * exit reason + exit price so the EvilCharts tooltip (which renders the
- * raw axis value) reads like a trade memo, while the axis tick formatter
- * keeps the printed labels short ("T3").
+ * Equity curve chart — the animated replacement for the hand-rolled
+ * PnlSparkline SVG. One point per closed trade; the y value is the
+ * COMPOUNDED equity return (per-trade net % applied at the real capital
+ * exposure: 20% of wallet × 9× leverage), net of measured GMTrade fees.
+ * The x value carries the exit reason + exit price so the EvilCharts
+ * tooltip (which renders the raw axis value) reads like a trade memo,
+ * while the axis tick formatter keeps the printed labels short ("T3").
  */
 export default function PnlChart({ trades }: { trades: ChartTrade[] }) {
   const { series, isProfit } = useMemo(() => {
-    const { cumulativeNet } = summarizeTradePnl(trades);
-    // cumulativeNet starts at 0; one point per closed trade after it.
-    const rows = cumulativeNet.map((pnl, i) => {
+    const { cumulativeEquity } = summarizeTradePnl(trades);
+    // cumulativeEquity starts at 0; one point per closed trade after it.
+    const rows = cumulativeEquity.map((pnl, i) => {
       const t = i === 0 ? null : trades[i - 1];
       const trade =
         t == null
@@ -34,7 +36,7 @@ export default function PnlChart({ trades }: { trades: ChartTrade[] }) {
           : `T${i} · ${t.exit_reason ?? "exit"} · closed $${t.exit_price.toFixed(2)}`;
       return { trade, pnl: Number(pnl.toFixed(3)) };
     });
-    const last = cumulativeNet[cumulativeNet.length - 1];
+    const last = cumulativeEquity[cumulativeEquity.length - 1];
     return { series: rows, isProfit: last >= 0 };
   }, [trades]);
 
@@ -42,7 +44,7 @@ export default function PnlChart({ trades }: { trades: ChartTrade[] }) {
     () =>
       ({
         pnl: {
-          label: "Cumulative PnL (%)",
+          label: "Equity (%)",
           colors: isProfit ? emeraldSeries : coralSeries,
         },
       }) satisfies ChartConfig,

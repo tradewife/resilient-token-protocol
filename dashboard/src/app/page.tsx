@@ -148,7 +148,9 @@ export default function Home() {
     [trader]
   );
 
-  const totalPnlPct = pnl.totalNetPct;
+  // Headline = compounded equity return: per-trade net % applied at the
+  // real capital exposure (20% of wallet × 9×). See tradePnl.ts.
+  const totalPnlPct = pnl.totalEquityPct;
   const winRate = pnl.winRatePct;
 
   // Date.now() at module load keeps render pure (React compiler rule);
@@ -213,7 +215,7 @@ export default function Home() {
               {formatPnlPct(totalPnlPct)}
             </div>
             <div className="sys2-vital-sub">
-              {pnl.tradeCount} closed · per-trade net % summed · GMTrade fees deducted
+              {pnl.tradeCount} closed · equity compounded · net of measured GMTrade fees
             </div>
           </div>
           <div className="sys2-vital">
@@ -304,7 +306,7 @@ export default function Home() {
           </div>
 
           <div className="console-card chart-card">
-            <div className="console-card-eyebrow">CUMULATIVE PNL · NET OF FEES · PER-TRADE % SUMMED · ALL CLOSED TRADES</div>
+            <div className="console-card-eyebrow">EQUITY CURVE · NET OF FEES · 20% CAPITAL × 9× · ALL CLOSED TRADES</div>
             {(trader?.trade_history?.length ?? 0) >= 1 ? (
               <PnlChart trades={trader?.trade_history ?? []} />
             ) : (
@@ -325,7 +327,7 @@ export default function Home() {
                 <span className={`chart-stat-val ${totalPnlPct >= 0 ? "pos" : "neg"}`}>
                   {formatPnlPct(totalPnlPct)}
                 </span>
-                <span className="chart-stat-lab">net cumulative</span>
+                <span className="chart-stat-lab">equity compounded</span>
               </div>
               <div className="chart-stat">
                 <span className="chart-stat-val">{winRate == null ? "—" : `${winRate.toFixed(0)}%`}</span>
