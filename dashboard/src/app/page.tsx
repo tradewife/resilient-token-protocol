@@ -56,6 +56,8 @@ interface TraderState {
   last_poll: string;
   total_pnl_sol: number;
   total_trades: number;
+  /** Live StrategyParams from /state — drives the entry-rule copy. */
+  active_config?: { signal_threshold?: number };
 }
 
 /* NightData shape lives in nightTypes.ts (shared with NightShiftChart). */
@@ -211,7 +213,7 @@ export default function Home() {
               {formatPnlPct(totalPnlPct)}
             </div>
             <div className="sys2-vital-sub">
-              {pnl.tradeCount} closed · net of measured GMTrade fees
+              {pnl.tradeCount} closed · per-trade net % summed · GMTrade fees deducted
             </div>
           </div>
           <div className="sys2-vital">
@@ -233,7 +235,7 @@ export default function Home() {
           </div>
           <div className="sys2-vital">
             <div className="sys2-vital-label">Test coverage</div>
-            <div className="sys2-vital-value">362<span className="sys2-vital-unit">+5</span></div>
+            <div className="sys2-vital-value">423<span className="sys2-vital-unit">+12</span></div>
             <div className="sys2-vital-sub">Rust unit + integration</div>
           </div>
           <div className="sys2-vital">
@@ -292,7 +294,7 @@ export default function Home() {
               <>
                 <div className="console-big console-muted">Flat</div>
                 <div className="console-empty-text">
-                  Survivor 2.69 enters LONG when score &gt; 0.3 or SHORT when score &lt; -0.3, with 2+ aligned timeframes. 20% capital, 9× leverage. Stop-loss 2.5× ATR, take-profit 6.0× ATR, trailing 1.0× ATR.
+                  Survivor 2.69 enters LONG when score &gt; {(trader?.active_config?.signal_threshold ?? 0.3)} or SHORT when score &lt; {-(trader?.active_config?.signal_threshold ?? 0.3)}, with 2+ aligned timeframes. 20% capital, 9× leverage. Stop-loss 2.5× ATR, take-profit 6.0× ATR, trailing 1.0× ATR.
                 </div>
               </>
             )}
@@ -302,7 +304,7 @@ export default function Home() {
           </div>
 
           <div className="console-card chart-card">
-            <div className="console-card-eyebrow">CUMULATIVE PNL · NET OF FEES · ALL CLOSED TRADES</div>
+            <div className="console-card-eyebrow">CUMULATIVE PNL · NET OF FEES · PER-TRADE % SUMMED · ALL CLOSED TRADES</div>
             {(trader?.trade_history?.length ?? 0) >= 1 ? (
               <PnlChart trades={trader?.trade_history ?? []} />
             ) : (

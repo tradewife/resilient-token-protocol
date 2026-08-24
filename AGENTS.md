@@ -112,8 +112,11 @@ The commands below are executed verbatim by the `agents-md-validation`
 job in `.github/workflows/swarm-ci.yml`. Keep them runnable.
 
 ```bash
-cd rtp/swarm && cargo test --lib
+cd rtp/swarm && cargo test
 ```
+
+(Full suite — lib **and** integration targets. `cargo test --lib` alone
+hid a compile-broken integration target Aug 16–24; never narrow it back.)
 
 ## Deployment
 

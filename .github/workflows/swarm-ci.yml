@@ -108,7 +108,9 @@ jobs:
         run: |
           set -e
           # Commands listed under "## Verification commands" in AGENTS.md:
-          cd rtp/swarm && cargo test --lib
+          # full suite (lib + integration) — `--lib` alone hid a broken
+          # integration target for a week (Aug 16-24).
+          cd rtp/swarm && cargo test
 
   test-summary:
     needs: [swarm-build-and-test, agents-md-validation]

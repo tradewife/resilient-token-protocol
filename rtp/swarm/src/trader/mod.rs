@@ -143,6 +143,32 @@ impl TraderState {
         repaired
     }
 
+    /// Backfill `pnl_pct` on PhantomClear reconciliation rows that pre-P3-3
+    /// bookkeeping recorded at 0.0 (the outcome was silently dropped from the
+    /// tape). The row's own entry/exit prices carry the outcome — recompute it
+    /// side-correct. Like the P3-3 estimate path this touches only the tape:
+    /// `total_pnl_sol` stays a realized-only counter. Idempotent; run BEFORE
+    /// `repair_trade_history_sides` so side inference sees real PnL.
+    pub fn repair_phantom_clear_pnl(&mut self) -> usize {
+        let mut repaired = 0usize;
+        for t in &mut self.trade_history {
+            if t.exit_reason.starts_with("PhantomClear")
+                && t.pnl_pct.abs() < 1e-9
+                && t.entry_price > 0.0
+                && (t.exit_price - t.entry_price).abs() > 1e-12
+            {
+                let move_pct = (t.exit_price - t.entry_price) / t.entry_price * 100.0;
+                t.pnl_pct = if t.side.eq_ignore_ascii_case("short") {
+                    -move_pct
+                } else {
+                    move_pct
+                };
+                repaired += 1;
+            }
+        }
+        repaired
+    }
+
     /// Save state to JSON file.
     pub fn save(&self, path: &std::path::Path) -> Result<(), String> {
         if let Some(parent) = path.parent() {
@@ -538,15 +564,25 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
         }
     }
 
-    let repaired = initial.repair_trade_history_sides();
-    if repaired > 0 {
+    let phantom_repaired = initial.repair_phantom_clear_pnl();
+    if phantom_repaired > 0 {
         tracing::warn!(
-            "[STATE] Repaired {} trade_history side label(s) from pnl_pct (legacy default Long)",
-            repaired
+            "[STATE] Backfilled {} PhantomClear row(s) booked at 0% pnl (pre-P3-3 audit rows)",
+            phantom_repaired
         );
+    }
+
+    let repaired = initial.repair_trade_history_sides();
+    if phantom_repaired > 0 || repaired > 0 {
+        if repaired > 0 {
+            tracing::warn!(
+                "[STATE] Repaired {} trade_history side label(s) from pnl_pct (legacy default Long)",
+                repaired
+            );
+        }
         if let Err(e) = initial.save(&config.state_path) {
             tracing::warn!(
-                "[STATE] Could not persist side repairs (trading continues): {}",
+                "[STATE] Could not persist trade_history repairs (trading continues): {}",
                 e
             );
         }
@@ -1741,6 +1777,68 @@ mod tests {
         assert_eq!(state.repair_trade_history_sides(), 1);
         assert_eq!(state.trade_history[0].side, "Short");
         assert_eq!(state.trade_history[1].side, "Long");
+    }
+
+    #[test]
+    fn repair_phantom_clear_pnl_backfills_zero_booked_rows() {
+        // Pre-P3-3 reconciliation rows were booked at pnl_pct = 0.0 even though
+        // entry/exit prices carry the real outcome. The repair recomputes them
+        // side-correct and leaves realized rows + total_pnl_sol untouched.
+        let mut state = TraderState::new("TestWallet");
+        state.trade_history.push(TradeRecord {
+            entry_price: 91.245369,
+            exit_price: 90.42,
+            entry_time: 0,
+            exit_time: 0,
+            pnl_pct: 0.0,
+            exit_reason: "PhantomClear(TrailingStop)".to_string(),
+            size_usd: 597.0,
+            side: "Long".to_string(),
+            fees: None,
+        });
+        state.trade_history.push(TradeRecord {
+            entry_price: 77.188243,
+            exit_price: 80.39,
+            entry_time: 0,
+            exit_time: 0,
+            pnl_pct: 0.0,
+            exit_reason: "PhantomClear(TakeProfit)".to_string(),
+            size_usd: 288.0,
+            side: "Short".to_string(),
+            fees: None,
+        });
+        // Realized row with real pnl — must stay untouched.
+        state.trade_history.push(TradeRecord {
+            entry_price: 94.0,
+            exit_price: 96.0,
+            entry_time: 0,
+            exit_time: 0,
+            pnl_pct: 2.1276595744680854,
+            exit_reason: "TakeProfit".to_string(),
+            size_usd: 300.0,
+            side: "Long".to_string(),
+            fees: None,
+        });
+
+        assert_eq!(state.repair_phantom_clear_pnl(), 2);
+        // Long losing: (90.42 - 91.245369) / 91.245369 * 100
+        let long = &state.trade_history[0];
+        assert!(
+            (long.pnl_pct - (-0.904643)).abs() < 1e-4,
+            "got {}",
+            long.pnl_pct
+        );
+        // Short losing on a price rise: -4.148%
+        let short = &state.trade_history[1];
+        assert!(
+            (short.pnl_pct - (-4.147986)).abs() < 1e-4,
+            "got {}",
+            short.pnl_pct
+        );
+        // Realized row untouched.
+        assert!((state.trade_history[2].pnl_pct - 2.1276595744680854).abs() < 1e-9);
+        // Idempotent.
+        assert_eq!(state.repair_phantom_clear_pnl(), 0);
     }
 
     #[test]

@@ -158,17 +158,31 @@ else:
     print("night.json: night_results dir not found")
 
 # ── trader-state.json (live autonomous trader state) ──
+# Only adopt a local trader-state.json if it is AT LEAST as rich as the
+# committed fallback (total_trades). A zeroed local stub (fresh checkout /
+# dev run) must never downgrade the baked fallback — the trader-status API
+# serves it whenever the live trader is unreachable.
 ts = os.path.join(REPO, "rtp", "swarm", "data", "trader-state.json")
 if not os.path.isfile(ts):
     ts = os.path.join(REPO, "data", "trader-state.json")
-if os.path.isfile(ts):
+dst = os.path.join(DATA_DIR, "trader-state.json")
+def trades_of(p):
+    try:
+        return int(json.load(open(p)).get("total_trades", 0))
+    except Exception:
+        return -1
+src_trades = trades_of(ts) if os.path.isfile(ts) else -1
+dst_trades = trades_of(dst) if os.path.isfile(dst) else -1
+if src_trades >= dst_trades and src_trades > 0 and os.path.isfile(ts):
     import shutil
-    shutil.copy2(ts, os.path.join(DATA_DIR, "trader-state.json"))
-    print(f"trader-state.json written")
+    shutil.copy2(ts, dst)
+    print(f"trader-state.json written ({src_trades} trades)")
+elif dst_trades >= 0:
+    print(f"trader-state.json kept (local has {src_trades} trades, fallback has {dst_trades})")
 else:
     json.dump({"wallet": "", "open_position": None, "trade_history": [],
                "candle_count": 0, "last_poll": "", "total_pnl_sol": 0.0, "total_trades": 0},
-              open(os.path.join(DATA_DIR, "trader-state.json"), "w"), indent=2)
+              open(dst, "w"), indent=2)
     print("trader-state.json: fallback (no source)")
 
 # ── strategy-library.json ──

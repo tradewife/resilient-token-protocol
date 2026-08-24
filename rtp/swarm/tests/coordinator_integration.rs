@@ -72,6 +72,22 @@ async fn knowledge_wing_without_persistence_works() {
 // P1.2 — Real Pipeline Integration Tests
 // ---------------------------------------------------------------------------
 
+/// Guards the process-wide `NIGHT_RESULTS_DIR` env var that the two Night
+/// Shift handoff tests mutate. `cargo test` runs tests in the same binary in
+/// parallel threads, so overlapping set/remove sequences race: one test
+/// unsets the var while the other reads, which falls back to the real
+/// `data/night_results` and asserts against whatever SOL scored that night.
+/// Holding this lock across each test's env-var window serializes the two.
+fn night_results_env_guard() -> std::sync::MutexGuard<'static, ()> {
+    use std::sync::{Mutex, OnceLock};
+    static GUARD: OnceLock<Mutex<()>> = OnceLock::new();
+    let mutex = GUARD.get_or_init(|| Mutex::new(()));
+    match mutex.lock() {
+        Ok(g) => g,
+        Err(poisoned) => poisoned.into_inner(),
+    }
+}
+
 /// P1.2 Test 1: Night Shift summary to promotion dry-run.
 /// Sets NIGHT_RESULTS_DIR, reads back, asserts locally. Isolated from other tests
 /// by using a TempDir date "2026-04-28" (older than real "2026-04-15").
@@ -125,6 +141,7 @@ async fn night_shift_summary_to_promotion_dry_run() {
     .unwrap();
 
     // Set env var so bridge.rs reads from our temp dir
+    let _env_guard = night_results_env_guard();
     unsafe {
         std::env::set_var("NIGHT_RESULTS_DIR", night_dir.to_str().unwrap());
     }
@@ -300,7 +317,7 @@ async fn stale_position_triggers_close_simulation() {
     let close_ix = build_close_flash_position_ix(
         &cfg,
         &authority.pubkey(),
-        &cfg.vault_pda,
+        &cfg.treasury_pda,
         &market,
         FlashSide::Long,
         OraclePrice {
@@ -319,7 +336,7 @@ async fn stale_position_triggers_close_simulation() {
     let open_ix = build_open_flash_position_ix(
         &cfg,
         &authority.pubkey(),
-        &cfg.vault_pda,
+        &cfg.treasury_pda,
         &market,
         FlashSide::Long,
         10_000_000,
@@ -380,6 +397,7 @@ async fn night_shift_to_daemon_config() {
     )
     .unwrap();
 
+    let _env_guard = night_results_env_guard();
     unsafe {
         std::env::set_var("NIGHT_RESULTS_DIR", night_dir.to_str().unwrap());
     }
