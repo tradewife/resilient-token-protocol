@@ -1,7 +1,7 @@
 # Robustness Report — BNB/USDT @ 1x
 
 **Params:** thresh=0.35, sl=1.0, tp=3.0, trail=1.0, align=3
-**Runtime:** 76s
+**Runtime:** 84s
 
 ## Verdict: FAIL — Multiple robustness concerns
 

@@ -1,6 +1,6 @@
 # Night Shift Report — 2026-08-25
 
-**Runtime:** 36204s | **Folds:** 9 | **Symbols:** BTC/USDT, ETH/USDT, SOL/USDT, BNB/USDT
+**Runtime:** 33056s | **Folds:** 9 | **Symbols:** BTC/USDT, ETH/USDT, SOL/USDT, BNB/USDT
 **Aggregation:** Median OOS Sharpe, per-fold Sharpe winsorized at ±100
 
 ## Market State
