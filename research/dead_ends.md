@@ -157,4 +157,14 @@ Each entry must include: strategy_id, retirement_date, trigger_type (hard/soft),
 
 ---
 
-*Last updated: 2026-08-23. Populate from future backtest runs and night shift reports.*
+### S17 Trailing-stop arm variants — armed/breakeven trails do NOT clear gates
+- **Date logged**: 2026-08-26
+- **Hypothesis**: Live-forensics (161-trade audit) showed the trailing-stop family is the biggest live drag (95 exits, −26.4 net pts; 60/87 trail exits led ≥1 ATR then gave it back; 37 saw >2% favorable runs within 24h after exit). S16's zone counterfactual proved naive "hold to TP" is flat, so test the mechanism-based alternative: delay the trailing stop until the trade leads ≥N×ATR (arm_1.0/1.5/2.0), optionally ratchet to breakeven first (be_N, widths 1.0–2.0×ATR).
+- **Test result**: `research/missions/s17_trail_arm_variants.py` (S16 real multi-TF harness imported verbatim — 1h/4h/1d Binance feeds, compute_signal score, ATR=std(20)×price, check_exit priority), 2025-08-11 → 2026-08-26 (9,119 bars), 9 anchored 36-day folds, GMTrade measured fees, 9×. 22 configs (11 trail variants × thresholds 0.24/0.30). **No config cleared the statistical gates** (Sharpe≥1.5, folds≥3, WR≥45%, PF≥1.3, DD≤20%); best median Sharpe 0.03 (trail_off @ 0.24). At thr 0.24: live_trail1.0 net +117.9% vs arm_2.0 −122.5% and wider be variants −376% to −454%. At thr 0.30: trail_off +93.9% was best but live stayed negative; every arm/be variant at thr 0.24 LOST money. The arm variants trade MORE (SL exits rise 152→247 as trail defers), confirming the deferred trail lets losers ride to SL. Fresh-data note: full-year 0.24 baseline net rose from S16's +32.7% (window ending Aug 23) to +117.9% (window ending Aug 26) — engine parity verified (S16 evaluator reproduces S17's live spec exactly), the delta is market data, not simulation change.
+- **Root cause**: (1) the trail is not the leak — it is the only exit family that converts chop into small controlled losses; deferring it converts them into full SL hits; (2) TP harvest is 12% of reachable zones because chop touches SL and TP alike and SL usually lands first — patience does not recover it; (3) consistent with S16: tighter trails −453%, now ALSO confirmed wider/armed trails are negative; the 1.0×ATR trail sits at the local optimum of a genuinely rough payoff surface.
+- **Verdict**: dead_end. Do NOT change trailing_stop_atr or add arm/breakeven logic. The live trail (1.0×ATR, arm on favorable lead) stays. Combined with S16, the exit side of this strategy is saturated: further exit tuning on the real model is not a profit source.
+- **Artifacts**: `data/results/s17_trail_variants/variants.json` (gitignored), `research/missions/s17_trail_arm_variants.py`.
+
+---
+
+*Last updated: 2026-08-26. Populate from future backtest runs and night shift reports.*
