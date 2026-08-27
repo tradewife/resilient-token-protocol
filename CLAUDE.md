@@ -97,6 +97,21 @@ program interactions.
   `increased_at` (GMTrade) so MaxHold measures the true hold, not a
   synthetic "1h ago". PhantomClear rows book an estimated PnL against
   the current price instead of 0.0 (never counted in `total_pnl_sol`).
+- **Stacking defense (Aug 26-27 incident — do not weaken)** — a blind
+  duplicate trader process stacked 5-6 entry orders every 5 min while the
+  logged instance was flat (up to 3.7× intended size; unmanaged until a
+  redeploy reconciled it). Three layers now protect against this:
+  (1) **per-poll reconcile** — `reconcile_from_venue()` runs every cycle
+  while flat (not just startup), so out-of-process positions become
+  visible and managed within one poll;
+  (2) **venue stacking guard** — `gmtrade::open_position` refuses with
+  `GM_POSITION_ALREADY_OPEN:` when the owner already holds a SOL position
+  (or the book cannot be verified — fail closed). Soft-skip, no cooldown;
+  (3) the collateral floor still caps runaway stacking at 0.5 SOL orders.
+  Do NOT remove the per-poll venue check "for performance" — it is the
+  fix for unmanaged $6.8k positions. If you see
+  `[ENTRY] Venue position already open` in logs, suspect a duplicate
+  process holding the trader keypair — investigate before the next entry.
 - **S16: the live multi-TF model has NO validation artifact** (Aug 23) —
   every prior validation (Calmar 44.89, OOS Sharpe 3.96, sensitivity
   CSV, night-shift candidates) used fake multi-TF (lookback 20/80/200

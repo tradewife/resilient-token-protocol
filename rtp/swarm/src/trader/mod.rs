@@ -225,6 +225,122 @@ async fn fetch_wallet_balance(rpc_url: &str, wallet: &str) -> Result<f64, String
     Ok(lamports as f64 / 1e9)
 }
 
+/// Restore an on-chain position into internal state when the trader thinks
+/// it is flat. Called at startup AND per-poll while flat (run_cycle): the
+/// Aug 26-27 stacking incident showed that positions opened by a duplicate
+/// process (or anything outside this instance's observation) stay invisible
+/// and UNMANAGED — no trailing/SL/TP exits run — until the next redeploy.
+/// Returns true when a position was restored.
+async fn reconcile_from_venue(
+    config: &TraderConfig,
+    wallet: &str,
+    state: &Arc<Mutex<TraderState>>,
+) -> bool {
+    let already_flat = { state.lock().await.open_position.is_none() };
+    if !already_flat {
+        return false;
+    }
+    match venue_get_positions(&config.venue, wallet).await {
+        Ok(positions) => {
+            if let Some(pos) = positions
+                .iter()
+                .find(|p| p.market_symbol == "SOL" && (p.side_ui == "Long" || p.side_ui == "Short"))
+            {
+                let mut s = state.lock().await;
+                apply_reconciled_position(&mut s, pos)
+            } else {
+                false
+            }
+        }
+        Err(e) => {
+            tracing::warn!(
+                "[RECONCILE] Failed to check venue positions: {}. Continuing without reconciliation.",
+                e
+            );
+            false
+        }
+    }
+}
+
+/// Apply one venue-reported position to internal state (pure, testable core
+/// of `reconcile_from_venue`). Caller must hold the state lock. Returns true
+/// when the position was restored; false when state already tracks one.
+pub(crate) fn apply_reconciled_position(
+    state: &mut TraderState,
+    pos: &executor::PositionInfo,
+) -> bool {
+    if state.open_position.is_some() {
+        return false; // already managing one — never overwrite
+    }
+    let entry_price: f64 = pos.entry_price_ui.parse().unwrap_or(0.0);
+    let size_usd: f64 = pos.size_usd_ui.parse().unwrap_or(0.0);
+    let side = pos.side_ui.clone();
+    // Use the venue-reported open time when available so MaxHold /
+    // time-decay measure the TRUE holding period. Assuming "1h ago" would
+    // silently restart the 96h MaxHold clock on every reconcile and let
+    // orphaned positions drift far past their validated hold window.
+    let now_ts = Utc::now().timestamp();
+    let entry_time = if pos.opened_at_secs > 0 && pos.opened_at_secs <= now_ts {
+        pos.opened_at_secs
+    } else {
+        tracing::warn!(
+            "[RECONCILE] venue reported no open time — assuming 1h ago \
+             (MaxHold clock will be approximate)"
+        );
+        now_ts - 3600
+    };
+    tracing::warn!(
+        "[RECONCILE] Found orphaned SOL {} position: entry=${:.2} size=${:.2} \
+         opened={} ({}h ago) key={}... restoring to internal state.",
+        side,
+        entry_price,
+        size_usd,
+        chrono::DateTime::from_timestamp(entry_time, 0)
+            .map(|t| t.to_rfc3339())
+            .unwrap_or_else(|| "invalid".to_string()),
+        (now_ts - entry_time) as f64 / 3600.0,
+        &pos.key[..pos.key.len().min(8)]
+    );
+    state.open_position = Some(OpenPosition {
+        entry_price,
+        entry_time,
+        peak_price: entry_price,
+        entry_rsi: 50.0, // neutral default
+        entry_atr: 0.0,
+        entry_score: 0.0,
+        position_key: pos.key.clone(),
+        size_usd,
+        first_negative_score_time: None,
+        side: side.clone(),
+    });
+    true
+}
+
+/// Benign open-refusal classes that must NOT count as cycle errors (they
+/// would burn the watchdog error budget and trigger backoff on conditions
+/// that resolve by themselves). Anything else is a hard error.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum OpenErrorClass {
+    CapacityFull,
+    PositionAlreadyOpen,
+    InsufficientCollateral,
+    Hard,
+}
+
+/// Classify a venue open error by its soft-skip prefix (pure, testable core
+/// of the entry-path error handling).
+pub(crate) fn classify_open_error(err: &str) -> OpenErrorClass {
+    if err.starts_with(gmtrade::CAPACITY_FULL_PREFIX) {
+        OpenErrorClass::CapacityFull
+    } else if err.starts_with(gmtrade::POSITION_ALREADY_OPEN_PREFIX) {
+        OpenErrorClass::PositionAlreadyOpen
+    } else if err.starts_with(gmtrade::INSUFFICIENT_COLLATERAL_PREFIX) {
+        OpenErrorClass::InsufficientCollateral
+    } else {
+        OpenErrorClass::Hard
+    }
+}
+
 /// Spawn a lightweight HTTP server that serves GET /state with current trader state.
 /// Returns the JoinHandle so the caller can optionally wait on it.
 pub fn start_status_server(
@@ -726,75 +842,14 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
         tracing::warn!("[WARMUP] 1d Binance fetch failed ({}). Starting cold.", e);
     }
 
-    // Reconcile with Flash Trade: if a position is open on-chain but missing
-    // from internal state (e.g. after redeploy), restore it so the trader
-    // can manage exits and won't open duplicates.
-    {
-        let mut s = state.lock().await;
-        if s.open_position.is_none() {
-            match venue_get_positions(&config.venue, &wallet).await {
-                Ok(positions) => {
-                    // Look for both Long and Short SOL positions
-                    if let Some(pos) = positions.iter().find(|p| {
-                        p.market_symbol == "SOL" && (p.side_ui == "Long" || p.side_ui == "Short")
-                    }) {
-                        let entry_price: f64 = pos.entry_price_ui.parse().unwrap_or(0.0);
-                        let size_usd: f64 = pos.size_usd_ui.parse().unwrap_or(0.0);
-                        let side = pos.side_ui.clone();
-                        // Use the venue-reported open time when available so
-                        // MaxHold / time-decay measure the TRUE holding
-                        // period. The old code always assumed "1h ago", which
-                        // silently restarted the 96h MaxHold clock on every
-                        // redeploy and let orphaned positions drift far past
-                        // their validated hold window. Fall back to 1h ago
-                        // only when the venue reports no timestamp.
-                        let now_ts = Utc::now().timestamp();
-                        let entry_time = if pos.opened_at_secs > 0 && pos.opened_at_secs <= now_ts {
-                            pos.opened_at_secs
-                        } else {
-                            tracing::warn!(
-                                "[RECONCILE] venue reported no open time — assuming 1h ago \
-                                 (MaxHold clock will be approximate)"
-                            );
-                            now_ts - 3600
-                        };
-                        tracing::warn!(
-                            "[RECONCILE] Found orphaned SOL {} position on {}: \
-                             entry=${:.2} size=${:.2} opened={} ({}h ago) key={}... \
-                             restoring to internal state.",
-                            side,
-                            config.venue,
-                            entry_price,
-                            size_usd,
-                            chrono::DateTime::from_timestamp(entry_time, 0)
-                                .map(|t| t.to_rfc3339())
-                                .unwrap_or_else(|| "invalid".to_string()),
-                            (now_ts - entry_time) as f64 / 3600.0,
-                            &pos.key[..pos.key.len().min(8)]
-                        );
-                        s.open_position = Some(OpenPosition {
-                            entry_price,
-                            entry_time,
-                            peak_price: entry_price,
-                            entry_rsi: 50.0, // neutral default
-                            entry_atr: 0.0,
-                            entry_score: 0.0,
-                            position_key: pos.key.clone(),
-                            size_usd,
-                            first_negative_score_time: None,
-                            side: side.clone(),
-                        });
-                    }
-                }
-                Err(e) => {
-                    tracing::warn!(
-                        "[RECONCILE] Failed to check Flash Trade positions: {}. Continuing without reconciliation.",
-                        e
-                    );
-                }
-            }
-        }
-    }
+    // Reconcile with the venue: if a position is open on-chain but missing
+    // from internal state (e.g. after redeploy — or opened while this
+    // process was blind, Aug 26-27 stacking incident), restore it so the
+    // trader can manage exits and won't open duplicates. Also runs per-poll
+    // while flat inside run_cycle — startup-only reconciliation left
+    // out-of-process positions invisible and unmanaged for the whole
+    // instance lifetime.
+    reconcile_from_venue(&config, &wallet, &state).await;
 
     // ✅ Stale-state cleanup: if internal state thinks a position is open
     // but Flash Trade says there is no such position on-chain, clear it.
@@ -1042,6 +1097,14 @@ async fn run_cycle(
     entry_cooldown_until: &mut i64,
 ) -> Result<(), String> {
     let cycle_start = Utc::now();
+
+    // Per-poll reconciliation while flat (Aug 26-27 stacking incident):
+    // startup-only reconciliation left positions opened out-of-process
+    // invisible and unmanaged for the whole instance lifetime. Restoring
+    // them here means this same cycle's exit check starts managing them,
+    // and the venue-side stacking guard in open_position refuses any
+    // duplicate open from this or a duplicate process.
+    reconcile_from_venue(config, wallet, state).await;
 
     // 0. Periodically refresh TF buffers from Binance. The 1h buffer
     // receives live ticks via `append_tick`, but ticks carry tick-count
@@ -1507,30 +1570,48 @@ async fn run_cycle(
                             }
                         }
                         Err(e) => {
-                            // Venue capacity soft-skip: market side is full.
-                            // Do NOT count as a cycle error — the loop stays
-                            // healthy and retries when headroom reappears.
-                            if e.starts_with(gmtrade::CAPACITY_FULL_PREFIX) {
-                                tracing::warn!("[ENTRY] Venue capacity full — soft-skip open: {e}");
-                            } else if e.starts_with(gmtrade::INSUFFICIENT_COLLATERAL_PREFIX) {
-                                // Wallet can't clear the venue's collateral
-                                // minimum. Soft-skip (no cycle error) AND arm
-                                // the entry cooldown — retrying every poll
-                                // until funding arrives only burns RPC calls
-                                // and the watchdog error budget (Aug 14).
-                                tracing::warn!(
-                                    "[ENTRY] Wallet below venue collateral floor — soft-skip open, \
-                                     entry cooldown {}s: {e}",
-                                    ENTRY_COOLDOWN_SECS
-                                );
-                                *entry_cooldown_until =
-                                    cycle_start.timestamp() + ENTRY_COOLDOWN_SECS as i64;
-                            } else {
-                                tracing::error!("[ENTRY] Open failed: {}", e);
-                                // Count open failures as cycle errors so the
-                                // error-backoff sleep prevents burning gas on
-                                // retries during hard failures.
-                                return Err(format!("Open position failed: {e}"));
+                            // Soft-skip classes keep the loop healthy (no cycle
+                            // error); hard errors trigger watchdog backoff.
+                            match classify_open_error(&e) {
+                                OpenErrorClass::CapacityFull => {
+                                    // Market side is full — retry when headroom
+                                    // reappears.
+                                    tracing::warn!(
+                                        "[ENTRY] Venue capacity full — soft-skip open: {e}"
+                                    );
+                                }
+                                OpenErrorClass::PositionAlreadyOpen => {
+                                    // Stacking guard (Aug 26-27): a SOL position
+                                    // already exists on the venue that this
+                                    // instance doesn't know about. Soft-skip —
+                                    // the per-poll reconcile restores it on the
+                                    // next cycle, so no cooldown is needed.
+                                    tracing::warn!(
+                                        "[ENTRY] Venue position already open — \
+                                         refusing to stack: {e}"
+                                    );
+                                }
+                                OpenErrorClass::InsufficientCollateral => {
+                                    // Wallet can't clear the venue's collateral
+                                    // minimum. Soft-skip (no cycle error) AND arm
+                                    // the entry cooldown — retrying every poll
+                                    // until funding arrives only burns RPC calls
+                                    // and the watchdog error budget (Aug 14).
+                                    tracing::warn!(
+                                        "[ENTRY] Wallet below venue collateral floor — \
+                                         soft-skip open, entry cooldown {}s: {e}",
+                                        ENTRY_COOLDOWN_SECS
+                                    );
+                                    *entry_cooldown_until =
+                                        cycle_start.timestamp() + ENTRY_COOLDOWN_SECS as i64;
+                                }
+                                OpenErrorClass::Hard => {
+                                    tracing::error!("[ENTRY] Open failed: {}", e);
+                                    // Count open failures as cycle errors so the
+                                    // error-backoff sleep prevents burning gas on
+                                    // retries during hard failures.
+                                    return Err(format!("Open position failed: {e}"));
+                                }
                             }
                         }
                     }
@@ -1982,6 +2063,115 @@ mod tests {
         assert_eq!(pos.side, "Short");
         assert_eq!(pos.entry_price, 150.0);
         assert_eq!(pos.position_key, "reconciled_short_key");
+    }
+
+    fn venue_position(
+        side: &str,
+        entry: &str,
+        size: &str,
+        opened_at_secs: i64,
+    ) -> executor::PositionInfo {
+        executor::PositionInfo {
+            key: "changeme".to_string(),
+            side_ui: side.to_string(),
+            market_symbol: "SOL".to_string(),
+            collateral_symbol: "SOL".to_string(),
+            size_usd_ui: size.to_string(),
+            entry_price_ui: entry.to_string(),
+            pnl_with_fee_usd_ui: "0".to_string(),
+            leverage_ui: "9".to_string(),
+            exit_fee_usd: "0".to_string(),
+            borrow_fee_usd: "0".to_string(),
+            price_impact_usd: "0".to_string(),
+            total_fee_usd: "0".to_string(),
+            opened_at_secs,
+        }
+    }
+
+    #[test]
+    fn apply_reconciled_position_restores_venue_open_time() {
+        // Aug 26-27 stacking incident regression: a position opened while
+        // the trader process was blind must be restored WITH the venue's
+        // true open time (MaxHold clock stays honest), not "1h ago".
+        let mut state = TraderState::new("TestWallet");
+        let opened = Utc::now().timestamp() - 7200; // 2h ago
+        let pos = venue_position("Long", "107.85", "6754.32", opened);
+        assert!(apply_reconciled_position(&mut state, &pos));
+        let restored = state.open_position.as_ref().unwrap();
+        assert_eq!(restored.entry_time, opened, "must use venue open time");
+        assert_eq!(restored.entry_price, 107.85);
+        assert_eq!(restored.size_usd, 6754.32);
+        assert_eq!(restored.side, "Long");
+        assert_eq!(restored.position_key, "changeme");
+    }
+
+    #[test]
+    fn apply_reconciled_position_never_overwrites_managed_state() {
+        // If the trader is already managing a position, reconciliation must
+        // not clobber it (would reset entry price/time and peak tracking).
+        let mut state = TraderState::new("TestWallet");
+        state.open_position = Some(OpenPosition {
+            entry_price: 100.0,
+            entry_time: 1700000000,
+            peak_price: 105.0,
+            entry_rsi: 45.0,
+            entry_atr: 1.2,
+            entry_score: 0.4,
+            position_key: "mine".to_string(),
+            size_usd: 500.0,
+            first_negative_score_time: None,
+            side: "Long".to_string(),
+        });
+        let other = venue_position("Long", "110.0", "999.0", Utc::now().timestamp() - 60);
+        assert!(!apply_reconciled_position(&mut state, &other));
+        assert_eq!(
+            state.open_position.as_ref().unwrap().position_key,
+            "mine",
+            "existing position must not be overwritten"
+        );
+    }
+
+    #[test]
+    fn apply_reconciled_position_falls_back_when_no_open_time() {
+        let mut state = TraderState::new("TestWallet");
+        let before = Utc::now().timestamp();
+        let pos = venue_position("Short", "100.0", "250.0", 0); // venue silent
+        assert!(apply_reconciled_position(&mut state, &pos));
+        let restored = state.open_position.as_ref().unwrap();
+        let approx = (restored.entry_time - (before - 3600)).abs();
+        assert!(approx < 5, "should assume ~1h ago, got {}", approx);
+        assert_eq!(restored.side, "Short");
+    }
+
+    #[test]
+    fn classify_open_error_soft_skips_vs_hard_errors() {
+        // Stacking-guard regression: the three benign classes must not count
+        // as cycle errors; anything else is hard.
+        assert_eq!(
+            classify_open_error(&format!(
+                "{} long headroom $10",
+                gmtrade::CAPACITY_FULL_PREFIX
+            )),
+            OpenErrorClass::CapacityFull
+        );
+        assert_eq!(
+            classify_open_error(&format!(
+                "{} owner already holds SOL Long",
+                gmtrade::POSITION_ALREADY_OPEN_PREFIX
+            )),
+            OpenErrorClass::PositionAlreadyOpen
+        );
+        assert_eq!(
+            classify_open_error(&format!(
+                "{} 0.3 SOL below floor",
+                gmtrade::INSUFFICIENT_COLLATERAL_PREFIX
+            )),
+            OpenErrorClass::InsufficientCollateral
+        );
+        assert_eq!(
+            classify_open_error("some RPC transport failure"),
+            OpenErrorClass::Hard
+        );
     }
 
     #[test]

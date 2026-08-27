@@ -115,6 +115,14 @@ pub const CAPACITY_FULL_PREFIX: &str = "GM_CAPACITY_FULL:";
 /// every poll until funded, so retrying burns gas and the error budget.
 pub const INSUFFICIENT_COLLATERAL_PREFIX: &str = "GM_INSUFFICIENT_COLLATERAL:";
 
+/// Soft-skip marker when a SOL position is already open for this owner on
+/// the venue. Aug 26-27: duplicate trader processes with fresh internal
+/// state stacked 5-6 consecutive orders (up to 3.7× intended size) because
+/// each saw its own `open_position = None`. The venue-side check makes
+/// stacking structurally impossible: an entry that would create a SECOND
+/// venue position is refused before any wrap/order fee is spent.
+pub const POSITION_ALREADY_OPEN_PREFIX: &str = "GM_POSITION_ALREADY_OPEN:";
+
 /// GMTrade refuses opens with less than this much collateral (USD).
 pub const MIN_OPEN_COLLATERAL_USD: f64 = 1.0;
 
@@ -618,6 +626,33 @@ pub async fn open_position(
 ) -> GmResult<(String, f64, f64)> {
     let v = venue().await?;
     assert_owner(&v, keypair)?;
+
+    // Stacking guard: refuse if this owner already holds a SOL position on
+    // the venue. The trader runs one position at a time; a second open can
+    // only come from state desync (fresh-state duplicate process, missed
+    // reconciliation) — exactly the Aug 26-27 incident where 5-6 stacked
+    // orders ballooned a position to 3.7× intended size. Checked HERE (not
+    // just upstream) because every open path must be protected.
+    match get_positions(&v.owner.to_string()).await {
+        Ok(positions) => {
+            if let Some(existing) = positions.iter().find(|p| p.market_symbol == "SOL") {
+                return Err(format!(
+                    "{POSITION_ALREADY_OPEN_PREFIX} owner already holds SOL {} \
+                     (${:.2} notional, key={}...) — refusing to stack another open",
+                    existing.side_ui,
+                    existing.size_usd_ui,
+                    &existing.key[..existing.key.len().min(8)]
+                ));
+            }
+        }
+        Err(e) => {
+            // Fail closed: if we can't verify the book is empty, don't open.
+            return Err(format!(
+                "{POSITION_ALREADY_OPEN_PREFIX} cannot verify venue book before open ({e}) \
+                 — refusing to open on unknown state"
+            ));
+        }
+    }
 
     let sol_price = get_sol_price().await?;
     let native_sol = native_sol_balance(&v).await?;
