@@ -551,6 +551,20 @@ pub struct OpenPosition {
     /// compatibility with existing state files that lack this field.
     #[serde(default = "default_side")]
     pub side: String,
+    /// Venue-side protective stop order pubkeys (GMTrade). When present, the
+    /// keeper executes these on-chain when the trigger price is touched —
+    /// independent of this process being alive or the next hourly close.
+    /// `None` on legacy state files / non-GM venues / after placement failure
+    /// (the ensure-stops pass retries placement every poll while open).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub venue_sl_order: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub venue_tp_order: Option<String>,
+    /// Current venue SL trigger price (USD) — mirrored from the on-chain
+    /// order so the trail-ratchet pass can decide whether to advance it
+    /// without fetching the order account every poll.
+    #[serde(default)]
+    pub venue_sl_trigger: f64,
 }
 
 impl OpenPosition {
@@ -1216,6 +1230,9 @@ mod tests {
             size_usd: 50.0,
             first_negative_score_time: Some(now - 3600),
             side: "Long".to_string(),
+            venue_sl_order: None,
+            venue_tp_order: None,
+            venue_sl_trigger: 0.0,
         };
         let json = serde_json::to_string(&pos).unwrap();
         let parsed: OpenPosition = serde_json::from_str(&json).unwrap();
@@ -1495,6 +1512,9 @@ mod tests {
             size_usd: 50.0,
             first_negative_score_time: None,
             side: "Long".to_string(),
+            venue_sl_order: None,
+            venue_tp_order: None,
+            venue_sl_trigger: 0.0,
         };
         assert_eq!(pos.side(), "Long");
     }
@@ -1512,6 +1532,9 @@ mod tests {
             size_usd: 50.0,
             first_negative_score_time: None,
             side: "Short".to_string(),
+            venue_sl_order: None,
+            venue_tp_order: None,
+            venue_sl_trigger: 0.0,
         };
         assert_eq!(pos.side(), "Short");
     }
@@ -1529,6 +1552,9 @@ mod tests {
             size_usd: 50.0,
             first_negative_score_time: None,
             side: "Short".to_string(),
+            venue_sl_order: None,
+            venue_tp_order: None,
+            venue_sl_trigger: 0.0,
         };
         let json = serde_json::to_string(&pos).unwrap();
         let parsed: OpenPosition = serde_json::from_str(&json).unwrap();

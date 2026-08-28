@@ -126,6 +126,460 @@ pub const POSITION_ALREADY_OPEN_PREFIX: &str = "GM_POSITION_ALREADY_OPEN:";
 /// GMTrade refuses opens with less than this much collateral (USD).
 pub const MIN_OPEN_COLLATERAL_USD: f64 = 1.0;
 
+/// Minimum relative move of the trail floor before we spend a transaction to
+/// ratchet the venue stop (fraction of price). The floor only advances when
+/// the confirmed-close peak advances, so ratchets are naturally infrequent;
+/// the step just filters sub-tick noise. `update_order` is owner-signed
+/// (no keeper fee), so each ratchet costs only the ~5000-lamport tx fee.
+pub const TRAIL_RATCHET_MIN_STEP: f64 = 0.001;
+
+/// Disable venue-side protective stops entirely (escape hatch; default on).
+pub fn venue_stops_enabled() -> bool {
+    !matches!(std::env::var("RTP_TRADER_VENUE_STOPS").as_deref(), Ok("0"))
+}
+
+/// Venue-side protective stop levels (pure math; no venue I/O).
+///
+/// Prices are in plain USD (caller converts to unit prices). The plan mirrors
+/// the in-process exit levels EXACTLY — same ATR multiples as `check_exit` —
+/// so venue execution changes WHEN/IF the stop fills (on-chain, oracle-touched,
+/// process-crash-proof), not the strategy's validated exit levels.
+#[derive(Debug, Clone, PartialEq)]
+pub struct VenueStopPlan {
+    /// Hard stop-loss trigger: entry ∓ sl_atr×ATR.
+    pub sl_trigger: f64,
+    /// Take-profit trigger: entry ± tp_atr×ATR.
+    pub tp_trigger: f64,
+    /// Trailing floor once in profit (peak ∓ trail_atr×ATR), else None.
+    /// Long: floor is a price BELOW the peak; Short: ceiling ABOVE the trough.
+    pub trail_floor: Option<f64>,
+}
+
+/// Compute venue stop levels for a position.
+///
+/// - LONG:  SL below entry, TP above, floor = peak − trail×ATR (needs peak > entry).
+/// - SHORT: SL above entry, TP below, ceiling = trough + trail×ATR (needs peak < entry).
+pub fn venue_stop_plan(
+    entry_price: f64,
+    atr: f64,
+    sl_atr: f64,
+    tp_atr: f64,
+    trail_atr: f64,
+    peak_price: f64,
+    side: &str,
+) -> VenueStopPlan {
+    let is_short = side.eq_ignore_ascii_case("short");
+    if is_short {
+        VenueStopPlan {
+            sl_trigger: entry_price + sl_atr * atr,
+            tp_trigger: entry_price - tp_atr * atr,
+            trail_floor: if peak_price < entry_price && trail_atr > 0.0 {
+                Some(peak_price + trail_atr * atr)
+            } else {
+                None
+            },
+        }
+    } else {
+        VenueStopPlan {
+            sl_trigger: entry_price - sl_atr * atr,
+            tp_trigger: entry_price + tp_atr * atr,
+            trail_floor: if peak_price > entry_price && trail_atr > 0.0 {
+                Some(peak_price - trail_atr * atr)
+            } else {
+                None
+            },
+        }
+    }
+}
+
+/// New SL trigger after a ratchet attempt. Returns Some(new_trigger) only when
+/// the floor has advanced at least `TRAIL_RATCHET_MIN_STEP` × price beyond the
+/// current trigger in the favorable direction AND stays strictly between entry
+/// and the TP trigger (never crosses the take-profit, never weakens).
+pub fn ratcheted_sl_trigger(
+    current_sl_trigger: f64,
+    tp_trigger: f64,
+    trail_floor: Option<f64>,
+    current_price: f64,
+    side: &str,
+) -> Option<f64> {
+    let floor = trail_floor?;
+    if current_price <= 0.0 {
+        return None;
+    }
+    let step = current_price * TRAIL_RATCHET_MIN_STEP;
+    let is_short = side.eq_ignore_ascii_case("short");
+    if is_short {
+        // Short: the ceiling is trough + trail×ATR — normally ABOVE the
+        // current price (the stop fires on a rise to it). Ratchet the
+        // trigger DOWN to the ceiling as the trough falls; never below the
+        // ceiling (would exit early), never below TP, never weakening.
+        let candidate = floor.min(current_sl_trigger);
+        let tightened = current_sl_trigger - candidate >= step;
+        let above_tp = candidate > tp_trigger;
+        if tightened && above_tp && candidate > 0.0 {
+            Some(candidate)
+        } else {
+            None
+        }
+    } else {
+        // Long: ratchet the floor UP toward profit; must stay above the
+        // current trigger (tightening), below TP, and below price.
+        let candidate = floor.max(current_sl_trigger).max(0.0);
+        let tightened = candidate - current_sl_trigger >= step;
+        let below_tp = candidate < tp_trigger;
+        let below_price = candidate < current_price - step;
+        if tightened && below_tp && below_price {
+            Some(candidate)
+        } else {
+            None
+        }
+    }
+}
+
+/// A venue-side protective stop order owned by the trader wallet.
+#[derive(Debug, Clone)]
+pub struct VenueStopOrder {
+    pub order: String,
+    /// "StopLoss" or "TakeProfit" (classified from order kind).
+    pub role: &'static str,
+    pub trigger_price: f64,
+    pub side: String,
+}
+
+fn unit_price(v: &Venue, usd_price: f64) -> u128 {
+    (usd_price * v.price_scale) as u128
+}
+
+/// Place one venue stop order (StopLossDecrease or LimitDecrease) covering the
+/// FULL position size. The keeper executes it against the oracle whenever the
+/// trigger is touched — independent of our process being alive.
+///
+/// `kind`: "StopLoss" (StopLossDecrease) or "TakeProfit" (LimitDecrease).
+/// GMX-style trigger semantics (confirmed in the SDK keeper simulation):
+/// - StopLossDecrease LONG fills when price <= trigger (downside protection)
+/// - StopLossDecrease SHORT fills when price >= trigger
+/// - LimitDecrease LONG fills when price >= trigger (upside harvest)
+/// - LimitDecrease SHORT fills when price <= trigger
+async fn place_stop_order(
+    v: &Venue,
+    kind: &str,
+    trigger_usd: f64,
+    size_usd: f64,
+    is_long: bool,
+) -> GmResult<GmPubkey> {
+    use gmsol_sdk::programs::gmsol_store::types::DecreasePositionSwapType;
+
+    if trigger_usd <= 0.0 || size_usd <= 0.0 {
+        return Err(format!(
+            "venue stop: invalid trigger ${trigger_usd} or size ${size_usd}"
+        ));
+    }
+    let size_units = (size_usd * USD_SCALE) as u128;
+    let trigger = unit_price(v, trigger_usd);
+
+    let mut builder = if kind == "StopLoss" {
+        v.client.stop_loss(
+            &v.store,
+            &v.market_token,
+            is_long,
+            size_units,
+            trigger,
+            true,
+            0,
+        )
+    } else {
+        v.client.limit_decrease(
+            &v.store,
+            &v.market_token,
+            is_long,
+            size_units,
+            trigger,
+            true,
+            0,
+        )
+    };
+    // Proceeds return as native SOL (same as the manual close path), and PnL
+    // swaps to the collateral token (no-op on the pure WSOL pool, but matches
+    // the SDK CLI reference).
+    builder
+        .execution_fee(execution_fee())
+        .decrease_position_swap_type(Some(DecreasePositionSwapType::PnlTokenToCollateralToken))
+        .should_unwrap_native_token(true);
+
+    let (rpc, order) = builder
+        .build_with_address()
+        .await
+        .map_err(|e| format!("GM {kind} stop build failed: {e}"))?;
+    let sig = rpc
+        .send()
+        .await
+        .map_err(|e| format!("GM {kind} stop tx failed: {e}"))?;
+    tracing::info!("[GM-STOP] {kind} order {order} @ ${trigger_usd:.2} placed (tx {sig})");
+    Ok(order)
+}
+
+/// Place a single venue stop order covering the FULL position size.
+/// `kind`: "StopLoss" (StopLossDecrease) or "TakeProfit" (LimitDecrease).
+/// Returns the order pubkey string.
+pub async fn place_venue_stop(
+    keypair: &solana_sdk::signature::Keypair,
+    kind: &str,
+    trigger_usd: f64,
+    size_usd: f64,
+    side: &str,
+) -> GmResult<String> {
+    let v = venue().await?;
+    assert_owner(&v, keypair)?;
+    let is_long = !side.eq_ignore_ascii_case("short");
+    let order = place_stop_order(&v, kind, trigger_usd, size_usd, is_long).await?;
+    Ok(order.to_string())
+}
+
+/// Ratchet an existing stop order's trigger price via `update_order`
+/// (owner-signed; no keeper fee). `new_trigger_usd` replaces the trigger.
+pub async fn update_stop_trigger(
+    keypair: &solana_sdk::signature::Keypair,
+    order: &str,
+    new_trigger_usd: f64,
+) -> GmResult<()> {
+    use gmsol_sdk::programs::gmsol_store::types::UpdateOrderParams;
+
+    let v = venue().await?;
+    assert_owner(&v, keypair)?;
+    let order_addr = gm_pubkey(order)?;
+    let params = UpdateOrderParams {
+        size_delta_value: None,
+        acceptable_price: None,
+        trigger_price: Some(unit_price(&v, new_trigger_usd)),
+        min_output: None,
+        valid_from_ts: None,
+    };
+    let rpc = v
+        .client
+        .update_order(&v.store, &v.market_token, &order_addr, params, None)
+        .await
+        .map_err(|e| format!("GM update_order build failed: {e}"))?;
+    let sig = rpc
+        .send()
+        .await
+        .map_err(|e| format!("GM update_order tx failed: {e}"))?;
+    tracing::info!("[GM-STOP] ratcheted {order_addr} trigger → ${new_trigger_usd:.2} (tx {sig})");
+    Ok(())
+}
+
+/// Cancel (close) a venue order account. Best-effort by design: callers treat
+/// failure as a warning (a stranded stop with no position fails keeper
+/// validation and self-cancels on next execution attempt).
+pub async fn cancel_order(
+    keypair: &solana_sdk::signature::Keypair,
+    order: &str,
+) -> GmResult<String> {
+    let v = venue().await?;
+    assert_owner(&v, keypair)?;
+    let order_addr = gm_pubkey(order)?;
+    let mut builder = v
+        .client
+        .close_order(&order_addr)
+        .map_err(|e| format!("GM cancel builder failed: {e}"))?;
+    let rpc = builder
+        .build()
+        .await
+        .map_err(|e| format!("GM cancel build failed: {e}"))?;
+    let sig = rpc
+        .send()
+        .await
+        .map_err(|e| format!("GM cancel tx failed: {e}"))?;
+    Ok(sig.to_string())
+}
+
+/// List this owner's live stop orders on the SOL market, classified into
+/// StopLoss / TakeProfit roles with their current trigger prices.
+pub async fn list_venue_stops() -> GmResult<Vec<VenueStopOrder>> {
+    use gmsol_sdk::core::order::OrderKind;
+
+    let v = venue().await?;
+    let orders = v
+        .client
+        .orders(&v.store, Some(&v.owner), Some(&v.market_token))
+        .await
+        .map_err(|e| format!("GM orders fetch failed: {e}"))?;
+
+    let mut out = Vec::new();
+    for (addr, order) in orders {
+        let kind = match order.params.kind() {
+            Ok(k) => k,
+            Err(_) => continue,
+        };
+        let role = match kind {
+            OrderKind::StopLossDecrease => "StopLoss",
+            OrderKind::LimitDecrease => "TakeProfit",
+            _ => continue,
+        };
+        let side = match order.params.side() {
+            Ok(s) if s.is_long() => "Long".to_string(),
+            Ok(_) => "Short".to_string(),
+            Err(_) => continue,
+        };
+        out.push(VenueStopOrder {
+            order: addr.to_string(),
+            role,
+            trigger_price: order.params.trigger_price as f64 / v.price_scale,
+            side,
+        });
+    }
+    Ok(out)
+}
+
+/// Cancel every stop order this owner holds on the SOL market (used while
+/// flat to sweep stragglers left behind by a venue-executed or failed close).
+/// Returns the number cancelled.
+pub async fn cancel_all_venue_stops(keypair: &solana_sdk::signature::Keypair) -> GmResult<u32> {
+    let stops = list_venue_stops().await?;
+    let mut n = 0;
+    for stop in stops {
+        match cancel_order(keypair, &stop.order).await {
+            Ok(sig) => {
+                tracing::info!(
+                    "[GM-STOP] cancelled stray {} order {} (tx {sig})",
+                    stop.role,
+                    stop.order
+                );
+                n += 1;
+            }
+            Err(e) => {
+                tracing::warn!(
+                    "[GM-STOP] failed to cancel stray {} order {}: {e}",
+                    stop.role,
+                    stop.order
+                );
+            }
+        }
+    }
+    Ok(n)
+}
+
+/// Fill report of a CONSUMED venue stop order.
+#[derive(Debug, Clone)]
+pub struct VenueStopFill {
+    pub execution_price: f64,
+    pub pnl_usd: f64,
+    pub order_fee_usd: f64,
+    pub borrow_fee_usd: f64,
+}
+
+/// Recover the fill report of a CONSUMED stop order (venue stop fired):
+/// execution price, PnL and close-leg fees. Scans historical CPI events
+/// scoped to the order PDA with the same attribution filter as
+/// `wait_for_fill` — keeper batches mix many traders' events, so only our
+/// order's TradeEvent counts. Returns Ok(None) when no attributable fill
+/// exists (order still live, or events aged out).
+pub async fn venue_stop_fill_report(order: &str) -> GmResult<Option<VenueStopFill>> {
+    use gmsol_sdk::decode::gmsol::programs::GMSOLCPIEvent;
+    use solana_sdk::commitment_config::CommitmentConfig;
+
+    let v = venue().await?;
+    let order_addr = gm_pubkey(order)?;
+    let events = match v
+        .client
+        .last_order_events(&order_addr, u64::MAX, CommitmentConfig::confirmed())
+        .await
+    {
+        Ok(events) => events,
+        Err(e) => {
+            tracing::warn!("[GM-STOP] fill-report scan failed for {order_addr}: {e}");
+            return Ok(None);
+        }
+    };
+    let trade = events.into_iter().find_map(|ev| match ev {
+        GMSOLCPIEvent::TradeEvent(t) if t.order == order_addr => Some(t),
+        _ => None,
+    });
+    Ok(trade.map(|t| VenueStopFill {
+        execution_price: t.execution_price as f64 / v.price_scale,
+        pnl_usd: t.pnl.pnl as f64 / USD_SCALE,
+        order_fee_usd: t.fees.order_fee_for_receiver_amount as f64 / USD_SCALE,
+        borrow_fee_usd: t.fees.total_borrowing_fee_amount as f64 / USD_SCALE,
+    }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn stop_plan_long_levels() {
+        let plan = venue_stop_plan(100.0, 2.0, 2.5, 6.0, 1.0, 100.0, "Long");
+        assert_eq!(plan.sl_trigger, 95.0); // 100 - 2.5*2
+        assert_eq!(plan.tp_trigger, 112.0); // 100 + 6*2
+        assert_eq!(plan.trail_floor, None); // peak == entry: not in profit
+    }
+
+    #[test]
+    fn stop_plan_long_trail_floor() {
+        let plan = venue_stop_plan(100.0, 2.0, 2.5, 6.0, 1.0, 105.0, "Long");
+        assert_eq!(plan.trail_floor, Some(103.0)); // 105 - 1*2
+    }
+
+    #[test]
+    fn stop_plan_short_levels_inverted() {
+        let plan = venue_stop_plan(100.0, 2.0, 2.5, 6.0, 1.0, 95.0, "Short");
+        assert_eq!(plan.sl_trigger, 105.0); // 100 + 2.5*2
+        assert_eq!(plan.tp_trigger, 88.0); // 100 - 6*2
+        assert_eq!(plan.trail_floor, Some(97.0)); // trough 95 + 1*2
+    }
+
+    #[test]
+    fn ratchet_long_advances_toward_floor() {
+        // SL at 95, TP at 112, floor 103, price 109 → ratchet to 103.
+        let t = ratcheted_sl_trigger(95.0, 112.0, Some(103.0), 109.0, "Long");
+        assert_eq!(t, Some(103.0));
+    }
+
+    #[test]
+    fn ratchet_long_refuses_sub_step_moves() {
+        // Floor only 0.05 above current trigger (< 0.1% step of price 109).
+        let t = ratcheted_sl_trigger(103.0, 112.0, Some(103.05), 109.0, "Long");
+        assert_eq!(t, None);
+    }
+
+    #[test]
+    fn ratchet_long_never_crosses_tp_or_price() {
+        // Floor 113 > TP 112 → refuse (would kill the take-profit).
+        assert_eq!(
+            ratcheted_sl_trigger(103.0, 112.0, Some(113.0), 115.0, "Long"),
+            None
+        );
+        // Floor 108.96 ≈ price 109 (not a full step below) → refuse.
+        assert_eq!(
+            ratcheted_sl_trigger(103.0, 120.0, Some(108.96), 109.0, "Long"),
+            None
+        );
+    }
+
+    #[test]
+    fn ratchet_short_tightens_downward() {
+        // Short: SL ceiling at 105, TP 88, ceiling-floor 97, price 91.
+        let t = ratcheted_sl_trigger(105.0, 88.0, Some(97.0), 91.0, "Short");
+        assert_eq!(t, Some(97.0));
+        // Sub-step refinement refused.
+        assert_eq!(
+            ratcheted_sl_trigger(97.0, 88.0, Some(96.98), 91.0, "Short"),
+            None
+        );
+        // Never crosses TP (candidate 87 < TP 88 → refuse).
+        assert_eq!(
+            ratcheted_sl_trigger(97.0, 88.0, Some(87.0), 90.0, "Short"),
+            None
+        );
+    }
+
+    #[test]
+    fn ratchet_requires_floor() {
+        assert_eq!(ratcheted_sl_trigger(95.0, 112.0, None, 109.0, "Long"), None);
+    }
+}
+
 fn venue_slot() -> &'static tokio::sync::Mutex<Option<Venue>> {
     static SLOT: std::sync::OnceLock<tokio::sync::Mutex<Option<Venue>>> =
         std::sync::OnceLock::new();

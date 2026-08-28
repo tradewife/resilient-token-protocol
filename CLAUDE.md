@@ -112,6 +112,27 @@ program interactions.
   fix for unmanaged $6.8k positions. If you see
   `[ENTRY] Venue position already open` in logs, suspect a duplicate
   process holding the trader keypair — investigate before the next entry.
+- **Venue-side protective stops (GMTrade — Aug 28 give-back fix)** — the
+  process-side exit checks only see confirmed hourly closes every 5 min,
+  so an intrabar crash blows through the trail floor before the next poll
+  (Aug 28: +$96 peak gave back to +$1.5). Stops now also live ON THE
+  VENUE and execute via keepers when the oracle touches the trigger:
+  (1) SL order (`StopLossDecrease`) at entry ∓ sl_atr×ATR, ratcheted to
+  the trail floor (peak ∓ trail×ATR, live ATR — exactly mirroring
+  `check_exit`) while in profit via owner-signed `update_order` (no
+  keeper fee; 0.1%-of-price step filters noise);
+  (2) TP order (`LimitDecrease`) at entry ± tp_atr×ATR harvests big wins
+  even while the process is down;
+  (3) lifecycle — placed immediately after entry + retried per-poll
+  (`maintain_venue_stops`), adopted for reconciled orphans, cancelled on
+  our closes, flat-swept every poll while flat;
+  (4) when a venue stop fires out-of-process the phantom path detects the
+  consumed order (order-PDA-scoped, attribution-checked
+  `venue_stop_fill_report`) and books a real `StopLoss(Venue)` /
+  `TakeProfit(Venue)` row with the actual fill price + fees (counted in
+  `total_pnl_sol`). Venue stops change WHERE execution happens, never the
+  validated levels — same ATR multiples as the validated config.
+  Kill switch: `RTP_TRADER_VENUE_STOPS=0`. Log tag `[GM-STOP]`.
 - **S16: the live multi-TF model has NO validation artifact** (Aug 23) —
   every prior validation (Calmar 44.89, OOS Sharpe 3.96, sensitivity
   CSV, night-shift candidates) used fake multi-TF (lookback 20/80/200

@@ -246,8 +246,48 @@ async fn reconcile_from_venue(
                 .iter()
                 .find(|p| p.market_symbol == "SOL" && (p.side_ui == "Long" || p.side_ui == "Short"))
             {
-                let mut s = state.lock().await;
-                apply_reconciled_position(&mut s, pos)
+                let restored = {
+                    let mut s = state.lock().await;
+                    apply_reconciled_position(&mut s, pos)
+                };
+                if restored && is_gm(&config.venue) && gmtrade::venue_stops_enabled() {
+                    // Adopt any stop orders a previous process instance left
+                    // on the venue for this position (match by trigger side):
+                    // continuing to ratchet/cancel them avoids doubling up
+                    // with a second pair.
+                    match gmtrade::list_venue_stops().await {
+                        Ok(stops) => {
+                            let side = pos.side_ui.as_str();
+                            let matching: Vec<&gmtrade::VenueStopOrder> =
+                                stops.iter().filter(|s| s.side.as_str() == side).collect();
+                            let sl = matching.iter().find(|s| s.role == "StopLoss");
+                            let tp = matching.iter().find(|s| s.role == "TakeProfit");
+                            if sl.is_some() || tp.is_some() {
+                                let mut s = state.lock().await;
+                                if let Some(ref mut open) = s.open_position {
+                                    if let Some(sl) = sl {
+                                        open.venue_sl_order = Some(sl.order.clone());
+                                        open.venue_sl_trigger = sl.trigger_price;
+                                    }
+                                    if let Some(tp) = tp {
+                                        open.venue_tp_order = Some(tp.order.clone());
+                                    }
+                                    tracing::warn!(
+                                        "[RECONCILE] adopted {} venue stop order(s) for the \
+                                         restored position",
+                                        matching.len()
+                                    );
+                                }
+                            }
+                        }
+                        Err(e) => tracing::warn!(
+                            "[RECONCILE] venue stop lookup failed ({}); the maintenance \
+                             pass will place fresh stops",
+                            e
+                        ),
+                    }
+                }
+                restored
             } else {
                 false
             }
@@ -312,6 +352,9 @@ pub(crate) fn apply_reconciled_position(
         size_usd,
         first_negative_score_time: None,
         side: side.clone(),
+        venue_sl_order: None,
+        venue_tp_order: None,
+        venue_sl_trigger: 0.0,
     });
     true
 }
@@ -610,6 +653,239 @@ async fn venue_close_position(
     }
 }
 
+// ---------------------------------------------------------------------------
+// Venue-side protective stops (GMTrade only). Stop orders placed on the venue
+// execute via keepers the instant the oracle touches the trigger — without
+// our process being awake and without waiting for the next hourly close.
+// Aug 28: the process-side trailing stop gave back a +$100 peak because it
+// only sees confirmed 1h closes every 5 min; a venue stop at the trail floor
+// would have caught the dump candle at the floor instead of below entry.
+//
+// Levels mirror check_exit EXACTLY (same ATR multiples) — venue stops change
+// WHERE execution happens, not the validated exit parameters:
+//   SL trigger = entry ∓ sl_atr×ATR, ratcheted to the trail floor in profit
+//   TP trigger = entry ± tp_atr×ATR (harvest)
+// Lifecycle: ensure placed after entry/reconcile (retry every poll while
+// open), ratchet per-poll in profit, cancel on our closes, adopt orphans,
+// book a StopLoss/TakeProfit row when a venue stop fired out-of-process.
+// ---------------------------------------------------------------------------
+
+/// Ensure the open position has its protective stop pair on the venue.
+/// Places whichever stops are missing (idempotent — never doubles up when
+/// state already tracks both). `atr` is the ATR anchor for the stop levels:
+/// the entry-time ATR for managed entries, the live signal ATR for reconciled
+/// orphans (which carry entry_atr=0). All placement failures are logged and
+/// retried next poll; a missing stop only degrades to process-side
+/// management, never to a cycle error. Returns (sl_order, tp_order,
+/// sl_trigger) after any placements.
+async fn ensure_venue_stops(
+    keypair: &solana_sdk::signature::Keypair,
+    pos: &strategy::OpenPosition,
+    atr: f64,
+) -> (Option<String>, Option<String>, f64) {
+    if !gmtrade::venue_stops_enabled() {
+        return (None, None, 0.0);
+    }
+    let mut sl = pos.venue_sl_order.clone();
+    let mut tp = pos.venue_tp_order.clone();
+    let mut sl_trigger = pos.venue_sl_trigger;
+
+    if atr <= 0.0 || pos.size_usd <= 0.0 || pos.entry_price <= 0.0 {
+        // No usable ATR yet — the per-poll retry places stops once one is
+        // available (first signal after a reconcile).
+        return (sl, tp, sl_trigger);
+    }
+    let plan = gmtrade::venue_stop_plan(
+        pos.entry_price,
+        atr,
+        pos_entry_sl_atr(),
+        pos_entry_tp_atr(),
+        0.0,
+        pos.entry_price,
+        &pos.side,
+    );
+    if sl.is_none() {
+        match gmtrade::place_venue_stop(
+            keypair,
+            "StopLoss",
+            plan.sl_trigger,
+            pos.size_usd,
+            &pos.side,
+        )
+        .await
+        {
+            Ok(order) => {
+                sl = Some(order);
+                sl_trigger = plan.sl_trigger;
+            }
+            Err(e) => tracing::warn!("[GM-STOP] SL placement failed (retry next poll): {e}"),
+        }
+    }
+    if tp.is_none() {
+        match gmtrade::place_venue_stop(
+            keypair,
+            "TakeProfit",
+            plan.tp_trigger,
+            pos.size_usd,
+            &pos.side,
+        )
+        .await
+        {
+            Ok(order) => tp = Some(order),
+            Err(e) => tracing::warn!("[GM-STOP] TP placement failed (retry next poll): {e}"),
+        }
+    }
+    (sl, tp, sl_trigger)
+}
+
+/// ATR-multiple params from the active strategy config, threaded to the stop
+/// planner so venue stops mirror check_exit exactly. Read from a static set
+/// by `run_cycle` (single-trader process; see SET_ACTIVE_PARAMS note).
+static ACTIVE_STOP_PARAMS: std::sync::OnceLock<(f64, f64, f64)> = std::sync::OnceLock::new();
+
+fn set_active_stop_params(sl_atr: f64, tp_atr: f64, trail_atr: f64) {
+    let _ = ACTIVE_STOP_PARAMS.set((sl_atr, tp_atr, trail_atr));
+}
+
+fn pos_entry_sl_atr() -> f64 {
+    ACTIVE_STOP_PARAMS.get().map(|p| p.0).unwrap_or(2.5)
+}
+fn pos_entry_tp_atr() -> f64 {
+    ACTIVE_STOP_PARAMS.get().map(|p| p.1).unwrap_or(6.0)
+}
+fn pos_trail_atr() -> f64 {
+    ACTIVE_STOP_PARAMS.get().map(|p| p.2).unwrap_or(1.0)
+}
+
+/// Check whether one of a position's tracked venue stop orders has FIRED
+/// (consumed by a keeper). Returns the fired role + fill report when found.
+/// Used by both phantom-clear paths (runtime exit check + startup cleanup)
+/// to book venue-executed exits as real trades instead of phantom rows.
+async fn venue_stop_outcome(
+    pos: &strategy::OpenPosition,
+) -> Option<(&'static str, gmtrade::VenueStopFill)> {
+    for (role, order) in pos
+        .venue_sl_order
+        .as_ref()
+        .map(|o| ("StopLoss", o))
+        .into_iter()
+        .chain(pos.venue_tp_order.as_ref().map(|o| ("TakeProfit", o)))
+    {
+        match gmtrade::venue_stop_fill_report(order).await {
+            Ok(Some(fill)) => return Some((role, fill)),
+            Ok(None) => {}
+            Err(e) => {
+                tracing::warn!("[GM-STOP] fill-report lookup failed for {role} {order}: {e}")
+            }
+        }
+    }
+    None
+}
+
+/// Cancel both venue stop orders of a position (best-effort; a stranded stop
+/// with no position fails keeper validation and self-cancels, and the
+/// flat-sweep picks it up).
+async fn cancel_venue_stops(
+    keypair: &solana_sdk::signature::Keypair,
+    pos: &strategy::OpenPosition,
+) {
+    for order in pos.venue_sl_order.iter().chain(pos.venue_tp_order.iter()) {
+        match gmtrade::cancel_order(keypair, order).await {
+            Ok(sig) => tracing::info!("[GM-STOP] cancelled {order} (tx {sig})"),
+            Err(e) => tracing::warn!("[GM-STOP] cancel {order} failed (sweep will retry): {e}"),
+        }
+    }
+}
+
+/// Per-poll venue-stop maintenance while a position is open and managed:
+/// (1) place any missing stops, (2) ratchet the SL trigger to the trail
+/// floor when the confirmed-close peak advances. `live_atr` mirrors the ATR
+/// `check_exit` evaluates with (current signal), so venue stops track the
+/// same levels the process-side exits use. Mutates `state.open_position` in
+/// place. Non-fatal: stop bookkeeping never blocks trading.
+async fn maintain_venue_stops(
+    keypair: &solana_sdk::signature::Keypair,
+    state: &Arc<Mutex<TraderState>>,
+    current_price: f64,
+    live_atr: f64,
+) {
+    // Snapshot what we need without holding the lock across awaits.
+    let snapshot = state.lock().await.open_position.clone();
+    let Some(pos) = snapshot else { return };
+    if !gmtrade::venue_stops_enabled() {
+        return;
+    }
+
+    // Stop levels anchor to the entry-time ATR when known (the validated
+    // entry conditions); reconciled orphans (entry_atr=0) anchor to the
+    // first live signal ATR. The ratchet floor uses live ATR, exactly like
+    // check_exit's trailing trigger.
+    let atr_anchor = if pos.entry_atr > 0.0 {
+        pos.entry_atr
+    } else {
+        live_atr
+    };
+    let (sl, tp, sl_trigger) = ensure_venue_stops(keypair, &pos, atr_anchor).await;
+
+    // Ratchet: advance the SL trigger to the trail floor once in profit.
+    let mut new_trigger: Option<f64> = None;
+    if let (Some(sl_order), Some(trail_atr)) = (sl.as_deref(), pos_trail_atr_checked()) {
+        let floor = match pos.side() {
+            "Short" => {
+                if pos.peak_price < pos.entry_price {
+                    Some(pos.peak_price + trail_atr * live_atr)
+                } else {
+                    None
+                }
+            }
+            _ => {
+                if pos.peak_price > pos.entry_price {
+                    Some(pos.peak_price - trail_atr * live_atr)
+                } else {
+                    None
+                }
+            }
+        };
+        // The SL trigger starts at the entry-based hard stop; the TP trigger
+        // is the opposite boundary the ratchet must never cross.
+        let is_short = pos.side() == "Short";
+        let tp_trigger = if is_short {
+            pos.entry_price - pos_entry_tp_atr() * atr_anchor
+        } else {
+            pos.entry_price + pos_entry_tp_atr() * atr_anchor
+        };
+        if let Some(candidate) =
+            gmtrade::ratcheted_sl_trigger(sl_trigger, tp_trigger, floor, current_price, pos.side())
+        {
+            match gmtrade::update_stop_trigger(keypair, sl_order, candidate).await {
+                Ok(()) => new_trigger = Some(candidate),
+                Err(e) => tracing::warn!("[GM-STOP] ratchet failed (retry next poll): {e}"),
+            }
+        }
+    }
+
+    // Write back order tracking + any ratcheted trigger.
+    let mut s = state.lock().await;
+    if let Some(ref mut open) = s.open_position {
+        if open.venue_sl_order.is_none() {
+            open.venue_sl_order = sl;
+        }
+        if open.venue_tp_order.is_none() {
+            open.venue_tp_order = tp;
+        }
+        if let Some(t) = new_trigger {
+            open.venue_sl_trigger = t;
+        } else if open.venue_sl_trigger == 0.0 && sl_trigger > 0.0 {
+            open.venue_sl_trigger = sl_trigger;
+        }
+    }
+}
+
+fn pos_trail_atr_checked() -> Option<f64> {
+    let t = pos_trail_atr();
+    if t > 0.0 { Some(t) } else { None }
+}
+
 /// Run the main trader loop.
 pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
     // Load keypair
@@ -748,6 +1024,9 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
         s.active_config = params.clone();
     }
 
+    // Venue-side protective stops mirror these ATR multiples exactly.
+    set_active_stop_params(params.sl_atr, params.tp_atr, params.trailing_stop_atr);
+
     // Log loaded params at startup for Railway log visibility
     tracing::info!(
         "[STARTUP] Active strategy config: signal={:.2} tp={:.1} sl={:.1} hold={:.0}h trail={:.2} decay={:.0}h flip_delay={:.1}h alignment={}",
@@ -880,21 +1159,77 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
                     .any(|p| p.market_symbol == "SOL" && p.side_ui == side_lookup);
                 if !on_chain {
                     // The position vanished between sessions (external close,
-                    // liquidation, or a prior session's unrecorded close).
-                    // Booking pnl_pct = 0 here silently dropped the real
-                    // outcome from the tape — estimate it against the current
-                    // venue price instead (NOT added to total_pnl_sol, which
-                    // stays a realized-only counter).
-                    let est_price = venue_get_sol_price(&config.venue).await.unwrap_or(0.0);
-                    tracing::warn!(
-                        "[CLEANUP] Stale SOL {} position in state — not found on {}. \
-                         Clearing (exit price estimate ${:.2}).",
-                        side_lookup,
-                        config.venue,
-                        est_price
-                    );
+                    // liquidation, a venue stop firing while we were down, or
+                    // a prior session's unrecorded close). A venue stop fill
+                    // is a REAL exit — book it with the actual fill price and
+                    // count it in total_pnl_sol; anything else gets an
+                    // estimated phantom row (not counted).
                     let mut s = state.lock().await;
-                    if let Some(pos) = s.open_position.take() {
+                    let Some(pos) = s.open_position.take() else {
+                        unreachable!()
+                    };
+                    drop(s);
+
+                    let venue_fill = if is_gm(&config.venue) {
+                        venue_stop_outcome(&pos).await
+                    } else {
+                        None
+                    };
+
+                    let mut s = state.lock().await;
+                    if let Some((role, fill)) = venue_fill {
+                        let exit_price = fill.execution_price;
+                        let pnl_pct = if pos.entry_price > 0.0 {
+                            match pos.side() {
+                                "Short" => (pos.entry_price - exit_price) / pos.entry_price * 100.0,
+                                _ => (exit_price - pos.entry_price) / pos.entry_price * 100.0,
+                            }
+                        } else {
+                            0.0
+                        };
+                        let pnl_sol = if exit_price > 0.0 {
+                            (pnl_pct / 100.0) * (pos.size_usd / exit_price)
+                        } else {
+                            0.0
+                        };
+                        tracing::warn!(
+                            "[CLEANUP] Venue {} stop fired while the trader was down — \
+                             FILLED @ ${:.4} pnl ${:.4} (booked as realized)",
+                            role,
+                            fill.execution_price,
+                            fill.pnl_usd
+                        );
+                        s.trade_history.push(TradeRecord {
+                            entry_price: pos.entry_price,
+                            exit_price,
+                            entry_time: pos.entry_time,
+                            exit_time: Utc::now().timestamp(),
+                            pnl_pct,
+                            exit_reason: format!("{role}(Venue)"),
+                            size_usd: pos.size_usd,
+                            side: pos.side().to_string(),
+                            fees: Some(strategy::FeeBreakdown {
+                                exit_fee_usd: fill.order_fee_usd,
+                                borrow_fee_usd: fill.borrow_fee_usd,
+                                price_impact_usd: 0.0,
+                                total_fee_usd: fill.order_fee_usd + fill.borrow_fee_usd,
+                            }),
+                        });
+                        s.total_trades += 1;
+                        s.total_pnl_sol += pnl_sol;
+                    } else {
+                        // Booking pnl_pct = 0 here silently dropped the real
+                        // outcome from the tape — estimate it against the current
+                        // venue price instead (NOT added to total_pnl_sol, which
+                        // stays a realized-only counter).
+                        let est_price = venue_get_sol_price(&config.venue).await.unwrap_or(0.0);
+                        tracing::warn!(
+                            "[CLEANUP] Stale SOL {} position in state — not found on {}. \
+                             Clearing (exit price estimate ${:.2}).",
+                            side_lookup,
+                            config.venue,
+                            est_price
+                        );
                         let exit_price = if est_price > 0.0 {
                             est_price
                         } else {
@@ -921,6 +1256,13 @@ pub async fn run_trader(config: TraderConfig) -> Result<(), String> {
                         });
                         s.total_trades += 1;
                     }
+                    drop(s);
+
+                    // Either way the position is gone: cancel the sibling
+                    // stop so nothing lingers for the next entry.
+                    cancel_venue_stops(&keypair, &pos).await;
+
+                    let s = state.lock().await;
                     if let Err(e) = s.save(&config.state_path) {
                         tracing::warn!("[CLEANUP] Save failed: {}", e);
                     }
@@ -1106,6 +1448,22 @@ async fn run_cycle(
     // duplicate open from this or a duplicate process.
     reconcile_from_venue(config, wallet, state).await;
 
+    // Flat-sweep of stranded venue stop orders (GM only): after any close
+    // path (our exit, a venue stop firing, /clear-position, or a manual
+    // on-chain close) the sibling stop can linger on the venue. Sweep while
+    // flat so a stray StopLossDecrease can never surprise a future entry.
+    if is_gm(&config.venue)
+        && !config.dry_run
+        && state.lock().await.open_position.is_none()
+        && gmtrade::venue_stops_enabled()
+    {
+        match gmtrade::cancel_all_venue_stops(keypair).await {
+            Ok(n) if n > 0 => tracing::warn!("[GM-STOP] flat-sweep cancelled {n} stray order(s)"),
+            Ok(_) => {}
+            Err(e) => tracing::warn!("[GM-STOP] flat-sweep failed (retry next poll): {e}"),
+        }
+    }
+
     // 0. Periodically refresh TF buffers from Binance. The 1h buffer
     // receives live ticks via `append_tick`, but ticks carry tick-count
     // "volumes" and an uptime-accumulated buffer drifts from the true
@@ -1220,7 +1578,7 @@ async fn run_cycle(
                     side,
                     pos.first_negative_score_time,
                 );
-                Some((result, pos.clone(), signal.score))
+                Some((result, pos.clone(), signal.score, signal.atr))
             } else {
                 None
             }
@@ -1230,7 +1588,7 @@ async fn run_cycle(
     };
 
     // Always update first_negative_score_time from check_exit result
-    if let Some((ref result, ref pos_info, _)) = exit_info {
+    if let Some((ref result, ref pos_info, _, live_atr)) = exit_info {
         // Update first_negative_score_time in state regardless of exit
         {
             let mut s = state.lock().await;
@@ -1322,53 +1680,135 @@ async fn run_cycle(
                                     s.total_trades += 1;
                                     s.total_pnl_sol += pnl_sol;
                                     close_succeeded = true;
+                                    drop(s);
+                                    // The close consumed the position; the venue
+                                    // stop pair is now stranded (its decrease
+                                    // would fail keeper validation, but the
+                                    // accounts + rent linger). Cancel both.
+                                    cancel_venue_stops(keypair, pos_info).await;
                                 }
                                 Err(e) => {
                                     tracing::error!("[EXIT] Close failed: {}", e);
                                 }
                             }
                         } else {
-                            tracing::warn!(
-                                "[EXIT] No SOL {} position found on {} — clearing phantom local state",
-                                pos_side,
-                                config.venue
-                            );
-                            // Never treat a missing on-chain position as a real close for PnL
-                            // (total_pnl_sol untouched), but record an audit row against the
-                            // current price so the tape reflects the estimated outcome —
-                            // booking 0.0 silently dropped these results before.
-                            let exit_price =
-                                closes_1h.last().copied().unwrap_or(pos_info.entry_price);
-                            let side = pos_info.side().to_string();
-                            let pnl_pct = if pos_info.entry_price > 0.0 {
-                                match pos_info.side() {
-                                    "Short" => {
-                                        (pos_info.entry_price - exit_price) / pos_info.entry_price
-                                            * 100.0
+                            // Position vanished from the venue while we still
+                            // tracked it. Either a VENUE STOP FIRED (keeper
+                            // closed it out-of-process — a REAL exit we should
+                            // book with its actual fill) or something else
+                            // removed it (manual clear). Check the tracked
+                            // stop orders for an attributable fill first.
+                            let mut venue_fill: Option<(&'static str, gmtrade::VenueStopFill)> =
+                                None;
+                            if is_gm(&config.venue) {
+                                venue_fill = venue_stop_outcome(pos_info).await;
+                            }
+
+                            if let Some((role, fill)) = venue_fill {
+                                // A venue stop executed: real exit, real PnL.
+                                // Book it like any other close (counted in
+                                // total_pnl_sol) and cancel the sibling stop.
+                                let exit_price = fill.execution_price;
+                                let pnl_pct = if pos_info.entry_price > 0.0 {
+                                    match pos_info.side() {
+                                        "Short" => {
+                                            (pos_info.entry_price - exit_price)
+                                                / pos_info.entry_price
+                                                * 100.0
+                                        }
+                                        _ => {
+                                            (exit_price - pos_info.entry_price)
+                                                / pos_info.entry_price
+                                                * 100.0
+                                        }
                                     }
-                                    _ => {
-                                        (exit_price - pos_info.entry_price) / pos_info.entry_price
-                                            * 100.0
-                                    }
-                                }
+                                } else {
+                                    0.0
+                                };
+                                let pnl_sol = if exit_price > 0.0 {
+                                    (pnl_pct / 100.0) * (pos_info.size_usd / exit_price)
+                                } else {
+                                    0.0
+                                };
+                                tracing::warn!(
+                                    "[EXIT] Venue {} stop fired out-of-process — FILLED @ \
+                                     ${:.4} pnl ${:.4} (fees: order=${:.4} borrow=${:.4})",
+                                    role,
+                                    fill.execution_price,
+                                    fill.pnl_usd,
+                                    fill.order_fee_usd,
+                                    fill.borrow_fee_usd
+                                );
+                                let trade = TradeRecord {
+                                    entry_price: pos_info.entry_price,
+                                    exit_price,
+                                    entry_time: pos_info.entry_time,
+                                    exit_time: Utc::now().timestamp(),
+                                    pnl_pct,
+                                    exit_reason: format!("{role}(Venue)"),
+                                    size_usd: pos_info.size_usd,
+                                    side: pos_info.side().to_string(),
+                                    fees: Some(strategy::FeeBreakdown {
+                                        exit_fee_usd: fill.order_fee_usd,
+                                        borrow_fee_usd: fill.borrow_fee_usd,
+                                        price_impact_usd: 0.0,
+                                        total_fee_usd: fill.order_fee_usd + fill.borrow_fee_usd,
+                                    }),
+                                };
+                                let mut s = state.lock().await;
+                                s.trade_history.push(trade);
+                                s.total_trades += 1;
+                                s.total_pnl_sol += pnl_sol;
+                                close_succeeded = true;
+                                drop(s);
+                                // Cancel the sibling stop (the fired one is
+                                // already consumed).
+                                cancel_venue_stops(keypair, pos_info).await;
                             } else {
-                                0.0
-                            };
-                            let trade = TradeRecord {
-                                entry_price: pos_info.entry_price,
-                                exit_price,
-                                entry_time: pos_info.entry_time,
-                                exit_time: Utc::now().timestamp(),
-                                pnl_pct,
-                                exit_reason: format!("PhantomClear({:?})", reason),
-                                size_usd: pos_info.size_usd,
-                                side,
-                                fees: None,
-                            };
-                            let mut s = state.lock().await;
-                            s.trade_history.push(trade);
-                            s.total_trades += 1;
-                            close_succeeded = true;
+                                tracing::warn!(
+                                    "[EXIT] No SOL {} position found on {} — clearing phantom local state",
+                                    pos_side,
+                                    config.venue
+                                );
+                                // Never treat a missing on-chain position as a real close for PnL
+                                // (total_pnl_sol untouched), but record an audit row against the
+                                // current price so the tape reflects the estimated outcome —
+                                // booking 0.0 silently dropped these results before.
+                                let exit_price =
+                                    closes_1h.last().copied().unwrap_or(pos_info.entry_price);
+                                let side = pos_info.side().to_string();
+                                let pnl_pct = if pos_info.entry_price > 0.0 {
+                                    match pos_info.side() {
+                                        "Short" => {
+                                            (pos_info.entry_price - exit_price)
+                                                / pos_info.entry_price
+                                                * 100.0
+                                        }
+                                        _ => {
+                                            (exit_price - pos_info.entry_price)
+                                                / pos_info.entry_price
+                                                * 100.0
+                                        }
+                                    }
+                                } else {
+                                    0.0
+                                };
+                                let trade = TradeRecord {
+                                    entry_price: pos_info.entry_price,
+                                    exit_price,
+                                    entry_time: pos_info.entry_time,
+                                    exit_time: Utc::now().timestamp(),
+                                    pnl_pct,
+                                    exit_reason: format!("PhantomClear({:?})", reason),
+                                    size_usd: pos_info.size_usd,
+                                    side,
+                                    fees: None,
+                                };
+                                let mut s = state.lock().await;
+                                s.trade_history.push(trade);
+                                s.total_trades += 1;
+                                close_succeeded = true;
+                            }
                         }
                     }
                     Err(e) => {
@@ -1392,6 +1832,15 @@ async fn run_cycle(
             };
             if should_update_peak && let Some(ref mut pos) = state.lock().await.open_position {
                 pos.peak_price = current_price;
+            }
+
+            // Venue-side protective stops (GM only): place any missing stops,
+            // ratchet the SL trigger to the trail floor when in profit. The
+            // stop orders execute on-chain via keepers the instant the oracle
+            // touches the trigger — independent of this process and of the
+            // hourly-close polling latency that gave back the Aug 28 peak.
+            if is_gm(&config.venue) && !config.dry_run {
+                maintain_venue_stops(keypair, state, current_price, live_atr).await;
             }
         }
     } else {
@@ -1554,7 +2003,21 @@ async fn run_cycle(
                                             size_usd: size,
                                             first_negative_score_time: None,
                                             side: pos_side,
+                                            venue_sl_order: None,
+                                            venue_tp_order: None,
+                                            venue_sl_trigger: 0.0,
                                         });
+
+                                        // Place the venue-side protective stop pair
+                                        // immediately (don't wait for the first
+                                        // exit-check pass): entry is live and
+                                        // unprotected stops are the Aug 28 gap.
+                                        // Best-effort; the per-poll maintenance
+                                        // pass retries any placement failure.
+                                        if is_gm(&config.venue) {
+                                            maintain_venue_stops(keypair, state, entry, signal.atr)
+                                                .await;
+                                        }
                                     } else {
                                         tracing::error!(
                                             "[ENTRY] Open returned ok but no SOL {} on Flash — not setting local open_position",
@@ -1936,6 +2399,9 @@ mod tests {
             size_usd: 50.0,
             first_negative_score_time: None,
             side: "Short".to_string(),
+            venue_sl_order: None,
+            venue_tp_order: None,
+            venue_sl_trigger: 0.0,
         });
         assert_eq!(state.open_position.as_ref().unwrap().side(), "Short");
     }
@@ -1993,6 +2459,9 @@ mod tests {
             size_usd: 50.0,
             first_negative_score_time: None,
             side: "Short".to_string(),
+            venue_sl_order: None,
+            venue_tp_order: None,
+            venue_sl_trigger: 0.0,
         };
 
         // Price drops from 100 to 95 — favorable for SHORT, update trough
@@ -2030,6 +2499,9 @@ mod tests {
             size_usd: 50.0,
             first_negative_score_time: None,
             side: "Long".to_string(),
+            venue_sl_order: None,
+            venue_tp_order: None,
+            venue_sl_trigger: 0.0,
         };
 
         // Price rises from 100 to 105 — favorable for LONG, update peak
@@ -2054,6 +2526,9 @@ mod tests {
             size_usd: 30.0,
             first_negative_score_time: None,
             side: "Short".to_string(),
+            venue_sl_order: None,
+            venue_tp_order: None,
+            venue_sl_trigger: 0.0,
         });
 
         // Verify it serializes/deserializes correctly
@@ -2121,6 +2596,9 @@ mod tests {
             size_usd: 500.0,
             first_negative_score_time: None,
             side: "Long".to_string(),
+            venue_sl_order: None,
+            venue_tp_order: None,
+            venue_sl_trigger: 0.0,
         });
         let other = venue_position("Long", "110.0", "999.0", Utc::now().timestamp() - 60);
         assert!(!apply_reconciled_position(&mut state, &other));
