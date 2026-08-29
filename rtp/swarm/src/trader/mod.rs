@@ -905,17 +905,37 @@ async fn cancel_venue_stops(
     }
 }
 
+/// Most recent CONFIRMED 1h close formed strictly after entry time, if one
+/// exists yet. Live entries happen mid-candle, so the last confirmed candle
+/// can be a PRE-entry bar; using it would inflate the peak and arm the
+/// trailing floor near breakeven within minutes of entry (Aug 29: entry
+/// $103.45 vs prior close $104.02 → stop ratcheted to $103.42 in 4 min).
+/// The validated backtest only updates the peak from bars closed AFTER
+/// entry, so gating on the post-entry close restores live/backtest parity.
+/// Returns None until the first hourly candle has fully closed after entry.
+fn last_post_entry_close(buffer_1h: &candles::CandleBuffer, entry_time: i64) -> Option<f64> {
+    buffer_1h
+        .candles()
+        .iter()
+        .rev()
+        .find(|c| c.timestamp.saturating_add(3600) > entry_time)
+        .map(|c| c.close)
+}
+
 /// Per-poll venue-stop maintenance while a position is open and managed:
-/// (1) place any missing stops, (2) ratchet the SL trigger to the trail
-/// floor when the confirmed-close peak advances. `live_atr` mirrors the ATR
-/// `check_exit` evaluates with (current signal), so venue stops track the
-/// same levels the process-side exits use. Mutates `state.open_position` in
-/// place. Non-fatal: stop bookkeeping never blocks trading.
+/// (1) place any missing stops, (2) heal levels polluted by a pre-entry
+/// close before the first post-entry close exists, (3) ratchet the SL
+/// trigger to the trail floor when the confirmed-close peak advances.
+/// `live_atr` mirrors the ATR `check_exit` evaluates with (current signal),
+/// so venue stops track the same levels the process-side exits use.
+/// Mutates `state.open_position` in place. Non-fatal: stop bookkeeping
+/// never blocks trading.
 async fn maintain_venue_stops(
     keypair: &solana_sdk::signature::Keypair,
     state: &Arc<Mutex<TraderState>>,
     current_price: f64,
     live_atr: f64,
+    has_post_entry_close: bool,
 ) {
     // Snapshot what we need without holding the lock across awaits.
     let snapshot = state.lock().await.open_position.clone();
@@ -935,9 +955,52 @@ async fn maintain_venue_stops(
     };
     let (sl, tp, sl_trigger) = ensure_venue_stops(keypair, &pos, atr_anchor).await;
 
+    // Heal (Aug 29): until a confirmed close has formed after entry, the
+    // validated model keeps the stop at the hard level. A pre-entry close
+    // could have inflated the peak and ratcheted the trigger near breakeven
+    // within minutes of a mid-candle entry — reset both to validated levels.
+    let mut healed_trigger: Option<f64> = None;
+    if !has_post_entry_close
+        && let Some((restored_peak, restored_trigger)) = gmtrade::venue_stop_heal_levels(
+            pos.entry_price,
+            atr_anchor,
+            pos_entry_sl_atr(),
+            pos.peak_price,
+            sl_trigger,
+            pos.side(),
+        )
+    {
+        if let (Some(sl_order), Some(hard_stop)) = (sl.as_deref(), restored_trigger) {
+            match gmtrade::update_stop_trigger(keypair, sl_order, hard_stop).await {
+                Ok(()) => {
+                    healed_trigger = Some(hard_stop);
+                    tracing::warn!(
+                        "[GM-STOP] HEAL: pre-entry close had armed the trail early — \
+                         SL trigger restored to validated hard stop ${hard_stop:.2}, \
+                         peak reset to entry ${:.2}",
+                        restored_peak
+                    );
+                }
+                Err(e) => tracing::warn!("[GM-STOP] HEAL failed (retry next poll): {e}"),
+            }
+        }
+        // Reset the peak too, but only when the venue side is consistent
+        // (trigger healed or didn't need healing) — never desync local peak
+        // from an on-chain trigger we failed to move.
+        let trigger_consistent = restored_trigger.is_none() || healed_trigger.is_some();
+        if restored_peak != pos.peak_price && trigger_consistent {
+            let mut s = state.lock().await;
+            if let Some(ref mut open) = s.open_position {
+                open.peak_price = restored_peak;
+            }
+        }
+    }
+
     // Ratchet: advance the SL trigger to the trail floor once in profit.
     let mut new_trigger: Option<f64> = None;
-    if let (Some(sl_order), Some(trail_atr)) = (sl.as_deref(), pos_trail_atr_checked()) {
+    if has_post_entry_close
+        && let (Some(sl_order), Some(trail_atr)) = (sl.as_deref(), pos_trail_atr_checked())
+    {
         let floor = match pos.side() {
             "Short" => {
                 if pos.peak_price < pos.entry_price {
@@ -982,6 +1045,8 @@ async fn maintain_venue_stops(
             open.venue_tp_order = tp;
         }
         if let Some(t) = new_trigger {
+            open.venue_sl_trigger = t;
+        } else if let Some(t) = healed_trigger {
             open.venue_sl_trigger = t;
         } else if open.venue_sl_trigger == 0.0 && sl_trigger > 0.0 {
             open.venue_sl_trigger = sl_trigger;
@@ -1888,24 +1953,38 @@ async fn run_cycle(
                 state.lock().await.open_position = None;
             }
         } else {
-            // No exit triggered — update peak price for trailing stop
+            // No exit triggered — update peak price for trailing stop.
+            //
+            // Only confirmed closes formed STRICTLY AFTER entry may move the
+            // peak: a mid-candle live entry can sit below the prior bar's
+            // close, and counting that pre-entry close inflates the peak and
+            // arms the trail near breakeven within minutes of entry (Aug 29:
+            // entry $103.45 vs prior close $104.02 → venue stop ratcheted to
+            // $103.42 four minutes after entry). Backtest parity: validated
+            // entries happen AT a close, so the peak only ever advances from
+            // bars closed after entry — this gate restores that invariant
+            // live without changing the 1-ATR trail width.
             let current_price = closes_1h.last().copied().unwrap_or(0.0);
-            let side = pos_info.side();
-            let should_update_peak = match side {
-                "Short" => current_price < pos_info.peak_price, // track trough for SHORT
-                _ => current_price > pos_info.peak_price,       // track peak for LONG
-            };
-            if should_update_peak && let Some(ref mut pos) = state.lock().await.open_position {
-                pos.peak_price = current_price;
+            if let Some(confirmed) = last_post_entry_close(buffer_1h, pos_info.entry_time) {
+                let side = pos_info.side();
+                let should_update_peak = match side {
+                    "Short" => confirmed < pos_info.peak_price, // track trough for SHORT
+                    _ => confirmed > pos_info.peak_price,       // track peak for LONG
+                };
+                if should_update_peak && let Some(ref mut pos) = state.lock().await.open_position {
+                    pos.peak_price = confirmed;
+                }
             }
 
             // Venue-side protective stops (GM only): place any missing stops,
-            // ratchet the SL trigger to the trail floor when in profit. The
-            // stop orders execute on-chain via keepers the instant the oracle
-            // touches the trigger — independent of this process and of the
-            // hourly-close polling latency that gave back the Aug 28 peak.
+            // heal pre-entry pollution, ratchet the SL trigger to the trail
+            // floor when in profit. The stop orders execute on-chain via
+            // keepers the instant the oracle touches the trigger —
+            // independent of this process and of the hourly-close polling
+            // latency that gave back the Aug 28 peak.
             if is_gm(&config.venue) && !config.dry_run {
-                maintain_venue_stops(keypair, state, current_price, live_atr).await;
+                let has_post = last_post_entry_close(buffer_1h, pos_info.entry_time).is_some();
+                maintain_venue_stops(keypair, state, current_price, live_atr, has_post).await;
             }
         }
     } else {
@@ -2079,9 +2158,13 @@ async fn run_cycle(
                                         // unprotected stops are the Aug 28 gap.
                                         // Best-effort; the per-poll maintenance
                                         // pass retries any placement failure.
+                                        // has_post_entry_close=false: no hourly
+                                        // close has formed since this entry yet.
                                         if is_gm(&config.venue) {
-                                            maintain_venue_stops(keypair, state, entry, signal.atr)
-                                                .await;
+                                            maintain_venue_stops(
+                                                keypair, state, entry, signal.atr, false,
+                                            )
+                                            .await;
                                         }
                                     } else {
                                         tracing::error!(
@@ -3065,6 +3148,72 @@ mod tests {
             close: 100.5,
             volume: 1000.0,
         }
+    }
+
+    fn candle_with_close(ts: i64, close: f64) -> indicators::Candle {
+        indicators::Candle {
+            timestamp: ts,
+            open: close,
+            high: close + 1.0,
+            low: close - 1.0,
+            close,
+            volume: 1000.0,
+        }
+    }
+
+    #[test]
+    fn last_post_entry_close_excludes_pre_entry_candles() {
+        // Two confirmed candles: opens at t=100 (closes t=3700) and t=3700
+        // (closes t=7300). Entry BETWEEN the two close times (t=5000): only
+        // the second candle closed after entry, so its close is returned —
+        // never the pre-entry close. (Aug 29 incident: a mid-candle entry
+        // below the prior close had the trail arm off that prior close.)
+        let mut buf = candles::CandleBuffer::new(10);
+        buf.load_candles(vec![
+            candle_with_close(100, 104.02),
+            candle_with_close(3700, 105.50),
+        ]);
+        assert_eq!(last_post_entry_close(&buf, 5000), Some(105.50));
+    }
+
+    #[test]
+    fn last_post_entry_close_none_before_any_post_entry_close() {
+        // Entry after every candle in the buffer has closed: no confirmed
+        // close has formed since entry → None. The peak/trail must stay at
+        // entry until the first hourly candle fully closes post-entry.
+        let mut buf = candles::CandleBuffer::new(10);
+        buf.load_candles(vec![
+            candle_with_close(100, 104.02),
+            candle_with_close(3700, 103.42),
+        ]);
+        assert_eq!(last_post_entry_close(&buf, 20000), None);
+    }
+
+    #[test]
+    fn last_post_entry_close_includes_all_when_entry_is_old() {
+        // Entry long before the buffered candles: every close is post-entry,
+        // so the newest confirmed close is returned.
+        let mut buf = candles::CandleBuffer::new(10);
+        buf.load_candles(vec![
+            candle_with_close(100, 101.0),
+            candle_with_close(3700, 102.0),
+            candle_with_close(7300, 103.0),
+        ]);
+        assert_eq!(last_post_entry_close(&buf, 0), Some(103.0));
+    }
+
+    #[test]
+    fn last_post_entry_close_boundary_entry_at_close_time() {
+        // Entry exactly at a candle's close time: that candle is NOT
+        // post-entry (it is the entry bar, matching the backtest where entry
+        // happens AT the close); wait for the next candle.
+        let mut buf = candles::CandleBuffer::new(10);
+        buf.load_candles(vec![
+            candle_with_close(100, 104.02), // closes at 3700
+            candle_with_close(3700, 106.0), // closes at 7300
+        ]);
+        assert_eq!(last_post_entry_close(&buf, 3700), Some(106.0));
+        assert_eq!(last_post_entry_close(&buf, 7300), None);
     }
 
     #[test]

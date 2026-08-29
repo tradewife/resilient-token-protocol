@@ -138,6 +138,17 @@ program interactions.
   fill → `PhantomClear(VenueMissing)` audit row (not counted). Venue
   stops change WHERE execution happens, never the validated levels —
   same ATR multiples as the validated config.
+  (6) **post-entry gate (Aug 29 early-arm fix)** — the trail peak may
+  only advance on confirmed hourly closes formed STRICTLY AFTER entry
+  (`last_post_entry_close`). Mid-candle live entries happen below/above
+  the previous bar's close; seeding the peak with that pre-entry close
+  arms the trail near breakeven within minutes (Aug 29: entry $103.45
+  vs prior close $104.02 → on-chain SL ratcheted $101.95→$103.42 in 4
+  min). Before the first post-entry close, `venue_stop_heal_levels`
+  restores the hard-stop level + entry peak if they drifted (log
+  `[GM-STOP] HEAL`); the ratchet is skipped entirely. Backtest enters
+  AT a close, so this gate restores live/backtest parity without
+  touching the validated 1-ATR trail width.
   Kill switch: `RTP_TRADER_VENUE_STOPS=0`. Log tag `[GM-STOP]`.
 - **S16: the live multi-TF model has NO validation artifact** (Aug 23) —
   every prior validation (Calmar 44.89, OOS Sharpe 3.96, sensitivity

@@ -237,6 +237,64 @@ pub fn ratcheted_sl_trigger(
     }
 }
 
+/// Restore validated stop levels when the trail armed ILLEGITIMATELY — i.e.
+/// no confirmed hourly close has formed since entry yet, but the peak and/or
+/// SL trigger moved off entry. That state comes from a pre-entry confirmed
+/// close inflating the peak (mid-candle live entry below the previous bar's
+/// close — Aug 29: entry $103.45 vs prior close $104.02 → on-chain SL
+/// ratcheted from the $101.95 hard stop to $103.42 within 4 minutes).
+///
+/// Returns Some((restored_peak, restored_trigger)) when anything needs
+/// healing: restored_trigger is Some(hard_stop) when the on-chain trigger
+/// was tightened beyond the validated hard stop, None when only the peak
+/// needs resetting (trigger absent/unknown). Returns None when levels are
+/// clean. Healing only applies before any post-entry close exists — the
+/// validated model keeps the stop at the hard level until then — so this
+/// can never weaken a legitimately ratcheted stop.
+pub fn venue_stop_heal_levels(
+    entry_price: f64,
+    entry_atr: f64,
+    sl_atr: f64,
+    peak_price: f64,
+    sl_trigger: f64,
+    side: &str,
+) -> Option<(f64, Option<f64>)> {
+    if entry_price <= 0.0 || entry_atr <= 0.0 {
+        return None;
+    }
+    let is_short = side.eq_ignore_ascii_case("short");
+    let hard_stop = if is_short {
+        entry_price + sl_atr * entry_atr
+    } else {
+        entry_price - sl_atr * entry_atr
+    };
+    let peak_polluted = if is_short {
+        peak_price < entry_price
+    } else {
+        peak_price > entry_price
+    };
+    // sl_trigger == 0 means "no on-chain level mirrored yet" — nothing to
+    // heal on the venue side; the peak may still need resetting.
+    let trigger_polluted = if sl_trigger <= 0.0 {
+        false
+    } else if is_short {
+        sl_trigger < hard_stop - 1e-9 // ceiling tightened below the hard stop
+    } else {
+        sl_trigger > hard_stop + 1e-9 // floor tightened above the hard stop
+    };
+    if !peak_polluted && !trigger_polluted {
+        return None;
+    }
+    Some((
+        entry_price,
+        if trigger_polluted {
+            Some(hard_stop)
+        } else {
+            None
+        },
+    ))
+}
+
 /// A venue-side protective stop order owned by the trader wallet.
 #[derive(Debug, Clone)]
 pub struct VenueStopOrder {
@@ -577,6 +635,68 @@ mod tests {
     #[test]
     fn ratchet_requires_floor() {
         assert_eq!(ratcheted_sl_trigger(95.0, 112.0, None, 109.0, "Long"), None);
+    }
+
+    #[test]
+    fn heal_long_polluted_peak_and_trigger() {
+        // Long entered 103.45 (ATR 0.60, sl 2.5 → hard stop 101.95). A
+        // pre-entry close of 104.02 inflated the peak, and the on-chain
+        // trigger got ratcheted to 103.42 (the Aug 29 incident). Both must
+        // heal: peak → entry, trigger → hard stop.
+        let heal = venue_stop_heal_levels(103.45, 0.60, 2.5, 104.02, 103.42, "Long");
+        assert_eq!(heal, Some((103.45, Some(101.95))));
+    }
+
+    #[test]
+    fn heal_long_clean_levels_noop() {
+        // Peak at entry and trigger at the hard stop: nothing polluted.
+        assert_eq!(
+            venue_stop_heal_levels(103.45, 0.60, 2.5, 103.45, 101.95, "Long"),
+            None
+        );
+    }
+
+    #[test]
+    fn heal_long_trigger_unknown_peak_polluted() {
+        // Trigger not mirrored yet (0) but the peak is polluted: heal the
+        // peak only (no on-chain trigger to move).
+        assert_eq!(
+            venue_stop_heal_levels(103.45, 0.60, 2.5, 104.02, 0.0, "Long"),
+            Some((103.45, None))
+        );
+    }
+
+    #[test]
+    fn heal_short_polluted_levels() {
+        // Short entered 100 (ATR 2, sl 2.5 → hard ceiling 105). A pre-entry
+        // trough of 98 polluted the peak; ceiling tightened to 99.
+        assert_eq!(
+            venue_stop_heal_levels(100.0, 2.0, 2.5, 98.0, 99.0, "Short"),
+            Some((100.0, Some(105.0)))
+        );
+    }
+
+    #[test]
+    fn heal_rejects_invalid_inputs() {
+        assert_eq!(
+            venue_stop_heal_levels(0.0, 1.0, 2.5, 100.0, 95.0, "Long"),
+            None
+        );
+        assert_eq!(
+            venue_stop_heal_levels(100.0, 0.0, 2.5, 100.0, 95.0, "Long"),
+            None
+        );
+    }
+
+    #[test]
+    fn heal_never_weakens_legitimate_ratchet() {
+        // After a real post-entry advance, trigger ABOVE the hard stop is
+        // legitimate; but heal is only called BEFORE any post-entry close,
+        // so here a trigger above hard-stop with peak above entry is treated
+        // as pollution and restored. This is correct: before a post-entry
+        // close, the validated model keeps the stop at the hard level.
+        let heal = venue_stop_heal_levels(103.45, 0.60, 2.5, 104.02, 102.5, "Long");
+        assert_eq!(heal, Some((103.45, Some(101.95))));
     }
 }
 
