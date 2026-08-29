@@ -757,6 +757,114 @@ fn pos_trail_atr() -> f64 {
     ACTIVE_STOP_PARAMS.get().map(|p| p.2).unwrap_or(1.0)
 }
 
+/// Pure core for booking a venue stop fill: build the trade record +
+/// realized SOL PnL from the position and the venue fill report. Testable
+/// without any venue I/O — used by every path that books a `*(Venue)` row.
+pub(crate) fn venue_fill_record(
+    pos: &strategy::OpenPosition,
+    role: &'static str,
+    fill: &gmtrade::VenueStopFill,
+    exit_time: i64,
+) -> (TradeRecord, f64) {
+    let exit_price = fill.execution_price;
+    let pnl_pct = if pos.entry_price > 0.0 {
+        match pos.side() {
+            "Short" => (pos.entry_price - exit_price) / pos.entry_price * 100.0,
+            _ => (exit_price - pos.entry_price) / pos.entry_price * 100.0,
+        }
+    } else {
+        0.0
+    };
+    let pnl_sol = if exit_price > 0.0 {
+        (pnl_pct / 100.0) * (pos.size_usd / exit_price)
+    } else {
+        0.0
+    };
+    let trade = TradeRecord {
+        entry_price: pos.entry_price,
+        exit_price,
+        entry_time: pos.entry_time,
+        exit_time,
+        pnl_pct,
+        exit_reason: format!("{role}(Venue)"),
+        size_usd: pos.size_usd,
+        side: pos.side().to_string(),
+        fees: Some(strategy::FeeBreakdown {
+            exit_fee_usd: fill.order_fee_usd,
+            borrow_fee_usd: fill.borrow_fee_usd,
+            price_impact_usd: 0.0,
+            total_fee_usd: fill.order_fee_usd + fill.borrow_fee_usd,
+        }),
+    };
+    (trade, pnl_sol)
+}
+
+/// Book a position that has VANISHED from the venue while we still tracked
+/// it. Prefers the venue stop fill report (keeper executed our stop
+/// out-of-process → real exit with actual price/fees, counted in
+/// `total_pnl_sol`); falls back to a phantom audit row (`phantom_reason`,
+/// estimated `phantom_exit_price`, NOT counted) when no attributable fill
+/// exists. Books the row, clears `open_position`, cancels the sibling
+/// stop. Returns true when a row was booked.
+async fn book_vanished_position(
+    keypair: &solana_sdk::signature::Keypair,
+    state: &Arc<Mutex<TraderState>>,
+    pos_info: &strategy::OpenPosition,
+    phantom_reason: &str,
+    phantom_exit_price: f64,
+) -> bool {
+    let booked = if let Some((role, fill)) = venue_stop_outcome(pos_info).await {
+        tracing::warn!(
+            "[EXIT] Venue {} stop fired out-of-process — FILLED @ ${:.4} pnl ${:.4} \
+             (fees: order=${:.4} borrow=${:.4})",
+            role,
+            fill.execution_price,
+            fill.pnl_usd,
+            fill.order_fee_usd,
+            fill.borrow_fee_usd
+        );
+        let (trade, pnl_sol) = venue_fill_record(pos_info, role, &fill, Utc::now().timestamp());
+        let mut s = state.lock().await;
+        s.trade_history.push(trade);
+        s.total_trades += 1;
+        s.total_pnl_sol += pnl_sol;
+        true
+    } else {
+        let pnl_pct = if pos_info.entry_price > 0.0 {
+            match pos_info.side() {
+                "Short" => {
+                    (pos_info.entry_price - phantom_exit_price) / pos_info.entry_price * 100.0
+                }
+                _ => (phantom_exit_price - pos_info.entry_price) / pos_info.entry_price * 100.0,
+            }
+        } else {
+            0.0
+        };
+        let trade = TradeRecord {
+            entry_price: pos_info.entry_price,
+            exit_price: phantom_exit_price,
+            entry_time: pos_info.entry_time,
+            exit_time: Utc::now().timestamp(),
+            pnl_pct,
+            exit_reason: phantom_reason.to_string(),
+            size_usd: pos_info.size_usd,
+            side: pos_info.side().to_string(),
+            fees: None,
+        };
+        let mut s = state.lock().await;
+        s.trade_history.push(trade);
+        s.total_trades += 1;
+        true
+    };
+    if booked {
+        state.lock().await.open_position = None;
+        // Sibling stop is consumed (venue fill) or stranded (phantom) —
+        // cancel best-effort either way; the flat-sweep is the backstop.
+        cancel_venue_stops(keypair, pos_info).await;
+    }
+    booked
+}
+
 /// Check whether one of a position's tracked venue stop orders has FIRED
 /// (consumed by a keeper). Returns the fired role + fill report when found.
 /// Used by both phantom-clear paths (runtime exit check + startup cleanup)
@@ -1549,6 +1657,57 @@ async fn run_cycle(
     let closes_1d = buffer_1d.closes();
     let volumes = buffer_1h.volumes();
 
+    // 1.5 Verify the tracked position STILL EXISTS on the venue (GM only).
+    // A venue stop fires via keepers with zero involvement from this
+    // process — until local exit conditions fire too (which can take hours:
+    // closes can stay above the local trail floor, MaxHold is 96h), a
+    // closed position would keep showing OPEN here and on the dashboard,
+    // and no new entry could trigger. Per-poll verification catches the
+    // fill within one cycle and books the REAL StopLoss/TakeProfit(Venue)
+    // outcome (Aug 29: stop fired at $103.60; local exits stayed silent
+    // for 3+ hours because closes never broke the trail floor).
+    if is_gm(&config.venue) && !config.dry_run && has_pos {
+        let tracked = state.lock().await.open_position.clone();
+        if let Some(pos_info) = tracked {
+            match venue_get_positions(&config.venue, wallet).await {
+                Ok(positions) => {
+                    let exists = positions
+                        .iter()
+                        .any(|p| p.market_symbol == "SOL" && p.side_ui == pos_info.side());
+                    if !exists {
+                        tracing::warn!(
+                            "[EXIT] Tracked SOL {} no longer exists on {} — checking for a \
+                             venue stop fill",
+                            pos_info.side(),
+                            config.venue
+                        );
+                        let phantom_price =
+                            closes_1h.last().copied().unwrap_or(pos_info.entry_price);
+                        book_vanished_position(
+                            keypair,
+                            state,
+                            &pos_info,
+                            "PhantomClear(VenueMissing)",
+                            phantom_price,
+                        )
+                        .await;
+                        // Position closed this cycle — skip exit/entry logic
+                        // and start fresh next cycle (mirrors exit behavior).
+                        return Ok(());
+                    }
+                }
+                Err(e) => {
+                    // Can't verify — keep managing from local state; the
+                    // next poll retries. Never close on an unverifiable book.
+                    tracing::warn!(
+                        "[EXIT] Per-poll venue position check failed ({e}) — \
+                         continuing on local state"
+                    );
+                }
+            }
+        }
+    }
+
     // 2. Check exit on existing position
     let exit_info = {
         let s = state.lock().await;
@@ -1696,119 +1855,25 @@ async fn run_cycle(
                             // tracked it. Either a VENUE STOP FIRED (keeper
                             // closed it out-of-process — a REAL exit we should
                             // book with its actual fill) or something else
-                            // removed it (manual clear). Check the tracked
-                            // stop orders for an attributable fill first.
-                            let mut venue_fill: Option<(&'static str, gmtrade::VenueStopFill)> =
-                                None;
-                            if is_gm(&config.venue) {
-                                venue_fill = venue_stop_outcome(pos_info).await;
-                            }
-
-                            if let Some((role, fill)) = venue_fill {
-                                // A venue stop executed: real exit, real PnL.
-                                // Book it like any other close (counted in
-                                // total_pnl_sol) and cancel the sibling stop.
-                                let exit_price = fill.execution_price;
-                                let pnl_pct = if pos_info.entry_price > 0.0 {
-                                    match pos_info.side() {
-                                        "Short" => {
-                                            (pos_info.entry_price - exit_price)
-                                                / pos_info.entry_price
-                                                * 100.0
-                                        }
-                                        _ => {
-                                            (exit_price - pos_info.entry_price)
-                                                / pos_info.entry_price
-                                                * 100.0
-                                        }
-                                    }
-                                } else {
-                                    0.0
-                                };
-                                let pnl_sol = if exit_price > 0.0 {
-                                    (pnl_pct / 100.0) * (pos_info.size_usd / exit_price)
-                                } else {
-                                    0.0
-                                };
-                                tracing::warn!(
-                                    "[EXIT] Venue {} stop fired out-of-process — FILLED @ \
-                                     ${:.4} pnl ${:.4} (fees: order=${:.4} borrow=${:.4})",
-                                    role,
-                                    fill.execution_price,
-                                    fill.pnl_usd,
-                                    fill.order_fee_usd,
-                                    fill.borrow_fee_usd
-                                );
-                                let trade = TradeRecord {
-                                    entry_price: pos_info.entry_price,
-                                    exit_price,
-                                    entry_time: pos_info.entry_time,
-                                    exit_time: Utc::now().timestamp(),
-                                    pnl_pct,
-                                    exit_reason: format!("{role}(Venue)"),
-                                    size_usd: pos_info.size_usd,
-                                    side: pos_info.side().to_string(),
-                                    fees: Some(strategy::FeeBreakdown {
-                                        exit_fee_usd: fill.order_fee_usd,
-                                        borrow_fee_usd: fill.borrow_fee_usd,
-                                        price_impact_usd: 0.0,
-                                        total_fee_usd: fill.order_fee_usd + fill.borrow_fee_usd,
-                                    }),
-                                };
-                                let mut s = state.lock().await;
-                                s.trade_history.push(trade);
-                                s.total_trades += 1;
-                                s.total_pnl_sol += pnl_sol;
-                                close_succeeded = true;
-                                drop(s);
-                                // Cancel the sibling stop (the fired one is
-                                // already consumed).
-                                cancel_venue_stops(keypair, pos_info).await;
-                            } else {
-                                tracing::warn!(
-                                    "[EXIT] No SOL {} position found on {} — clearing phantom local state",
-                                    pos_side,
-                                    config.venue
-                                );
-                                // Never treat a missing on-chain position as a real close for PnL
-                                // (total_pnl_sol untouched), but record an audit row against the
-                                // current price so the tape reflects the estimated outcome —
-                                // booking 0.0 silently dropped these results before.
-                                let exit_price =
-                                    closes_1h.last().copied().unwrap_or(pos_info.entry_price);
-                                let side = pos_info.side().to_string();
-                                let pnl_pct = if pos_info.entry_price > 0.0 {
-                                    match pos_info.side() {
-                                        "Short" => {
-                                            (pos_info.entry_price - exit_price)
-                                                / pos_info.entry_price
-                                                * 100.0
-                                        }
-                                        _ => {
-                                            (exit_price - pos_info.entry_price)
-                                                / pos_info.entry_price
-                                                * 100.0
-                                        }
-                                    }
-                                } else {
-                                    0.0
-                                };
-                                let trade = TradeRecord {
-                                    entry_price: pos_info.entry_price,
-                                    exit_price,
-                                    entry_time: pos_info.entry_time,
-                                    exit_time: Utc::now().timestamp(),
-                                    pnl_pct,
-                                    exit_reason: format!("PhantomClear({:?})", reason),
-                                    size_usd: pos_info.size_usd,
-                                    side,
-                                    fees: None,
-                                };
-                                let mut s = state.lock().await;
-                                s.trade_history.push(trade);
-                                s.total_trades += 1;
-                                close_succeeded = true;
-                            }
+                            // removed it (manual clear). Book via the shared
+                            // helper: venue fill report wins, phantom audit
+                            // row otherwise.
+                            tracing::warn!(
+                                "[EXIT] No SOL {} position found on {} — clearing phantom local state",
+                                pos_side,
+                                config.venue
+                            );
+                            let phantom_price =
+                                closes_1h.last().copied().unwrap_or(pos_info.entry_price);
+                            let phantom_reason = format!("PhantomClear({:?})", reason);
+                            close_succeeded = book_vanished_position(
+                                keypair,
+                                state,
+                                pos_info,
+                                &phantom_reason,
+                                phantom_price,
+                            )
+                            .await;
                         }
                     }
                     Err(e) => {
@@ -2650,6 +2715,78 @@ mod tests {
             classify_open_error("some RPC transport failure"),
             OpenErrorClass::Hard
         );
+    }
+
+    #[test]
+    fn venue_fill_record_books_real_fill_and_pnl() {
+        // The pure core of booking a venue stop fill: exit price = the
+        // keeper's actual fill (not a local estimate), reason carries the
+        // fired stop role, fees come from the fill report, and realized
+        // SOL PnL uses the same % × notional convention as process exits.
+        let pos = OpenPosition {
+            entry_price: 103.47,
+            entry_time: 1700000000,
+            peak_price: 104.2,
+            entry_rsi: 24.1,
+            entry_atr: 0.67,
+            entry_score: 0.507,
+            position_key: "pos".to_string(),
+            size_usd: 1640.61,
+            first_negative_score_time: None,
+            side: "Long".to_string(),
+            venue_sl_order: Some("changeme".to_string()),
+            venue_tp_order: None,
+            venue_sl_trigger: 103.60,
+        };
+        let fill = gmtrade::VenueStopFill {
+            execution_price: 103.60,
+            pnl_usd: 2.07,
+            order_fee_usd: 0.197,
+            borrow_fee_usd: 0.32,
+        };
+        let (trade, pnl_sol) = venue_fill_record(&pos, "StopLoss", &fill, 1700003600);
+
+        assert_eq!(trade.exit_reason, "StopLoss(Venue)");
+        assert_eq!(trade.exit_price, 103.60);
+        assert_eq!(trade.side, "Long");
+        // pnl_pct: (103.60-103.47)/103.47 ≈ 0.1256%
+        assert!((trade.pnl_pct - 0.1256).abs() < 0.01);
+        let fees = trade.fees.unwrap();
+        assert!((fees.exit_fee_usd - 0.197).abs() < 1e-9);
+        assert!((fees.borrow_fee_usd - 0.32).abs() < 1e-9);
+        assert!((fees.total_fee_usd - 0.517).abs() < 1e-9);
+        // pnl_sol ≈ 0.001256 × (1640.61 / 103.60) ≈ 0.0198
+        assert!((pnl_sol - 0.0198).abs() < 0.001);
+    }
+
+    #[test]
+    fn venue_fill_record_short_side_inverts_pnl() {
+        let pos = OpenPosition {
+            entry_price: 100.0,
+            entry_time: 1700000000,
+            peak_price: 98.0,
+            entry_rsi: 50.0,
+            entry_atr: 2.0,
+            entry_score: -0.5,
+            position_key: "pos".to_string(),
+            size_usd: 1000.0,
+            first_negative_score_time: None,
+            side: "Short".to_string(),
+            venue_sl_order: None,
+            venue_tp_order: Some("changeme".to_string()),
+            venue_sl_trigger: 0.0,
+        };
+        // TP fired on a short: price fell 100 → 94 → +6%.
+        let fill = gmtrade::VenueStopFill {
+            execution_price: 94.0,
+            pnl_usd: 60.0,
+            order_fee_usd: 0.1,
+            borrow_fee_usd: 0.2,
+        };
+        let (trade, pnl_sol) = venue_fill_record(&pos, "TakeProfit", &fill, 1700003600);
+        assert_eq!(trade.exit_reason, "TakeProfit(Venue)");
+        assert!((trade.pnl_pct - 6.0).abs() < 1e-9);
+        assert!((pnl_sol - 0.6383).abs() < 0.001); // 6% × (1000/94)
     }
 
     #[test]

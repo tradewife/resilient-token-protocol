@@ -126,12 +126,18 @@ program interactions.
   (3) lifecycle — placed immediately after entry + retried per-poll
   (`maintain_venue_stops`), adopted for reconciled orphans, cancelled on
   our closes, flat-swept every poll while flat;
-  (4) when a venue stop fires out-of-process the phantom path detects the
-  consumed order (order-PDA-scoped, attribution-checked
-  `venue_stop_fill_report`) and books a real `StopLoss(Venue)` /
-  `TakeProfit(Venue)` row with the actual fill price + fees (counted in
-  `total_pnl_sol`). Venue stops change WHERE execution happens, never the
-  validated levels — same ATR multiples as the validated config.
+  (4) **per-poll venue existence check while OPEN** (Aug 29 gap) — a
+  venue stop firing leaves the local trail/TP conditions unfired for
+  hours (closes can stay above the trail floor), so run_cycle verifies
+  the tracked position still exists on the venue EVERY poll; when gone,
+  `book_vanished_position` books the outcome within one cycle;
+  (5) when a venue stop fired, `venue_stop_fill_report` (order-PDA-scoped,
+  attribution-checked — same rule as `wait_for_fill`) recovers the actual
+  fill price + fees and books a real `StopLoss(Venue)` /
+  `TakeProfit(Venue)` row counted in `total_pnl_sol`; no attributable
+  fill → `PhantomClear(VenueMissing)` audit row (not counted). Venue
+  stops change WHERE execution happens, never the validated levels —
+  same ATR multiples as the validated config.
   Kill switch: `RTP_TRADER_VENUE_STOPS=0`. Log tag `[GM-STOP]`.
 - **S16: the live multi-TF model has NO validation artifact** (Aug 23) —
   every prior validation (Calmar 44.89, OOS Sharpe 3.96, sensitivity
