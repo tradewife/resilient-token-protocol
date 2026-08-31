@@ -799,6 +799,81 @@ pub(crate) fn venue_fill_record(
     (trade, pnl_sol)
 }
 
+/// Pure core for a vanished-position *audit* row: estimated exit, no fees,
+/// `pnl_pct` recorded for the tape but the caller must NOT add it to
+/// `total_pnl_sol` (phantom rows are not counted — Aug 26-27 stacking /
+/// venue-missing closes).
+pub(crate) fn phantom_clear_record(
+    pos: &strategy::OpenPosition,
+    phantom_reason: &str,
+    phantom_exit_price: f64,
+    exit_time: i64,
+) -> TradeRecord {
+    let pnl_pct = if pos.entry_price > 0.0 {
+        match pos.side() {
+            "Short" => (pos.entry_price - phantom_exit_price) / pos.entry_price * 100.0,
+            _ => (phantom_exit_price - pos.entry_price) / pos.entry_price * 100.0,
+        }
+    } else {
+        0.0
+    };
+    TradeRecord {
+        entry_price: pos.entry_price,
+        exit_price: phantom_exit_price,
+        entry_time: pos.entry_time,
+        exit_time,
+        pnl_pct,
+        exit_reason: phantom_reason.to_string(),
+        size_usd: pos.size_usd,
+        side: pos.side().to_string(),
+        fees: None,
+    }
+}
+
+/// How a vanished venue position is booked onto trader state.
+#[derive(Debug)]
+pub(crate) enum VanishedOutcome {
+    /// Keeper filled our stop — counted in `total_pnl_sol`.
+    VenueFill {
+        role: &'static str,
+        fill: gmtrade::VenueStopFill,
+    },
+    /// No attributable fill — tape-only audit row, PnL not counted.
+    Phantom { reason: String, exit_price: f64 },
+}
+
+/// Apply a vanished-position outcome to state (pure, testable core of
+/// `book_vanished_position`). Always clears `open_position`. Venue fills
+/// increment `total_pnl_sol`; phantom rows do not.
+pub(crate) fn apply_vanished_outcome(
+    state: &mut TraderState,
+    pos: &strategy::OpenPosition,
+    outcome: VanishedOutcome,
+    exit_time: i64,
+) {
+    match outcome {
+        VanishedOutcome::VenueFill { role, fill } => {
+            let (trade, pnl_sol) = venue_fill_record(pos, role, &fill, exit_time);
+            state.trade_history.push(trade);
+            state.total_trades += 1;
+            state.total_pnl_sol += pnl_sol;
+        }
+        VanishedOutcome::Phantom { reason, exit_price } => {
+            let trade = phantom_clear_record(pos, &reason, exit_price, exit_time);
+            state.trade_history.push(trade);
+            state.total_trades += 1;
+        }
+    }
+    state.open_position = None;
+}
+
+/// ATR used to *place* hard SL/TP: the entry-time ATR when known, else the
+/// live signal ATR (reconciled orphans carry `entry_atr = 0`). The trail
+/// floor still always uses live ATR — same split as `check_exit`.
+pub(crate) fn stop_atr_anchor(entry_atr: f64, live_atr: f64) -> f64 {
+    if entry_atr > 0.0 { entry_atr } else { live_atr }
+}
+
 /// Book a position that has VANISHED from the venue while we still tracked
 /// it. Prefers the venue stop fill report (keeper executed our stop
 /// out-of-process → real exit with actual price/fees, counted in
@@ -813,7 +888,7 @@ async fn book_vanished_position(
     phantom_reason: &str,
     phantom_exit_price: f64,
 ) -> bool {
-    let booked = if let Some((role, fill)) = venue_stop_outcome(pos_info).await {
+    let outcome = if let Some((role, fill)) = venue_stop_outcome(pos_info).await {
         tracing::warn!(
             "[EXIT] Venue {} stop fired out-of-process — FILLED @ ${:.4} pnl ${:.4} \
              (fees: order=${:.4} borrow=${:.4})",
@@ -823,46 +898,21 @@ async fn book_vanished_position(
             fill.order_fee_usd,
             fill.borrow_fee_usd
         );
-        let (trade, pnl_sol) = venue_fill_record(pos_info, role, &fill, Utc::now().timestamp());
-        let mut s = state.lock().await;
-        s.trade_history.push(trade);
-        s.total_trades += 1;
-        s.total_pnl_sol += pnl_sol;
-        true
+        VanishedOutcome::VenueFill { role, fill }
     } else {
-        let pnl_pct = if pos_info.entry_price > 0.0 {
-            match pos_info.side() {
-                "Short" => {
-                    (pos_info.entry_price - phantom_exit_price) / pos_info.entry_price * 100.0
-                }
-                _ => (phantom_exit_price - pos_info.entry_price) / pos_info.entry_price * 100.0,
-            }
-        } else {
-            0.0
-        };
-        let trade = TradeRecord {
-            entry_price: pos_info.entry_price,
+        VanishedOutcome::Phantom {
+            reason: phantom_reason.to_string(),
             exit_price: phantom_exit_price,
-            entry_time: pos_info.entry_time,
-            exit_time: Utc::now().timestamp(),
-            pnl_pct,
-            exit_reason: phantom_reason.to_string(),
-            size_usd: pos_info.size_usd,
-            side: pos_info.side().to_string(),
-            fees: None,
-        };
-        let mut s = state.lock().await;
-        s.trade_history.push(trade);
-        s.total_trades += 1;
-        true
+        }
     };
-    if booked {
-        state.lock().await.open_position = None;
-        // Sibling stop is consumed (venue fill) or stranded (phantom) —
-        // cancel best-effort either way; the flat-sweep is the backstop.
-        cancel_venue_stops(keypair, pos_info).await;
+    {
+        let mut s = state.lock().await;
+        apply_vanished_outcome(&mut s, pos_info, outcome, Utc::now().timestamp());
     }
-    booked
+    // Sibling stop is consumed (venue fill) or stranded (phantom) —
+    // cancel best-effort either way; the flat-sweep is the backstop.
+    cancel_venue_stops(keypair, pos_info).await;
+    true
 }
 
 /// Check whether one of a position's tracked venue stop orders has FIRED
@@ -948,11 +998,7 @@ async fn maintain_venue_stops(
     // entry conditions); reconciled orphans (entry_atr=0) anchor to the
     // first live signal ATR. The ratchet floor uses live ATR, exactly like
     // check_exit's trailing trigger.
-    let atr_anchor = if pos.entry_atr > 0.0 {
-        pos.entry_atr
-    } else {
-        live_atr
-    };
+    let atr_anchor = stop_atr_anchor(pos.entry_atr, live_atr);
     let (sl, tp, sl_trigger) = ensure_venue_stops(keypair, &pos, atr_anchor).await;
 
     // Heal (Aug 29): until a confirmed close has formed after entry, the
@@ -1001,30 +1047,29 @@ async fn maintain_venue_stops(
     if has_post_entry_close
         && let (Some(sl_order), Some(trail_atr)) = (sl.as_deref(), pos_trail_atr_checked())
     {
-        let floor = match pos.side() {
-            "Short" => {
-                if pos.peak_price < pos.entry_price {
-                    Some(pos.peak_price + trail_atr * live_atr)
-                } else {
-                    None
-                }
-            }
-            _ => {
-                if pos.peak_price > pos.entry_price {
-                    Some(pos.peak_price - trail_atr * live_atr)
-                } else {
-                    None
-                }
-            }
-        };
-        // The SL trigger starts at the entry-based hard stop; the TP trigger
-        // is the opposite boundary the ratchet must never cross.
-        let is_short = pos.side() == "Short";
-        let tp_trigger = if is_short {
-            pos.entry_price - pos_entry_tp_atr() * atr_anchor
-        } else {
-            pos.entry_price + pos_entry_tp_atr() * atr_anchor
-        };
+        // Trail floor uses live ATR (same as check_exit); TP boundary uses
+        // the entry ATR anchor so a ratchet can never walk through the
+        // validated take-profit. Both come from the already-tested planner.
+        let floor = gmtrade::venue_stop_plan(
+            pos.entry_price,
+            live_atr,
+            pos_entry_sl_atr(),
+            pos_entry_tp_atr(),
+            trail_atr,
+            pos.peak_price,
+            pos.side(),
+        )
+        .trail_floor;
+        let tp_trigger = gmtrade::venue_stop_plan(
+            pos.entry_price,
+            atr_anchor,
+            pos_entry_sl_atr(),
+            pos_entry_tp_atr(),
+            0.0,
+            pos.entry_price,
+            pos.side(),
+        )
+        .tp_trigger;
         if let Some(candidate) =
             gmtrade::ratcheted_sl_trigger(sl_trigger, tp_trigger, floor, current_price, pos.side())
         {
@@ -2870,6 +2915,111 @@ mod tests {
         assert_eq!(trade.exit_reason, "TakeProfit(Venue)");
         assert!((trade.pnl_pct - 6.0).abs() < 1e-9);
         assert!((pnl_sol - 0.6383).abs() < 0.001); // 6% × (1000/94)
+    }
+
+    fn vanished_long() -> OpenPosition {
+        OpenPosition {
+            entry_price: 100.0,
+            entry_time: 1700000000,
+            peak_price: 104.0,
+            entry_rsi: 50.0,
+            entry_atr: 2.0,
+            entry_score: 0.5,
+            position_key: "pos".to_string(),
+            size_usd: 1000.0,
+            first_negative_score_time: None,
+            side: "Long".to_string(),
+            venue_sl_order: Some("sl".to_string()),
+            venue_tp_order: Some("tp".to_string()),
+            venue_sl_trigger: 95.0,
+        }
+    }
+
+    #[test]
+    fn phantom_clear_record_estimates_pnl_without_fees() {
+        // Tape shows the estimated move so the dashboard isn't a 0% lie,
+        // but fees are absent — there was no attributable keeper fill.
+        let trade = phantom_clear_record(
+            &vanished_long(),
+            "PhantomClear(VenueMissing)",
+            102.0,
+            1700003600,
+        );
+        assert_eq!(trade.exit_reason, "PhantomClear(VenueMissing)");
+        assert_eq!(trade.exit_price, 102.0);
+        assert!((trade.pnl_pct - 2.0).abs() < 1e-9);
+        assert!(trade.fees.is_none());
+        assert_eq!(trade.side, "Long");
+    }
+
+    #[test]
+    fn phantom_clear_record_short_inverts_and_zero_entry_is_flat() {
+        let mut pos = vanished_long();
+        pos.side = "Short".to_string();
+        let trade = phantom_clear_record(&pos, "PhantomClear(StartupReconcile)", 94.0, 1);
+        assert!((trade.pnl_pct - 6.0).abs() < 1e-9); // short: (100-94)/100
+        pos.entry_price = 0.0;
+        let flat = phantom_clear_record(&pos, "PhantomClear(x)", 50.0, 1);
+        assert_eq!(flat.pnl_pct, 0.0);
+    }
+
+    #[test]
+    fn apply_vanished_outcome_phantom_does_not_count_pnl() {
+        // The stacking/venue-missing audit row is visible on the tape and
+        // increments trade count, but MUST NOT move total_pnl_sol.
+        let mut state = TraderState::new("TestWallet");
+        state.open_position = Some(vanished_long());
+        state.total_pnl_sol = 1.5;
+        apply_vanished_outcome(
+            &mut state,
+            &vanished_long(),
+            VanishedOutcome::Phantom {
+                reason: "PhantomClear(VenueMissing)".to_string(),
+                exit_price: 110.0, // +10% would be +0.1 SOL if counted
+            },
+            1700003600,
+        );
+        assert!(state.open_position.is_none());
+        assert_eq!(state.total_trades, 1);
+        assert_eq!(state.total_pnl_sol, 1.5);
+        assert_eq!(
+            state.trade_history[0].exit_reason,
+            "PhantomClear(VenueMissing)"
+        );
+        assert!((state.trade_history[0].pnl_pct - 10.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn apply_vanished_outcome_venue_fill_counts_pnl() {
+        let mut state = TraderState::new("TestWallet");
+        state.open_position = Some(vanished_long());
+        let fill = gmtrade::VenueStopFill {
+            execution_price: 106.0,
+            pnl_usd: 60.0,
+            order_fee_usd: 0.1,
+            borrow_fee_usd: 0.2,
+        };
+        apply_vanished_outcome(
+            &mut state,
+            &vanished_long(),
+            VanishedOutcome::VenueFill {
+                role: "TakeProfit",
+                fill,
+            },
+            1700003600,
+        );
+        assert!(state.open_position.is_none());
+        assert_eq!(state.total_trades, 1);
+        // +6% × (1000/106) ≈ 0.5660 SOL, counted.
+        assert!((state.total_pnl_sol - 0.5660).abs() < 0.001);
+        assert_eq!(state.trade_history[0].exit_reason, "TakeProfit(Venue)");
+    }
+
+    #[test]
+    fn stop_atr_anchor_prefers_entry_then_live() {
+        assert_eq!(stop_atr_anchor(2.5, 1.0), 2.5);
+        assert_eq!(stop_atr_anchor(0.0, 1.7), 1.7);
+        assert_eq!(stop_atr_anchor(-1.0, 1.7), 1.7);
     }
 
     #[test]

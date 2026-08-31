@@ -698,6 +698,20 @@ mod tests {
         let heal = venue_stop_heal_levels(103.45, 0.60, 2.5, 104.02, 102.5, "Long");
         assert_eq!(heal, Some((103.45, Some(101.95))));
     }
+
+    #[test]
+    fn venue_stops_enabled_kill_switch() {
+        // RTP_TRADER_VENUE_STOPS=0 is the documented escape hatch; any other
+        // value (unset, "1", garbage) keeps venue stops on.
+        unsafe { std::env::remove_var("RTP_TRADER_VENUE_STOPS") };
+        assert!(venue_stops_enabled());
+        unsafe { std::env::set_var("RTP_TRADER_VENUE_STOPS", "1") };
+        assert!(venue_stops_enabled());
+        unsafe { std::env::set_var("RTP_TRADER_VENUE_STOPS", "0") };
+        assert!(!venue_stops_enabled());
+        unsafe { std::env::remove_var("RTP_TRADER_VENUE_STOPS") };
+        assert!(venue_stops_enabled());
+    }
 }
 
 fn venue_slot() -> &'static tokio::sync::Mutex<Option<Venue>> {
