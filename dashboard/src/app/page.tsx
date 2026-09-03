@@ -13,6 +13,10 @@ import {
   netTradePnlPct,
   summarizeTradePnl,
 } from "../lib/tradePnl";
+import {
+  LEGACY_TRADER_WALLET,
+  summarizeWalletReturn,
+} from "../lib/walletReturn";
 
 /* ── Constants ── */
 
@@ -70,6 +74,8 @@ interface TraderState {
 
 export default function Home() {
   const [treasurySol, setTreasurySol] = useState<number | null>(null);
+  const [legacySol, setLegacySol] = useState(0);
+  const [spotUsd, setSpotUsd] = useState<number | null>(null);
   const [cycle, setCycle] = useState<CycleData | null>(null);
   const [trader, setTrader] = useState<TraderState | null>(null);
   const [night, setNight] = useState<NightData | null>(null);
@@ -86,7 +92,6 @@ export default function Home() {
   //      override for builds where trader-state is unavailable.
   //   3. Legacy default (kept so dev builds without env still render — the
   //      value is the pubkey published in earlier shipping docs).
-  const LEGACY_TRADER_WALLET = "Driyi8Sw2622yCefU34zrjBsQynrDoGD31tBecXrEF6R";
   const TRADER_WALLET =
     (trader?.wallet && trader.wallet.length > 0 ? trader.wallet : null) ||
     process.env.NEXT_PUBLIC_RTP_TRADER_WALLET_PUBKEY ||
@@ -99,9 +104,35 @@ export default function Home() {
     let alive = true;
     const poll = async () => {
       try {
-        const res = await fetch("/api/mainnet-balance");
+        const q = encodeURIComponent(TRADER_WALLET);
+        const res = await fetch(`/api/mainnet-balance/?wallet=${q}`);
         const json = await res.json();
         if (alive) setTreasurySol(json.sol ?? 0);
+      } catch { /* retry on next poll */ }
+      if (TRADER_WALLET !== LEGACY_TRADER_WALLET) {
+        try {
+          const q = encodeURIComponent(LEGACY_TRADER_WALLET);
+          const res = await fetch(`/api/mainnet-balance/?wallet=${q}`);
+          const json = await res.json();
+          if (alive) setLegacySol(json.sol ?? 0);
+        } catch { /* retry on next poll */ }
+      } else if (alive) {
+        setLegacySol(0);
+      }
+    };
+    poll();
+    const id = setInterval(poll, 15_000);
+    return () => { alive = false; clearInterval(id); };
+  }, [TRADER_WALLET]);
+
+  useEffect(() => {
+    let alive = true;
+    const poll = async () => {
+      try {
+        const res = await fetch("/api/sol-price/");
+        const json = await res.json();
+        const n = Number(json.price);
+        if (alive && Number.isFinite(n) && n > 0) setSpotUsd(n);
       } catch { /* retry on next poll */ }
     };
     poll();
@@ -148,10 +179,21 @@ export default function Home() {
     [trader]
   );
 
-  // Headline = compounded equity return: per-trade net % applied at the
-  // real capital exposure (20% of wallet × 9×). See tradePnl.ts.
-  const totalPnlPct = pnl.totalEquityPct;
+  // Headline = live wallet return vs on-chain cash-in (incl. SOL hold and
+  // open-position equity). Tape compound stays on the equity curve only.
+  const wallet = useMemo(
+    () =>
+      summarizeWalletReturn({
+        nativeSol: treasurySol,
+        legacySol,
+        spotUsd,
+        openPosition: trader?.open_position,
+      }),
+    [treasurySol, legacySol, spotUsd, trader]
+  );
+  const totalPnlPct = wallet?.returnPct ?? null;
   const winRate = pnl.winRatePct;
+  const treasuryDisplaySol = wallet?.navSol ?? treasurySol;
 
   // Date.now() at module load keeps render pure (React compiler rule);
   // days-running only needs per-page-load granularity.
@@ -210,12 +252,12 @@ export default function Home() {
         {/* Vitals strip — full width */}
         <div className="sys2-vitals" style={{ gridColumn: "1 / -1" }}>
           <div className="sys2-vital">
-            <div className="sys2-vital-label">Cumulative PnL</div>
-            <div className={`sys2-vital-value ${totalPnlPct >= 0 ? "pos" : "neg"}`}>
-              {formatPnlPct(totalPnlPct)}
+            <div className="sys2-vital-label">Wallet return</div>
+            <div className={`sys2-vital-value ${totalPnlPct == null ? "" : totalPnlPct >= 0 ? "pos" : "neg"}`}>
+              {totalPnlPct == null ? "—" : formatPnlPct(totalPnlPct)}
             </div>
             <div className="sys2-vital-sub">
-              {pnl.tradeCount} closed · equity compounded · net of measured GMTrade fees
+              Live NAV vs cash in · incl. hold{trader?.open_position ? " & open" : ""}
             </div>
           </div>
           <div className="sys2-vital">
@@ -226,9 +268,9 @@ export default function Home() {
           <div className="sys2-vital">
             <div className="sys2-vital-label">Treasury SOL</div>
             <div className="sys2-vital-value">
-              {treasurySol !== null && treasurySol > 0 ? treasurySol.toFixed(4) : "—"}
+              {treasuryDisplaySol !== null && treasuryDisplaySol > 0 ? treasuryDisplaySol.toFixed(4) : "—"}
             </div>
-            <div className="sys2-vital-sub">{treasurySol !== null && treasurySol > 0 ? `Mainnet · ${TRADER_WALLET_SHORT}` : "Mainnet"}</div>
+            <div className="sys2-vital-sub">{treasuryDisplaySol !== null && treasuryDisplaySol > 0 ? `Mainnet · ${TRADER_WALLET_SHORT}${trader?.open_position ? " · incl. open" : ""}` : "Mainnet"}</div>
           </div>
           <div className="sys2-vital">
             <div className="sys2-vital-label">Mainnet TXs</div>
@@ -306,7 +348,7 @@ export default function Home() {
           </div>
 
           <div className="console-card chart-card">
-            <div className="console-card-eyebrow">EQUITY CURVE · NET OF FEES · 20% CAPITAL × 9× · ALL CLOSED TRADES</div>
+            <div className="console-card-eyebrow">CLOSED-TRADE PATH · NET OF FEES · NOT WALLET RETURN</div>
             {(trader?.trade_history?.length ?? 0) >= 1 ? (
               <PnlChart trades={trader?.trade_history ?? []} />
             ) : (
@@ -324,10 +366,10 @@ export default function Home() {
                 <span className="chart-stat-lab">trades</span>
               </div>
               <div className="chart-stat">
-                <span className={`chart-stat-val ${totalPnlPct >= 0 ? "pos" : "neg"}`}>
-                  {formatPnlPct(totalPnlPct)}
+                <span className={`chart-stat-val ${totalPnlPct == null ? "" : totalPnlPct >= 0 ? "pos" : "neg"}`}>
+                  {totalPnlPct == null ? "—" : formatPnlPct(totalPnlPct)}
                 </span>
-                <span className="chart-stat-lab">equity compounded</span>
+                <span className="chart-stat-lab">wallet return</span>
               </div>
               <div className="chart-stat">
                 <span className="chart-stat-val">{winRate == null ? "—" : `${winRate.toFixed(0)}%`}</span>

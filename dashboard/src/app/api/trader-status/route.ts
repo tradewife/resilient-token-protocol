@@ -8,9 +8,16 @@ const TRADER_INTERNAL_URL =
 
 const TRADER_PORT = process.env.RTP_TRADER_HTTP_PORT || "8080";
 
+// Full URL to a /state JSON document. Used for local `next dev` against the
+// live trader (or the production dashboard proxy) without Railway private DNS.
+const TRADER_STATE_URL = process.env.RTP_TRADER_STATE_URL || null;
+
 // Railway private networking: http://<service>.railway.internal:<container-port>
 // RAILWAY_SERVICE_*_URL provides scheme + hostname, container port must be appended.
 function getTraderUrl(): string | null {
+  if (TRADER_STATE_URL) {
+    return TRADER_STATE_URL;
+  }
   if (TRADER_INTERNAL_URL) {
     const base = TRADER_INTERNAL_URL.replace(/\/+$/, "");
     return `${base}:${TRADER_PORT}/state`;
