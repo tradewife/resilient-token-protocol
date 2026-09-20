@@ -17,6 +17,6 @@
     "dashboard/**/*.{ts,tsx}": "bash -c 'cd dashboard && f=(); for x in \"$@\"; do f+=(\"${x#dashboard/}\"); done; ./node_modules/.bin/eslint --config eslint.config.mjs \"${f[@]}\"' --"
   },
   "dependencies": {
-    "@flash_trade/flash-sdk-v2": "^1.0.36"
+    "@flash_trade/flash-sdk-v2": "^1.1.2"
   }
 }
